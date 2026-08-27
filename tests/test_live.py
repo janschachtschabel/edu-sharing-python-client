@@ -74,3 +74,32 @@ async def test_falsche_zugangsdaten_ergeben_authenticationerror():
     ) as r:
         with pytest.raises(AuthenticationError):
             await r.whoami()
+
+
+# --- Etappe 2: Vokabular ---------------------------------------------------
+
+async def test_vokabular_liefert_werte_mit_labels(repo):
+    werte = await repo.vocab.values("ccm:educationalcontext")
+    assert werte, "keine Vokabularwerte fuer ccm:educationalcontext"
+    assert all(w.uri and w.label for w in werte), "Wert ohne URI oder Label"
+
+
+async def test_suggest_sucht_teilstrings_nicht_praefixe(repo):
+    """pattern ist eine Teilstring-Suche: "ysik" findet Physik, Atomphysik und
+    Kernphysik. Ein Typeahead mit Praefix-Erwartung waere hier falsch gebaut."""
+    alle = await repo.vocab.values("ccm:taxonid")
+    treffer = await repo.vocab.suggest("ccm:taxonid", "ysik")
+    assert 0 < len(treffer) < len(alle)
+    assert all("ysik" in w.label.lower() for w in treffer)
+    assert any(not w.label.lower().startswith("ysik") for w in treffer)
+
+
+async def test_label_loest_auf_dieselbe_uri_auf(repo):
+    """Die Rundreise Label -> URI -> Label muss stabil sein."""
+    werte = await repo.vocab.values("ccm:educationalcontext")
+    beispiel = werte[0]
+    assert await repo.vocab.resolve("ccm:educationalcontext", beispiel.label) == beispiel.uri
+
+
+async def test_unbekanntes_label_ergibt_none(repo):
+    assert await repo.vocab.resolve("ccm:taxonid", "Unterwasserkorbflechten") is None

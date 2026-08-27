@@ -161,6 +161,37 @@ def test_from_env_meldung_nennt_die_passende_klasse(monkeypatch):
         Repository.from_env()
 
 
+# --- Metadatensatz und Vokabular ------------------------------------------
+
+def test_metadatensatz_ist_vorbelegt_und_waehlbar():
+    """Gemessen: Staging fuehrt vier Metadatensaetze. -default- ist
+    'Contentbuffet' und findet 2825 Treffer fuer 'Physik'; mds_oeh findet
+    17994. Die Wahl gehoert der aufrufenden Person, nicht der Bibliothek."""
+    assert AsyncRepository(REPO).metadataset == "-default-"
+    assert AsyncRepository(REPO, metadataset="mds_oeh").metadataset == "mds_oeh"
+
+
+def test_vokabular_nutzt_den_gewaehlten_metadatensatz():
+    repo = AsyncRepository(REPO, metadataset="mds_oeh")
+    assert repo.vocab.metadataset == "mds_oeh"
+
+
+def test_vokabular_bleibt_dasselbe_objekt():
+    """Sonst faengt jeder Zugriff mit leerem Cache an und das Vokabular wird
+    bei jedem Aufruf neu geladen."""
+    repo = AsyncRepository(REPO)
+    assert repo.vocab is repo.vocab
+
+
+def test_vokabular_auch_synchron_erreichbar():
+    repo = Repository(REPO, metadataset="mds_oeh")
+    try:
+        assert repo.metadataset == "mds_oeh"
+        assert repo.vocab.metadataset == "mds_oeh"
+    finally:
+        repo.close()
+
+
 # --- Parameter, die keinen Sinn ergeben -----------------------------------
 
 @pytest.mark.parametrize("kwargs", [

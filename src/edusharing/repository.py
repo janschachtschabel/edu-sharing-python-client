@@ -29,6 +29,7 @@ from .transport import (
     DEFAULT_TIMEOUT,
     Transport,
 )
+from .vocab import DEFAULT_METADATASET, DEFAULT_QUERY, Vocabulary
 
 __all__ = ["AsyncRepository", "Repository", "About", "Identity"]
 
@@ -126,6 +127,12 @@ class AsyncRepository:
         url: Adresse in beliebiger der ueblichen Schreibweisen.
         auth: ``None`` (anonym), ein ``(benutzer, passwort)``-Paar oder ein
             fertiges ``Credential``. Ein Bearer-Token wird abgelehnt.
+        metadataset: Metadatensatz fuer Vokabular und Suche. ``-default-`` ist
+            der von der Instanz vorgegebene; eine Instanz kann mehrere fuehren,
+            und die Wahl aendert, was gefunden wird (gemessen auf Staging:
+            ``-default-`` findet 2825 Treffer fuer "Physik", ``mds_oeh`` 17994).
+        query: Abfragekontext fuer Vokabular und Suche, per Konvention
+            ``ngsearch``.
         timeout: Sekunden bis zum Abbruch einer Anfrage.
         max_retries: Wiederholungen zusaetzlich zum ersten Versuch.
         max_concurrency: gleichzeitig laufende Anfragen.
@@ -138,6 +145,8 @@ class AsyncRepository:
         url: str,
         *,
         auth: object = None,
+        metadataset: str = DEFAULT_METADATASET,
+        query: str = DEFAULT_QUERY,
         timeout: float = DEFAULT_TIMEOUT,
         max_retries: int = DEFAULT_MAX_RETRIES,
         max_concurrency: int = DEFAULT_MAX_CONCURRENCY,
@@ -153,6 +162,11 @@ class AsyncRepository:
             backoff_base=backoff_base,
             client=client,
         )
+        self.metadataset = metadataset
+        self.query = query
+        # Einmal angelegt und behalten: der Vokabular-Cache lebt darin, und ein
+        # frisches Objekt je Zugriff wuerde ihn bei jedem Aufruf verwerfen.
+        self._vocab = Vocabulary(self._transport, metadataset=metadataset, query=query)
 
     @classmethod
     def from_env(cls, **kwargs: Any) -> AsyncRepository:
@@ -183,6 +197,14 @@ class AsyncRepository:
         ``await repo.raw.json("GET", "/config/v1/values")``
         """
         return self._transport
+
+    @property
+    def vocab(self) -> Vocabulary:
+        """Vokabularwerte dieser Instanz -- Labels statt URIs.
+
+        ``await repo.vocab.resolve("ccm:taxonid", "Physik")``
+        """
+        return self._vocab
 
     # --- Auskuenfte -------------------------------------------------------
 
@@ -238,6 +260,20 @@ class Repository:
     @property
     def credential(self) -> Credential:
         return self._async.credential
+
+    @property
+    def metadataset(self) -> str:
+        return self._async.metadataset
+
+    @property
+    def vocab(self) -> Vocabulary:
+        """Vokabularwerte dieser Instanz. Die Methoden sind asynchron --
+        fuer den synchronen Weg siehe ``resolve()``."""
+        return self._async.vocab
+
+    def resolve(self, prop: str, label: str, *, locale: str | None = None) -> str | None:
+        """Uebersetze ein Label in den Wert, auf den das Repositorium filtert."""
+        return self._loop.run(self._async.vocab.resolve(prop, label, locale=locale))
 
     def about(self) -> About:
         """Version, Dienste, Plugins und Merkmale dieser Instanz."""
