@@ -28,11 +28,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from . import curate, discover
+from .language import GERMAN, LanguageProfile
+from .rerank import DEFAULT_POOL
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..repository import AsyncRepository
 
-__all__ = ["Flows"]
+__all__ = ["Flows", "LanguageProfile"]
 
 
 class Flows:
@@ -49,16 +51,25 @@ class Flows:
         facets: list[str] | None = None,
         limit: int = 10,
         offset: int = 0,
+        rerank: bool = False,
+        pool: int = DEFAULT_POOL,
+        language: LanguageProfile = GERMAN,
         **aliases: str | list[str],
     ) -> dict[str, Any]:
         """Search for material, return JSON. See ``discover.search``.
 
         **Check ``unresolved`` in the answer**: non-empty means a filter was
         dropped and the result is broader than requested.
+
+        ``rerank=True`` asks several query variants and reorders by relevance.
+        It costs one request per variant and is what rescues a naturally
+        phrased query -- measured: "Ich suche ein Arbeitsblatt zur
+        Bruchrechnung" finds 0 records, "Bruchrechnung" finds 1591.
         """
         return await discover.search(
             self._repo, text, filters=filters, facets=facets,
-            limit=limit, offset=offset, **aliases,
+            limit=limit, offset=offset, rerank=rerank, pool=pool,
+            language=language, **aliases,
         )
 
     async def vocabulary(self, field: str, *, locale: str | None = None) -> dict[str, Any]:

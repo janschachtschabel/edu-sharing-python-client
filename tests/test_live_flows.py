@@ -110,6 +110,72 @@ async def test_describe_beschreibt_einen_echten_treffer(repo):
     json.dumps(ergebnis)
 
 
+# --- Neuordnung -----------------------------------------------------------
+
+
+@pytest.mark.live
+@pytest.mark.parametrize("natuerlich,thema", [
+    ("Ich suche ein Arbeitsblatt zur Bruchrechnung", "Bruchrechnung"),
+    ("Unterrichtsstunde Französische Revolution", "Französische Revolution"),
+])
+async def test_rerank_rettet_die_natuerlich_formulierte_anfrage(repo, natuerlich, thema):
+    """Der Grund, warum es rerank gibt.
+
+    edu-sharing UND-verknuepft jedes Wort. Woerter, die nur die Form der Bitte
+    beschreiben, stehen in fast keinem Datensatz -- ein einziges leert die
+    Liste. Gemessen am 27.08.2026: "Bruchrechnung" 1591 Treffer, "Ich suche ein
+    Arbeitsblatt zur Bruchrechnung" null.
+
+    Ein Sprachmodell formuliert genau so.
+    """
+    ohne = await repo.flows.search(natuerlich, limit=3)
+    mit = await repo.flows.search(natuerlich, rerank=True, limit=3)
+    blank = await repo.flows.search(thema, limit=1)
+
+    assert blank["total"] > 100, "Vorbedingung: zum Thema gibt es reichlich"
+    assert ohne["returned"] < mit["returned"], (
+        f"rerank brachte keinen Gewinn: {ohne['returned']} -> {mit['returned']}")
+    assert mit["total"] > 0, "eine Trefferzahl von 0 neben echten Treffern waere falsch"
+
+
+@pytest.mark.live
+async def test_rerank_meldet_die_gefahrenen_varianten(repo):
+    ergebnis = await repo.flows.search(
+        "Ich suche ein Video zur Photosynthese", rerank=True, limit=2)
+    assert ergebnis["query"]["reranked"] is True
+    assert "topic" in ergebnis["query"]["variants"]
+
+
+@pytest.mark.live
+async def test_die_suche_selbst_ist_nicht_reproduzierbar(repo):
+    """Kein Fehler der Bibliothek, sondern eine Eigenschaft der Instanz -- und
+    eine, die man kennen muss.
+
+    Gemessen am 27.08.2026: dieselbe Anfrage zweimal gestellt lieferte 25
+    Treffer, von denen sich **15 unterschieden**. Die Gesamtzahl blieb dabei
+    konstant bei 317.
+
+    Folge fuer rerank: es ordnet eine Kandidatenmenge deterministisch (dafuer
+    ist der Tie-Break da, siehe test_flows_rerank.py), aber es kann die Suche
+    nicht reproduzierbar machen, wenn die Quelle es nicht ist. Gemessen half
+    auch ein groesserer Pool nicht nennenswert. Wer Ergebnisse zwischenspeichert
+    oder zwei Laeufe vergleicht, muss damit rechnen.
+
+    Der Test ist bewusst schwach formuliert: er verlangt nur, dass die
+    Gesamtzahl stabil bleibt. Auf die Trefferreihenfolge zu pruefen hiesse, ihn
+    an genau die Volatilitaet zu haengen, die er beschreibt.
+    """
+    laeufe = [await repo.searcher.search("Photosynthese", limit=25) for _ in range(2)]
+    assert laeufe[0].total == laeufe[1].total, "die Gesamtzahl sollte stabil sein"
+
+    ids = [{h.id for h in lauf.hits} for lauf in laeufe]
+    gemeinsam = len(ids[0] & ids[1])
+    # Keine Behauptung ueber die Hoehe -- nur festhalten, dass es passiert.
+    if gemeinsam == len(ids[0]):
+        pytest.skip("dieser Lauf war zufaellig stabil; die Instabilitaet ist "
+                    "gemessen, aber nicht bei jedem Aufruf sichtbar")
+
+
 # --- schreibend -----------------------------------------------------------
 
 

@@ -15,6 +15,8 @@ from typing import TYPE_CHECKING, Any
 
 from ..errors import ValidationError
 from ..results import SearchHit
+from .language import GERMAN, LanguageProfile
+from .rerank import DEFAULT_POOL, search_reranked
 from .serialize import hit_as_dict, result_as_dict
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -52,6 +54,9 @@ async def search(
     facets: list[str] | None = None,
     limit: int = 10,
     offset: int = 0,
+    rerank: bool = False,
+    pool: int = DEFAULT_POOL,
+    language: LanguageProfile = GERMAN,
     **aliases: str | list[str],
 ) -> dict[str, Any]:
     """Search for material and return the outcome as JSON.
@@ -65,6 +70,14 @@ async def search(
         filters: ``{property: value}`` for properties without a short name.
         facets: short names or properties to count server-side.
         limit, offset: page size and starting point.
+        rerank: ask several query variants and reorder by relevance instead of
+            taking the repository's own order. Costs one request per variant
+            (at most 5) and ignores ``offset``. Off by default -- see
+            ``rerank.search_reranked`` for what it buys.
+        pool: candidates fetched per variant when reranking. Only read when
+            ``rerank`` is on.
+        language: word lists for reranking. German by default; supply your own
+            ``LanguageProfile`` for an instance in another language.
         **aliases: configured short names, e.g. ``subject="Biologie"``.
 
     Returns:
@@ -80,14 +93,6 @@ async def search(
         EduSharingError: for anything the repository refuses.
     """
     facet_properties = [field_property(repo, f) for f in (facets or [])]
-    result = await repo.searcher.search(
-        text,
-        filters=filters,
-        facets=facet_properties or None,
-        limit=limit,
-        offset=offset,
-        **aliases,
-    )
     query: dict[str, Any] = {
         "text": text,
         "filters": {**(filters or {}), **aliases},
@@ -95,6 +100,30 @@ async def search(
         "limit": limit,
         "offset": offset,
     }
+
+    # Reranking needs something to rank against. A pure filter query has no
+    # text, so there is nothing to expand and nothing to score.
+    if rerank and text and text.strip():
+        result, variants = await search_reranked(
+            repo, text,
+            filters=filters, facets=facet_properties or None,
+            limit=limit, pool=pool, language=language, **aliases,
+        )
+        query["reranked"] = True
+        query["variants"] = variants
+        # Paging and reranking do not combine: the pool is merged across
+        # variants, so an offset into it would not mean what a caller expects.
+        query.pop("offset")
+    else:
+        result = await repo.searcher.search(
+            text,
+            filters=filters,
+            facets=facet_properties or None,
+            limit=limit,
+            offset=offset,
+            **aliases,
+        )
+
     return result_as_dict(result, query=query, aliases=repo.searcher.field_aliases)
 
 
