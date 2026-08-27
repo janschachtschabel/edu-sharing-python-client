@@ -219,3 +219,35 @@ async def test_fehler_wird_nicht_gecacht():
         await v.values("ccm:taxonid")
     zustand["fehler"] = False
     assert len(await v.values("ccm:taxonid")) == 3
+
+
+# --- Aufraeumen -----------------------------------------------------------
+
+async def test_clear_cache_raeumt_auch_die_sperren():
+    """Audit-Befund F6 vom 27.08.2026: clear_cache() leerte den Cache, liess die
+    Sperren aber stehen.
+
+    Zwei Gruende, warum das zaehlt: der Name verspricht mehr, als die Methode
+    hielt, und in einem langlaufenden Dienst -- einem MCP-Server etwa -- waechst
+    das Sperren-Verzeichnis mit jeder Kombination aus Feld und Sprache, ohne
+    dass es je wieder kleiner wird.
+    """
+    v = _vocab(_liefert(FAECHER))
+    await v.values("ccm:taxonid")
+    await v.values("ccm:educationalcontext", locale="de")
+    assert v._cache and v._locks, "Vorbedingung: beide Verzeichnisse gefuellt"
+
+    v.clear_cache()
+
+    assert not v._cache
+    assert not v._locks, "die Sperren bleiben stehen -- das Verzeichnis waechst"
+
+
+async def test_nach_clear_cache_wird_neu_geladen():
+    """Gegenprobe: das Aufraeumen darf die Funktion nicht beschaedigen."""
+    aufrufe: list = []
+    v = _vocab(_liefert(FAECHER, aufrufe))
+    await v.values("ccm:taxonid")
+    v.clear_cache()
+    assert len(await v.values("ccm:taxonid")) == 3
+    assert len(aufrufe) == 2, "nach dem Leeren muss erneut geladen werden"

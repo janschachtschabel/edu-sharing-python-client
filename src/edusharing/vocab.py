@@ -152,8 +152,14 @@ class Vocabulary:
         return None
 
     def clear_cache(self) -> None:
-        """Discard the cached vocabularies."""
+        """Discard the cached vocabularies.
+
+        The locks go too. They are only useful while a fetch is in flight, and
+        a long-running service would otherwise accumulate one per field-locale
+        pair for as long as it runs (audit F6).
+        """
         self._cache.clear()
+        self._locks.clear()
 
     # --- Internals --------------------------------------------------------
 

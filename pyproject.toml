@@ -1,7 +1,7 @@
 [project]
 name = "edu-sharing-python-client"
 version = "0.0.0"
-description = "Python-Bibliothek fuer edu-sharing-Repositorien und die b-api — repository-agnostisch, async-first"
+description = "Python client for edu-sharing repositories and the b-api -- repository-agnostic, async-first"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
@@ -16,18 +16,10 @@ classifiers = [
 
 dependencies = [
     "httpx>=0.27",
-    # Laufzeit-Abhaengigkeiten der generierten Schicht (openapi-python-client):
+    # Runtime dependencies of the generated layer (openapi-python-client):
     "attrs>=23.2",
     "python-dateutil>=2.9",
     "typing-extensions>=4.10",
-]
-
-[project.optional-dependencies]
-dev = [
-    "pytest>=8.0",
-    "pytest-asyncio>=0.24",
-    "ruff>=0.6",
-    "openapi-python-client>=0.29",
 ]
 
 [project.urls]
@@ -43,41 +35,48 @@ packages = ["src/edusharing"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-# Netzzugriff ist nie die Vorgabe: `pytest` laeuft offline und deterministisch.
-# Live-Tests gezielt anfordern mit `pytest -m live`.
+# Network access is never the default: `pytest` runs offline and
+# deterministically. Ask for live tests explicitly with `pytest -m live`.
 addopts = "-m 'not live and not write'"
 markers = [
-    "live: Test spricht mit einer echten Instanz (braucht EDU_SHARING_URL)",
-    "write: Test SCHREIBT in ein Repositorium (braucht Zugangsdaten + Wegwerf-Ordner)",
+    "live: talks to a real instance (needs EDU_SHARING_URL)",
+    "write: WRITES into a repository (needs credentials and a throwaway folder)",
 ]
 
 [tool.ruff]
 line-length = 100
 src = ["src"]
-# Die generierte Schicht wird nie von Hand angefasst.
+# The generated layer is never touched by hand.
 extend-exclude = ["src/edusharing/_generated"]
 
 [tool.ruff.lint]
 select = [
     "E", "W",    # pycodestyle
     "F",         # pyflakes
-    "I",         # Import-Reihenfolge
-    "UP",        # veraltete Schreibweisen
-    "B",         # haeufige Fallen (bugbear)
-    "PIE",       # ueberfluessige Konstrukte
-    "PYI",       # Typannotationen
-    "RUF",       # ruff-eigene Regeln
+    "I",         # import order
+    "UP",        # outdated spellings
+    "B",         # common traps (bugbear)
+    "PIE",       # redundant constructs
+    "PYI",       # type annotations
+    "RUF",       # ruff's own rules
 ]
 ignore = [
-    # __all__ ist in dieser Bibliothek nach Themen gruppiert und kommentiert
-    # (Einstieg / Zugangsdaten / Fehler), nicht alphabetisch. Die Gruppierung
-    # sagt einer lesenden Person mehr als die Sortierung.
+    # __all__ is grouped and commented by topic in this library (entry point /
+    # credentials / errors), not sorted alphabetically. The grouping tells a
+    # reader more than the ordering would.
     "RUF022",
 ]
 
 [dependency-groups]
+# One place for dev dependencies (PEP 735). They were split across
+# optional-dependencies and this group before, so `pip install -e .[dev]` and
+# `uv sync` installed different sets (audit F9).
 dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
     "pytest-cov>=7.1.0",
+    "ruff>=0.6",
+    "openapi-python-client>=0.29",
 ]
 
 [tool.coverage.run]
