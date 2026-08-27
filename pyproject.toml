@@ -1,0 +1,55 @@
+[project]
+name = "edu-sharing"
+version = "0.0.0"
+description = "Python-Bibliothek fuer edu-sharing-Repositorien und die b-api — repository-agnostisch, async-first"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+keywords = ["edu-sharing", "openeduhub", "wirlernenonline", "oer", "metadata", "mcp"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Programming Language :: Python :: 3",
+    "Topic :: Education",
+]
+
+dependencies = [
+    "httpx>=0.27",
+    # Laufzeit-Abhaengigkeiten der generierten Schicht (openapi-python-client):
+    "attrs>=23.2",
+    "python-dateutil>=2.9",
+    "typing-extensions>=4.10",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.6",
+    "openapi-python-client>=0.29",
+]
+
+[project.urls]
+Repository = "https://github.com/openeduhub/edu-sharing-python-bib"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/edusharing"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "live: Test spricht mit einer echten Instanz (braucht EDU_SHARING_URL)",
+    "write: Test SCHREIBT in ein Repositorium (braucht Zugangsdaten + Wegwerf-Ordner)",
+]
+
+[tool.ruff]
+line-length = 100
+src = ["src"]
+# Die generierte Schicht wird nie von Hand angefasst.
+extend-exclude = ["src/edusharing/_generated"]
