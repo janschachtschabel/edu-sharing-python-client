@@ -22,6 +22,7 @@ it would be worth it.
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import time
 from typing import Any, Self
@@ -33,6 +34,10 @@ from ..urls import path_segment
 from .policy import Model, build_body, pick_model, rank_models, read_answer
 
 __all__ = ["BildungsAPI"]
+
+#: See ``edusharing.transport.logger``. Under automatic model selection this is
+#: the only place that says which candidates were tried and why they failed.
+logger = logging.getLogger(__name__)
 
 ENV_KEY = "B_API_KEY"
 ENV_BASE_URL = "B_API_BASE_URL"
@@ -221,6 +226,10 @@ class BildungsAPI:
                 # to the library wants an answer -- not the news that the first
                 # candidate happens to be unbillable right now.
                 failures.append(f"{candidate.id}: {exc}")
+                logger.info(
+                    "model %s did not answer (%s), trying the next candidate",
+                    candidate.id, type(exc).__name__,
+                )
                 continue
             self.last_model = candidate.id
             return read_answer(response)

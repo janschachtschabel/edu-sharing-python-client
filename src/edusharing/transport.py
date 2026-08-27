@@ -19,6 +19,7 @@ load than the repository tolerates.
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any, Self
 
 import httpx
@@ -34,6 +35,13 @@ from .errors import (
 from .urls import normalize_repository_url, rest_base
 
 __all__ = ["Transport"]
+
+#: Silent by default, as a library should be. A service switches it on with
+#: ``logging.getLogger("edusharing").setLevel(logging.DEBUG)``.
+#:
+#: Never logged: headers. That is where the credentials live, and a log line is
+#: aggregated, searched and kept -- see test_logging.py.
+logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = 30.0
 DEFAULT_MAX_RETRIES = 3
@@ -151,7 +159,13 @@ class Transport:
         last: EduSharingError | None = None
         for attempt in range(self.max_retries + 1):
             if attempt:
+                logger.info(
+                    "retrying %s %s (attempt %d of %d) after %s",
+                    method, url, attempt + 1, self.max_retries + 1,
+                    type(last).__name__,
+                )
                 await asyncio.sleep(self.backoff_base * (2 ** (attempt - 1)))
+            logger.debug("%s %s", method, url)
             try:
                 async with self._semaphore:
                     response = await self._client.request(

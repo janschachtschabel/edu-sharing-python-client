@@ -214,6 +214,25 @@ The reference spec (edu-sharing 11.0) lives under `openapi/`. The script
 normalises it first — without that step the generator emits invalid Python; the
 reasoning is in the script's docstring.
 
+## Logging
+
+The library is silent by default, as a library should be. A service switches it
+on where it needs it:
+
+```python
+import logging
+
+logging.getLogger("edusharing").setLevel(logging.INFO)   # retries, model changes
+logging.getLogger("edusharing").setLevel(logging.DEBUG)  # every request as well
+```
+
+`INFO` reports what you would otherwise puzzle over after the fact: a retry, and
+which b-api model answered after an earlier candidate declined. `DEBUG` adds
+method and URL of every request.
+
+Headers are never logged. That is where the credentials live, and a log line is
+aggregated, searched and kept.
+
 ## Tests
 
 ```bash

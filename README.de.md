@@ -209,6 +209,25 @@ eincodiert statt dokumentiert:
 - **Schlagworte sind eine geteilte Liste.** `add_keywords` ergänzt; wer
   `cclom:general_keyword` direkt setzt, löscht fremde Einträge.
 
+## Protokoll
+
+Die Bibliothek schweigt standardmäßig, wie eine Bibliothek es soll. Ein Dienst
+schaltet sie ein, wo er sie braucht:
+
+```python
+import logging
+
+logging.getLogger("edusharing").setLevel(logging.INFO)   # Wiederholungen, Modellwechsel
+logging.getLogger("edusharing").setLevel(logging.DEBUG)  # zusätzlich jede Anfrage
+```
+
+`INFO` meldet, worüber man sonst im Nachhinein rätselt: eine Wiederholung, und
+welches b-api-Modell geantwortet hat, nachdem ein früherer Kandidat abgelehnt
+hatte. `DEBUG` ergänzt Methode und URL jeder Anfrage.
+
+Header werden nie protokolliert. Dort stehen die Zugangsdaten, und eine
+Protokollzeile wird aggregiert, durchsucht und aufbewahrt.
+
 ## Tests
 
 ```bash

@@ -298,3 +298,28 @@ def test_gueltige_grenzwerte_bleiben_erlaubt():
     api = BildungsAPI(api_key="k", max_retries=0, backoff_base=0,
                       models_cache_seconds=0, max_concurrency=1)
     assert api.max_retries == 0
+
+
+async def test_modellwechsel_wird_gemeldet(caplog):
+    """Audit-Befund F5: bei automatischer Wahl sagte nur last_model, wessen
+    Antwort man liest -- warum die vorherigen Kandidaten ausfielen, stand
+    nirgends. Genau das braucht man nach einem Zwischenfall.
+    """
+    import logging
+
+    caplog.set_level(logging.INFO, logger="edusharing")
+
+    def handler(request):
+        if request.url.path.endswith("/models"):
+            return httpx.Response(200, json=MODELLE)
+        if json.loads(request.content)["model"] == "qwen3.6-35b-a3b":
+            return httpx.Response(503, json={"message": "Model pricing unavailable"})
+        return httpx.Response(200, json=ANTWORT)
+
+    async with _client(handler) as api:
+        await api.chat("hallo")
+
+    meldungen = [r.getMessage() for r in caplog.records]
+    assert any("qwen3.6-35b-a3b" in m for m in meldungen), meldungen
+    # Der Schluessel gehoert niemals hinein.
+    assert "geheimer-schluessel" not in "\n".join(meldungen)
