@@ -68,17 +68,17 @@ class BasicCredential:
     Tracebacks und Log-Zeilen.
     """
 
-    __slots__ = ("_username", "_header")
+    __slots__ = ("_header", "_username")
 
     def __init__(self, username: str, password: str) -> None:
         self._username = username
         # UTF-8 festgelegt, nicht der Plattform ueberlassen: sonst haengt ein
         # Login mit Umlaut davon ab, auf welchem System der Client laeuft.
-        raw = f"{username}:{password}".encode("utf-8")
+        raw = f"{username}:{password}".encode()
         self._header = "Basic " + base64.b64encode(raw).decode("ascii")
 
     @classmethod
-    def from_raw_header(cls, header: str) -> "BasicCredential":
+    def from_raw_header(cls, header: str) -> BasicCredential:
         """Uebernimm einen fertigen ``Basic ...``-Header, ohne ihn zu zerlegen.
 
         Fuer Faelle, in denen die Zugangsdaten aus einer weitergereichten
@@ -90,7 +90,7 @@ class BasicCredential:
         return obj
 
     @classmethod
-    def from_env(cls) -> "BasicCredential | None":
+    def from_env(cls) -> BasicCredential | None:
         """Lies ``EDU_SHARING_USER`` / ``EDU_SHARING_PASSWORD``.
 
         Returns:

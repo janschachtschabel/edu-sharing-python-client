@@ -31,7 +31,7 @@ def test_umlaute_im_passwort_werden_utf8_kodiert():
     cred = BasicCredential("mueller", "Paßwortä")
     kopf = cred.headers()["Authorization"]
     roh = base64.b64decode(kopf.removeprefix("Basic "))
-    assert roh == "mueller:Paßwortä".encode("utf-8")
+    assert roh == "mueller:Paßwortä".encode()
 
 
 # --- Das Passwort darf nirgends auftauchen --------------------------------
