@@ -65,21 +65,40 @@ def cap_text(text: str | None, max_chars: int, *, marker: str = _KAPPUNGSZEICHEN
     return rumpf.rstrip() + marker
 
 
-def format_hit(hit: SearchHit, *, max_chars: int = DEFAULT_HIT_CHARS) -> str:
+def format_hit(
+    hit: SearchHit,
+    *,
+    max_chars: int = DEFAULT_HIT_CHARS,
+    label_properties: list[str] | None = None,
+) -> str:
     """Ein Treffer als kompakter Text.
 
-    Titel, Fundstelle und Fachlabels stehen immer; die Beschreibung fuellt den
-    Rest des Budgets und faellt notfalls ganz weg.
+    Titel und Fundstelle stehen immer; die Beschreibung fuellt den Rest des
+    Budgets und faellt notfalls ganz weg.
+
+    Args:
+        label_properties: auf welche Vokabularfelder die Labels beschraenkt
+            werden, etwa ``["ccm:taxonid"]``. Ohne Angabe kommen alle --
+            welche zaehlen, entscheidet der Metadatensatz der Instanz und
+            nicht diese Bibliothek. In der Praxis lohnt die Einschraenkung:
+            ``ccm:containsAdvertisement`` liefert ein "nein", das ohne sein
+            Feld gelesen nur verwirrt.
     """
     titel = sanitize_text(hit.title) or "(ohne Titel)"
     # Der Rueckverweis wird nie gekuerzt -- er ist der Zweck der Ausgabe.
     kopf = f"{titel}\n  id: {hit.id}\n  url: {hit.url}"
 
+    # "null" kommt live als String vor -- ihn dem Modell als Fachangabe
+    # vorzusetzen waere schlicht falsch.
     labels = [
-        sanitize_text(w)
+        bereinigt
         for schluessel, werte in (hit.raw.get("properties") or {}).items()
         if schluessel.endswith("_DISPLAYNAME")
+        and (label_properties is None
+             or schluessel[: -len("_DISPLAYNAME")] in label_properties)
         for w in (werte if isinstance(werte, list) else [werte])
+        if (bereinigt := sanitize_text(str(w or "")).strip())
+        and bereinigt.lower() not in ("null", "none")
     ]
     if labels:
         zeile = f"\n  {', '.join(dict.fromkeys(labels))}"
@@ -117,7 +136,9 @@ def format_results(
         zeilen.append(f"! Filter nicht aufgeloest: {offen}")
     for warnung in result.warnings:
         zeilen.append(f"! {sanitize_text(warnung)}")
-    if result.suggestions:
+    # Nur bei leerem Ergebnis: der Server liefert Vorschlaege auch bei 57
+    # Treffern, und im Modellkontext liest sich das wie ein Zweifel am Ergebnis.
+    if result.suggestions and not result.hits:
         zeilen.append(f"Meinten Sie: {', '.join(sanitize_text(s) for s in result.suggestions)}?")
 
     kopf = "\n".join(zeilen)

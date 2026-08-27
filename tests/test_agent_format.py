@@ -168,3 +168,45 @@ def test_unaufgeloeste_filter_erscheinen():
 def test_warnungen_erscheinen():
     ergebnis = SearchResult(hits=[], total=0, warnings=["Ein Weg ist ausgefallen"])
     assert "ausgefallen" in format_results(ergebnis)
+
+
+# --- Rauschen in der Ausgabe ----------------------------------------------
+
+def test_null_labels_werden_nicht_ausgegeben():
+    """Live gesehen: manche Datensaetze tragen den String 'null' als
+    _DISPLAYNAME. Ihn dem Modell als Fachangabe vorzusetzen ist schlicht
+    falsch."""
+    hit = SearchHit(id="x", title="T", url=f"{REPO}/x", description=None,
+                    raw={"properties": {"ccm:taxonid_DISPLAYNAME": ["Biologie", "null", ""]}})
+    text = format_hit(hit)
+    assert "Biologie" in text
+    assert "null" not in text
+
+
+def test_vorschlaege_nur_wenn_nichts_gefunden_wurde():
+    """Live gesehen: der Server liefert 'Meinten Sie photosynthese?' auch bei
+    57 Treffern. Im Modellkontext liest sich das wie ein Zweifel am Ergebnis."""
+    mit_treffern = SearchResult(hits=[_hit(1)], total=57, suggestions=["photosynthese"])
+    assert "Meinten Sie" not in format_results(mit_treffern)
+
+    ohne = SearchResult(hits=[], total=0, suggestions=["mathematik"])
+    assert "Meinten Sie" in format_results(ohne)
+
+
+def test_labels_lassen_sich_einschraenken():
+    """Welche Vokabularfelder in den Kontext gehoeren, entscheidet der
+    Metadatensatz der Instanz -- nicht diese Bibliothek. Ohne Angabe kommen
+    alle; wer weiss, welche zaehlen, nennt sie.
+
+    Der Fall aus der Praxis: ccm:containsAdvertisement_DISPLAYNAME ist 'nein'
+    -- ein korrekter Wert, der ohne sein Feld gelesen nur verwirrt.
+    """
+    hit = SearchHit(id="x", title="T", url=f"{REPO}/x", description=None, raw={
+        "properties": {
+            "ccm:taxonid_DISPLAYNAME": ["Biologie"],
+            "ccm:containsAdvertisement_DISPLAYNAME": ["nein"],
+        }})
+    assert "nein" in format_hit(hit)
+    beschraenkt = format_hit(hit, label_properties=["ccm:taxonid"])
+    assert "Biologie" in beschraenkt
+    assert "nein" not in beschraenkt

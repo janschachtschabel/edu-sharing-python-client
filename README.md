@@ -125,16 +125,58 @@ repo.add_to_collection(sammlung.id, node.id)          # Referenz, keine Kopie
 Zum Ausprobieren: `python docs/beispiele/03_schreiben.py` — legt einen eigenen
 Wegwerf-Ordner an und entfernt ihn wieder.
 
-## ⏳ Wohin es geht
+### Für KI-Anwendungen
 
-Das LLM-Gateway:
+`edusharing.agent` ist framework-neutral — kein MCP-, kein LangChain-Import:
+
+```python
+from edusharing.agent import as_result, as_untrusted, format_results, is_safe_url
+
+ergebnis = await as_result(                      # Fehler als Ergebnis, nicht als Exception
+    repo.search("Photosynthese", fach="Biologie"),
+    format=lambda r: format_results(r, max_chars=1500),
+)
+print(ergebnis.text)                             # id und url überleben jedes Budget
+
+if is_safe_url(hit.source_url):                  # SSRF: URLs aus Fremddaten
+    ...
+prompt = as_untrusted(hit.description,           # unsichtbare Steuerzeichen raus,
+                      label=f"Material {hit.id}")  # als Fremdmaterial gekennzeichnet
+```
+
+Und vor dem Schreiben erst zeigen, was passieren würde:
+
+```python
+from edusharing.agent import plan_update
+
+plan = await plan_update(node, titel="Neuer Titel")
+print(plan.describe())        # "cclom:title: 'Alt'  ->  'Neuer Titel'"
+if plan.has_changes:
+    node = await plan.apply()
+```
+
+### Das LLM-Gateway
 
 ```python
 from edusharing.bapi import BildungsAPI
 
-llm = BildungsAPI.from_env()
-llm.chat("Fasse zusammen: …")         # wählt das Modell nach Auslastung
+async with BildungsAPI.from_env() as llm:        # B_API_KEY, X-API-KEY (kein Bearer)
+    antwort = await llm.chat("Fasse zusammen: …")
+    print(llm.last_model)                        # wessen Antwort war das?
 ```
+
+Ohne feste Modell-ID wird das am wenigsten ausgelastete bereite Textmodell
+gewählt — und bei Bedarf das nächste: `status: ready` heißt nicht, dass ein
+Modell antwortet. Die Eigenheiten der Modellfamilien (`max_completion_tokens`
+für GPT-5/o, abgeschaltetes Denken bei Qwen3 — aber nicht bei Mistral) stecken
+in `bapi.policy`.
+
+Zum Ausprobieren: `python docs/beispiele/04_ki_bausteine.py`
+
+## ⏳ Wohin es geht
+
+Ein MCP-Server als dünner Adapter über `edusharing.agent` — die Bausteine dafür
+stehen, der Server selbst ist bewusst nicht Teil der Bibliothek.
 
 ## Was die Bibliothek für dich weiß
 

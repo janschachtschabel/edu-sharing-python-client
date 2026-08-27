@@ -236,7 +236,7 @@ Die vollständige Fallensammlung wandert nach `docs/QUIRKS.md`.
 | **1** | ~~Transport, Auth (inkl. Bearer-Falle), Fehlertypen, `_about`-Health, Identitätsprobe~~ | ✅ **erledigt** — 93 Tests offline, 5 live gegen 11.0 (§8.1) |
 | **2** | ~~Vokabular-Cache, Label↔URI, Suche mit Facetten, beide Sammlungs-Legs~~ | ✅ **erledigt** — 160 Tests offline, 21 live (§8.2) |
 | **3** | ~~Nodes, Properties (beide Wege), Read-Back-Verify, Keywords-Merge, Collections, Dateien~~ | ✅ **erledigt** — 206 offline, 19 live lesend, 18 live **schreibend** (§8.3) |
-| **4** | `edusharing.agent` (§6) + b-api-Client mit Policy | Ein MCP ließe sich darauf bauen, ohne die Bibliothek zu ändern |
+| **4** | ~~`edusharing.agent` (§6) + b-api-Client mit Policy~~ | ✅ **erledigt** — 342 offline, 25 live (§8.4) |
 
 Dokumentation läuft mit, nicht hinterher: **jedes Beispiel in `docs/beispiele/` ist
 ein ausführbarer Test gegen Staging.** Was dort nicht läuft, steht nicht im README.
@@ -369,6 +369,68 @@ von Entscheidung E3 und gehört bei jeder Erweiterung mitgeprüft.
 **Schreibtests** laufen nur mit `-m write`, ausschließlich in einem eigens
 angelegten Ordner im Home des Testkontos, und räumen ihn wieder ab. Der Bestand
 wurde nach jedem Lauf gegen den Ausgangszustand geprüft.
+
+### 8.4 Etappe 4 — was dabei herauskam
+
+| Modul | Verantwortung |
+|---|---|
+| `agent/safety.py` | Darf diese URL abgerufen werden? (SSRF) |
+| `agent/sanitize.py` | Fremdinhalt für den Modellkontext |
+| `agent/format.py` | Treffer kompakt, mit Budget, ohne Fundstelle zu verlieren |
+| `agent/result.py` | Fehler als Ergebnis statt als Ausnahme |
+| `agent/confirm.py` | Erst zeigen, was passieren würde, dann tun |
+| `bapi/policy.py` | Modellwahl und Request-Bau — reine Funktionen |
+| `bapi/client.py` | HTTP zur b-api, Retry, Nebenläufigkeit, TTL-Cache |
+
+**Zum Abgleich mit §6:** von den zehn Bausteinen waren vier bereits durch die
+Etappen 1–3 abgedeckt (Per-Request-Credentials, Nebenläufigkeit,
+Auflösungs-Rückmeldung, Dedupe). Die übrigen sechs stehen jetzt. Was
+absichtlich **nicht** gebaut wurde: ein Reranker. Er wäre ohne konkreten
+Anwendungsfall geraten, und die zwei Sammlungs-Legs werden bereits über die
+Knoten-ID zusammengeführt.
+
+Drei Entscheidungen, die Erklärung brauchen:
+
+1. **`sanitize` erkennt keine Angriffsformulierungen.** Eine Musterliste gegen
+   „Ignoriere alle vorherigen Anweisungen" ließe sich umschreiben — und ein
+   Unterrichtstext *über* Prompt-Injection ist ein legitimer Inhalt, den sie
+   verstümmeln würde. Übrig bliebe falsche Sicherheit. Stattdessen: unsichtbare
+   Steuerzeichen entfernen (Zero-Width, Bidi, Unicode-Tag-Block) und den Inhalt
+   ausbruchssicher kennzeichnen.
+2. **`safety` löst keine Namen auf.** `interner-dienst.example.com` kann auf
+   `10.0.0.5` zeigen und kommt durch. Eine Auflösung hier wäre wegen
+   DNS-Rebinding ohnehin nur Scheinsicherheit; wer das ausschließen muss,
+   braucht einen ausgehenden Proxy. Die Grenze steht im Docstring statt in
+   einem Sicherheitsversprechen.
+3. **`format` budgetiert in Zeichen, nicht in Token.** Eine Token-Schätzung
+   ohne den Tokenizer des Zielmodells wäre geraten. Und: passt nicht einmal der
+   Kopf ins Budget, gewinnt der Rückverweis und das Budget wird überschritten —
+   ein Treffer ohne `id` und `url` ist wertlos.
+
+**Zwei Befunde aus den Live-Tests:**
+
+* **`status: ready` heißt nicht, dass ein Modell antwortet.**
+  `apertus-70b-instruct-2509` meldet `ready` und `demand: 0` und antwortet mit
+  `503 Model pricing unavailable — cannot enforce cost quota`. Das steht in
+  keiner Modellliste. Bei **automatischer** Wahl weicht der Client daher auf
+  das nächste Modell aus (`last_model` sagt, welches es wurde); bei **fester**
+  Modell-ID nicht — das wäre ein stiller Austausch.
+* **Rauschen im Modellkontext:** manche Datensätze tragen den String `null` als
+  `_DISPLAYNAME`, und der Server liefert „Meinten Sie …?" auch bei 57 Treffern.
+  Beides ist jetzt gefiltert; welche Vokabularfelder überhaupt in den Kontext
+  gehören, entscheidet über `label_properties` der Aufrufer.
+
+**Ein Mutationstest hat zunächst nicht gegriffen.** Der ursprüngliche Test für
+„`id` und `url` überleben das Budget" blieb grün, obwohl die Zusage
+ausgehebelt war — das Budget war zu großzügig gewählt. Er ist geschärft; die
+Mutation macht ihn jetzt rot. Ein Mutationstest, der nichts fängt, ist der
+gefährlichere Fall: er bescheinigt Sicherheit, die nicht da ist.
+
+**Zum vorgemerkten Split von `repository.py`:** nicht durchgeführt. Die Datei
+trägt eine Verantwortung — den Einstieg, in zwei Ausführungen —, und Etappe 4
+hat sie kaum berührt, weil `agent` und `bapi` eigene Sub-Pakete sind. An der
+Zeilengrenze zu schneiden, ohne dass eine zweite Verantwortung entstanden ist,
+hätte nur die Anzahl der Dateien erhöht.
 
 ## 9. Offene Punkte
 
