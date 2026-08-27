@@ -168,10 +168,13 @@ async def vocabulary(
 
 
 async def describe(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
-    """Everything about one node in a single call.
+    """Everything about one node, as JSON.
 
-    The API-level route needs three: load the node, read its properties, ask
-    which collections it sits in.
+    One request -- ``GET /node/v1/nodes/-home-/{id}/metadata`` -- exactly like
+    ``repo.node(id)`` at the API level. This flow saves no round trip; what it
+    does is hand back a ``dict`` with the vocabulary fields already resolved to
+    labels and keyed by the configured short names, instead of a ``Node``
+    object.
 
     Args:
         repo: the connection.

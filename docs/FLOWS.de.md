@@ -30,6 +30,31 @@ blockierend `repo.flows.…` auf `Repository`.
 
 ---
 
+## Was jeder Ablauf kostet, auf einen Blick
+
+Gemessen mit einem protokollierenden Transport am 27.08.2026. „Anfragen" ist
+das, was der Ablauf an das Repositorium schickt; die API-Ebene schickt dieselben,
+nur von Hand ausgeschrieben.
+
+| Ablauf | Anfragen | Die Kette dahinter |
+|---|---|---|
+| `search` | 2 | Vokabular auflösen → suchen |
+| `search(rerank=True)` | 1 je Variante (≤5), parallel | expandieren → je Variante suchen → im Speicher bewerten und mischen |
+| `vocabulary` | 1 | Kurzname auflösen → Werte holen (zwischengespeichert) |
+| `describe` | 1 | Knoten laden |
+| `find_collections` | 2, parallel | beide Sammlungswege → über die ID zusammenlegen |
+| `collection_contents` | 2, parallel | Materialliste + Untersammlungsliste |
+| `add_material` | 2–4 | whoami (ohne parent) → Vokabular auflösen → anlegen → einlegen (auf Wunsch) |
+| `update_material` | 3–4 | Vokabular auflösen → laden → schreiben → zurücklesen |
+| `build_collection` | 1 + eine je Knoten | anlegen → jeden einlegen, Fehlschläge auffangen |
+| `delete` | 2 | laden (um ihn zu benennen) → löschen |
+
+Drei davon — `search`, `vocabulary`, `describe` — schicken exakt das, was die
+API-Ebene schickt. Sie sparen keinen einzigen Umlauf: ihr Gewinn ist die
+JSON-Form und die aufgelösten Bezeichnungen. Die übrigen verketten wirklich.
+
+---
+
 ## Zwei Regeln, die durch jeden Ablauf gehen
 
 **Lesbare Werte statt URIs.** In `ccm:taxonid` steht
@@ -162,6 +187,35 @@ repo.flows.search("I need a worksheet about fractions",
 
 *Beispiele: [`examples/05_flow_search.py`](examples/05_flow_search.py), [`examples/08_flow_rerank.py`](examples/08_flow_rerank.py)*
 
+
+**Was dahinter läuft** — eine Anfrage **je Variante**, parallel (höchstens 5):
+
+```python
+# was rerank=True ergänzt
+varianten = expand_query(text, language)     # "full", "topic", "nostop", "syn"
+ergebnisse = await asyncio.gather(*(         # alle auf einmal, nicht nacheinander
+    repo.searcher.search(v.text, limit=pool) for v in varianten))
+# danach im Speicher, ohne weitere Anfragen: gelöschte Platzhalter aussortieren,
+# jeden Kandidaten nach Text- und Metadatenqualität bewerten, danach gewichten,
+# welche Varianten ihn überhaupt fanden, sortieren, `limit` nehmen.
+```
+
+
+**Was dahinter läuft** — 2 Anfragen, dieselben zwei wie auf der API-Ebene:
+
+```python
+# was repo.flows.search("Photosynthese", subject="Biologie") tut
+uri = await repo.vocab.resolve("ccm:taxonid", "Biologie")    # 1. Label -> URI
+ergebnis = await repo.searcher.search("Photosynthese",       # 2. die Suche
+                                      filters={"ccm:taxonid": uri})
+# danach ohne weitere Anfragen: SearchResult -> dict, DISPLAYNAME-Werte statt
+# URIs, Kurznamen als Schlüssel, unaufgelöste Filter in Ihren eigenen Worten
+# benannt.
+```
+
+Hier wird kein Umlauf gespart. Der Gewinn ist die JSON-Form und dass ein
+unauflösbarer Filter gemeldet statt stillschweigend fallengelassen wird.
+
 ---
 
 ## `vocabulary` — welche Werte ein Feld annimmt
@@ -191,12 +245,24 @@ repo.flows.vocabulary("subject", locale="en")
 Wirft `ValidationError` bei unbekanntem Kurznamen — die Meldung nennt die
 bekannten.
 
+
+**Was dahinter läuft** — 1 Anfrage:
+
+```python
+# was repo.flows.vocabulary("subject") tut
+prop = repo.searcher.field_aliases["subject"]      # Kurzname -> ccm:taxonid
+werte = await repo.vocab.values(prop)              # die Anfrage
+```
+
+Zwischengespeichert: dasselbe Feld ein zweites Mal zu erfragen kostet nichts.
+
 ---
 
 ## `describe` — alles über einen Knoten
 
-Auf API-Ebene sind das drei Zugriffe: Knoten laden, Eigenschaften lesen, Inhalt
-ansehen.
+**Ein Zugriff**, genau wie `repo.node(id)` auf der API-Ebene. Dieser Ablauf
+spart keinen Umlauf; er liefert ein `dict` mit bereits aufgelösten
+Vokabularwerten statt eines `Node`-Objekts.
 
 **Eingabe**
 
@@ -245,6 +311,20 @@ repo.flows.find_collections("Physik", limit=10)
 > Wege ab und legt sie zusammen; die Zahl zählt mindestens so viele, womöglich
 > mehr.
 
+
+**Was dahinter läuft** — 2 Anfragen, parallel:
+
+```python
+# was repo.flows.find_collections("Physik") tut
+ergebnis = await repo.collections.find("Physik")
+#   was intern beide Wege gleichzeitig abfragt und über die Knoten-ID zusammenlegt:
+#     POST /search/v1/queries/-home-/{mds}/collections
+#     GET  /collection/v1/collections/-home-/search
+```
+
+Zwei Wege, weil keiner allein vollständig ist — deshalb ist `total` auch nur
+eine untere Schranke.
+
 ---
 
 ## `collection_contents` — eine Sammlung öffnen
@@ -274,6 +354,22 @@ leer aus.
 
 Materialien tragen dieselbe Form wie Suchtreffer; niemand muss zwei
 Trefferformate auseinanderhalten.
+
+
+**Was dahinter läuft** — 2 Anfragen, parallel:
+
+```python
+# was repo.flows.collection_contents(cid) tut
+material, kinder = await asyncio.gather(
+    repo.raw.json("GET", f"/node/v1/nodes/-home-/{cid}/children",
+                  params={"filter": "files", "maxItems": limit}),
+    repo.raw.json("GET", f"/collection/v1/collections/-home-/{cid}"
+                         "/children/collections", params={"maxItems": limit}),
+)
+```
+
+Von Hand geschrieben sind das zwei Wartezeiten statt einer — und der zweite
+Endpunkt wird leicht ganz vergessen.
 
 ---
 
@@ -356,6 +452,34 @@ einer Namenskollision wird ein Zähler angehängt statt abzubrechen.
 
 *Beispiel: [`examples/06_flow_create.py`](examples/06_flow_create.py)*
 
+
+**Was dahinter läuft** — 2 bis 4 Anfragen:
+
+```python
+# was repo.flows.add_material("T", subject="Biologie") tut
+wer = await repo.whoami()                        # 1. nur wenn parent_id fehlt
+uri = await repo.vocab.resolve("ccm:taxonid", "Biologie")   # 2. je Vokabularfeld
+node = await repo.nodes.create(                  # 3. das Anlegen selbst
+    wer.home_folder, name=name_from_title("T"), title="T",
+    properties={"ccm:taxonid": [uri]})
+await repo.collections.add(collection_id, node.id)          # 4. nur auf Wunsch
+```
+
+Der Name wird aus dem Titel abgeleitet; bei einer Namenskollision wird ein
+Zähler angehängt statt abzubrechen.
+
+
+**Was dahinter läuft** — 3 bis 4 Anfragen:
+
+```python
+# was repo.flows.update_material("n1", subject="Biologie") tut
+uri = await repo.vocab.resolve("ccm:taxonid", "Biologie")   # 1. je Vokabularfeld
+node = await repo.nodes.get("n1")                            # 2. laden
+await node.update(properties={"ccm:taxonid": [uri]})         # 3. PUT
+#     was selbst noch einmal zurückliest (4.) und einen SilentDropError wirft,
+#     wenn edu-sharing den Schreibvorgang annahm und nicht speicherte.
+```
+
 ---
 
 ## `build_collection` — Sammlung anlegen und füllen
@@ -391,6 +515,22 @@ repo.flows.build_collection(
 
 *Beispiel: [`examples/07_flow_collection.py`](examples/07_flow_collection.py)*
 
+
+**Was dahinter läuft** — 1 Anfrage plus eine je Knoten:
+
+```python
+# was repo.flows.build_collection("C", node_ids=["a", "b"]) tut
+sammlung = await repo.collections.create("C")       # 1. anlegen
+for node_id in ["a", "b"]:                          # 2..n, bewusst nacheinander
+    try:
+        await repo.collections.add(sammlung.id, node_id)
+    except EduSharingError as exc:
+        failed.append({"id": node_id, "reason": str(exc)})
+```
+
+Jeder Fehlschlag wird aufgefangen statt geworfen: die Sammlung existiert zu dem
+Zeitpunkt schon, ein Abbruch hinterließe eine, die niemand bestellt hat.
+
 ---
 
 ## `delete` — löschen und benennen, was verschwand
@@ -415,6 +555,18 @@ erwischt hat — und ein Sprachmodell bestätigt dann einem Menschen irgendetwas
 
 Die Vorgabe ist die umkehrbare Variante. Endgültiges Löschen muss hingeschrieben
 werden.
+
+
+**Was dahinter läuft** — 2 Anfragen:
+
+```python
+# was repo.flows.delete("n1") tut
+node = await repo.nodes.get("n1")     # 1. lesen, damit die Antwort ihn benennt
+await node.delete(recycle=True)       # 2. löschen
+```
+
+Der zusätzliche Lesezugriff ist der ganze Zweck: er macht aus „erledigt" ein
+„gelöscht: 'Photosynthese einfach erklärt' (ccm:io)".
 
 ---
 

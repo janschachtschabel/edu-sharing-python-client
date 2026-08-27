@@ -273,6 +273,42 @@ Läuft offline und deterministisch. Tests gegen eine echte Instanz sind separat:
 EDU_SHARING_URL=https://repository.staging.openeduhub.net uv run pytest -m live
 ```
 
+## Beispiele
+
+Jedes läuft gegen eine echte Instanz; die schreibenden legen einen eigenen
+Wegwerf-Ordner an und räumen ihn wieder ab.
+
+**Direkt gegen die API** — es kommen Objekte zurück, mit denen weitergearbeitet
+wird:
+
+| | |
+|---|---|
+| [`01_connect.py`](docs/examples/01_connect.py) | verbinden, sehen wer man ist und was die Instanz kann |
+| [`02_search.py`](docs/examples/02_search.py) | suchen mit Filtern und Facetten, Vokabular auflösen |
+| [`03_write.py`](docs/examples/03_write.py) | anlegen, ändern, prüfen — und wie ein stiller Verlust aussieht |
+| [`04_agent_blocks.py`](docs/examples/04_agent_blocks.py) | die Bausteine für KI-Nutzung: Sicherheit, Bereinigung, Formatierung |
+
+**Über Abläufe** — es kommt ein `dict` zurück, fertig zum Weiterreichen:
+
+| | |
+|---|---|
+| [`05_flow_search.py`](docs/examples/05_flow_search.py) | Vokabular erfragen, suchen, einen Treffer beschreiben |
+| [`06_flow_create.py`](docs/examples/06_flow_create.py) | anlegen mit Vokabular — und was ein unbekannter Wert bewirkt |
+| [`07_flow_collection.py`](docs/examples/07_flow_collection.py) | Sammlung anlegen, füllen, Teilerfolg beobachten |
+| [`08_flow_rerank.py`](docs/examples/08_flow_rerank.py) | was ein Rahmenwort kostet und was `rerank=True` zurückholt |
+| [`09_flow_browse.py`](docs/examples/09_flow_browse.py) | Sammlungen finden, öffnen, Inhalt ändern |
+
+**Beide Ebenen nebeneinander:**
+
+| | |
+|---|---|
+| [`10_two_levels.py`](docs/examples/10_two_levels.py) | derselbe Anwendungsfall zweimal geschrieben, mit Zählung der Anfragen |
+
+Fangen Sie mit `10_two_levels.py` an, wenn Sie entscheiden, gegen welche Ebene
+Sie schreiben. Es zeigt, dass `search` und `add_material` in beiden Fassungen
+exakt dieselben Anfragen schicken — der Ablauf ändert die Ausgabeform, nicht die
+Arbeit — und wo ein Ablauf wirklich einen Umlauf spart.
+
 ## Aufbau
 
 | Schicht | Inhalt |

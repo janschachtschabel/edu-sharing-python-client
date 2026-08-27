@@ -237,6 +237,42 @@ than documented:
 - **Keywords are a shared list.** `add_keywords` extends; setting
   `cclom:general_keyword` directly deletes other people's entries.
 
+## Examples
+
+Every one of them runs against a real instance; the writing ones create a
+throwaway folder of their own and remove it afterwards.
+
+**Working directly against the API** — objects come back, you keep working with
+them:
+
+| | |
+|---|---|
+| [`01_connect.py`](docs/examples/01_connect.py) | connect, see who you are, what the instance can do |
+| [`02_search.py`](docs/examples/02_search.py) | search with filters and facets, resolve vocabulary |
+| [`03_write.py`](docs/examples/03_write.py) | create, change, verify — and what a silent drop looks like |
+| [`04_agent_blocks.py`](docs/examples/04_agent_blocks.py) | the building blocks for AI use: safety, sanitising, formatting |
+
+**Working through flows** — a `dict` comes back, ready to hand on:
+
+| | |
+|---|---|
+| [`05_flow_search.py`](docs/examples/05_flow_search.py) | ask the vocabulary, search, describe one hit |
+| [`06_flow_create.py`](docs/examples/06_flow_create.py) | create with vocabulary — and what an unknown value does |
+| [`07_flow_collection.py`](docs/examples/07_flow_collection.py) | build a collection, fill it, watch a partial success |
+| [`08_flow_rerank.py`](docs/examples/08_flow_rerank.py) | what a framing word costs, and what `rerank=True` recovers |
+| [`09_flow_browse.py`](docs/examples/09_flow_browse.py) | find collections, open one, change what is inside |
+
+**Both levels side by side:**
+
+| | |
+|---|---|
+| [`10_two_levels.py`](docs/examples/10_two_levels.py) | the same use case written twice, counting the requests each sends |
+
+Start with `10_two_levels.py` if you are deciding which level to write against.
+It shows that `search` and `add_material` send exactly the same requests either
+way — the flow changes the output shape, not the work — and where a flow does
+save a round trip.
+
 ## Rebuilding the generated layer
 
 ```bash

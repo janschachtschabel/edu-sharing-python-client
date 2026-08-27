@@ -29,6 +29,31 @@ blocking `repo.flows.…` on `Repository`.
 
 ---
 
+## What each flow costs, at a glance
+
+Measured with a request-logging transport on 2026-08-27. "Requests" is what the
+flow sends to the repository; the API level sends the same ones, just written
+out by hand.
+
+| Flow | Requests | The chain behind it |
+|---|---|---|
+| `search` | 2 | resolve vocabulary → query |
+| `search(rerank=True)` | 1 per variant (≤5), parallel | expand → query each → score and merge in memory |
+| `vocabulary` | 1 | resolve short name → fetch values (cached) |
+| `describe` | 1 | load node |
+| `find_collections` | 2, parallel | both collection routes → merge on id |
+| `collection_contents` | 2, parallel | material listing + sub-collection listing |
+| `add_material` | 2–4 | whoami (if no parent) → resolve vocabulary → create → add to collection (if asked) |
+| `update_material` | 3–4 | resolve vocabulary → load → write → read back |
+| `build_collection` | 1 + one per node | create → add each, catching failures |
+| `delete` | 2 | load (to name it) → delete |
+
+Three of them — `search`, `vocabulary`, `describe` — send exactly what the API
+level sends. They save no round trip at all: their gain is the JSON shape and
+the resolved labels. The rest genuinely chain calls.
+
+---
+
 ## Two rules that run through every flow
 
 **Readable values, not URIs.** `ccm:taxonid` holds
@@ -156,6 +181,35 @@ repo.flows.search("I need a worksheet about fractions",
 
 *Examples: [`examples/05_flow_search.py`](examples/05_flow_search.py), [`examples/08_flow_rerank.py`](examples/08_flow_rerank.py)*
 
+
+**Behind it** — one request **per variant**, run in parallel (at most 5):
+
+```python
+# what rerank=True adds
+variants = expand_query(text, language)      # "full", "topic", "nostop", "syn"
+results = await asyncio.gather(*(            # all at once, not one after another
+    repo.searcher.search(v.text, limit=pool) for v in variants))
+# then, in memory and without further requests: drop deleted placeholders,
+# score every candidate for text and metadata quality, weight by which variants
+# found it at all, sort, take `limit`.
+```
+
+
+**Behind it** — 2 requests, the same two the API level makes:
+
+```python
+# what repo.flows.search("Photosynthese", subject="Biologie") does
+uri = await repo.vocab.resolve("ccm:taxonid", "Biologie")    # 1. label -> URI
+result = await repo.searcher.search("Photosynthese",         # 2. the query
+                                    filters={"ccm:taxonid": uri})
+# then, without further requests: SearchResult -> dict, DISPLAYNAME values
+# instead of URIs, short names as keys, unresolved filters named back in your
+# own words.
+```
+
+No round trip is saved here. The gain is the JSON shape, and that an
+unresolvable filter is reported rather than silently dropped.
+
 ---
 
 ## `vocabulary` — what values a field accepts
@@ -185,12 +239,24 @@ repo.flows.vocabulary("subject", locale="en")
 Raises `ValidationError` for an unknown short name — the message lists the known
 ones.
 
+
+**Behind it** — 1 request:
+
+```python
+# what repo.flows.vocabulary("subject") does
+prop = repo.searcher.field_aliases["subject"]      # short name -> ccm:taxonid
+values = await repo.vocab.values(prop)             # the request
+```
+
+Cached: asking a second time for the same field costs nothing.
+
 ---
 
 ## `describe` — everything about one node
 
-At the API level this is three calls: load the node, read its properties, look
-at its content.
+**One request**, exactly like `repo.node(id)` at the API level. This flow saves
+no round trip; it hands back a `dict` with vocabulary fields already resolved to
+labels, instead of a `Node` object.
 
 **Input**
 
@@ -238,6 +304,20 @@ repo.flows.find_collections("Physik", limit=10)
 > **`total_is_lower_bound` is always true here.** The collection search asks two
 > routes and merges them, so the figure counts at least this many, possibly more.
 
+
+**Behind it** — 2 requests, run in parallel:
+
+```python
+# what repo.flows.find_collections("Physik") does
+result = await repo.collections.find("Physik")
+#   which internally asks both routes at once and merges them on node id:
+#     POST /search/v1/queries/-home-/{mds}/collections
+#     GET  /collection/v1/collections/-home-/search
+```
+
+Two routes because neither alone is complete — which is also why `total` is only
+a lower bound.
+
 ---
 
 ## `collection_contents` — open a collection
@@ -266,6 +346,22 @@ material (`filter=files`) returns **zero** nodes — that collection looks empty
 
 Materials carry the same shape as search hits, so nothing has to tell two hit
 formats apart.
+
+
+**Behind it** — 2 requests, run in parallel:
+
+```python
+# what repo.flows.collection_contents(cid) does
+materials, children = await asyncio.gather(
+    repo.raw.json("GET", f"/node/v1/nodes/-home-/{cid}/children",
+                  params={"filter": "files", "maxItems": limit}),
+    repo.raw.json("GET", f"/collection/v1/collections/-home-/{cid}"
+                         "/children/collections", params={"maxItems": limit}),
+)
+```
+
+Written out at the API level this is two waits instead of one — and the second
+endpoint is easy to forget entirely.
 
 ---
 
@@ -346,6 +442,34 @@ appends a counter rather than failing.
 
 *Example: [`examples/06_flow_create.py`](examples/06_flow_create.py)*
 
+
+**Behind it** — 2 to 4 requests:
+
+```python
+# what repo.flows.add_material("T", subject="Biologie") does
+who = await repo.whoami()                        # 1. only when parent_id is None
+uri = await repo.vocab.resolve("ccm:taxonid", "Biologie")   # 2. per vocab field
+node = await repo.nodes.create(                  # 3. the creation itself
+    who.home_folder, name=name_from_title("T"), title="T",
+    properties={"ccm:taxonid": [uri]})
+await repo.collections.add(collection_id, node.id)          # 4. only if asked
+```
+
+The name is derived from the title; a collision appends a counter instead of
+failing.
+
+
+**Behind it** — 3 to 4 requests:
+
+```python
+# what repo.flows.update_material("n1", subject="Biologie") does
+uri = await repo.vocab.resolve("ccm:taxonid", "Biologie")   # 1. per vocab field
+node = await repo.nodes.get("n1")                            # 2. load
+await node.update(properties={"ccm:taxonid": [uri]})         # 3. PUT
+#     which reads the node back itself (4.) and raises SilentDropError when
+#     edu-sharing accepted the write and did not store it.
+```
+
 ---
 
 ## `build_collection` — create a collection and fill it
@@ -380,6 +504,22 @@ repo.flows.build_collection(
 
 *Example: [`examples/07_flow_collection.py`](examples/07_flow_collection.py)*
 
+
+**Behind it** — 1 request plus one per node:
+
+```python
+# what repo.flows.build_collection("C", node_ids=["a", "b"]) does
+collection = await repo.collections.create("C")     # 1. create
+for node_id in ["a", "b"]:                          # 2..n, sequential on purpose
+    try:
+        await repo.collections.add(collection.id, node_id)
+    except EduSharingError as exc:
+        failed.append({"id": node_id, "reason": str(exc)})
+```
+
+Each failure is caught rather than raised: the collection already exists by
+then, so aborting would leave one nobody asked for.
+
 ---
 
 ## `delete` — remove and say what went
@@ -403,6 +543,18 @@ leaves the caller unsure whether the right thing was hit — and a language mode
 then confirms something to a person without knowing what.
 
 The default is the reversible one. Permanent deletion has to be spelled out.
+
+
+**Behind it** — 2 requests:
+
+```python
+# what repo.flows.delete("n1") does
+node = await repo.nodes.get("n1")     # 1. read, so the answer can name it
+await node.delete(recycle=True)       # 2. delete
+```
+
+That extra read is the whole point: it turns "done" into "deleted 'Photosynthese
+einfach erklärt' (ccm:io)".
 
 ---
 
