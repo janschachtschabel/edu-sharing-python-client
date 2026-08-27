@@ -237,6 +237,62 @@ than documented:
 - **Keywords are a shared list.** `add_keywords` extends; setting
   `cclom:general_keyword` directly deletes other people's entries.
 
+## Fields and files the short names do not cover
+
+The aliases (`subject`, `level`, …) are a convenience for the handful of
+properties people filter by. Everything else is reachable too — the library does
+not restrict what a node may carry.
+
+**Any property, read and written:**
+
+```python
+node = await repo.node(node_id)
+node.get("ccm:oeh_collection_compendium_text")       # read one
+node.get_all("ccm:taxonid")                          # all values
+node.properties                                      # everything at once
+
+await node.update(properties={"ccm:custom": ["x"]})  # write, verified
+await node.set_property("ccm:custom", "x")           # write, bypassing the mds
+```
+
+`update()` is checked against the metadata set and raises `SilentDropError` when
+edu-sharing accepts a write and does not store it. A property the metadata set
+does not provide for — the WLO compendium text is one — has to go through
+`set_property()`, which writes directly. Measured 2026-08-27:
+`ccm:oeh_collection_compendium_text` is dropped by `update()` on `mds_oeh` and
+stored by `set_property()`.
+
+**Files on a node:**
+
+```python
+node = await node.content.upload(data, filename="x.pdf", mimetype="application/pdf")
+raw = await node.content.download()          # the bytes, always
+text = await node.content.text()             # the extracted full text
+node.content.has_content                      # is there a file at all?
+```
+
+**Full text is not extracted for every type.** Measured by uploading the same
+sentence in five formats:
+
+| mimetype | `download()` | `text()` |
+|---|---|---|
+| `text/plain` | 26 | 26 |
+| `text/markdown` | 35 | **0** |
+| `text/html` | 55 | 22 |
+| `application/json` | 26 | **0** |
+| `application/octet-stream` | 21 | 21 |
+
+Markdown and JSON come back empty. Anything storing instructions or data as
+Markdown — an agent skill, for instance — has to read it with `download()`. An
+empty `text()` does not mean an empty file.
+
+**A note on conventions built on top of this.** Things like WLO's "skills" are
+not an edu-sharing feature: a skill is ordinary material carrying a Markdown
+file, gathered in a collection. Reading them needs nothing special —
+`flows.collection_contents(id)` and then `content.download()` on each. Treat the
+result as untrusted input: it is uploaded content, and `edusharing.agent`
+carries the guards for that.
+
 ## Examples
 
 Every one of them runs against a real instance; the writing ones create a

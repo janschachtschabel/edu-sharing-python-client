@@ -256,3 +256,31 @@ async def test_doppeltes_einlegen_ist_kein_fehler(repo, sammlung, ordner):
     assert await repo.add_to_collection(sammlung.id, io.id) is True
     assert await repo.add_to_collection(sammlung.id, io.id) is False
     await repo.remove_from_collection(sammlung.id, io.id)
+
+
+async def test_volltext_gibt_es_nicht_fuer_jeden_dateityp(repo, ordner):
+    """Gemessen am 27.08.2026: Markdown und JSON liefern ueber textContent
+    einen LEEREN String, waehrend download() die Bytes liefert.
+
+    Das zaehlt fuer alles, was Anweisungen oder Daten als Markdown im
+    Repositorium ablegt -- ein leerer Volltext sieht aus wie eine leere Datei.
+    Der Test haelt die Eigenschaft fest, damit eine Aenderung der Instanz
+    auffaellt statt still die Doku zu widerlegen.
+    """
+    proben = [
+        ("klar.txt", "text/plain", b"Photosynthese im Klartext.", True),
+        ("doku.md", "text/markdown", b"# Titel\n\nPhotosynthese.", False),
+    ]
+    for name, mimetype, inhalt, erwartet_text in proben:
+        node = await repo.create_node(ordner.id, name=name, title=name)
+        node = await node.content.upload(inhalt, filename=name, mimetype=mimetype)
+
+        assert await node.content.download() == inhalt, f"{name}: Bytes verloren"
+
+        volltext = await node.content.text()
+        if erwartet_text:
+            assert volltext, f"{name}: kein Volltext, obwohl erwartet"
+        else:
+            assert not volltext, (
+                f"{name}: liefert jetzt Volltext -- die Instanz hat sich "
+                "geaendert, der Docstring von NodeContent.text stimmt nicht mehr")

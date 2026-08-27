@@ -273,6 +273,62 @@ Läuft offline und deterministisch. Tests gegen eine echte Instanz sind separat:
 EDU_SHARING_URL=https://repository.staging.openeduhub.net uv run pytest -m live
 ```
 
+## Felder und Dateien, die keine Kurznamen haben
+
+Die Kurznamen (`subject`, `level`, …) sind eine Bequemlichkeit für die Handvoll
+Eigenschaften, nach denen gefiltert wird. Alles andere ist ebenso erreichbar —
+die Bibliothek schränkt nicht ein, was ein Knoten tragen darf.
+
+**Beliebige Eigenschaften, lesend und schreibend:**
+
+```python
+node = await repo.node(node_id)
+node.get("ccm:oeh_collection_compendium_text")       # eine lesen
+node.get_all("ccm:taxonid")                          # alle Werte
+node.properties                                      # alles auf einmal
+
+await node.update(properties={"ccm:custom": ["x"]})  # schreiben, mit Prüfung
+await node.set_property("ccm:custom", "x")           # schreiben, am mds vorbei
+```
+
+`update()` wird gegen den Metadatensatz geprüft und wirft einen
+`SilentDropError`, wenn edu-sharing einen Schreibvorgang annimmt und nicht
+speichert. Eine Eigenschaft, die der Metadatensatz nicht vorsieht — der
+WLO-Kompendialtext ist eine davon — muss über `set_property()` gehen, das direkt
+schreibt. Gemessen am 27.08.2026: `ccm:oeh_collection_compendium_text` wird von
+`update()` unter `mds_oeh` verworfen und von `set_property()` gespeichert.
+
+**Dateien an einem Knoten:**
+
+```python
+node = await node.content.upload(daten, filename="x.pdf", mimetype="application/pdf")
+roh = await node.content.download()          # die Bytes, immer
+text = await node.content.text()             # der extrahierte Volltext
+node.content.has_content                      # gibt es überhaupt eine Datei?
+```
+
+**Volltext wird nicht für jeden Typ extrahiert.** Gemessen, indem derselbe Satz
+in fünf Formaten hochgeladen wurde:
+
+| mimetype | `download()` | `text()` |
+|---|---|---|
+| `text/plain` | 26 | 26 |
+| `text/markdown` | 35 | **0** |
+| `text/html` | 55 | 22 |
+| `application/json` | 26 | **0** |
+| `application/octet-stream` | 21 | 21 |
+
+Markdown und JSON kommen leer zurück. Wer Anweisungen oder Daten als Markdown
+ablegt — einen Agenten-Skill etwa — muss sie mit `download()` lesen. Ein leeres
+`text()` heißt nicht, dass die Datei leer ist.
+
+**Zu Konventionen, die darauf aufsetzen.** Dinge wie die „Skills" von WLO sind
+keine edu-sharing-Funktion: ein Skill ist gewöhnliches Material mit einer
+Markdown-Datei, gesammelt in einer Sammlung. Sie zu lesen braucht nichts
+Besonderes — `flows.collection_contents(id)`, dann `content.download()` je
+Eintrag. Behandeln Sie das Ergebnis als nicht vertrauenswürdige Eingabe: es ist
+hochgeladener Inhalt, und `edusharing.agent` trägt die Schutzmaßnahmen dafür.
+
 ## Beispiele
 
 Jedes läuft gegen eine echte Instanz; die schreibenden legen einen eigenen

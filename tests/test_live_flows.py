@@ -187,11 +187,25 @@ async def test_sammlungen_finden_und_oeffnen(repo):
     assert gefunden["total_is_lower_bound"] is True
     json.dumps(gefunden)
 
-    inhalt = await repo.flows.collection_contents(gefunden["hits"][0]["id"], limit=5)
-    assert inhalt["id"] == gefunden["hits"][0]["id"]
+    # Eine Sammlung mit Material suchen -- eine leere prueft nichts.
+    for treffer in gefunden["hits"]:
+        inhalt = await repo.flows.collection_contents(treffer["id"], limit=5)
+        if inhalt["materials"]:
+            break
+    else:
+        pytest.skip("keine der Sammlungen enthaelt Material")
+
     assert inhalt["returned_materials"] == len(inhalt["materials"])
     assert inhalt["returned_materials"] <= 5
     json.dumps(inhalt)
+
+    # Der eigentliche Nachweis: die Materialien tragen Metadaten. Ohne
+    # propertyFilter lieferte /children Knoten mit LEEREN Eigenschaften --
+    # gemessen am 27.08.2026. Der Ablauf sah dabei aus, als funktioniere er.
+    mit_feldern = [m for m in inhalt["materials"] if m["fields"]]
+    assert mit_feldern, (
+        "kein Material traegt Felder -- die Eigenschaften wurden nicht "
+        "angefordert, und der Ablauf liefert nur Titel und ID")
 
 
 @pytest.mark.live

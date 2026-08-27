@@ -146,8 +146,27 @@ class NodeContent:
         again. For linked resources the outcome depends on whether the source is
         reachable -- see the module docstring.
 
+        **Not every file type yields text.** Measured against edu-sharing 11.0
+        on 2026-08-27 by uploading the same sentence in five formats:
+
+        ==========================  ========  =============
+        mimetype                    download  this method
+        ==========================  ========  =============
+        ``text/plain``                    26            26
+        ``text/markdown``                 35         **0**
+        ``text/html``                     55            22
+        ``application/json``              26         **0**
+        ``application/octet-stream``      21            21
+        ==========================  ========  =============
+
+        Markdown and JSON come back empty. That matters for anything storing
+        instructions or data as Markdown in the repository -- read those with
+        ``download()`` instead, which always returns the bytes as stored. An
+        empty string here does **not** mean the file is empty.
+
         Returns:
-            The text, or an empty string when there is none.
+            The text, or an empty string when there is none -- or when this file
+            type is not extracted.
         """
         params = {"forceUpdate": "true"} if force_update else None
         response = await self._transport.json(

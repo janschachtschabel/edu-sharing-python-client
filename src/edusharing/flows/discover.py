@@ -268,7 +268,14 @@ async def collection_contents(
     async def material() -> dict[str, Any]:
         return await repo.raw.json(
             "GET", f"/node/v1/nodes/-home-/{segment}/children",
-            params={"maxItems": limit, "skipCount": offset, "filter": "files"},
+            params={
+                "maxItems": limit, "skipCount": offset, "filter": "files",
+                # Without this the endpoint returns nodes with an EMPTY
+                # properties object -- measured 2026-08-27. The materials then
+                # arrive without subject, level or description, and the flow's
+                # whole point is gone while it still looks like it worked.
+                "propertyFilter": "-all-",
+            },
         )
 
     async def sub_collections() -> dict[str, Any]:

@@ -130,6 +130,22 @@ async def test_sammlungsinhalt_fragt_beide_wege_ab():
     assert any(p.endswith("/children/collections") for p in pfade)
 
 
+async def test_sammlungsinhalt_fordert_die_eigenschaften_an():
+    """Live aufgefallen am 27.08.2026: ohne propertyFilter liefert /children
+    **null** Eigenschaften. Die Materialien kamen dann ohne Metadaten zurueck --
+    "fields" war live immer leer, waehrend der Mock brav welche mitlieferte.
+
+    Genau die Sorte Fehler, die ein Mock-Test nicht faengt: er antwortet, was
+    man ihm sagt.
+    """
+    instanz = Instanz()
+    async with _repo(instanz) as repo:
+        await repo.flows.collection_contents("c1")
+    kinder = next(r for r in instanz.anfragen if r.url.path.endswith("/children"))
+    assert kinder.url.params.get("propertyFilter") == "-all-", (
+        "ohne diesen Parameter kommen die Materialien ohne Metadaten")
+
+
 async def test_sammlungsinhalt_haelt_das_limit_ein():
     instanz = Instanz()
     async with _repo(instanz) as repo:
