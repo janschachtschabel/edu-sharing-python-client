@@ -15,6 +15,7 @@ Suchwort, nicht an der Sammlung.
 """
 
 import asyncio
+import json
 
 import httpx
 import pytest
@@ -234,3 +235,19 @@ async def test_referenz_entfernen():
     await _collections(_schreib_router(aufrufe)).remove("coll-1", "node-1")
     delete = next(r for r in aufrufe if r.method == "DELETE")
     assert delete.url.path.endswith("/collections/-home-/coll-1/references/node-1")
+
+
+async def test_beschreibung_gehoert_in_das_collection_objekt():
+    """Gemessen am 27.08.2026 gegen Staging: auf oberster Ebene lehnt die API
+    sie ab (UnrecognizedPropertyException, Node kennt kein "description"), und
+    als properties["cm:description"] wird sie stillschweigend verworfen. Nur
+    collection.description kommt an.
+
+    Der Parameter war vorher ungetestet und schlug bei jedem Aufruf fehl.
+    """
+    aufrufe: list = []
+    await _collections(_schreib_router(aufrufe)).create("Titel", description="Text")
+    post = next(r for r in aufrufe if r.method == "POST")
+    body = json.loads(post.content)
+    assert body["collection"]["description"] == "Text"
+    assert "description" not in body, "auf oberster Ebene lehnt die API sie ab"

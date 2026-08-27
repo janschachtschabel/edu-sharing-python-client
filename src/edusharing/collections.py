@@ -191,13 +191,19 @@ class Collections:
             parent: parent collection. Defaults to the account's collection root.
             scope: ``MY`` (private, default), ``ORGANIZATION`` or ``PUBLIC``.
                 The default is deliberately the narrowest.
+            description: the collection's description.
+
+        The description belongs **inside** the ``collection`` object. Measured
+        on 2026-08-27: at the top level the API rejects it outright
+        (``UnrecognizedPropertyException`` -- ``Node`` has no ``description``),
+        and as ``properties["cm:description"]`` it is silently dropped.
         """
         body: dict[str, Any] = {
             "title": title,
             "collection": {"type": "TYPE_DEFAULT", "scope": scope},
         }
         if description:
-            body["description"] = description
+            body["collection"]["description"] = description
 
         response = await self._transport.json(
             "POST",
