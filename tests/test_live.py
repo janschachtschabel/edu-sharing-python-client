@@ -135,7 +135,7 @@ async def test_nicht_filterbare_property_wird_live_erklaert():
     async with AsyncRepository(os.environ["EDU_SHARING_URL"]) as r:
         with pytest.raises(ValidationError) as info:
             await r.search("Wasser", limit=1, filters={"ccm:taxonid": "Biologie"})
-    assert "Metadatensatz" in str(info.value)
+    assert "metadata set" in str(info.value)
 
 
 async def test_unaufloesbarer_filter_wird_gemeldet(repo):
@@ -198,17 +198,27 @@ async def test_instanz_ohne_anonymen_zugriff_meldet_das_klar():
 
 # --- Etappe 2: Sammlungen --------------------------------------------------
 
-async def test_sammlungssuche_findet_ueber_beide_wege():
-    """Gemessen: bei "Deutsch" ist die Schnittmenge der beiden Wege NULL --
-    25 gegen 25 voellig verschiedene Sammlungen. Ein einzelner Weg verliert
-    also systematisch."""
+async def test_sammlungssuche_fragt_beide_wege_und_dedupliziert():
+    """Prueft, was die Bibliothek leistet -- nicht, wie der Server gerade steht.
+
+    Eine fruehere Fassung verlangte mehr Treffer als ein einzelner Weg liefert,
+    weil bei "Deutsch" die Schnittmenge der beiden Wege als NULL gemessen war.
+    Das ist nicht stabil: beide Wege liefern je 25 von 876 Sammlungen, und wie
+    stark sich diese Auswahlen ueberlappen, schwankt von Aufruf zu Aufruf
+    (beobachtet 25 und 29 Treffer fuer dieselbe Anfrage). Ein Test darauf
+    schlaegt irgendwann grundlos fehl.
+
+    Was die Bibliothek zusagt und hier geprueft wird: beide Wege werden
+    abgefragt, das Ergebnis ist ueber die Knoten-ID dedupliziert, und die
+    Gesamtzahl ist als Untergrenze gekennzeichnet.
+    """
     async with AsyncRepository(os.environ["EDU_SHARING_URL"], metadataset="mds_oeh") as r:
         e = await r.find_collections("Deutsch", limit=25)
     assert not e.warnings, f"ein Weg ist ausgefallen: {e.warnings}"
-    assert len(e.hits) > 25, (
-        f"nur {len(e.hits)} Sammlungen -- bei nicht ueberlappenden Wegen "
-        "muessten es mehr als die 25 eines einzelnen sein"
-    )
+    assert e.hits, "keine Sammlungen gefunden"
+
+    ids = [t.id for t in e.hits]
+    assert len(ids) == len(set(ids)), "Treffer doppelt -- die Deduplizierung greift nicht"
     assert e.total_is_lower_bound is True
 
 
