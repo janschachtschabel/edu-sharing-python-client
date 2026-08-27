@@ -28,6 +28,7 @@ import asyncio
 from dataclasses import dataclass
 
 from .transport import Transport
+from .urls import path_segment
 
 __all__ = ["VocabularyValue", "Vocabulary"]
 
@@ -161,7 +162,7 @@ class Vocabulary:
     ) -> list[VocabularyValue]:
         response = await self._transport.json(
             "POST",
-            f"/mds/v1/metadatasets/-home-/{self.metadataset}/values",
+            f"/mds/v1/metadatasets/-home-/{path_segment(self.metadataset)}/values",
             json={
                 "valueParameters": {
                     "query": self.query,

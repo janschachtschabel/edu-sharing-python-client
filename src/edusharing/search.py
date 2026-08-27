@@ -34,6 +34,7 @@ from .results import (
     UnresolvedFilter,
 )
 from .transport import Transport
+from .urls import path_segment
 from .vocab import DEFAULT_METADATASET, DEFAULT_QUERY, Vocabulary
 
 __all__ = ["Search", "STANDARD_FIELD_ALIASES"]
@@ -152,7 +153,7 @@ class Search:
         try:
             response = await self._transport.json(
                 "POST",
-                f"/search/v1/queries/-home-/{self.metadataset}/{self.query}",
+                f"/search/v1/queries/-home-/{path_segment(self.metadataset)}/{path_segment(self.query)}",
                 params={
                     "contentType": content_type,
                     "maxItems": limit,

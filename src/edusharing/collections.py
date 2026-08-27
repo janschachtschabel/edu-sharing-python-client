@@ -38,6 +38,7 @@ from .errors import ConflictError, EduSharingError
 from .nodes import Node, Nodes
 from .results import SearchHit, SearchResult
 from .transport import Transport
+from .urls import path_segment
 from .vocab import DEFAULT_METADATASET
 
 __all__ = ["Collections"]
@@ -145,7 +146,7 @@ class Collections:
         """Leg A -- returns nodes and a real total."""
         response = await self._transport.json(
             "POST",
-            f"/search/v1/queries/-home-/{self.metadataset}/{COLLECTION_QUERY}",
+            f"/search/v1/queries/-home-/{path_segment(self.metadataset)}/{COLLECTION_QUERY}",
             params={
                 "contentType": "COLLECTIONS",
                 "maxItems": limit,
@@ -200,7 +201,7 @@ class Collections:
 
         response = await self._transport.json(
             "POST",
-            f"/collection/v1/collections/-home-/{parent}/children",
+            f"/collection/v1/collections/-home-/{path_segment(parent)}/children",
             json=body,
         )
         data = response.get("collection") or response.get("node") or response
@@ -225,7 +226,7 @@ class Collections:
         try:
             await self._transport.request(
                 "PUT",
-                f"/collection/v1/collections/-home-/{collection_id}/references/{node_id}",
+                f"/collection/v1/collections/-home-/{path_segment(collection_id)}/references/{path_segment(node_id)}",
             )
         except ConflictError:
             return False
@@ -238,7 +239,7 @@ class Collections:
         """
         await self._transport.request(
             "DELETE",
-            f"/collection/v1/collections/-home-/{collection_id}/references/{node_id}",
+            f"/collection/v1/collections/-home-/{path_segment(collection_id)}/references/{path_segment(node_id)}",
         )
 
     def __repr__(self) -> str:

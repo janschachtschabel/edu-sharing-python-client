@@ -29,6 +29,7 @@ from typing import Any, Self
 import httpx
 
 from ..errors import EduSharingError, error_from_response
+from ..urls import path_segment
 from .policy import Model, build_body, pick_model, rank_models, read_answer
 
 __all__ = ["BildungsAPI"]
@@ -149,7 +150,7 @@ class BildungsAPI:
             return self._models_cache[1]
 
         async with self._models_lock:
-            response = await self._request("GET", f"/api/v1/llm/{which}/models")
+            response = await self._request("GET", f"/api/v1/llm/{path_segment(which)}/models")
             raw = response.get("data") if isinstance(response, dict) else response
             models = [Model.from_response(m) for m in (raw or [])]
             if which == self.provider:
@@ -190,7 +191,7 @@ class BildungsAPI:
             messages = prompt
 
         which = provider or self.provider
-        path = f"/api/v1/llm/{which}/chat/completions"
+        path = f"/api/v1/llm/{path_segment(which)}/chat/completions"
 
         def body_for(mid: str) -> dict[str, Any]:
             return build_body(

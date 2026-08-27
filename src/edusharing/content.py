@@ -32,6 +32,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from .errors import EduSharingError, ValidationError
+from .urls import path_segment
 
 if TYPE_CHECKING:
     from .nodes import Node
@@ -113,7 +114,7 @@ class NodeContent:
 
         await self._transport.request(
             "POST",
-            f"/node/v1/nodes/-home-/{self._node.id}/content",
+            f"/node/v1/nodes/-home-/{path_segment(self._node.id)}/content",
             params=params,
             files={"file": (filename, data, mimetype)},
         )
@@ -151,7 +152,7 @@ class NodeContent:
         params = {"forceUpdate": "true"} if force_update else None
         response = await self._transport.json(
             "GET",
-            f"/node/v1/nodes/-home-/{self._node.id}/textContent",
+            f"/node/v1/nodes/-home-/{path_segment(self._node.id)}/textContent",
             params=params,
         )
         if isinstance(response, dict):

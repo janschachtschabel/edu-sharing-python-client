@@ -12,10 +12,11 @@ make every single call end in 404 with nothing anywhere saying why.
 from __future__ import annotations
 
 import re
+from urllib.parse import quote
 
 from .errors import EduSharingError
 
-__all__ = ["normalize_repository_url", "rest_base"]
+__all__ = ["normalize_repository_url", "path_segment", "rest_base"]
 
 _APP_SEGMENT = "/edu-sharing"
 
@@ -66,3 +67,32 @@ def normalize_repository_url(raw: str) -> str:
 def rest_base(repository_url: str) -> str:
     """The REST root for a normalised repository URL."""
     return f"{repository_url}/rest"
+
+
+def path_segment(value: str) -> str:
+    """Percent-encode one identifier for use inside a URL path.
+
+    ``safe=""`` is the whole point. ``quote`` leaves ``/`` untouched by default,
+    and that is exactly what must not happen here: a segment that spans a path
+    boundary reaches a different endpoint than the one the caller asked for.
+
+    Measured against edu-sharing 11.0 (2026-08-27), without this function:
+
+    * a node id of ``../../../admin/v1/applications`` turned
+      ``/node/v1/nodes/-home-/{id}/metadata`` into
+      ``/node/admin/v1/applications/metadata``
+    * a node id of ``abc?admin=1`` swallowed the trailing ``/metadata`` entirely
+
+    This matters most where identifiers are not typed by a developer but arrive
+    from a language model -- the case ``edusharing.agent`` exists for.
+
+    Raises:
+        EduSharingError: on an empty value, which would collapse into a double
+            slash and thus address a different path.
+    """
+    if not value:
+        raise EduSharingError(
+            "An empty identifier cannot be part of a URL path. "
+            "Expected a node, collection or metadata-set id."
+        )
+    return quote(value, safe="")

@@ -34,6 +34,7 @@ from typing import Any
 from .content import NodeContent
 from .errors import SilentDropError, ValidationError
 from .transport import Transport
+from .urls import path_segment
 
 __all__ = ["Node", "Nodes", "WRITE_FIELD_ALIASES", "KEYWORD_PROPERTY"]
 
@@ -171,7 +172,7 @@ class Node:
             return self
 
         await self._nodes.transport.json(
-            "PUT", f"/node/v1/nodes/-home-/{self.id}/metadata", json=fields
+            "PUT", f"/node/v1/nodes/-home-/{path_segment(self.id)}/metadata", json=fields
         )
         if not verify:
             return self
@@ -200,7 +201,7 @@ class Node:
             # differently.
             await self._nodes.transport.request(
                 "POST",
-                f"/node/v1/nodes/-home-/{self.id}/property",
+                f"/node/v1/nodes/-home-/{path_segment(self.id)}/property",
                 params={"property": prop},
                 content=b"null",
                 headers={"Content-Type": "application/json"},
@@ -208,7 +209,7 @@ class Node:
         else:
             await self._nodes.transport.request(
                 "POST",
-                f"/node/v1/nodes/-home-/{self.id}/property",
+                f"/node/v1/nodes/-home-/{path_segment(self.id)}/property",
                 params={"property": prop},
                 json=_as_list(value),
             )
@@ -287,7 +288,7 @@ class Node:
         """
         await self._nodes.transport.request(
             "DELETE",
-            f"/node/v1/nodes/-home-/{self.id}",
+            f"/node/v1/nodes/-home-/{path_segment(self.id)}",
             params={"recycle": "true" if recycle else "false"},
         )
 
@@ -353,7 +354,7 @@ class Nodes:
         """Load a node with all its properties."""
         response = await self.transport.json(
             "GET",
-            f"/node/v1/nodes/-home-/{node_id}/metadata",
+            f"/node/v1/nodes/-home-/{path_segment(node_id)}/metadata",
             params={"propertyFilter": "-all-"},
         )
         return Node(response.get("node") or {}, self)
@@ -393,7 +394,7 @@ class Nodes:
 
         response = await self.transport.json(
             "POST",
-            f"/node/v1/nodes/-home-/{parent_id}/children",
+            f"/node/v1/nodes/-home-/{path_segment(parent_id)}/children",
             params={
                 "type": type,
                 "renameIfExists": "true" if rename_if_exists else "false",

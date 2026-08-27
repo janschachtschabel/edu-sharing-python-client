@@ -8,7 +8,7 @@ Formen, in denen Betreibende ihre Repository-Adresse tatsaechlich weitergeben
 import pytest
 
 from edusharing.errors import EduSharingError
-from edusharing.urls import normalize_repository_url, rest_base
+from edusharing.urls import normalize_repository_url, path_segment, rest_base
 
 HOST = "https://repository.staging.openeduhub.net"
 FULL = f"{HOST}/edu-sharing"
@@ -69,3 +69,44 @@ def test_deep_link_wird_abgelehnt():
 def test_doppeltes_edu_sharing_wird_abgelehnt():
     with pytest.raises(EduSharingError, match="edu-sharing"):
         normalize_repository_url(f"{FULL}/edu-sharing")
+
+
+# --- Pfadsegmente ---------------------------------------------------------
+#
+# Diese Gruppe existiert wegen eines Audit-Befundes (F1, 27.08.2026): Bezeichner
+# wurden unkodiert per f-String in Pfade gesetzt. Nachgewiesen war, dass eine
+# node_id von "../../../admin/v1/applications" einen anderen Endpunkt erreicht
+# und "abc?admin=1" das angehaengte "/metadata" verschluckt.
+#
+# Der Fall ist keine Theorie: in einem MCP-Server kommt die node_id aus dem
+# Sprachmodell und damit aus Fremddaten.
+
+def test_pfadsegment_kodiert_schraegstrich():
+    """Ein Segment darf niemals eine Pfadgrenze ueberschreiten."""
+    assert path_segment("a/b") == "a%2Fb"
+
+
+def test_pfadsegment_kodiert_punkte_und_trenner():
+    assert path_segment("../../admin") == "..%2F..%2Fadmin"
+    assert path_segment("abc?admin=1") == "abc%3Fadmin%3D1"
+    assert path_segment("abc#frag") == "abc%23frag"
+
+
+def test_pfadsegment_laesst_harmlose_ids_unveraendert():
+    """Gegenprobe: echte edu-sharing-IDs sind UUIDs und duerfen sich nicht
+    aendern -- sonst bricht die Kodierung den Normalbetrieb."""
+    uuid = "8f3c1e42-9b7a-4d21-bc55-0e6a1f2d3c47"
+    assert path_segment(uuid) == uuid
+    assert path_segment("-home-") == "-home-"
+    assert path_segment("mds_oeh") == "mds_oeh"
+
+
+def test_pfadsegment_kodiert_umlaute():
+    assert path_segment("Bücher") == "B%C3%BCcher"
+
+
+def test_pfadsegment_lehnt_leeres_ab():
+    """Ein leeres Segment erzeugt einen doppelten Schraegstrich und damit einen
+    voellig anderen Pfad."""
+    with pytest.raises(EduSharingError):
+        path_segment("")

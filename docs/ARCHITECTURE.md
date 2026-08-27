@@ -77,6 +77,7 @@ The library decides that itself.
 | E5 | **No MCP server in v1** — but every building block for one | See §6. The MCP is built *with* the library later, not *into* it. |
 | E6 | Import `edusharing`, distribution `edu-sharing-python-client` | The bare name `edu-sharing` would have looked like an official client of metaVentis GmbH, from whom edu-sharing originates. |
 | E7 | **Field aliases in English, values in German** | The rest of the API is English (`Repository`, `search`, `update`). The values are the repository's own labels and stay as they are. |
+| E8 | **Identifiers are percent-encoded in exactly one place** (`urls.path_segment`) | Interpolating an id into a path with an f-string lets it escape the path: measured on 2026-08-27, a node id of `../../../admin/v1/applications` reached a different endpoint, and `abc?admin=1` swallowed the trailing `/metadata`. Encoding at each of the 16 call sites would mean 16 chances to forget; one helper plus an integration test that walks every call site makes a forgotten site fail loudly. Relevant because under an MCP the id comes from the model, i.e. from foreign data. See audit F1. |
 
 ### 4.1 Feasibility proof (carried out 2026-08-27 against staging)
 

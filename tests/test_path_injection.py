@@ -1,0 +1,132 @@
+"""Bezeichner duerfen den Pfad nicht verlassen.
+
+Audit-Befund F1 vom 27.08.2026. Der Unit-Test in ``test_urls.py`` prueft, dass
+``path_segment`` richtig kodiert. Diese Datei prueft das, was dort nicht
+sichtbar waere: dass die Funktion an **jeder** Aufrufstelle auch benutzt wird.
+Ein vergessenes Vorkommen laesst ``test_urls.py`` gruen.
+
+Die Invariante ist bei allen Aufrufen dieselbe: der feste Teil des Pfades vor
+dem Bezeichner muss stehen bleiben. Wer ihn verlaesst, erreicht einen anderen
+Endpunkt -- mit den Zugangsdaten des Dienstes.
+"""
+
+import httpx
+import pytest
+
+from edusharing import AsyncRepository
+
+REPO = "https://repo.test/edu-sharing"
+
+# Die Formen, die beim Audit nachweislich ausgebrochen sind, plus die
+# Trennzeichen, die eine URL sonst noch zerlegen.
+ANGRIFFE = [
+    "../../../admin/v1/applications",
+    "abc/../../../../etc",
+    "abc?admin=1",
+    "abc#frag",
+    "abc/children",
+    "a b",
+]
+
+def _node(node_id: str) -> dict:
+    return {"node": {"ref": {"id": node_id}, "name": "n", "type": "ccm:io",
+                     "access": ["Read"], "properties": {},
+                     "content": {"hash": "-1"}}}
+
+
+def _repo_mit_protokoll(antwort_id: str = "x") -> tuple[AsyncRepository, list[httpx.URL]]:
+    """``antwort_id`` ist die ID, die der Server in ``ref.id`` zurueckmeldet.
+
+    Das modelliert den realistischen Weg: die Bibliothek erhaelt eine ID aus
+    Antwortdaten und baut damit den naechsten Pfad.
+    """
+    gesehen: list[httpx.URL] = []
+    NODE = _node(antwort_id)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        gesehen.append(request.url)
+        if "/values" in request.url.path:
+            return httpx.Response(200, json={"values": []})
+        if "queries" in request.url.path:
+            return httpx.Response(200, json={"nodes": [], "pagination": {"total": 0}})
+        if request.method == "DELETE" or "references" in request.url.path:
+            return httpx.Response(200, content=b"")
+        return httpx.Response(200, json=NODE)
+
+    repo = AsyncRepository(
+        REPO, client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    return repo, gesehen
+
+
+def _pfade_bleiben_unter(gesehen: list[httpx.URL], praefix: str) -> None:
+    assert gesehen, "kein Request abgesetzt -- der Test prueft nichts"
+    for url in gesehen:
+        assert url.path.startswith(praefix), (
+            f"Pfad verlaesst {praefix!r}: {url.path!r}"
+        )
+
+
+@pytest.mark.parametrize("boese", ANGRIFFE)
+async def test_node_id_bleibt_im_pfad(boese):
+    repo, gesehen = _repo_mit_protokoll()
+    async with repo:
+        await repo.node(boese)
+    _pfade_bleiben_unter(gesehen, "/edu-sharing/rest/node/v1/nodes/-home-/")
+
+
+@pytest.mark.parametrize("boese", ANGRIFFE)
+async def test_parent_id_beim_anlegen_bleibt_im_pfad(boese):
+    repo, gesehen = _repo_mit_protokoll()
+    async with repo:
+        await repo.create_node(boese, name="x.txt")
+    _pfade_bleiben_unter(gesehen, "/edu-sharing/rest/node/v1/nodes/-home-/")
+
+
+@pytest.mark.parametrize("boese", ANGRIFFE)
+async def test_schreibwege_bleiben_im_pfad(boese):
+    """update, set_property, delete und die Dateiwege."""
+    repo, gesehen = _repo_mit_protokoll(antwort_id=boese)
+    async with repo:
+        node = await repo.nodes.get("harmlos")
+        assert node.id == boese, "Vorbedingung: der Node traegt die boese ID"
+        await node.set_property("ccm:x", "1", verify=False)
+        await node.delete()
+        await node.content.text()
+    _pfade_bleiben_unter(gesehen, "/edu-sharing/rest/node/v1/nodes/-home-/")
+
+
+@pytest.mark.parametrize("boese", ANGRIFFE)
+async def test_sammlungs_ids_bleiben_im_pfad(boese):
+    repo, gesehen = _repo_mit_protokoll()
+    async with repo:
+        await repo.add_to_collection(boese, boese)
+        await repo.remove_from_collection(boese, boese)
+        await repo.create_collection("Titel", parent=boese)
+    _pfade_bleiben_unter(gesehen, "/edu-sharing/rest/collection/v1/collections/-home-/")
+
+
+@pytest.mark.parametrize("boese", ANGRIFFE)
+async def test_metadatensatz_bleibt_im_pfad(boese):
+    """Der Metadatensatz kommt aus der Konfiguration, nicht aus Fremddaten --
+    aber er steht im selben Pfad und wird genauso behandelt."""
+    repo = AsyncRepository(REPO, metadataset=boese, client=httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda r: httpx.Response(
+            200, json={"nodes": [], "pagination": {"total": 0}}))))
+    gesehen: list[httpx.URL] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        gesehen.append(request.url)
+        if "/values" in request.url.path:
+            return httpx.Response(200, json={"values": []})
+        return httpx.Response(200, json={"nodes": [], "pagination": {"total": 0}})
+
+    repo = AsyncRepository(REPO, metadataset=boese, client=httpx.AsyncClient(
+        transport=httpx.MockTransport(handler)))
+    async with repo:
+        await repo.search("Physik")
+        await repo.vocab.values("ccm:taxonid")
+    for url in gesehen:
+        assert url.path.startswith((
+            "/edu-sharing/rest/search/v1/queries/-home-/",
+            "/edu-sharing/rest/mds/v1/metadatasets/-home-/",
+        )), f"Pfad verlaesst den festen Teil: {url.path!r}"
