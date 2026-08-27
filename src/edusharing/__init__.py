@@ -12,11 +12,15 @@ bestimmten Instanz vorauszusetzen.
         for treffer in repo.search("Photosynthese", fach="Biologie"):
             print(treffer.title, treffer.url)
 
+        node = repo.node("abc-123")
+        node.update(titel="Neuer Titel")   # geprueft: wirft bei stillem Verlust
+
 ``AsyncRepository`` ist dieselbe Oberflaeche fuer asynchronen Code.
 """
 
 from .auth import ANONYMOUS, AnonymousCredential, BasicCredential, Credential, credential_from
 from .collections import Collections
+from .content import NodeContent
 from .errors import (
     AuthenticationError,
     ConflictError,
@@ -24,10 +28,12 @@ from .errors import (
     NotFoundError,
     PermissionDeniedError,
     ServerError,
+    SilentDropError,
     TransportError,
     ValidationError,
 )
 from .info import About, Identity, MetadataSet
+from .nodes import WRITE_FIELD_ALIASES, Node, Nodes
 from .repository import AsyncRepository, Repository
 from .results import Facet, FacetValue, SearchHit, SearchResult, UnresolvedFilter
 from .search import STANDARD_FIELD_ALIASES, Search
@@ -50,6 +56,11 @@ __all__ = [
     "FacetValue",
     "UnresolvedFilter",
     "STANDARD_FIELD_ALIASES",
+    # Knoten
+    "Node",
+    "Nodes",
+    "NodeContent",
+    "WRITE_FIELD_ALIASES",
     # Vokabular
     "Vocabulary",
     "VocabularyValue",
@@ -68,6 +79,7 @@ __all__ = [
     "ValidationError",
     "ConflictError",
     "ServerError",
+    "SilentDropError",
     # URLs
     "normalize_repository_url",
     "rest_base",

@@ -235,7 +235,7 @@ Die vollständige Fallensammlung wandert nach `docs/QUIRKS.md`.
 | **0** | ~~Generator-Pipeline~~ | ✅ **erledigt** — `scripts/generate_client.py`, verifiziert (§4.1) |
 | **1** | ~~Transport, Auth (inkl. Bearer-Falle), Fehlertypen, `_about`-Health, Identitätsprobe~~ | ✅ **erledigt** — 93 Tests offline, 5 live gegen 11.0 (§8.1) |
 | **2** | ~~Vokabular-Cache, Label↔URI, Suche mit Facetten, beide Sammlungs-Legs~~ | ✅ **erledigt** — 160 Tests offline, 21 live (§8.2) |
-| **3** | Nodes, Properties (beide Wege automatisch), Read-Back-Verify, Keywords-Merge, Collections, Dateien | Kuration ohne stille Verluste |
+| **3** | ~~Nodes, Properties (beide Wege), Read-Back-Verify, Keywords-Merge, Collections, Dateien~~ | ✅ **erledigt** — 206 offline, 19 live lesend, 18 live **schreibend** (§8.3) |
 | **4** | `edusharing.agent` (§6) + b-api-Client mit Policy | Ein MCP ließe sich darauf bauen, ohne die Bibliothek zu ändern |
 
 Dokumentation läuft mit, nicht hinterher: **jedes Beispiel in `docs/beispiele/` ist
@@ -315,6 +315,60 @@ korrigieren vorher angenommenes Wissen:
 **Beobachtung für Etappe 3:** `repository.py` ist auf ~380 Zeilen gewachsen und
 trägt drei Verantwortungen (Wertobjekte, asynchrone Umsetzung, synchroner
 Durchgriff). Vor dem Hinzufügen der Node-Operationen aufteilen, nicht danach.
+
+### 8.3 Etappe 3 — was dabei herauskam
+
+| Modul | Verantwortung |
+|---|---|
+| `nodes.py` | Knoten lesen/anlegen/ändern/löschen, Rückleseprobe, Schlagwort-Merge |
+| `content.py` | Dateien hoch-/herunterladen, Volltext |
+| `info.py` | Wertobjekte der Instanz-Auskünfte (aus `repository.py` ausgelagert) |
+| `collections.py` | zusätzlich: Sammlung anlegen, Referenzen setzen/entfernen |
+| `_sync.py` | zusätzlich: `SyncTransport`, `SyncNode`, `SyncNodeContent` |
+
+**Der zentrale Messbefund**, an einem Wegwerf-Knoten erhoben:
+
+| Vorgang | HTTP | gespeichert |
+|---|---|---|
+| `PUT /metadata`, Property im MDS | 200 | ja |
+| `PUT /metadata`, Property **nicht** im MDS | **200** | **nein** |
+| `POST /property`, dieselbe Property | 200 | ja |
+| `PUT /metadata`, erfundenes Feld | **200** | **nein** |
+
+Zweimal ein Erfolgscode für etwas, das nicht passiert ist. Der Live-Test belegt
+beide Seiten: mit Rückleseprobe schlägt der Vorgang fehl, mit `verify=False`
+meldet derselbe Aufruf Erfolg und der Wert ist weg.
+
+Vier weitere Befunde, drei davon haben Annahmen widerlegt:
+
+1. **`downloadUrl` belegt nicht, dass es einen Inhalt gibt.** Sie ist immer
+   gesetzt, und ein Knoten ohne Datei liefert daran 200 mit null Bytes —
+   klaglos. Verlässlich ist `content.hash`: ohne Inhalt `None`, bei einer
+   0-Byte-Datei gesetzt. `cclom:size` taugt nicht, dort steht in beiden Fällen
+   `None`.
+2. **Ein `ccm:map` aus der Node-API ist keine Sammlung.** Ihm fehlt der Aspekt
+   `collection`; jeder Referenzversuch endet mit `400 … is not a collection`.
+   Sammlungen brauchen den Collection-Endpunkt — und dort wird
+   `-collectionhome-` **nicht** aufgelöst (404), anders als an der Node-API.
+   Der Sammlungs-Root heißt dort `-root-`.
+3. **Nach `addReference` ist die Referenz nicht sofort sichtbar.**
+   `/children/references` liefert eine leere Liste, obwohl die Referenz
+   existiert — der zweite Versuch antwortet mit 409. Eine Rückleseprobe wäre
+   hier also falsch und schlüge fälschlich Alarm; `add()` verzichtet darauf und
+   meldet stattdessen über den Rückgabewert, ob neu angelegt wurde.
+4. **Das Löschen einer Property geht mit Body `null` *und* ganz ohne Body.**
+   Gesendet wird das explizite `null` — der dokumentierte Weg; eine Auslassung
+   kann eine andere Version anders auslegen.
+
+**Zwei eigene Lücken**, beide beim Benutzen aufgefallen und geschlossen: der
+synchrone `Repository` hatte kein `raw`, und `SyncNode.content` gab ein Objekt
+mit asynchronen Methoden zurück, dessen Aufrufe ins Leere liefen. Jede neue
+asynchrone Fläche braucht ihren synchronen Durchgriff — das ist die Wartungslast
+von Entscheidung E3 und gehört bei jeder Erweiterung mitgeprüft.
+
+**Schreibtests** laufen nur mit `-m write`, ausschließlich in einem eigens
+angelegten Ordner im Home des Testkontos, und räumen ihn wieder ab. Der Bestand
+wurde nach jedem Lauf gegen den Ausgangszustand geprüft.
 
 ## 9. Offene Punkte
 

@@ -216,3 +216,43 @@ async def test_leere_datei_gilt_als_inhalt(repo, ordner):
     assert leer.content.has_content is True
     assert leer.get("cclom:size") is None
     assert await leer.content.download() == b""
+
+
+# --- Sammlungen ------------------------------------------------------------
+
+@pytest.fixture
+async def sammlung(repo):
+    """Eine eigene, private Sammlung je Testlauf."""
+    neu = await repo.create_collection(f"pytest-sammlung-{uuid.uuid4().hex[:8]}")
+    assert neu.id
+    try:
+        yield neu
+    finally:
+        await neu.delete()
+
+
+async def test_sammlung_ist_privat(sammlung):
+    """Die Vorgabe muss die engste sein -- eine versehentlich oeffentliche
+    Sammlung sieht die ganze Instanz."""
+    assert (sammlung.raw.get("collection") or {}).get("scope") == "MY"
+
+
+async def test_inhalt_in_sammlung_legen_und_wieder_herausnehmen(repo, sammlung, ordner):
+    """Angelegt wird eine Referenz, keine Kopie: das Original ueberlebt das
+    Herausnehmen."""
+    io = await repo.create_node(ordner.id, name="fuer-sammlung.txt", titel="Referenzziel")
+
+    assert await repo.add_to_collection(sammlung.id, io.id) is True
+    await repo.remove_from_collection(sammlung.id, io.id)
+
+    weiterhin_da = await repo.node(io.id)
+    assert weiterhin_da.title == "Referenzziel"
+
+
+async def test_doppeltes_einlegen_ist_kein_fehler(repo, sammlung, ordner):
+    """409 heisst hier: liegt schon drin -- der gewuenschte Zustand. Ein Fehler
+    daraus zu machen wuerde jeden Wiederholungslauf sprengen."""
+    io = await repo.create_node(ordner.id, name="doppelt-eingelegt.txt")
+    assert await repo.add_to_collection(sammlung.id, io.id) is True
+    assert await repo.add_to_collection(sammlung.id, io.id) is False
+    await repo.remove_from_collection(sammlung.id, io.id)

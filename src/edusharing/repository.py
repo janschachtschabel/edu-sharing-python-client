@@ -187,6 +187,18 @@ class AsyncRepository:
         """Lege einen Knoten an. Siehe ``Nodes.create``."""
         return await self._nodes.create(parent_id, **kwargs)
 
+    async def create_collection(self, title: str, **kwargs: Any) -> Node:
+        """Lege eine Sammlung an. Siehe ``Collections.create``."""
+        return await self._collections.create(title, **kwargs)
+
+    async def add_to_collection(self, collection_id: str, node_id: str) -> bool:
+        """Lege einen Inhalt als Referenz in eine Sammlung."""
+        return await self._collections.add(collection_id, node_id)
+
+    async def remove_from_collection(self, collection_id: str, node_id: str) -> None:
+        """Nimm einen Inhalt aus einer Sammlung. Das Original bleibt."""
+        await self._collections.remove(collection_id, node_id)
+
     async def find_collections(self, text: str, **kwargs: Any) -> SearchResult:
         """Suche Sammlungen ueber beide Wege, die edu-sharing dafuer hat.
 
@@ -303,6 +315,20 @@ class Repository:
         """Die Knotenschicht. Ihre Methoden sind asynchron -- fuer den
         synchronen Weg siehe ``node()`` und ``create_node()``."""
         return self._async.nodes
+
+    def create_collection(self, title: str, **kwargs: Any) -> SyncNode:
+        """Lege eine Sammlung an. Siehe ``Collections.create``."""
+        return SyncNode(
+            self._loop.run(self._async.create_collection(title, **kwargs)), self._loop
+        )
+
+    def add_to_collection(self, collection_id: str, node_id: str) -> bool:
+        """Lege einen Inhalt als Referenz in eine Sammlung."""
+        return self._loop.run(self._async.add_to_collection(collection_id, node_id))
+
+    def remove_from_collection(self, collection_id: str, node_id: str) -> None:
+        """Nimm einen Inhalt aus einer Sammlung. Das Original bleibt."""
+        self._loop.run(self._async.remove_from_collection(collection_id, node_id))
 
     def node(self, node_id: str) -> SyncNode:
         """Lade einen Knoten. Seine Schreibmethoden blockieren."""

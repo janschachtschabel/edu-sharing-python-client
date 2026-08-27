@@ -33,8 +33,10 @@ der Ueberlappung zu hoch, die Zahl aus A allein zu niedrig.
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
-from .errors import EduSharingError
+from .errors import ConflictError, EduSharingError
+from .nodes import Node, Nodes
 from .results import SearchHit, SearchResult
 from .transport import Transport
 from .vocab import DEFAULT_METADATASET
@@ -45,6 +47,15 @@ DEFAULT_LIMIT = 10
 
 #: Abfragename fuer Leg A. Wie ``ngsearch`` eine Konvention des Metadatensatzes.
 COLLECTION_QUERY = "collections"
+
+#: Sichtbarkeit einer neuen Sammlung. ``MY`` ist privat -- die Vorgabe, weil
+#: eine versehentlich oeffentliche Sammlung die ganze Instanz sieht.
+DEFAULT_SCOPE = "MY"
+
+#: Sammlungs-Root des Kontos. ``-collectionhome-`` wird von diesem Endpunkt
+#: **nicht** aufgeloest (gemessen: 404 InvalidNodeRefException) -- anders als
+#: an der Node-API, wo symbolische IDs greifen.
+COLLECTION_ROOT = "-root-"
 
 
 class Collections:
@@ -163,6 +174,80 @@ class Collections:
             params={"query": text, "maxItems": limit, "skipCount": 0},
         )
         return list(antwort.get("collections") or [])
+
+    # --- Schreiben --------------------------------------------------------
+
+    async def create(
+        self,
+        title: str,
+        *,
+        parent: str = COLLECTION_ROOT,
+        scope: str = DEFAULT_SCOPE,
+        description: str | None = None,
+    ) -> Node:
+        """Lege eine Sammlung an.
+
+        Nicht ueber die Node-API: ein dort als ``ccm:map`` angelegter Knoten ist
+        **keine** Sammlung -- gemessen fehlt ihm der Aspekt ``collection``, und
+        jeder Referenzversuch darauf endet mit ``400 ... is not a collection``.
+
+        Args:
+            title: Titel der Sammlung.
+            parent: Elternsammlung. Vorgabe ist der Sammlungs-Root des Kontos.
+            scope: ``MY`` (privat, Vorgabe), ``ORGANIZATION`` oder ``PUBLIC``.
+                Die Vorgabe ist bewusst die engste.
+        """
+        body: dict[str, Any] = {
+            "title": title,
+            "collection": {"type": "TYPE_DEFAULT", "scope": scope},
+        }
+        if description:
+            body["description"] = description
+
+        antwort = await self._transport.json(
+            "POST",
+            f"/collection/v1/collections/-home-/{parent}/children",
+            json=body,
+        )
+        daten = antwort.get("collection") or antwort.get("node") or antwort
+        return Node(daten, Nodes(self._transport))
+
+    async def add(self, collection_id: str, node_id: str) -> bool:
+        """Lege einen Inhalt in eine Sammlung.
+
+        Angelegt wird eine **Referenz**, nicht eine Kopie: das Original bleibt,
+        wo es ist, und ueberlebt auch das Entfernen der Referenz.
+
+        Anders als beim Schreiben von Properties findet hier **keine**
+        Rueckleseprobe statt. Gemessen: direkt nach dem Anlegen liefert
+        ``/children/references`` eine leere Liste, obwohl die Referenz
+        existiert -- der zweite Versuch antwortet mit ``409``. Eine Probe
+        wuerde also faelschlich Alarm schlagen.
+
+        Returns:
+            ``True``, wenn die Referenz neu angelegt wurde; ``False``, wenn sie
+            schon da war. Ein ``409`` ist hier kein Fehler -- der gewuenschte
+            Zustand ist erreicht, und ein Wiederholungslauf soll nicht daran
+            scheitern.
+        """
+        try:
+            await self._transport.request(
+                "PUT",
+                f"/collection/v1/collections/-home-/{collection_id}/references/{node_id}",
+            )
+        except ConflictError:
+            return False
+        return True
+
+    async def remove(self, collection_id: str, node_id: str) -> None:
+        """Nimm einen Inhalt aus einer Sammlung.
+
+        Entfernt nur die Referenz -- das Original bleibt unangetastet.
+        """
+        await self._transport.request(
+            "DELETE",
+            f"/collection/v1/collections/-home-/{collection_id}/references/{node_id}",
+        )
 
     def __repr__(self) -> str:
         return f"Collections(metadataset={self.metadataset!r})"

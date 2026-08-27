@@ -3,8 +3,9 @@
 Python-Bibliothek für [edu-sharing](https://edu-sharing.com)-Repositorien und die
 **b-api** (Bildungs-API, OpenEduHub) — **repository-agnostisch** und **async-first**.
 
-> **Status: in Arbeit.** Verbinden, Suche, Vokabular und Sammlungen stehen und
-> sind gegen edu-sharing 11.0 geprüft. Schreibzugriff folgt — der Fahrplan steht
+> **Status: in Arbeit.** Lesen, Suchen und Schreiben stehen und sind gegen
+> edu-sharing 11.0 geprüft — auch schreibend, gegen eine echte Instanz. Offen
+> sind die Bausteine für KI-Anwendungen und der b-api-Client; der Fahrplan steht
 > in [`docs/ARCHITEKTUR.md`](docs/ARCHITEKTUR.md). Was unten mit ⏳ markiert ist,
 > beschreibt das Ziel, nicht den Ist-Stand.
 
@@ -88,15 +89,45 @@ gemessen **null**.
 
 Zum Ausprobieren: `python docs/beispiele/01_verbinden.py` und `02_suchen.py`
 
-## ⏳ Wohin es geht
+### Schreiben — mit Rückleseprobe
 
 ```python
 node = repo.node("abc-123")
-node.update(titel="Neuer Titel")      # gemerged, zurückgelesen, wirft bei stillem Drop
-node.keywords.add("Weimar (Ort)")     # Merge statt Überschreiben
+node = node.update(titel="Neuer Titel")     # zurückgelesen, wirft bei stillem Verlust
+node = node.add_keywords("Weimar (Ort)")    # ergänzt, ersetzt nicht
+node = node.content.upload(daten, filename="material.pdf", mimetype="application/pdf")
 ```
 
-Und das LLM-Gateway:
+Warum das nicht trivial ist: **edu-sharing meldet `200 OK` für Schreibvorgänge,
+die nicht stattgefunden haben.** Eine Property, die der Metadatensatz nicht
+kennt, wird stillschweigend verworfen — Statuscode 200, Wert weg. `update()`
+liest deshalb zurück:
+
+```
+SilentDropError: Nicht gespeichert: ccm:oeh_collection_compendium_text
+  (HTTP 200, nach der Rückleseprobe abwesend oder abweichend). Zwei übliche
+  Ursachen: die Property ist im Metadatensatz dieser Instanz nicht vorgesehen,
+  oder das Schreibrecht fehlt. node.set_property(...) umgeht die Filterung
+  des Metadatensatzes.
+```
+
+Auf `set_property` weicht die Bibliothek **nicht** von selbst aus: die Filterung
+ist eine Entscheidung des Repositoriums, keine Panne. Sie zu umgehen bleibt ein
+bewusster Schritt.
+
+Sammlungen:
+
+```python
+sammlung = repo.create_collection("Meine Sammlung")   # privat per Vorgabe
+repo.add_to_collection(sammlung.id, node.id)          # Referenz, keine Kopie
+```
+
+Zum Ausprobieren: `python docs/beispiele/03_schreiben.py` — legt einen eigenen
+Wegwerf-Ordner an und entfernt ihn wieder.
+
+## ⏳ Wohin es geht
+
+Das LLM-Gateway:
 
 ```python
 from edusharing.bapi import BildungsAPI
@@ -127,6 +158,12 @@ eincodiert statt dokumentiert:
 - **Nicht auflösbare Filter werden gemeldet, nicht verworfen.** Eine
   fallengelassene Einschränkung liefert Treffer, die niemand angefragt hat, und
   sieht dabei wie ein Ergebnis aus.
+- **`200 OK` ist kein Persistenzbeweis** beim Schreiben — siehe oben.
+- **`downloadUrl` belegt nicht, dass es eine Datei gibt.** Sie ist immer gesetzt;
+  ein Knoten ohne Inhalt liefert daran 200 mit null Bytes. `content.has_content`
+  prüft den Hash, der auch eine 0-Byte-Datei von *gar keiner* Datei unterscheidet.
+- **Schlagworte sind eine geteilte Liste.** `add_keywords` ergänzt; wer
+  `cclom:general_keyword` direkt setzt, löscht fremde Einträge.
 
 ## Tests
 

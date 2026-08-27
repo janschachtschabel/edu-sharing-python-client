@@ -154,3 +154,83 @@ async def test_treffer_tragen_die_render_url():
     e = await _collections(_router()).find("Optik")
     treffer = next(t for t in e.hits if t.id == "aaa-1")
     assert treffer.url == f"{REPO}/components/render/aaa-1"
+
+
+# --- Schreiben: Sammlungen und Referenzen ---------------------------------
+
+def _schreib_router(aufrufe: list, konflikt: bool = False):
+    def handler(request: httpx.Request) -> httpx.Response:
+        aufrufe.append(request)
+        pfad, methode = request.url.path, request.method
+        if methode == "POST" and pfad.endswith("/children"):
+            return httpx.Response(200, json={
+                "collection": {"ref": {"id": "neue-sammlung"}, "title": "Neu",
+                               "collection": {"scope": "MY"}}})
+        if methode == "PUT" and "/references/" in pfad:
+            if konflikt:
+                return httpx.Response(409, json={
+                    "error": "org.edu_sharing.restservices.DAODuplicateNodeNameException",
+                    "message": "already in collection"})
+            return httpx.Response(200, content=b"")
+        if methode == "DELETE" and "/references/" in pfad:
+            return httpx.Response(200, content=b"")
+        return httpx.Response(404, json={"error": "x", "message": pfad})
+    return handler
+
+
+async def test_sammlung_anlegen_sendet_das_noetige_dto():
+    """Ein ueber die Node-API angelegtes ccm:map ist KEINE Sammlung -- gemessen
+    fehlt ihm der Aspekt 'collection', und jede Referenz darauf endet mit 400.
+    Sammlungen brauchen diesen Endpunkt und ein Body mit title und collection."""
+    aufrufe = []
+    coll = await _collections(_schreib_router(aufrufe)).create("Neue Sammlung")
+    assert coll.id == "neue-sammlung"
+    import json as _json
+    body = _json.loads(aufrufe[0].content)
+    assert body["title"] == "Neue Sammlung"
+    assert body["collection"]["scope"] == "MY"
+
+
+async def test_sammlung_wird_per_vorgabe_privat_angelegt():
+    """Eine versehentlich oeffentliche Sammlung sieht die ganze Instanz."""
+    aufrufe = []
+    await _collections(_schreib_router(aufrufe)).create("X")
+    import json as _json
+    assert _json.loads(aufrufe[0].content)["collection"]["scope"] == "MY"
+
+
+async def test_referenz_hinzufuegen():
+    aufrufe = []
+    await _collections(_schreib_router(aufrufe)).add("coll-1", "node-1")
+    put = next(r for r in aufrufe if r.method == "PUT")
+    assert put.url.path.endswith("/collections/-home-/coll-1/references/node-1")
+
+
+async def test_referenz_wird_nicht_zurueckgelesen():
+    """Anders als beim Schreiben von Properties ist hier keine Rueckleseprobe
+    moeglich: gemessen liefert /children/references direkt nach dem Anlegen
+    eine LEERE Liste, obwohl die Referenz existiert -- der zweite Versuch
+    antwortet mit 409. Eine Probe wuerde also faelschlich Alarm schlagen."""
+    aufrufe = []
+    await _collections(_schreib_router(aufrufe)).add("coll-1", "node-1")
+    assert not any(r.method == "GET" for r in aufrufe)
+
+
+async def test_doppelte_referenz_ist_kein_fehler():
+    """409 heisst hier "liegt schon drin" -- das ist der gewuenschte Zustand.
+    Ein Fehler daraus zu machen wuerde jeden Wiederholungslauf sprengen."""
+    aufrufe = []
+    ergebnis = await _collections(_schreib_router(aufrufe, konflikt=True)).add("c", "n")
+    assert ergebnis is False          # nichts hinzugefuegt, aber kein Fehler
+
+
+async def test_neue_referenz_meldet_true():
+    ergebnis = await _collections(_schreib_router([])).add("c", "n")
+    assert ergebnis is True
+
+
+async def test_referenz_entfernen():
+    aufrufe = []
+    await _collections(_schreib_router(aufrufe)).remove("coll-1", "node-1")
+    delete = next(r for r in aufrufe if r.method == "DELETE")
+    assert delete.url.path.endswith("/collections/-home-/coll-1/references/node-1")
