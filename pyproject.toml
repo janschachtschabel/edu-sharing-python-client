@@ -74,3 +74,21 @@ ignore = [
     # sagt einer lesenden Person mehr als die Sortierung.
     "RUF022",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest-cov>=7.1.0",
+]
+
+[tool.coverage.run]
+source = ["src/edusharing"]
+# The generated layer is never hand-written and never hand-tested; including it
+# would drown the real figure (54,570 statements against roughly 1,200).
+omit = ["*/_generated/*"]
+
+[tool.coverage.report]
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    '\.\.\.',
+]

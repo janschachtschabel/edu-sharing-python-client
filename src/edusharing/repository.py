@@ -260,6 +260,7 @@ class Repository:
     def __init__(self, url: str, **kwargs: Any) -> None:
         self._loop = LoopThread()
         self._async = AsyncRepository(url, **kwargs)
+        self._closed = False
 
     @classmethod
     def from_env(cls, **kwargs: Any) -> Repository:
@@ -357,6 +358,16 @@ class Repository:
         return self._loop.run(self._async.metadatasets())
 
     def close(self) -> None:
+        """Close the connection.
+
+        Calling it repeatedly is allowed: ``close()`` typically sits in a
+        ``finally`` **and** is called by the context manager, so the second call
+        is the normal case, not an error. Without the guard the second one
+        raises, because the loop is already gone.
+        """
+        if self._closed:
+            return
+        self._closed = True
         try:
             self._loop.run(self._async.aclose())
         finally:
