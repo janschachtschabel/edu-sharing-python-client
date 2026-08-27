@@ -234,7 +234,7 @@ Die vollständige Fallensammlung wandert nach `docs/QUIRKS.md`.
 |---|---|---|
 | **0** | ~~Generator-Pipeline~~ | ✅ **erledigt** — `scripts/generate_client.py`, verifiziert (§4.1) |
 | **1** | ~~Transport, Auth (inkl. Bearer-Falle), Fehlertypen, `_about`-Health, Identitätsprobe~~ | ✅ **erledigt** — 93 Tests offline, 5 live gegen 11.0 (§8.1) |
-| **2** | MDS-Introspektion, Vokabular-Cache, Label↔URI, Suche mit Facetten, beide Sammlungs-Legs | Läuft gegen ein **Nicht-WLO-Repository** |
+| **2** | ~~Vokabular-Cache, Label↔URI, Suche mit Facetten, beide Sammlungs-Legs~~ | ✅ **erledigt** — 160 Tests offline, 21 live (§8.2) |
 | **3** | Nodes, Properties (beide Wege automatisch), Read-Back-Verify, Keywords-Merge, Collections, Dateien | Kuration ohne stille Verluste |
 | **4** | `edusharing.agent` (§6) + b-api-Client mit Policy | Ein MCP ließe sich darauf bauen, ohne die Bibliothek zu ändern |
 
@@ -268,16 +268,72 @@ Die drei kritischen Verhaltensweisen sind per Mutationstest abgesichert: Semapho
 aushebeln, Retry auf Statuscode umstellen, Grenzprüfung durch nacktes `startswith`
 ersetzen — jede Mutation macht genau ihren Test rot.
 
+### 8.2 Etappe 2 — was dabei herauskam
+
+| Modul | Verantwortung |
+|---|---|
+| `vocab.py` | Label↔URI gegen `/values`, gecacht mit Sperre je Property |
+| `search.py` | ngsearch mit Filtern, Facetten, Feld-Aliasen |
+| `results.py` | Wertobjekte, geteilt von Material- und Sammlungssuche |
+| `collections.py` | beide Sammlungs-Suchen, gleichzeitig, zusammengeführt |
+
+**Zur Generizität (E4).** Eine zweite *Instanz* ließ sich nicht heranziehen:
+`stable.demo.edu-sharing.net` (edu-sharing 9.0) erlaubt anonym **gar nichts** —
+selbst `/iam/…/-me-` antwortet 401. Das ist als Live-Test festgehalten (die
+Bibliothek muss daraus einen `AuthenticationError` machen, nicht abstürzen).
+
+Verifiziert wurde stattdessen gegen **zwei Metadatensätze derselben Instanz**:
+`-default-` (Contentbuffet, 88 Widgets, 22 Vokabulare) und `mds_oeh`
+(236 Widgets, 107 Vokabulare). Sie liefern verschiedene Treffermengen für
+dieselbe Anfrage (2825 vs. 17994 für „Physik"), und derselbe Bibliothekscode
+arbeitet mit beiden. Das ist schwächer als eine fremde Instanz, aber es ist
+eine echte Trennung: hätte die Bibliothek WLO-Annahmen, würde `-default-`
+scheitern.
+
+Fünf Befunde, die den Entwurf geformt haben — alle gemessen, drei davon
+korrigieren vorher angenommenes Wissen:
+
+1. **Ein Vokabular zu führen und filterbar zu sein sind verschiedene Dinge.**
+   `ccm:taxonid` hat in beiden Metadatensätzen ein Vokabular, ist aber nur in
+   `mds_oeh` filterbar; `ccm:educationaltypicalagerangecluster` in keinem. Ein
+   Live-Test ist genau darüber gestolpert. Die Bibliothek ergänzt die
+   Servermeldung jetzt um den fehlenden Hinweis.
+2. **Die OpenAPI-Spec beschreibt die Vokabular-Antwort falsch.** Deklariert ist
+   `MdsValue {id, caption}`; geliefert wird `{key, displayString}`. Wer der
+   generierten Schicht vertraut, liest leere Felder — die Rechtfertigung für
+   die handgeschriebene Ebene, in einem Satz.
+3. **`pattern` ist eine Teilstring-, keine Präfixsuche.** `"ysik"` findet
+   Physik, Atomphysik, Kernphysik. Die ursprüngliche Präfix-Annahme wurde vom
+   Live-Test widerlegt.
+4. **Die beiden Sammlungs-Suchen divergieren wirklich** — bei „Deutsch" ist die
+   Schnittmenge **null** (25 gegen 25 verschiedene Sammlungen), bei „Physik"
+   trägt jede fünf eigene bei. Beide sind nötig.
+5. **Query-Namen sind nicht introspektierbar.** `ngsearch` steht in keiner
+   API-Antwort; die `lists` im MDS führen durchweg `queries: []`. Der Name ist
+   eine Konvention und daher ein Parameter, kein ermittelter Wert.
+
+**Beobachtung für Etappe 3:** `repository.py` ist auf ~380 Zeilen gewachsen und
+trägt drei Verantwortungen (Wertobjekte, asynchrone Umsetzung, synchroner
+Durchgriff). Vor dem Hinzufügen der Node-Operationen aufteilen, nicht danach.
+
 ## 9. Offene Punkte
 
 1. **Paketname** — Import `edusharing`, Distribution `edu-sharing`? Alternativen:
    `edusharing-py`, `pyedusharing`.
 2. **Sprache der Doku** — README zweisprachig (wie `wlo-mcp-sc`) oder nur Deutsch?
    Docstrings englisch für internationale Nachnutzung?
-3. **Zweite Testinstanz** — E4 verlangt ein Nicht-WLO-edu-sharing zum Verifizieren.
-   Welches ist erreichbar? (`stable.demo.edu-sharing.net` ist der Default-Host der
-   Referenz-Spec — reicht das?)
+3. **Zweite Testinstanz** — weiterhin offen. `stable.demo.edu-sharing.net`
+   (edu-sharing 9.0) ist erreichbar, erlaubt anonym aber **nichts** außer
+   `/_about` und `/config/v1/values`; ohne Zugangsdaten taugt es nicht zur
+   Verifikation. Ersatzweise laufen die Tests gegen zwei Metadatensätze
+   derselben Instanz (§8.2). Gibt es eine andere erreichbare Instanz — oder
+   Zugangsdaten für die Demo?
 4. **Lizenz** — in `pyproject.toml` vorläufig **Apache-2.0** gesetzt (wie `wlo-mcp-sc`);
    `LICENSE`-Datei fehlt noch, bis das bestätigt ist.
-5. **Schreibtests** — Etappe 3 braucht ein Konto mit Schreibrecht auf Staging und
-   einen Ablageort für Wegwerf-Knoten.
+5. **Schreibtests** — Etappe 3 braucht ein Konto mit Schreibrecht. Festgelegt:
+   **nur gegen Staging und nur in einen eigens dafür angelegten Bereich**;
+   keine Schreibvorgänge in vorhandenen Beständen.
+6. **Sprache der Feld-Aliase** — `fach`, `stufe`, `typ` sind deutsch, wie im
+   Plan vorgesehen. Für internationale Nachnutzung wären `subject`, `level`,
+   `type` naheliegender. Beides parallel anzubieten wäre Wildwuchs, also ist
+   das eine Entscheidung. Hängt an Punkt 2.

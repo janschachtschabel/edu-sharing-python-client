@@ -9,6 +9,12 @@ in der Umgebung meldet sich das Beispiel an und zeigt den Unterschied.
 
 import sys
 
+# Die Windows-Konsole liefert sonst cp1252 und verstuemmelt Umlaute. Betrifft
+# nur die Ausgabe dieses Beispiels -- die Bibliothek arbeitet durchgehend in
+# UTF-8 und fasst stdout nicht an.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 from edusharing import BasicCredential, EduSharingError, Repository
 
 STANDARD = "https://repository.staging.openeduhub.net"

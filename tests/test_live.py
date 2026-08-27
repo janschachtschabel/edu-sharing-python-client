@@ -194,3 +194,27 @@ async def test_instanz_ohne_anonymen_zugriff_meldet_das_klar():
         assert about.repository_version, "auch dort muss /_about gehen"
         with pytest.raises(AuthenticationError):
             await r.whoami()
+
+
+# --- Etappe 2: Sammlungen --------------------------------------------------
+
+async def test_sammlungssuche_findet_ueber_beide_wege():
+    """Gemessen: bei "Deutsch" ist die Schnittmenge der beiden Wege NULL --
+    25 gegen 25 voellig verschiedene Sammlungen. Ein einzelner Weg verliert
+    also systematisch."""
+    async with AsyncRepository(os.environ["EDU_SHARING_URL"], metadataset="mds_oeh") as r:
+        e = await r.find_collections("Deutsch", limit=25)
+    assert not e.warnings, f"ein Weg ist ausgefallen: {e.warnings}"
+    assert len(e.hits) > 25, (
+        f"nur {len(e.hits)} Sammlungen -- bei nicht ueberlappenden Wegen "
+        "muessten es mehr als die 25 eines einzelnen sein"
+    )
+    assert e.total_is_lower_bound is True
+
+
+async def test_sammlungstreffer_tragen_id_und_url():
+    async with AsyncRepository(os.environ["EDU_SHARING_URL"], metadataset="mds_oeh") as r:
+        e = await r.find_collections("Optik", limit=5)
+    assert e.hits
+    for treffer in e.hits:
+        assert treffer.id and treffer.url.endswith(treffer.id)

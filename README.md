@@ -3,10 +3,10 @@
 Python-Bibliothek für [edu-sharing](https://edu-sharing.com)-Repositorien und die
 **b-api** (Bildungs-API, OpenEduHub) — **repository-agnostisch** und **async-first**.
 
-> **Status: in Arbeit.** Verbinden, Fehlerbehandlung und Identitätsprobe stehen
-> und sind gegen edu-sharing 11.0 geprüft. Suche, Vokabular und Schreibzugriff
-> folgen — der Fahrplan steht in [`docs/ARCHITEKTUR.md`](docs/ARCHITEKTUR.md).
-> Was unten mit ⏳ markiert ist, beschreibt das Ziel, nicht den Ist-Stand.
+> **Status: in Arbeit.** Verbinden, Suche, Vokabular und Sammlungen stehen und
+> sind gegen edu-sharing 11.0 geprüft. Schreibzugriff folgt — der Fahrplan steht
+> in [`docs/ARCHITEKTUR.md`](docs/ARCHITEKTUR.md). Was unten mit ⏳ markiert ist,
+> beschreibt das Ziel, nicht den Ist-Stand.
 
 ## Warum
 
@@ -51,14 +51,46 @@ Jeder der 389 Endpunkte ist erreichbar, auch ohne eigene Methode:
 werte = await repo.raw.json("GET", "/config/v1/values")
 ```
 
-Zum Ausprobieren: `python docs/beispiele/01_verbinden.py`
+### Suchen mit Labels statt URIs
+
+```python
+with Repository(url, metadataset="mds_oeh") as repo:
+    ergebnis = repo.search("Photosynthese", fach="Biologie", limit=5)
+
+    for offen in ergebnis.unresolved:   # nicht auflösbare Filter — nie stumm
+        print("!", offen)               # "ccm:taxonid='Bio' — gemeint: Biologie?"
+
+    for treffer in ergebnis.hits:
+        print(treffer.title, treffer.labels("ccm:taxonid"), treffer.url)
+```
+
+`fach="Biologie"` wird gegen den Metadatensatz **dieser** Instanz aufgelöst, nicht
+gegen eine eingebaute Tabelle. Welche Metadatensätze es gibt, sagt
+`repo.metadatasets()`; die Wahl ändert, was filterbar ist und was gefunden wird.
+
+Facetten zählen serverseitig über die ganze Ergebnismenge:
+
+```python
+ergebnis = repo.search("Photosynthese", facets=["ccm:educationalcontext"])
+for wert in ergebnis.facets[0].values:
+    print(wert.count, wert.value)
+```
+
+### Sammlungen
+
+```python
+repo.find_collections("Optik")
+```
+
+Fragt **beide** Sammlungs-Suchen von edu-sharing gleichzeitig ab und führt sie
+zusammen — keine ist Obermenge der anderen. Bei „Deutsch" ist ihre Schnittmenge
+gemessen **null**.
+
+Zum Ausprobieren: `python docs/beispiele/01_verbinden.py` und `02_suchen.py`
 
 ## ⏳ Wohin es geht
 
 ```python
-for hit in repo.search("Photosynthese", fach="Biologie", stufe="Sekundarstufe I"):
-    print(hit.title, hit.url)
-
 node = repo.node("abc-123")
 node.update(titel="Neuer Titel")      # gemerged, zurückgelesen, wirft bei stillem Drop
 node.keywords.add("Weimar (Ort)")     # Merge statt Überschreiben
@@ -86,6 +118,15 @@ eincodiert statt dokumentiert:
   zu `AuthenticationError` — und nicht wiederholt.
 - **Das Passwort geht nur an das konfigurierte Repositorium.** Auch dann, wenn
   eine URL aus Antwortdaten woandershin zeigt.
+- **Ein Vokabular zu haben heißt nicht, danach filtern zu können.**
+  `ccm:taxonid` führt in beiden geprüften Metadatensätzen ein Vokabular, ist aber
+  nur in `mds_oeh` filterbar. Trifft die Suche darauf, ergänzt die Bibliothek die
+  Servermeldung um den fehlenden Hinweis.
+- **`pattern:""` listet alle Vokabularwerte** — das naheliegende `"-all-"` gibt
+  lautlos eine leere Liste zurück.
+- **Nicht auflösbare Filter werden gemeldet, nicht verworfen.** Eine
+  fallengelassene Einschränkung liefert Treffer, die niemand angefragt hat, und
+  sieht dabei wie ein Ergebnis aus.
 
 ## Tests
 
