@@ -220,3 +220,49 @@ async def test_loeschen_geht_standardmaessig_in_den_papierkorb():
         await repo.flows.delete("abc")
     loeschung = [r for r in instanz.anfragen if r.method == "DELETE"][-1]
     assert loeschung.url.params.get("recycle") == "true"
+
+
+async def test_ein_uri_wird_unveraendert_durchgereicht():
+    """Wer den URI schon kennt, soll ihn benutzen duerfen. Durch den Resolver
+    geschickt wuerde er als unaufloesbar gemeldet -- obwohl er richtig ist."""
+    instanz = Instanz()
+    uri = "http://w3id.org/openeduhub/vocabs/discipline/460"
+    async with _repo(instanz) as repo:
+        ergebnis = await repo.flows.add_material("Titel", subject=uri)
+    assert not ergebnis["unresolved"]
+    assert instanz.knoten[NEU]["properties"]["ccm:taxonid"] == [uri]
+
+
+async def test_ohne_home_verzeichnis_wird_der_grund_genannt():
+    """Ein Gastkonto hat keines. Ohne diese Meldung endet der Aufruf in einem
+    404 auf eine leere Eltern-ID, und niemand weiss warum."""
+    instanz = Instanz()
+
+    def ohne_home(request):
+        if "-me-" in request.url.path:
+            return httpx.Response(200, json={"person": {
+                "authorityName": "GUEST", "userName": "guest", "profile": {}}})
+        return instanz(request)
+
+    async with AsyncRepository(
+        REPO, metadataset="mds_oeh", backoff_base=0.0,
+        client=httpx.AsyncClient(transport=httpx.MockTransport(ohne_home)),
+    ) as repo:
+        with pytest.raises(EduSharingError) as fehler:
+            await repo.flows.add_material("Titel")
+    assert "parent_id" in str(fehler.value), "die Meldung muss den Ausweg nennen"
+
+
+async def test_sammlungsparameter_kommen_richtig_an():
+    """parent heisst auf der API-Ebene parent, nicht parent_id -- ein
+    vertauschter Name faellt sonst erst im Betrieb auf."""
+    instanz = Instanz()
+    async with _repo(instanz) as repo:
+        await repo.flows.build_collection(
+            "S", description="Text", parent_id="eltern-1", scope="PUBLIC")
+    post = next(r for r in instanz.anfragen
+                if r.method == "POST" and "/collection" in r.url.path)
+    body = json.loads(post.content)
+    assert body["collection"]["scope"] == "PUBLIC"
+    assert body["collection"]["description"] == "Text"
+    assert post.url.path.endswith("/-home-/eltern-1/children")
