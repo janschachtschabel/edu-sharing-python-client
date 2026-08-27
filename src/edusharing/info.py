@@ -1,9 +1,9 @@
-"""Wertobjekte fuer die Auskuenfte einer Instanz.
+"""Value objects for what an instance reports about itself.
 
-Getrennt von ``repository``, weil sie eine eigene Frage beantworten -- *was ist
-das fuer ein Repositorium und als wer arbeite ich darin* -- und weil
-``repository`` sonst zum Sammelbecken wird, sobald die Node-Operationen
-dazukommen.
+Kept apart from ``repository`` because they answer a question of their own --
+*what kind of repository is this, and who am I working as in it* -- and because
+``repository`` would otherwise become a catch-all once the node operations move
+in.
 """
 
 from __future__ import annotations
@@ -13,19 +13,19 @@ from typing import Any
 
 __all__ = ["About", "Identity", "MetadataSet", "GUEST_AUTHORITY"]
 
-#: Wie edu-sharing den nicht angemeldeten Zugriff nennt. Der Wert ist
-#: instanzseitig konfigurierbar (``repository.guest.username``); ``esguest`` ist
-#: die Vorgabe und das, was auf den geprueften Instanzen zurueckkommt.
+#: What edu-sharing calls unauthenticated access. The value is configurable per
+#: instance (``repository.guest.username``); ``esguest`` is the default and what
+#: the instances checked here return.
 GUEST_AUTHORITY = "esguest"
 
 
 @dataclass(frozen=True)
 class About:
-    """Auskunft ueber die Instanz, aus ``GET /_about``.
+    """What the instance reports, from ``GET /_about``.
 
-    ``services``, ``plugins`` und ``features`` sind der Weg, Faehigkeiten zu
-    pruefen, statt sie vorauszusetzen -- etwa ob diese Instanz die b-api
-    mitbringt.
+    ``services``, ``plugins`` and ``features`` are the way to check capabilities
+    rather than assume them -- for instance whether this instance ships the
+    b-api.
     """
 
     repository_version: str | None = None
@@ -35,7 +35,7 @@ class About:
     plugins: list[str] = field(default_factory=list)
     features: list[str] = field(default_factory=list)
     themes_url: str | None = None
-    #: Die vollstaendige Antwort, fuer alles hier nicht Abgebildete.
+    #: The complete response, for anything not mapped here.
     raw: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -56,10 +56,10 @@ class About:
 
 @dataclass(frozen=True, slots=True)
 class MetadataSet:
-    """Ein Metadatensatz, den diese Instanz fuehrt.
+    """A metadata set this instance carries.
 
-    Welcher der richtige ist, entscheidet die Anwendung: die Wahl aendert,
-    welche Properties filterbar sind und was gefunden wird.
+    Which one is right is the application's call: the choice changes which
+    properties are filterable and what gets found.
     """
 
     id: str
@@ -68,7 +68,7 @@ class MetadataSet:
 
 @dataclass(frozen=True)
 class Identity:
-    """Als wer die Anwendung gerade arbeitet, aus ``GET /iam/v1/people/-home-/-me-``."""
+    """Who the application is working as, from ``GET /iam/v1/people/-home-/-me-``."""
 
     authority: str
     username: str
@@ -82,7 +82,7 @@ class Identity:
         authority = person.get("authorityName") or ""
         profile = person.get("profile") or {}
         name = " ".join(
-            teil for teil in (profile.get("firstName"), profile.get("lastName")) if teil
+            part for part in (profile.get("firstName"), profile.get("lastName")) if part
         )
         return cls(
             authority=authority,

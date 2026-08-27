@@ -1,14 +1,13 @@
-"""Ein Event-Loop in einem eigenen Thread, fuer den synchronen Zugang.
+"""An event loop in a thread of its own, for the synchronous surface.
 
-Der naheliegende Weg -- ``asyncio.run()`` pro Aufruf -- scheitert genau bei der
-Zielgruppe, fuer die der synchrone Zugang gedacht ist: ein Jupyter-Notebook
-betreibt bereits einen laufenden Event-Loop, und zwei laufende Loops in einem
-Thread gibt es nicht. Ausserdem wuerde jeder Aufruf den Verbindungspool
-wegwerfen.
+The obvious route -- ``asyncio.run()`` per call -- fails at exactly the audience
+the synchronous surface exists for: a Jupyter notebook already runs an event
+loop, and two running loops in one thread do not exist. It would also throw away
+the connection pool on every call.
 
-Also ein eigener Loop in einem eigenen Thread. Aufrufe werden per
-``run_coroutine_threadsafe`` hinuebergereicht und blockieren den aufrufenden
-Thread, bis das Ergebnis da ist -- was synchroner Code ohnehin erwartet.
+So: one loop in one thread. Calls are handed over via
+``run_coroutine_threadsafe`` and block the calling thread until the result
+arrives -- which synchronous code expects anyway.
 """
 
 from __future__ import annotations
@@ -29,7 +28,7 @@ _STOP_TIMEOUT = 5.0
 
 
 class LoopThread:
-    """Betreibt einen Event-Loop im Hintergrund, bis ``close()`` gerufen wird."""
+    """Runs an event loop in the background until ``close()`` is called."""
 
     def __init__(self) -> None:
         self._loop = asyncio.new_event_loop()
@@ -41,14 +40,14 @@ class LoopThread:
         self._thread.start()
 
     def run(self, coro: Coroutine[Any, Any, T]) -> T:
-        """Fuehre ``coro`` im Hintergrund-Loop aus und warte auf das Ergebnis."""
+        """Run ``coro`` on the background loop and wait for the result."""
         return asyncio.run_coroutine_threadsafe(coro, self._loop).result()
 
     def close(self) -> None:
-        """Halte den Loop an und warte auf den Thread.
+        """Stop the loop and join the thread.
 
-        Mehrfaches Aufrufen ist erlaubt -- ``close()`` steht typischerweise in
-        einem ``finally`` und wird zusaetzlich vom Kontextmanager gerufen.
+        Calling it repeatedly is fine -- ``close()`` typically sits in a
+        ``finally`` and is also called by the context manager.
         """
         if self._loop.is_closed():
             return
@@ -58,14 +57,14 @@ class LoopThread:
 
 
 class SyncTransport:
-    """Synchroner Durchgriff auf einen ``Transport``.
+    """Synchronous pass-through to a ``Transport``.
 
-    Der Notausgang zu den Endpunkten ohne eigene Methode muss auch dem
-    synchronen Zugang offenstehen -- sonst waere er eine Sackgasse, sobald
-    etwas gebraucht wird, das die Bibliothek noch nicht abdeckt.
+    The escape hatch to endpoints without a method of their own must be open to
+    the synchronous surface too -- otherwise it becomes a dead end the moment
+    something is needed that the library does not cover yet.
 
-    Absichtlich schmal: nur ``request`` und ``json``. Alles Weitere gehoert an
-    den asynchronen Transport, nicht hierher dupliziert.
+    Deliberately narrow: only ``request`` and ``json``. Everything else belongs
+    on the asynchronous transport, not duplicated here.
     """
 
     def __init__(self, transport: Any, loop: LoopThread) -> None:
@@ -73,11 +72,11 @@ class SyncTransport:
         self._loop = loop
 
     def request(self, method: str, path: str, **kwargs: Any) -> Any:
-        """Wie ``Transport.request``, blockierend."""
+        """Like ``Transport.request``, blocking."""
         return self._loop.run(self._transport.request(method, path, **kwargs))
 
     def json(self, method: str, path: str, **kwargs: Any) -> Any:
-        """Wie ``Transport.json``, blockierend."""
+        """Like ``Transport.json``, blocking."""
         return self._loop.run(self._transport.json(method, path, **kwargs))
 
     def __repr__(self) -> str:
@@ -85,46 +84,46 @@ class SyncTransport:
 
 
 class SyncNode:
-    """Ein Knoten fuer den synchronen Zugang.
+    """A node for the synchronous surface.
 
-    Reicht die Methoden von ``Node`` blockierend durch. Ausgeschrieben statt
-    dynamisch erzeugt: die Namen sollen in der IDE auffindbar und die
-    Signaturen lesbar bleiben.
+    Passes ``Node``'s methods through, blocking. Written out rather than
+    generated: the names should stay discoverable in an IDE and the signatures
+    readable.
     """
 
     def __init__(self, node: Node, loop: Any) -> None:
         self._node = node
         self._loop = loop
 
-    # Lesende Zugriffe sind ohnehin synchron und werden durchgereicht.
+    # Reading access is synchronous anyway and is passed straight through.
     def __getattr__(self, name: str) -> Any:
         return getattr(self._node, name)
 
     @property
     def content(self) -> SyncNodeContent:
-        """Der Binaerinhalt, blockierend."""
+        """The binary content, blocking."""
         return SyncNodeContent(self._node.content, self._loop)
 
     def update(self, **kwargs: Any) -> SyncNode:
-        """Wie ``Node.update``, blockierend."""
+        """Like ``Node.update``, blocking."""
         return SyncNode(self._loop.run(self._node.update(**kwargs)), self._loop)
 
     def set_property(self, prop: str, value: Any, **kwargs: Any) -> SyncNode:
-        """Wie ``Node.set_property``, blockierend."""
+        """Like ``Node.set_property``, blocking."""
         return SyncNode(
             self._loop.run(self._node.set_property(prop, value, **kwargs)), self._loop
         )
 
     def add_keywords(self, *keywords: str) -> SyncNode:
-        """Wie ``Node.add_keywords``, blockierend."""
+        """Like ``Node.add_keywords``, blocking."""
         return SyncNode(self._loop.run(self._node.add_keywords(*keywords)), self._loop)
 
     def remove_keywords(self, *keywords: str) -> SyncNode:
-        """Wie ``Node.remove_keywords``, blockierend."""
+        """Like ``Node.remove_keywords``, blocking."""
         return SyncNode(self._loop.run(self._node.remove_keywords(*keywords)), self._loop)
 
     def delete(self, **kwargs: Any) -> None:
-        """Wie ``Node.delete``, blockierend."""
+        """Like ``Node.delete``, blocking."""
         self._loop.run(self._node.delete(**kwargs))
 
     def __repr__(self) -> str:
@@ -132,10 +131,10 @@ class SyncNode:
 
 
 class SyncNodeContent:
-    """Der Binaerinhalt eines Knotens fuer den synchronen Zugang.
+    """A node's binary content for the synchronous surface.
 
-    Ohne diese Schicht gaebe ``SyncNode.content`` ein Objekt mit asynchronen
-    Methoden zurueck -- der Aufruf liefe ins Leere und meldete nichts.
+    Without this layer ``SyncNode.content`` would hand back an object with
+    asynchronous methods -- the call would go nowhere and report nothing.
     """
 
     def __init__(self, content: Any, loop: LoopThread) -> None:
@@ -146,15 +145,15 @@ class SyncNodeContent:
         return getattr(self._content, name)
 
     def upload(self, data: bytes, **kwargs: Any) -> Any:
-        """Wie ``NodeContent.upload``, blockierend."""
+        """Like ``NodeContent.upload``, blocking."""
         return SyncNode(self._loop.run(self._content.upload(data, **kwargs)), self._loop)
 
     def download(self) -> bytes:
-        """Wie ``NodeContent.download``, blockierend."""
+        """Like ``NodeContent.download``, blocking."""
         return self._loop.run(self._content.download())
 
     def text(self, **kwargs: Any) -> str:
-        """Wie ``NodeContent.text``, blockierend."""
+        """Like ``NodeContent.text``, blocking."""
         return self._loop.run(self._content.text(**kwargs))
 
     def __repr__(self) -> str:

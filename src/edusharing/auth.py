@@ -1,18 +1,17 @@
-"""Zugangsdaten -- wer eine Anfrage stellt.
+"""Credentials -- who is making a request.
 
-Eigenes Modul, weil hier eine Sicherheitsgrenze liegt und eine Sicherheitsgrenze
-am Dateinamen auffindbar sein sollte. Zwei Eigenschaften traegt sie:
+Its own module because a security boundary lives here, and a security boundary
+should be findable by its file name. It carries two properties:
 
-**Zugangsdaten sind Werte, kein globaler Zustand.** Jede Anfrage bekommt ihre
-mitgegeben. Ein Dienst, der viele Nutzende bedient -- ein MCP-Server etwa --
-kann sonst nicht sauber trennen, wer gerade fragt.
+**Credentials are values, not global state.** Every request gets its own. A
+service that serves many people -- an MCP server, say -- cannot otherwise keep
+straight who is asking.
 
-**Bearer-Token werden abgelehnt.** Die OpenAPI-Spezifikation von edu-sharing
-deklariert genau zwei Verfahren, ``basicAuth`` und ``cookieAuth``. Ein
-``Authorization: Bearer ...`` wird vom Server **ignoriert, nicht abgelehnt**:
-die Anfrage sieht authentifiziert aus und laeuft als Gast. Wer damit schreibt,
-bekommt 500 "Not allowed for guest user" an einer Stelle, die nichts mit dem
-eigentlichen Problem zu tun hat.
+**Bearer tokens are rejected.** The OpenAPI specification of edu-sharing
+declares exactly two schemes, ``basicAuth`` and ``cookieAuth``. An
+``Authorization: Bearer ...`` is **ignored, not rejected** by the server: the
+request looks authenticated and runs as a guest. Whoever writes with it gets a
+500 "Not allowed for guest user" somewhere unrelated to the actual problem.
 """
 
 from __future__ import annotations
@@ -32,20 +31,20 @@ ENV_PASSWORD = "EDU_SHARING_PASSWORD"
 
 @runtime_checkable
 class Credential(Protocol):
-    """Was der Transport von Zugangsdaten braucht."""
+    """What the transport needs from credentials."""
 
     def headers(self) -> dict[str, str]:
-        """Die Kopfzeilen, die an das Repositorium gehen."""
+        """The headers that go to the repository."""
         ...
 
     @property
     def is_anonymous(self) -> bool:
-        """Ob ohne Anmeldung gearbeitet wird."""
+        """Whether work happens without signing in."""
         ...
 
 
 class AnonymousCredential:
-    """Kein Login. Gueltiger Betriebsfall -- vieles ist oeffentlich lesbar."""
+    """No sign-in. A valid mode -- much is publicly readable."""
 
     def headers(self) -> dict[str, str]:
         return {}
@@ -62,55 +61,55 @@ ANONYMOUS: Credential = AnonymousCredential()
 
 
 class BasicCredential:
-    """Benutzername und Passwort nach RFC 7617.
+    """Username and password per RFC 7617.
 
-    Das Passwort taucht weder in ``repr`` noch in ``str`` auf: beide landen in
-    Tracebacks und Log-Zeilen.
+    The password appears in neither ``repr`` nor ``str``: both end up in
+    tracebacks and log lines.
     """
 
     __slots__ = ("_header", "_username")
 
     def __init__(self, username: str, password: str) -> None:
         self._username = username
-        # UTF-8 festgelegt, nicht der Plattform ueberlassen: sonst haengt ein
-        # Login mit Umlaut davon ab, auf welchem System der Client laeuft.
+        # UTF-8 pinned rather than left to the platform: otherwise a sign-in
+        # with an umlaut depends on which system the client runs on.
         raw = f"{username}:{password}".encode()
         self._header = "Basic " + base64.b64encode(raw).decode("ascii")
 
     @classmethod
     def from_raw_header(cls, header: str) -> BasicCredential:
-        """Uebernimm einen fertigen ``Basic ...``-Header, ohne ihn zu zerlegen.
+        """Adopt a ready ``Basic ...`` header without taking it apart.
 
-        Fuer Faelle, in denen die Zugangsdaten aus einer weitergereichten
-        Anfrage stammen und im Klartext gar nicht vorliegen.
+        For cases where the credentials come from a forwarded request and are
+        not available in the clear at all.
         """
         obj = cls.__new__(cls)
-        object.__setattr__(obj, "_username", "<aus Header>")
+        object.__setattr__(obj, "_username", "<from header>")
         object.__setattr__(obj, "_header", header)
         return obj
 
     @classmethod
     def from_env(cls) -> BasicCredential | None:
-        """Lies ``EDU_SHARING_USER`` / ``EDU_SHARING_PASSWORD``.
+        """Read ``EDU_SHARING_USER`` / ``EDU_SHARING_PASSWORD``.
 
         Returns:
-            ``None``, wenn beide fehlen -- dann wird anonym gearbeitet.
+            ``None`` when both are absent -- then work happens anonymously.
 
         Raises:
-            EduSharingError: wenn nur eines von beiden gesetzt ist. Anonym
-                weiterzulaufen wuerde den Konfigurationsfehler verschleiern,
-                und gemessen antwortet edu-sharing auf falsche Zugangsdaten
-                ueberall mit 401 statt mit eingeschraenktem Zugriff.
+            EduSharingError: when only one of the two is set. Continuing
+                anonymously would obscure the misconfiguration -- and measured,
+                edu-sharing answers wrong credentials with 401 everywhere
+                rather than with reduced access.
         """
         user = os.environ.get(ENV_USER)
         password = os.environ.get(ENV_PASSWORD)
         if not user and not password:
             return None
         if not user or not password:
-            fehlt = ENV_PASSWORD if user else ENV_USER
+            missing = ENV_PASSWORD if user else ENV_USER
             raise EduSharingError(
-                f"Unvollstaendige Zugangsdaten: {fehlt} fehlt. "
-                f"Entweder {ENV_USER} und {ENV_PASSWORD} beide setzen oder beide weglassen."
+                f"Incomplete credentials: {missing} is missing. Either set both "
+                f"{ENV_USER} and {ENV_PASSWORD}, or neither."
             )
         return cls(user, password)
 
@@ -126,19 +125,19 @@ class BasicCredential:
         return self._username
 
     def __repr__(self) -> str:
-        return f"BasicCredential(username={self._username!r}, password=<verborgen>)"
+        return f"BasicCredential(username={self._username!r}, password=<hidden>)"
 
     __str__ = __repr__
 
 
 def credential_from(value: object) -> Credential:
-    """Mache aus dem, was ein Aufrufer uebergibt, Zugangsdaten.
+    """Turn whatever a caller passes into credentials.
 
-    Angenommen werden: ``None`` (anonym), ein ``(benutzer, passwort)``-Paar, ein
-    fertiger ``Basic ...``-Header und ein bereits gebautes ``Credential``.
+    Accepted: ``None`` (anonymous), a ``(username, password)`` pair, a ready
+    ``Basic ...`` header, and an already-built ``Credential``.
 
     Raises:
-        EduSharingError: bei einem Bearer-Token oder einer unbekannten Form.
+        EduSharingError: on a bearer token or an unknown shape.
     """
     if value is None:
         return ANONYMOUS
@@ -148,23 +147,23 @@ def credential_from(value: object) -> Credential:
         user, password = value
         return BasicCredential(str(user), str(password))
     if isinstance(value, str):
-        # Der Token selbst darf nicht in die Meldung -- er ist ein Geheimnis,
-        # auch wenn er hier nutzlos ist.
+        # The token itself must not reach the message -- it is a secret, even a
+        # useless one here.
         if value.lower().startswith("bearer "):
             raise EduSharingError(
-                "Bearer-Token werden von edu-sharing nicht unterstuetzt. Die API "
-                "kennt nur Basic-Auth und Session-Cookies, und sie IGNORIERT einen "
-                "Bearer-Header, statt ihn abzulehnen -- die Anfrage liefe dann "
-                "unbemerkt als Gast. Bitte Benutzername und Passwort uebergeben: "
-                "Repository(url, auth=(benutzer, passwort))."
+                "Bearer tokens are not supported by edu-sharing. The API knows "
+                "only Basic auth and session cookies, and it IGNORES a Bearer "
+                "header rather than rejecting it -- the request would then run "
+                "as a guest without anyone noticing. Please pass username and "
+                "password: Repository(url, auth=(user, password))."
             )
         if value.lower().startswith("basic "):
             return BasicCredential.from_raw_header(value)
         raise EduSharingError(
-            f"Unbekannte Form von Zugangsdaten: {value.split(' ', 1)[0]!r}. "
-            "Erwartet wird ein (benutzer, passwort)-Paar oder ein 'Basic ...'-Header."
+            f"Unknown credential shape: {value.split(' ', 1)[0]!r}. A "
+            "(username, password) pair or a 'Basic ...' header is expected."
         )
     raise EduSharingError(
-        f"Zugangsdaten koennen nicht aus {type(value).__name__} gebildet werden. "
-        "Erwartet wird None, ein (benutzer, passwort)-Paar oder ein 'Basic ...'-Header."
+        f"Credentials cannot be built from {type(value).__name__}. Expected "
+        "None, a (username, password) pair, or a 'Basic ...' header."
     )

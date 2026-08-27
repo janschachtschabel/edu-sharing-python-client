@@ -1,17 +1,17 @@
-"""Fehlertypen und die Zuordnung einer HTTP-Antwort zu einem davon.
+"""Error types, and mapping an HTTP response onto one of them.
 
-edu-sharing antwortet im Fehlerfall mit drei Feldern::
+On failure edu-sharing answers with three fields::
 
     {"error": "org.edu_sharing.restservices.DAOMissingException",
      "message": "InvalidNodeRefException: Node does not exist: ...",
      "stacktrace": "\\njava.lang.Exception: ...\\n\\tat org.edu_sharing...."}
 
-``error`` traegt den Java-Klassennamen und ist die praezisere Kategorie -- der
-HTTP-Status allein reicht nicht, wie ``ServerError`` unten zeigt.
+``error`` carries the Java class name and is the more precise category -- the
+HTTP status alone is not enough, as ``ServerError`` below shows.
 
-Der ``stacktrace`` bleibt als Attribut erreichbar, taucht aber nie in ``str()``
-auf: er enthaelt interne Klassenpfade und Zeilennummern, die in einer Meldung
-nichts zu suchen haben, die eine Anwendung ihren Nutzenden zeigt.
+The ``stacktrace`` stays reachable as an attribute but never appears in
+``str()``: it holds internal class paths and line numbers that have no place in
+a message an application shows its users.
 """
 
 from __future__ import annotations
@@ -33,17 +33,17 @@ __all__ = [
 
 
 class EduSharingError(Exception):
-    """Basis aller Fehler dieser Bibliothek.
+    """Base of every error in this library.
 
-    Wer nicht unterscheiden will, faengt diesen Typ.
+    Catch this type if you do not need to tell them apart.
 
-    Attribute:
-        status: HTTP-Statuscode, oder ``None`` wenn die Anfrage den Server
-            nie erreicht hat (siehe ``TransportError``).
-        url: die angefragte URL.
-        error_class: der Java-Klassenname aus dem Feld ``error``, sofern die
-            Antwort JSON war.
-        stacktrace: der Java-Stacktrace. Nur zum Debuggen -- nicht anzeigen.
+    Attributes:
+        status: HTTP status code, or ``None`` when the request never reached
+            the server (see ``TransportError``).
+        url: the requested URL.
+        error_class: the Java class name from the ``error`` field, if the
+            response was JSON.
+        stacktrace: the Java stack trace. For debugging only -- do not display.
     """
 
     def __init__(
@@ -63,96 +63,98 @@ class EduSharingError(Exception):
 
 
 class TransportError(EduSharingError):
-    """Die Anfrage hat den Server nie erreicht: Timeout, DNS, TLS, Verbindung.
+    """The request never reached the server: timeout, DNS, TLS, connection.
 
-    Abgegrenzt von ``ServerError``, weil der Unterschied fuer den Aufrufer
-    zaehlt: hier ist unklar, ob etwas passiert ist. Ein Schreibvorgang, der in
-    einen Timeout laeuft, kann trotzdem ausgefuehrt worden sein.
+    Kept apart from ``ServerError`` because the difference matters to the
+    caller: here it is unclear whether anything happened. A write that runs into
+    a timeout may still have been carried out.
     """
 
 
 class AuthenticationError(EduSharingError):
-    """Nicht angemeldet, oder die Zugangsdaten stimmen nicht.
+    """Not signed in, or the credentials are wrong.
 
-    Auf WLO-Instanzen gemessen: falsche Zugangsdaten geben ``401`` auf JEDEM
-    Endpunkt -- es gibt keinen Rueckfall auf "nur oeffentlich lesen". Ein
-    Tippfehler im Passwort legt damit die ganze Anwendung lahm, statt sie
-    eingeschraenkt weiterlaufen zu lassen.
+    Measured on WLO instances: wrong credentials give ``401`` on EVERY endpoint
+    -- there is no fallback to "public read only". A typo in the password
+    therefore paralyses the whole application instead of letting it run with
+    reduced access.
     """
 
 
 class PermissionDeniedError(EduSharingError):
-    """Angemeldet, aber ohne das noetige Recht.
+    """Signed in, but without the necessary right.
 
-    edu-sharing hat zwei Rechte-Ebenen: die ACL am Knoten und die
-    Tool-Permissions am Konto. Beide landen hier.
+    edu-sharing has two permission layers: the ACL on the node and the tool
+    permissions on the account. Both land here.
     """
 
 
 class NotFoundError(EduSharingError):
-    """Der Knoten, die Sammlung oder der Endpunkt existiert nicht."""
+    """The node, collection or endpoint does not exist."""
 
 
 class ValidationError(EduSharingError):
-    """Das Repositorium hat die Anfrage abgelehnt (``DAOValidationException``).
+    """The repository rejected the request (``DAOValidationException``).
 
-    Typisch: ein Suchkriterium, das die angesprochene Query nicht kennt.
+    Typically: a search criterion the addressed query does not know.
     """
 
 
 class ConflictError(EduSharingError):
-    """Der Vorgang kollidiert mit dem vorhandenen Zustand.
+    """The operation collides with the existing state.
 
-    Typisch: ein Name, den es unter demselben Elternknoten schon gibt.
+    Typically: a name that already exists under the same parent.
     """
 
 
 class SilentDropError(EduSharingError):
-    """Das Repositorium hat ``200 OK`` gemeldet und nichts gespeichert.
+    """The repository reported ``200 OK`` and stored nothing.
 
-    Gemessen (edu-sharing 11.0, Staging, an einem Wegwerf-Knoten): ein
-    ``PUT /metadata`` mit einer Property, die der Metadatensatz nicht kennt,
-    antwortet mit **200** -- und der Wert ist danach abwesend. Dasselbe gilt
-    fuer ein voellig erfundenes Feld.
+    Measured (edu-sharing 11.0, staging, on a throwaway node): a
+    ``PUT /metadata`` carrying a property the metadata set does not know answers
+    with **200** -- and the value is absent afterwards. The same holds for a
+    wholly invented field.
 
-    Ein Statuscode ist hier also kein Persistenzbeweis. Ohne Rueckleseprobe
-    meldet eine Anwendung Erfolg fuer Daten, die es nicht mehr gibt.
+    A status code is therefore no proof of persistence. Without a read-back an
+    application reports success for data that no longer exists.
 
-    Attribute:
-        dropped: die Properties, die nach dem Zurueckliesen fehlten.
+    Attributes:
+        dropped: the properties that were missing after reading back.
     """
 
-    def __init__(self, message: str, *, dropped: list[str] | None = None, **kwargs: object) -> None:
+    def __init__(
+        self, message: str, *, dropped: list[str] | None = None, **kwargs: object
+    ) -> None:
         super().__init__(message, **kwargs)  # type: ignore[arg-type]
         self.dropped = dropped or []
 
 
 class ServerError(EduSharingError):
-    """Ein echter Fehler auf der Gegenseite.
+    """A genuine failure on the other side.
 
-    Nur die 5xx, die nach Pruefung KEINE verkleidete Auth- oder Rechtefrage
-    sind -- siehe ``error_from_response``.
+    Only those 5xx that on inspection are NOT a disguised authentication or
+    permission question -- see ``error_from_response``.
     """
 
 
-# Ein Gast auf einem geschuetzten Endpunkt bekommt HTTP 500, nicht 401.
-# Gemessen an GET /iam/v1/people/-home-/-me-/preferences ohne Zugangsdaten:
+# A guest hitting a protected endpoint gets HTTP 500, not 401. Measured on
+# GET /iam/v1/people/-home-/-me-/preferences without credentials:
 #   500  {"error": "java.lang.Exception", "message": "Not allowed for guest user"}
-# Der Status ist damit irrefuehrend, und die Verwechslung ist teuer: als
-# ServerError wuerde der Transport es wiederholen -- dreimal dieselbe Anfrage,
-# die nie gelingen kann, weil nur die Anmeldung fehlt.
+# The status is misleading, and the confusion is expensive: as a ServerError the
+# transport would retry it -- three times the same request that can never
+# succeed, because only the sign-in is missing.
 _GUEST_HINT = "not allowed for guest"
 
-# Dieselbe Verkleidung fuer Rechte: /rating/v1/ratings/.../history antwortet
-# mit 500 NotAnAdminException.
+# The same disguise for permissions: /rating/v1/ratings/.../history answers with
+# 500 NotAnAdminException.
 _ADMIN_HINT = "notanadmin"
 
 
 def _parse_body(body: str) -> tuple[str | None, str, str | None]:
-    """Zerlege den Antwortkoerper in (error_class, message, stacktrace).
+    """Split the response body into (error_class, message, stacktrace).
 
-    Faellt auf ``(None, "", None)`` zurueck, wenn der Koerper kein JSON ist:
-    ein 401 kommt leer, und ein Reverse-Proxy antwortet mit HTML.
+    Falls back to ``(None, "", None)`` when the body is not JSON: a 401 arrives
+    empty, and a reverse proxy answers with HTML.
     """
     if not body:
         return None, "", None
@@ -175,11 +177,11 @@ def _short(error_class: str | None) -> str:
 
 
 def error_from_response(status: int, url: str, body: str) -> EduSharingError:
-    """Baue aus einer Fehlerantwort den passenden Fehlertyp.
+    """Build the matching error type from a failure response.
 
-    Der HTTP-Status ist der erste Hinweis, aber nicht der letzte: bei 5xx
-    entscheidet der Inhalt, ob wirklich der Server kaputt ist oder ob nur die
-    Anmeldung beziehungsweise ein Recht fehlt.
+    The HTTP status is the first hint but not the last: for 5xx the content
+    decides whether the server is genuinely broken or whether merely the
+    sign-in, respectively a permission, is missing.
     """
     error_class, message, stacktrace = _parse_body(body)
 

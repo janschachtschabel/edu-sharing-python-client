@@ -1,8 +1,8 @@
-"""Wertobjekte fuer Suchergebnisse.
+"""Value objects for search results.
 
-Eigenes Modul, weil sie zwei Aufrufer haben: die Materialsuche und die
-Sammlungssuche. Laegen sie in einem der beiden, muesste der andere dorthin
-importieren -- und die Abhaengigkeit zeigte in die falsche Richtung.
+Their own module because they have two callers: the material search and the
+collection search. Living in either one would force the other to import from
+there -- and the dependency would point the wrong way.
 """
 
 from __future__ import annotations
@@ -15,11 +15,11 @@ __all__ = ["SearchHit", "FacetValue", "Facet", "UnresolvedFilter", "SearchResult
 
 @dataclass(frozen=True)
 class SearchHit:
-    """Ein Treffer.
+    """A single hit.
 
-    ``id`` und ``url`` sind die beiden Angaben, ohne die niemand auf den
-    Treffer zurueckkommt -- und genau die, die ein Sprachmodell beim
-    Zusammenfassen als Erstes wegparaphrasiert.
+    ``id`` and ``url`` are the two details without which nobody can get back to
+    the hit -- and exactly the ones a language model paraphrases away first when
+    summarising.
     """
 
     id: str
@@ -35,10 +35,10 @@ class SearchHit:
         return self.raw.get("properties") or {}
 
     def labels(self, prop: str) -> list[str]:
-        """Die lesbaren Werte zu einer Vokabular-Property.
+        """The readable values of a vocabulary property.
 
-        edu-sharing liefert zu jedem Vokabularfeld ein ``<prop>_DISPLAYNAME``
-        mit; das erspart eine zweite Anfrage, nur um eine URI lesbar zu machen.
+        edu-sharing ships a ``<prop>_DISPLAYNAME`` alongside every vocabulary
+        field; that saves a second request just to make a URI readable.
         """
         return list(self.properties().get(f"{prop}_DISPLAYNAME") or [])
 
@@ -48,11 +48,11 @@ class SearchHit:
         props = node.get("properties") or {}
         return cls(
             id=node_id,
-            title=node.get("title") or _erster(props.get("cm:name")) or "",
+            title=node.get("title") or _first(props.get("cm:name")) or "",
             url=f"{repository_url}/components/render/{node_id}",
-            description=_erster(props.get("cclom:general_description"))
-            or _erster(props.get("cm:description")),
-            source_url=_erster(props.get("ccm:wwwurl")),
+            description=_first(props.get("cclom:general_description"))
+            or _first(props.get("cm:description")),
+            source_url=_first(props.get("ccm:wwwurl")),
             mimetype=node.get("mimetype"),
             mediatype=node.get("mediatype"),
             raw=node,
@@ -61,7 +61,7 @@ class SearchHit:
 
 @dataclass(frozen=True, slots=True)
 class FacetValue:
-    """Ein Facettenwert mit seiner Trefferzahl."""
+    """One facet value with its hit count."""
 
     value: str
     count: int
@@ -69,57 +69,57 @@ class FacetValue:
 
 @dataclass(frozen=True)
 class Facet:
-    """Serverseitige Aggregation ueber die ganze Ergebnismenge."""
+    """Server-side aggregation across the whole result set."""
 
     property: str
     values: list[FacetValue] = field(default_factory=list)
-    #: Treffer, die in keinen der zurueckgegebenen Werte fielen.
+    #: Hits that fell into none of the returned values.
     other_count: int = 0
 
     @property
     def truncated(self) -> bool:
-        """Ob die Werteliste gekuerzt ist.
+        """Whether the value list has been cut short.
 
-        Wichtig fuer alles, was Facettenzahlen summiert: eine gekuerzte Liste
-        sieht autoritativ aus und ist zu klein.
+        Matters to anything summing facet counts: a truncated list looks
+        authoritative and is too small.
         """
         return self.other_count > 0
 
 
 @dataclass(frozen=True)
 class UnresolvedFilter:
-    """Ein Filterwert, den der Metadatensatz dieser Instanz nicht kennt."""
+    """A filter value this instance's metadata set does not know."""
 
     field: str
     value: str
     suggestions: list[str] = field(default_factory=list)
 
     def __str__(self) -> str:
-        text = f"{self.field}={self.value!r} ist unbekannt"
+        text = f"{self.field}={self.value!r} is unknown"
         if self.suggestions:
-            text += f" -- gemeint: {', '.join(self.suggestions)}?"
+            text += f" -- did you mean: {', '.join(self.suggestions)}?"
         return text
 
 
 @dataclass(frozen=True)
 class SearchResult:
-    """Das Ergebnis einer Suche."""
+    """The outcome of a search."""
 
     hits: list[SearchHit] = field(default_factory=list)
     total: int = 0
     facets: list[Facet] = field(default_factory=list)
-    #: "Meinten Sie ...?" aus dem Index -- gefuellt, wenn nichts gefunden wurde.
+    #: "Did you mean ...?" from the index -- populated when nothing was found.
     suggestions: list[str] = field(default_factory=list)
-    #: Filter, die nicht aufgeloest werden konnten und daher NICHT gesendet
-    #: wurden. Nicht leer heisst: das Ergebnis ist breiter als angefragt.
+    #: Filters that could not be resolved and were therefore NOT sent. Non-empty
+    #: means: the result is broader than requested.
     unresolved: list[UnresolvedFilter] = field(default_factory=list)
-    #: Kriterien, die das Repositorium selbst verworfen hat.
+    #: Criteria the repository itself discarded.
     ignored: list[str] = field(default_factory=list)
-    #: Was am Ergebnis unvollstaendig ist -- etwa eine Teilabfrage, die
-    #: fehlgeschlagen ist. Nicht leer heisst: hier fehlt moeglicherweise etwas.
+    #: What is incomplete about the result -- a sub-query that failed, for
+    #: instance. Non-empty means: something may be missing here.
     warnings: list[str] = field(default_factory=list)
-    #: Ob ``total`` nur eine Untergrenze ist. Trifft zu, wenn das Ergebnis aus
-    #: mehreren Abfragen stammt und nicht alle eine Gesamtzahl liefern.
+    #: Whether ``total`` is only a lower bound. True when the result comes from
+    #: several queries and not all of them report a total.
     total_is_lower_bound: bool = False
     raw: dict[str, Any] = field(default_factory=dict)
 
@@ -130,8 +130,8 @@ class SearchResult:
         return iter(self.hits)
 
 
-def _erster(wert: Any) -> str | None:
-    """edu-sharing liefert Property-Werte immer als Liste, auch einzelne."""
-    if isinstance(wert, list):
-        return str(wert[0]) if wert else None
-    return str(wert) if wert else None
+def _first(value: Any) -> str | None:
+    """edu-sharing always returns property values as lists, even single ones."""
+    if isinstance(value, list):
+        return str(value[0]) if value else None
+    return str(value) if value else None
