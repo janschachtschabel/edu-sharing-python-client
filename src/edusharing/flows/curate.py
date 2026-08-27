@@ -1,0 +1,266 @@
+"""Writing flows: create, collect, delete.
+
+Three things are done here that the API level leaves to the caller, and each of
+them is a step people forget rather than a step they enjoy.
+
+**Finding the home folder.** It sits four levels deep in the ``whoami()``
+response. Without a flow that reach belongs in every script.
+
+**Resolving vocabulary while writing.** Reading, the search resolves
+``"Biologie"`` to its URI on its own. Writing, the URI had to be known. This is
+where a missing value hurts more: the material is created, just without the
+field, and looks complete.
+
+**Saying what did not work.** A partial success is the normal case when several
+nodes go into a collection. A flow that reports only the successes reports
+success for something that half happened.
+"""
+
+from __future__ import annotations
+
+import re
+from typing import TYPE_CHECKING, Any
+
+from ..errors import EduSharingError, ValidationError
+from .discover import field_property
+
+if TYPE_CHECKING:  # pragma: no cover
+    from ..repository import AsyncRepository
+
+__all__ = ["add_material", "build_collection", "delete"]
+
+#: ``cm:name`` is the key inside the parent folder, not a display title. These
+#: characters make edu-sharing reject it or mangle it.
+_UNSAFE_IN_NAME = re.compile(r"[^\w.\- ]+", re.UNICODE)
+
+
+def _name_from_title(title: str) -> str:
+    """Derive a usable ``cm:name`` from a title.
+
+    Callers think in titles; the repository needs a key. Deriving it here saves
+    the caller a decision they have no basis to make -- and ``rename_if_exists``
+    on the node layer handles the collision this may cause.
+    """
+    name = _UNSAFE_IN_NAME.sub("", title).strip()
+    return (name or "material")[:80]
+
+
+async def _resolve_vocabulary(
+    repo: AsyncRepository, aliases: dict[str, Any]
+) -> tuple[dict[str, list[str]], list[dict[str, Any]]]:
+    """Turn ``{"subject": "Biologie"}`` into ``{"ccm:taxonid": ["<uri>"]}``.
+
+    Returns the resolved properties and everything that could not be resolved.
+    Unresolvable values are NOT sent: a value the metadata set does not know is
+    rejected by the repository or stored as an unusable string, and both are
+    worse than a reported gap.
+    """
+    resolved: dict[str, list[str]] = {}
+    unresolved: list[dict[str, Any]] = []
+
+    for short_name, value in aliases.items():
+        prop = field_property(repo, short_name)
+        values = value if isinstance(value, list) else [value]
+        uris: list[str] = []
+        for single in values:
+            text = str(single)
+            # A URI is already what the repository wants -- passing it through
+            # the resolver would only fail on it.
+            if text.startswith(("http://", "https://")):
+                uris.append(text)
+                continue
+            uri = await repo.vocab.resolve(prop, text)
+            if uri is None:
+                suggestions = [v.label for v in await repo.vocab.suggest(prop, text)][:5]
+                unresolved.append(
+                    {"field": short_name, "value": text, "suggestions": suggestions}
+                )
+                continue
+            uris.append(uri)
+        if uris:
+            resolved[prop] = uris
+
+    return resolved, unresolved
+
+
+async def add_material(
+    repo: AsyncRepository,
+    title: str,
+    *,
+    url: str | None = None,
+    parent_id: str | None = None,
+    name: str | None = None,
+    description: str | None = None,
+    keywords: list[str] | None = None,
+    collection_id: str | None = None,
+    properties: dict[str, Any] | None = None,
+    **aliases: Any,
+) -> dict[str, Any]:
+    """Create material -- with vocabulary, and optionally straight into a
+    collection.
+
+    Args:
+        repo: the connection.
+        title: the display title. Mandatory; ``cm:name`` is derived from it
+            unless ``name`` says otherwise.
+        url: web address, for linked material.
+        parent_id: where it goes. The user's home folder when omitted.
+        name: ``cm:name``, the key inside the parent folder.
+        description, keywords: the usual metadata.
+        collection_id: put a reference into this collection right away.
+        properties: raw edu-sharing properties, for anything not covered.
+        **aliases: configured short names -- ``subject="Biologie"`` is resolved
+            against this instance's vocabulary.
+
+    Returns:
+        ``{id, title, url, parent_id, name, collection, unresolved}``.
+
+        **Check ``unresolved``.** Values listed there were NOT written; the
+        material exists without them and looks complete.
+
+    Raises:
+        ValidationError: on an empty title or an unknown short name.
+        EduSharingError: for anything the repository refuses.
+    """
+    if not title or not title.strip():
+        raise ValidationError(
+            "Material needs a title -- it is what a person sees in the search."
+        )
+
+    if parent_id is None:
+        identity = await repo.whoami()
+        if not identity.home_folder:
+            raise EduSharingError(
+                "No home folder for this account, so there is nowhere to put the "
+                "material. Pass parent_id explicitly. "
+                f"(Signed in as {identity.username!r}"
+                f"{', anonymously' if identity.is_anonymous else ''}.)"
+            )
+        parent_id = identity.home_folder
+
+    vocabulary_props, unresolved = await _resolve_vocabulary(repo, aliases)
+    all_properties = {**(properties or {}), **vocabulary_props}
+
+    direct: dict[str, Any] = {"title": title}
+    if url is not None:
+        direct["url"] = url
+    if description is not None:
+        direct["description"] = description
+    if keywords:
+        direct["keywords"] = keywords
+
+    node = await repo.nodes.create(
+        parent_id,
+        name=name or _name_from_title(title),
+        properties=all_properties or None,
+        **direct,
+    )
+
+    collection: dict[str, Any] | None = None
+    if collection_id:
+        added = await repo.collections.add(collection_id, node.id)
+        collection = {"id": collection_id, "added": added}
+
+    return {
+        "id": node.id,
+        "title": node.title or title,
+        "url": node.url,
+        "parent_id": parent_id,
+        "name": node.name,
+        "collection": collection,
+        "unresolved": unresolved,
+    }
+
+
+async def build_collection(
+    repo: AsyncRepository,
+    title: str,
+    *,
+    description: str | None = None,
+    parent_id: str | None = None,
+    node_ids: list[str] | None = None,
+    scope: str | None = None,
+) -> dict[str, Any]:
+    """Create a collection and fill it in one call.
+
+    Args:
+        repo: the connection.
+        title: the collection's name.
+        description: its description.
+        parent_id: parent collection. The collection root when omitted.
+        node_ids: material to place inside right away.
+        scope: visibility, e.g. ``MY``. The library's default when omitted.
+
+    Returns:
+        ``{id, title, url, added, failed}``. ``added`` holds the ids that went
+        in, ``failed`` holds ``{id, reason}`` for those that did not.
+
+        **The collection exists even when ``failed`` is non-empty.** Placing
+        material is one call per node and each can fail on its own; aborting
+        halfway would leave a collection nobody asked for.
+
+    Raises:
+        EduSharingError: when the collection itself cannot be created.
+    """
+    kwargs: dict[str, Any] = {}
+    if description is not None:
+        kwargs["description"] = description
+    if parent_id is not None:
+        kwargs["parent"] = parent_id
+    if scope is not None:
+        kwargs["scope"] = scope
+
+    collection = await repo.collections.create(title, **kwargs)
+
+    added: list[str] = []
+    failed: list[dict[str, str]] = []
+    for node_id in node_ids or []:
+        try:
+            await repo.collections.add(collection.id, node_id)
+        except EduSharingError as exc:
+            # Deliberately not aborting: the remaining ids may well work, and a
+            # half-filled collection with a named gap beats an unexplained one.
+            failed.append({"id": node_id, "reason": str(exc)})
+            continue
+        added.append(node_id)
+
+    return {
+        "id": collection.id,
+        "title": collection.title or title,
+        "url": collection.url,
+        "added": added,
+        "failed": failed,
+    }
+
+
+async def delete(
+    repo: AsyncRepository, node_id: str, *, recycle: bool = True
+) -> dict[str, Any]:
+    """Delete a node and report what it was.
+
+    Reads the node first so the answer can name it. A bare "done" leaves the
+    caller unsure whether the right thing was hit -- and a language model then
+    confirms something to a person without knowing what.
+
+    Args:
+        repo: the connection.
+        node_id: what to delete.
+        recycle: into the bin (default) or permanently. The default is the
+            reversible one; permanent deletion has to be spelled out.
+
+    Returns:
+        ``{id, title, name, type, recycled}`` -- describing what is now gone.
+
+    Raises:
+        NotFoundError: when no node carries this id. Nothing is deleted.
+        PermissionDeniedError: when it may not be deleted.
+    """
+    node = await repo.nodes.get(node_id)
+    described = {
+        "id": node.id,
+        "title": node.title,
+        "name": node.name,
+        "type": node.type,
+    }
+    await node.delete(recycle=recycle)
+    return {**described, "recycled": recycle}

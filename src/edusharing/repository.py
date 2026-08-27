@@ -18,10 +18,11 @@ from typing import Any, Self
 
 import httpx
 
-from ._sync import LoopThread, SyncNode, SyncTransport
+from ._sync import LoopThread, SyncFlows, SyncNode, SyncTransport
 from .auth import ANONYMOUS, BasicCredential, Credential, credential_from
 from .collections import Collections
 from .errors import EduSharingError
+from .flows import Flows
 from .info import About, Identity, MetadataSet
 from .nodes import Node, Nodes
 from .search import Search, SearchResult
@@ -112,6 +113,7 @@ class AsyncRepository:
         )
         self._collections = Collections(self._transport, metadataset=metadataset)
         self._nodes = Nodes(self._transport)
+        self._flows = Flows(self)
 
     @classmethod
     def from_env(cls, **kwargs: Any) -> AsyncRepository:
@@ -155,6 +157,14 @@ class AsyncRepository:
     def searcher(self) -> Search:
         """The search layer, for access to its settings."""
         return self._search
+
+    @property
+    def flows(self) -> Flows:
+        """Use-case flows -- several calls in one, answering in JSON.
+
+        ``await repo.flows.search("Photosynthese", subject="Biologie")``
+        """
+        return self._flows
 
     @property
     def collections(self) -> Collections:
@@ -297,6 +307,14 @@ class Repository:
     def searcher(self) -> Search:
         """The search layer, for access to its settings."""
         return self._async.searcher
+
+    @property
+    def flows(self) -> SyncFlows:
+        """Use-case flows -- several calls in one, answering in JSON.
+
+        ``repo.flows.search("Photosynthese", subject="Biologie")``
+        """
+        return SyncFlows(self._async.flows, self._loop)
 
     def search(self, text: str | None = None, **kwargs: Any) -> SearchResult:
         """Search for material. See ``Search.search`` for every parameter."""

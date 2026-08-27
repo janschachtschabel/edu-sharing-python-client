@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 if TYPE_CHECKING:
     from .nodes import Node
 
-__all__ = ["LoopThread", "SyncTransport", "SyncNode", "SyncNodeContent"]
+__all__ = ["LoopThread", "SyncTransport", "SyncNode", "SyncNodeContent", "SyncFlows"]
 
 T = TypeVar("T")
 
@@ -158,3 +158,44 @@ class SyncNodeContent:
 
     def __repr__(self) -> str:
         return f"SyncNodeContent({self._content!r})"
+
+
+class SyncFlows:
+    """Synchronous pass-through to ``Flows``.
+
+    Exists because the asynchronous surface grew and the synchronous one did not
+    -- twice, and both times the call silently returned a coroutine instead of a
+    result (see test_sync_surface.py). Flows are exactly the layer a notebook
+    reaches for first, so the pass-through is not optional.
+    """
+
+    def __init__(self, flows: Any, loop: LoopThread) -> None:
+        self._flows = flows
+        self._loop = loop
+
+    def search(self, text: str | None = None, **kwargs: Any) -> dict[str, Any]:
+        """Like ``Flows.search``, blocking."""
+        return self._loop.run(self._flows.search(text, **kwargs))
+
+    def vocabulary(self, field: str, **kwargs: Any) -> dict[str, Any]:
+        """Like ``Flows.vocabulary``, blocking."""
+        return self._loop.run(self._flows.vocabulary(field, **kwargs))
+
+    def describe(self, node_id: str) -> dict[str, Any]:
+        """Like ``Flows.describe``, blocking."""
+        return self._loop.run(self._flows.describe(node_id))
+
+    def add_material(self, title: str, **kwargs: Any) -> dict[str, Any]:
+        """Like ``Flows.add_material``, blocking."""
+        return self._loop.run(self._flows.add_material(title, **kwargs))
+
+    def build_collection(self, title: str, **kwargs: Any) -> dict[str, Any]:
+        """Like ``Flows.build_collection``, blocking."""
+        return self._loop.run(self._flows.build_collection(title, **kwargs))
+
+    def delete(self, node_id: str, **kwargs: Any) -> dict[str, Any]:
+        """Like ``Flows.delete``, blocking."""
+        return self._loop.run(self._flows.delete(node_id, **kwargs))
+
+    def __repr__(self) -> str:
+        return f"SyncFlows({self._flows!r})"

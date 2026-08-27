@@ -74,6 +74,9 @@ class Identity:
     username: str
     display_name: str
     is_anonymous: bool
+    #: The user's own folder -- where material goes when nobody says where.
+    #: Empty for the guest account, which has none.
+    home_folder: str = ""
     raw: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -89,5 +92,6 @@ class Identity:
             username=person.get("userName") or authority,
             display_name=name or authority,
             is_anonymous=authority == GUEST_AUTHORITY,
+            home_folder=(person.get("homeFolder") or {}).get("id") or "",
             raw=data,
         )

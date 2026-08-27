@@ -248,3 +248,32 @@ def test_json_durchgriff_sendet_korrekt(repo):
         "PUT", f"/node/v1/nodes/-home-/{NID}/metadata", json={"cclom:title": ["X"]})
     assert antwort.status_code == 200
     assert json.loads(antwort.request.content) == {"cclom:title": ["X"]}
+
+
+# --- Ablaeufe -------------------------------------------------------------
+
+def test_flows_sind_synchron_erreichbar(repo):
+    """Dieselbe Falle wie bei SyncNode.content: eine neue asynchrone Flaeche
+    kommt dazu, der synchrone Durchgriff wird vergessen, und der Aufruf liefert
+    stumm eine Coroutine."""
+    ergebnis = _kein_coroutine(repo.flows.search("Physik"))
+    assert isinstance(ergebnis, dict)
+    assert "hits" in ergebnis
+
+
+def test_flows_vokabular_und_describe_synchron(repo):
+    assert _kein_coroutine(repo.flows.vocabulary("subject"))["property"] == "ccm:taxonid"
+    assert _kein_coroutine(repo.flows.describe(NID))["id"] == NID
+
+
+def test_schreibende_flows_synchron(repo):
+    """Auch die schreibenden Ablaeufe muessen durchgreifen -- eine Coroutine,
+    die niemand erwartet, legt hier gar nichts an und meldet auch nichts."""
+    angelegt = _kein_coroutine(repo.flows.add_material("Titel", parent_id="parent"))
+    assert angelegt["id"] == NID
+
+    sammlung = _kein_coroutine(repo.flows.build_collection("Sammlung", node_ids=[NID]))
+    assert sammlung["id"] == "coll-1"
+
+    geloescht = _kein_coroutine(repo.flows.delete(NID))
+    assert geloescht["recycled"] is True
