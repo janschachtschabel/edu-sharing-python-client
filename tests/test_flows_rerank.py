@@ -115,6 +115,46 @@ async def test_geloeschte_platzhalter_fallen_heraus():
     assert [h["id"] for h in ergebnis["hits"]] == ["da"]
 
 
+async def test_gleiche_kandidaten_ergeben_dieselbe_reihenfolge():
+    """Die Zusage der Neuordnung: sie ist eine Formel ueber die Kandidaten, kein
+    Nachsortieren der Serverreihenfolge.
+
+    Der Grund, warum das zaehlt: die Suche liefert dieselbe Anfrage mit anderen
+    Kandidaten in anderer Reihenfolge (gemessen 27.08.2026, 15 von 25
+    unterschiedlich). Flosse die Position der Kandidaten in die Bewertung ein,
+    truege die Neuordnung dieses Rauschen weiter -- und der Aufrufer koennte
+    zwei Laeufe nicht vergleichen, ohne zu wissen, ob sich die Bewertung oder
+    nur die Serverlaune geaendert hat.
+    """
+    import random
+
+    kandidaten = [
+        _knoten("n0", "Optik"),
+        _knoten("n1", "Optik im Alltag", **{"ccm:taxonid": ["http://x/080"]}),
+        _knoten("n2", "Einfuehrung in die Optik"),
+        _knoten("n3", "Physik allgemein",
+                **{"cclom:general_description": ["auch Optik"]}),
+        _knoten("n4", "Optik", **{"ccm:educationalcontext": ["http://x/s1"]}),
+        _knoten("n5", "Wellenoptik und Strahlenoptik"),
+        _knoten("n6", "Akustik"),
+    ]
+
+    async def ergebnis_fuer(reihung):
+        instanz = Instanz({"Optik": reihung})
+        async with _repo(instanz) as repo:
+            antwort = await repo.flows.search("Optik", rerank=True, limit=7)
+        return [h["id"] for h in antwort["hits"]]
+
+    erwartet = await ergebnis_fuer(kandidaten)
+    wuerfel = random.Random(42)
+    for lauf in range(15):
+        gemischt = kandidaten[:]
+        wuerfel.shuffle(gemischt)
+        assert await ergebnis_fuer(gemischt) == erwartet, (
+            f"Mischung {lauf} ergab eine andere Reihenfolge -- die Position der "
+            "Kandidaten darf die Bewertung nicht beeinflussen")
+
+
 async def test_reihenfolge_ist_bei_gleichem_wert_stabil():
     """Ohne festen Tie-Break wechselt die Reihenfolge zwischen Aufrufen und
     sieht fuer den Aufrufer zufaellig aus."""

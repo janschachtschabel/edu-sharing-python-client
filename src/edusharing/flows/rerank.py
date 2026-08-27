@@ -9,12 +9,20 @@ rankings (RRF), score every candidate for text and metadata quality, blend, and
 return the best ones. Ported from ``wlo-mcp-sc``'s ``enhancedSearch``
 (Apache-2.0).
 
-Why blend rather than pick one: rank fusion knows which records several variants
-agree on, and the quality score knows which record actually answers the query.
-Fusion alone promotes a record that every variant returns at rank 20; quality
-alone ignores that four variants agreed. Quality dominates (0.8), agreement
-nudges (0.1), and appearing in many variants adds a capped bonus (0.1) -- so
-consensus can break a tie but never outvote relevance.
+What the score is built from, and what it deliberately is **not**: the position
+a candidate held in the repository's own result list does not enter into it.
+
+The original port used reciprocal rank fusion, which weighs that position. It
+was removed after measuring twice. First, the repository's order is not stable:
+the same query asked twice returns 25 hits of which 15 differ (2026-08-27), so
+the position carries noise rather than information. Second, feeding it in made
+the ranking depend on the order candidates arrived in -- of 30 shuffles of one
+fixed candidate set, only 14 produced the same result.
+
+What is left is order-independent by construction: the quality score of each
+record (0.8) and how many variants returned it at all (0.2). Same candidates in,
+same ranking out -- which is what makes two runs comparable, and what lets a
+caller tell a changed ranking from a changed mood of the index.
 """
 
 from __future__ import annotations
@@ -26,7 +34,7 @@ from ..errors import EduSharingError
 from ..results import SearchHit, SearchResult
 from .expand import expand_query
 from .language import GERMAN, LanguageProfile
-from .ranking import reciprocal_rank_fusion, score_hit
+from .ranking import score_hit
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..repository import AsyncRepository
@@ -37,9 +45,11 @@ __all__ = ["DEFAULT_POOL", "search_reranked"]
 #: bigger pool costs transfer and buys recall.
 DEFAULT_POOL = 25
 
+#: How much the record itself answers the query.
 _QUALITY_WEIGHT = 0.8
-_FUSION_WEIGHT = 0.1
-_AGREEMENT_BONUS = 0.1
+#: How many of the asked variants returned it at all. Counting appearances, not
+#: their positions -- that is what keeps the outcome order-independent.
+_AGREEMENT_WEIGHT = 0.2
 
 #: edu-sharing keeps deleted material in the index as a placeholder. To a
 #: language model those look like hits.
@@ -121,20 +131,18 @@ def _merge(
 ) -> SearchResult:
     """Fuse the rankings, score the candidates, and take the best."""
     by_id: dict[str, SearchHit] = {}
-    appearances: dict[str, int] = {}
-    runs: list[tuple[float, list[str]]] = []
+    #: Sum of the weights of the variants that returned this record. Weighted,
+    #: because being found by the original phrasing says more than being found
+    #: by a synonym guess -- but the position within either is ignored.
+    agreement: dict[str, float] = {}
 
     for variant, result in successful:
-        ids = []
         for hit in result.hits:
             if not hit.id or _is_deleted(hit):
                 continue
-            ids.append(hit.id)
             by_id.setdefault(hit.id, hit)
-            appearances[hit.id] = appearances.get(hit.id, 0) + 1
-        runs.append((variant.weight, ids))
+            agreement[hit.id] = agreement.get(hit.id, 0.0) + variant.weight
 
-    fusion = reciprocal_rank_fusion(runs)
     quality = {
         node_id: score_hit(hit, query, aliases, language)
         for node_id, hit in by_id.items()
@@ -142,20 +150,18 @@ def _merge(
 
     # Normalised, so the two scales can be blended at all. The floors keep a
     # division by zero away when nothing scored.
-    max_fusion = max([*fusion.values(), 0.001])
     max_quality = max([*quality.values(), 1])
-    variant_count = len(successful)
+    max_agreement = max([*agreement.values(), 0.001])
 
     def final(node_id: str) -> float:
-        agreement = min(appearances[node_id] / variant_count, 1) * _AGREEMENT_BONUS
         return (
             quality[node_id] / max_quality * _QUALITY_WEIGHT
-            + fusion.get(node_id, 0.0) / max_fusion * _FUSION_WEIGHT
-            + agreement
+            + agreement[node_id] / max_agreement * _AGREEMENT_WEIGHT
         )
 
-    # The id is the tie-breaker: without it the order depends on insertion from
-    # a parallel gather and flips between identical calls.
+    # The id is the tie-breaker: without it the order of equally scored records
+    # depends on insertion from a parallel gather and flips between identical
+    # calls.
     ordered = sorted(by_id, key=lambda i: (-final(i), i))
 
     # The variant that actually found something speaks for the whole result.

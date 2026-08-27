@@ -12,12 +12,7 @@ kommen aus den konfigurierten Kurznamen statt aus festen WLO-Eigenschaften.
 import pytest
 
 from edusharing.flows.language import GERMAN, LanguageProfile
-from edusharing.flows.ranking import (
-    query_terms,
-    reciprocal_rank_fusion,
-    score_hit,
-    term_matches,
-)
+from edusharing.flows.ranking import query_terms, score_hit, term_matches
 from edusharing.results import SearchHit
 
 ALIASES = {"subject": "ccm:taxonid", "level": "ccm:educationalcontext",
@@ -192,34 +187,13 @@ def test_eine_quelladresse_zaehlt():
     assert score_hit(with_url, "Optik", ALIASES) > score_hit(without, "Optik", ALIASES)
 
 
-# --- Rangfusion -----------------------------------------------------------
-
-def test_fusion_belohnt_treffer_die_in_mehreren_laeufen_vorkommen():
-    """Reciprocal Rank Fusion: wer in mehreren Anfragevarianten auftaucht, ist
-    verlaesslicher als ein Ausreisser aus einer einzelnen."""
-    laeufe = [
-        (1.0, ["a", "b", "c"]),
-        (0.9, ["b", "a", "d"]),
-        (0.9, ["b", "e", "a"]),
-    ]
-    rang = reciprocal_rank_fusion(laeufe)
-    assert rang["b"] > rang["a"] > rang["c"]
-
-
-def test_fusion_gewichtet_die_varianten():
-    """Die Volltextvariante wiegt schwerer als eine Synonymvariante -- sonst
-    zieht ein Synonymtreffer an einem echten vorbei."""
-    stark = reciprocal_rank_fusion([(1.0, ["a"]), (0.1, ["b"])])
-    assert stark["a"] > stark["b"]
-
-
-def test_fusion_kommt_mit_leeren_laeufen_zurecht():
-    assert reciprocal_rank_fusion([]) == {}
-    assert reciprocal_rank_fusion([(1.0, [])]) == {}
-
-
-def test_fusion_ueberspringt_leere_ids():
-    """Ein Knoten ohne ref.id ist nicht referenzierbar -- er darf die Rangliste
-    nicht mit einem leeren Schluessel verunreinigen."""
-    assert reciprocal_rank_fusion([(1.0, ["", "a", ""])]) == {
-        "a": pytest.approx(1.0 / 62)}
+# Die Rangfusion ist am 27.08.2026 entfernt worden. Sie gewichtete die Position
+# eines Treffers in der Serverantwort -- und die ist gemessen nicht stabil (15
+# von 25 Treffern unterscheiden sich zwischen zwei identischen Anfragen). Damit
+# hing die Reihenfolge daran, in welcher Folge die Kandidaten eintrafen: von 30
+# Mischungen derselben Kandidatenmenge ergaben nur 14 dasselbe Ergebnis.
+#
+# Was die Uebereinstimmung ueber Varianten angeht, bleibt in rerank.py erhalten
+# -- gezaehlt wird jetzt, WELCHE Varianten einen Treffer lieferten, nicht an
+# welcher Stelle. Der Nachweis dafuer steht in test_flows_rerank.py unter
+# test_gleiche_kandidaten_ergeben_dieselbe_reihenfolge.

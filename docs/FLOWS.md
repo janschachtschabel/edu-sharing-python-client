@@ -135,9 +135,13 @@ explicable.
 
 Two honest limits:
 
-* **It does not make the search reproducible.** Measured: the same query asked
-  twice returns 25 hits of which **15 differ** — that comes from the repository,
-  not from the ranking. A larger `pool` did not help measurably.
+* **Same candidates in, same ranking out — but the candidates vary.** The
+  scoring is a pure function of each record and the query; the position a record
+  held in the repository's answer deliberately does not enter into it, and 15
+  shuffles of one candidate set produce one identical ranking. What varies is
+  what the repository returns: measured, the same query asked twice gives 25
+  hits of which **15 differ**. So two runs may differ, and when they do it is
+  the index that moved, not the ranking.
 * **The word lists are German.** They are a parameter, not a constant:
 
 ```python

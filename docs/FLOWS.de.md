@@ -140,10 +140,14 @@ erklärbar bleibt.
 
 Zwei ehrliche Grenzen:
 
-* **Es macht die Suche nicht reproduzierbar.** Gemessen: dieselbe Anfrage
-  zweimal gestellt liefert 25 Treffer, von denen sich **15 unterscheiden** — das
-  kommt aus dem Repositorium, nicht aus der Neuordnung. Ein größerer `pool` half
-  nicht nennenswert.
+* **Gleiche Kandidaten ergeben dieselbe Reihenfolge — nur schwanken die
+  Kandidaten.** Die Bewertung ist eine reine Funktion aus Datensatz und Anfrage;
+  die Position, die ein Datensatz in der Serverantwort hatte, geht bewusst
+  **nicht** ein, und 15 Mischungen derselben Kandidatenmenge ergeben dieselbe
+  Reihenfolge. Was schwankt, ist die Antwort des Repositoriums: gemessen liefert
+  dieselbe Anfrage zweimal 25 Treffer, von denen sich **15 unterscheiden**. Zwei
+  Läufe können also abweichen — dann hat sich der Index bewegt, nicht die
+  Bewertung.
 * **Die Wortlisten sind deutsch.** Sie sind ein Parameter, keine Konstante:
 
 ```python

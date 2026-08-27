@@ -1,4 +1,4 @@
-"""Scoring and rank fusion for reordering search results.
+"""Scoring hits for the reordering of search results.
 
 Ported from ``wlo-mcp-sc`` (Apache-2.0, same licence as this library), where the
 rules were measured against a running instance. Two things were changed on the
@@ -14,6 +14,11 @@ know that a title match beats a body match, and does not know that a record
 carrying subject, level and a free licence is more usable in a classroom than a
 bare one. Where the repository's order is already good, reranking barely moves
 it -- the cost is one larger fetch, not a worse result.
+
+Everything here is a pure function of the record and the query. The position a
+record held in the repository's answer is deliberately not an input: that order
+is measurably unstable, so it would make the ranking depend on which candidates
+happened to arrive first. See ``rerank.py``.
 """
 
 from __future__ import annotations
@@ -26,7 +31,6 @@ from .language import GERMAN, LanguageProfile
 
 __all__ = [
     "query_terms",
-    "reciprocal_rank_fusion",
     "score_hit",
     "term_matches",
 ]
@@ -38,11 +42,6 @@ __all__ = [
 #: keeps plain substring behaviour, which German compounds need -- "Rechnung"
 #: belongs inside "Bruchrechnung".
 SHORT_TERM_MAX = 3
-
-#: Rank-fusion constant. 60 is the value from the original RRF paper and the one
-#: wlo-mcp-sc uses; it flattens the difference between ranks 1 and 2 enough that
-#: agreement across variants can outweigh a single lucky top hit.
-RRF_K = 60
 
 _WORD_CHAR = re.compile(r"[^\W_]", re.UNICODE)
 
@@ -178,23 +177,3 @@ def score_hit(hit: SearchHit, query: str, aliases: dict[str, str],
     terms = query_terms(query, profile)
     total = _text_score(hit, query, terms) + _metadata_score(hit, aliases)
     return max(total, 0)
-
-
-def reciprocal_rank_fusion(runs: list[tuple[float, list[str]]]) -> dict[str, float]:
-    """Merge several ranked id lists into one score per id.
-
-    Args:
-        runs: ``(weight, ids_in_rank_order)`` per query variant.
-
-    Returns:
-        ``{id: score}``. An id appearing well in several runs beats one that
-        happened to top a single run -- which is the point of running variants
-        at all.
-    """
-    scores: dict[str, float] = {}
-    for weight, ids in runs:
-        for rank, node_id in enumerate(ids):
-            if not node_id:
-                continue
-            scores[node_id] = scores.get(node_id, 0.0) + weight / (RRF_K + rank + 1)
-    return scores
