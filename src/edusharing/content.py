@@ -1,29 +1,30 @@
-"""Der Binaerinhalt eines Knotens: hochladen, herunterladen, Text lesen.
+"""A node's binary content: upload, download, read text.
 
-Eigenes Modul und eigenes Objekt (``node.content``), weil Dateien eine andere
-Frage beantworten als Metadaten -- und weil ``Node`` sonst weiter waechst.
+Its own module and its own object (``node.content``), because files answer a
+different question than metadata -- and because ``Node`` would otherwise keep
+growing.
 
-Drei Eigenheiten, gemessen gegen edu-sharing 11.0 (Staging, 27.08.2026):
+Four quirks, measured against edu-sharing 11.0 (staging, 2026-08-27):
 
-* **Es gibt kein ``GET .../content``.** Der Pfad existiert nur als ``POST``
-  zum Hochladen; ein GET darauf antwortet mit ``405``. Heruntergeladen wird
-  ueber die ``downloadUrl`` aus den Metadaten des Knotens.
-* **``downloadUrl`` sagt nichts darueber, ob es einen Inhalt gibt.** Sie ist
-  immer gesetzt, und ein Knoten ohne Datei liefert daran ``200`` mit null
-  Bytes. Das verlaessliche Signal ist ``content.hash``: gemessen ist er nur
-  ohne Inhalt ``None`` -- bei einer 0-Byte-Datei ist er gesetzt. ``cclom:size``
-  taugt dafuer nicht, denn auch die leere Datei hat dort ``None``.
-* **``mimetype`` ist beim Hochladen Pflicht** -- die Spezifikation deklariert
-  ihn als required.
-* **``textContent`` antwortet mit JSON**, nicht mit dem Text: der Rumpf ist
+* **There is no ``GET .../content``.** The path exists only as a ``POST`` for
+  uploading; a GET on it answers ``405``. Downloading goes through the
+  ``downloadUrl`` from the node's metadata.
+* **``downloadUrl`` says nothing about whether content exists.** It is always
+  set, and a node without a file answers ``200`` with zero bytes there. The
+  reliable signal is ``content.hash``: measured, it is ``None`` only when there
+  is no content -- for a 0-byte file it is set. ``cclom:size`` is no good for
+  this, since the empty file also has ``None`` there.
+* **``mimetype`` is mandatory on upload** -- the specification declares it as
+  required.
+* **``textContent`` answers with JSON**, not with the text: the body is
   ``{"text": ...}``.
 
-Zum Volltext gehoert eine Einschraenkung, die eine Anwendung ihren Nutzenden
-weitergeben sollte: die Extraktion ist bei verlinkten Inhalten URL-getrieben.
-Der Transformationsdienst holt sich ``ccm:wwwurl``; was per ``POST`` an
-``textContent`` geschickt wird, landet als Binaerinhalt, den niemand liest.
-Fuer einen nicht crawlbaren Inhalt laesst sich der Volltext daher nicht
-ablegen -- das gehoert gesagt, statt Erfolg zu melden.
+The full text carries a limitation an application should pass on to its users:
+for linked resources, extraction is URL-driven. The transformation service
+fetches ``ccm:wwwurl``; whatever is sent to ``textContent`` via ``POST`` lands
+as binary content that nobody reads. For a non-crawlable resource the full text
+therefore cannot be stored -- which should be said, rather than reporting
+success.
 """
 
 from __future__ import annotations
@@ -39,7 +40,7 @@ __all__ = ["NodeContent"]
 
 
 class NodeContent:
-    """Zugriff auf den Binaerinhalt eines Knotens."""
+    """Access to a node's binary content."""
 
     def __init__(self, node: Node) -> None:
         self._node = node
@@ -50,20 +51,20 @@ class NodeContent:
 
     @property
     def download_url(self) -> str | None:
-        """Die Adresse des Binaerinhalts.
+        """The address of the binary content.
 
-        Immer gesetzt -- sie belegt **nicht**, dass es einen Inhalt gibt.
-        Dafuer ist ``has_content`` zustaendig.
+        Always set -- it does **not** prove that content exists. That is what
+        ``has_content`` is for.
         """
         return self._node.raw.get("downloadUrl") or None
 
     @property
     def has_content(self) -> bool:
-        """Ob der Knoten eine Datei traegt.
+        """Whether the node carries a file.
 
-        Geprueft am Hash: gemessen ist er ohne Inhalt ``None`` und bei einer
-        0-Byte-Datei gesetzt. Ein Download ohne Inhalt liefert sonst
-        klaglos null Bytes, ununterscheidbar von einer leeren Datei.
+        Checked on the hash: measured, it is ``None`` without content and set
+        for a 0-byte file. A download without content otherwise returns zero
+        bytes without complaint, indistinguishable from an empty file.
         """
         return bool((self._node.raw.get("content") or {}).get("hash"))
 
@@ -73,9 +74,9 @@ class NodeContent:
 
     @property
     def size(self) -> int | None:
-        """Groesse in Bytes, sofern das Repositorium sie fuehrt."""
-        wert = self._node.get("cclom:size")
-        return int(wert) if wert and str(wert).isdigit() else None
+        """Size in bytes, where the repository reports it."""
+        value = self._node.get("cclom:size")
+        return int(value) if value and str(value).isdigit() else None
 
     async def upload(
         self,
@@ -85,26 +86,26 @@ class NodeContent:
         mimetype: str,
         version_comment: str | None = None,
     ) -> Node:
-        """Lade Bytes als Inhalt des Knotens hoch.
+        """Upload bytes as the node's content.
 
         Args:
-            data: der Dateiinhalt.
-            filename: Name im Multipart-Teil.
-            mimetype: Pflicht -- ohne ihn kann das Repositorium den Inhalt
-                nicht einordnen.
-            version_comment: Vermerk fuer die Versionshistorie.
+            data: the file content.
+            filename: name in the multipart part.
+            mimetype: mandatory -- without it the repository cannot classify the
+                content.
+            version_comment: note for the version history.
 
         Returns:
-            Den neu geladenen Knoten -- Groesse und Mimetype stehen erst
-            danach fest.
+            The freshly loaded node -- size and mimetype are only settled
+            afterwards.
 
         Raises:
-            ValidationError: wenn ``mimetype`` fehlt.
+            ValidationError: when ``mimetype`` is missing.
         """
         if not mimetype:
             raise ValidationError(
-                "mimetype ist beim Hochladen Pflicht (etwa 'application/pdf' "
-                "oder 'text/plain')."
+                "mimetype is mandatory on upload (e.g. 'application/pdf' or "
+                "'text/plain')."
             )
         params: dict[str, Any] = {"mimetype": mimetype}
         if version_comment:
@@ -119,43 +120,43 @@ class NodeContent:
         return await self._node._nodes.get(self._node.id)
 
     async def download(self) -> bytes:
-        """Hole den Binaerinhalt.
+        """Fetch the binary content.
 
         Raises:
-            EduSharingError: wenn der Knoten keine Datei traegt -- ein
-                Link-Datensatz etwa. Einen leeren Bytestring zurueckzugeben
-                waere nicht unterscheidbar von einer leeren Datei.
+            EduSharingError: when the node carries no file -- a link record, for
+                instance. Returning an empty bytestring would be
+                indistinguishable from an empty file.
         """
         url = self.download_url
         if not self.has_content or not url:
             raise EduSharingError(
-                f"Knoten {self._node.id} traegt keine Datei. Der Download wuerde "
-                "klaglos null Bytes liefern, ununterscheidbar von einer leeren "
-                "Datei. Bei einem Link-Datensatz steht die Quelle in ccm:wwwurl "
+                f"Node {self._node.id} carries no file. A download would return "
+                "zero bytes without complaint, indistinguishable from an empty "
+                "file. For a link record the source is in ccm:wwwurl "
                 "(node.get('ccm:wwwurl'))."
             )
-        antwort = await self._transport.request("GET", url)
-        return antwort.content
+        response = await self._transport.request("GET", url)
+        return response.content
 
     async def text(self, *, force_update: bool = False) -> str:
-        """Den extrahierten Volltext.
+        """The extracted full text.
 
-        Der Abruf stoesst die Extraktion selbst an; ``force_update`` erzwingt
-        sie erneut. Bei verlinkten Inhalten haengt das Ergebnis daran, ob die
-        Quelle erreichbar ist -- siehe Modul-Docstring.
+        Requesting it triggers the extraction itself; ``force_update`` forces it
+        again. For linked resources the outcome depends on whether the source is
+        reachable -- see the module docstring.
 
         Returns:
-            Den Text, oder einen leeren String, wenn keiner vorliegt.
+            The text, or an empty string when there is none.
         """
         params = {"forceUpdate": "true"} if force_update else None
-        antwort = await self._transport.json(
+        response = await self._transport.json(
             "GET",
             f"/node/v1/nodes/-home-/{self._node.id}/textContent",
             params=params,
         )
-        if isinstance(antwort, dict):
-            return str(antwort.get("text") or "")
-        return str(antwort or "")
+        if isinstance(response, dict):
+            return str(response.get("text") or "")
+        return str(response or "")
 
     def __repr__(self) -> str:
         return f"NodeContent(node={self._node.id!r}, mimetype={self.mimetype!r})"

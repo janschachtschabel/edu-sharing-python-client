@@ -1,20 +1,19 @@
-"""Der eine Weg nach draussen.
+"""The one way out.
 
-Jede Anfrage an ein Repositorium laeuft hier durch. Das ist kein Selbstzweck:
-drei Entscheidungen muessen an genau einer Stelle getroffen werden, sonst
-driften ihre Kopien auseinander.
+Every request to a repository passes through here. That is not an end in
+itself: three decisions must be made in exactly one place, or their copies
+drift apart.
 
-**Wer das Passwort bekommt.** Zugangsdaten gehen ausschliesslich an die
-konfigurierte Repository-URL. Absolute URLs stammen teils aus Antwortdaten
-(Vorschaubilder, Downloads), und eine davon kann woanders hinzeigen.
+**Who receives the password.** Credentials go only to the configured repository
+URL. Absolute URLs partly come from response data (previews, downloads), and one
+of them may point elsewhere.
 
-**Was wiederholt wird.** Nur, was bei einer Wiederholung gelingen kann. Die
-Entscheidung faellt ueber den Fehlertyp aus ``errors``, nicht ueber den
-Statuscode -- weil bei edu-sharing ein HTTP 500 auch schlicht "nicht
-angemeldet" heissen kann.
+**What gets retried.** Only what a retry can fix. The decision is made on the
+error type from ``errors``, not on the status code -- because with edu-sharing
+an HTTP 500 can simply mean "not signed in".
 
-**Wie viel gleichzeitig laeuft.** Ein Fan-out ueber viele Knoten erzeugt sonst
-mehr Last, als das Repositorium vertraegt.
+**How much runs at once.** A fan-out across many nodes otherwise creates more
+load than the repository tolerates.
 """
 
 from __future__ import annotations
@@ -36,31 +35,31 @@ DEFAULT_MAX_CONCURRENCY = 8
 DEFAULT_BACKOFF_BASE = 0.5
 
 
-def _mindestens(name: str, wert: float, grenze: float) -> None:
-    """Weise einen Parameter ab, der keinen sinnvollen Betrieb ergibt.
+def _at_least(name: str, value: float, limit: float) -> None:
+    """Reject a parameter that yields no sensible operation.
 
-    Frueh und laut, statt spaeter und raetselhaft: ``max_retries=-1`` etwa
-    wuerde die Wiederholungsschleife gar nicht erst betreten, und der Aufrufer
-    saehe einen Fehler ohne jede Ursache.
+    Early and loud rather than late and puzzling: ``max_retries=-1`` would never
+    enter the retry loop at all, and the caller would see an error with no cause
+    whatsoever.
     """
-    if wert < grenze:
+    if value < limit:
         raise EduSharingError(
-            f"{name}={wert!r} ist nicht zulaessig -- erwartet wird mindestens {grenze}."
+            f"{name}={value!r} is not allowed -- at least {limit} is expected."
         )
 
 
 class Transport:
-    """HTTP-Zugang zu einem edu-sharing-Repositorium.
+    """HTTP access to an edu-sharing repository.
 
     Args:
-        repository_url: Adresse des Repositoriums in beliebiger der ueblichen
-            Schreibweisen; wird normalisiert.
-        credential: Vorgabe fuer alle Anfragen. Pro Anfrage ueberschreibbar.
-        timeout: Sekunden bis zum Abbruch einer einzelnen Anfrage.
-        max_retries: Wiederholungen zusaetzlich zum ersten Versuch.
-        max_concurrency: gleichzeitig laufende Anfragen.
-        backoff_base: Grundwert der Wartezeit; verdoppelt sich je Versuch.
-        client: eigener httpx-Client, etwa fuer Tests.
+        repository_url: repository address in any of the usual spellings; it is
+            normalised.
+        credential: default for every request. Overridable per request.
+        timeout: seconds until a single request is abandoned.
+        max_retries: retries in addition to the first attempt.
+        max_concurrency: requests running at once.
+        backoff_base: base wait; doubles with each attempt.
+        client: your own httpx client, e.g. for tests.
     """
 
     def __init__(
@@ -74,10 +73,10 @@ class Transport:
         backoff_base: float = DEFAULT_BACKOFF_BASE,
         client: httpx.AsyncClient | None = None,
     ) -> None:
-        _mindestens("timeout", timeout, 0.001)
-        _mindestens("max_retries", max_retries, 0)
-        _mindestens("max_concurrency", max_concurrency, 1)
-        _mindestens("backoff_base", backoff_base, 0)
+        _at_least("timeout", timeout, 0.001)
+        _at_least("max_retries", max_retries, 0)
+        _at_least("max_concurrency", max_concurrency, 1)
+        _at_least("backoff_base", backoff_base, 0)
 
         self.repository_url = normalize_repository_url(repository_url)
         self.rest_url = rest_base(self.repository_url)
@@ -88,10 +87,10 @@ class Transport:
         self._client = client or httpx.AsyncClient(timeout=timeout)
         self._owns_client = client is None
 
-    # --- Lebenszyklus -----------------------------------------------------
+    # --- Lifecycle --------------------------------------------------------
 
     async def aclose(self) -> None:
-        """Schliesse den Client, sofern er hier angelegt wurde."""
+        """Close the client, if it was created here."""
         if self._owns_client:
             await self._client.aclose()
 
@@ -101,19 +100,19 @@ class Transport:
     async def __aexit__(self, *exc_info: object) -> None:
         await self.aclose()
 
-    # --- Grenze: wer bekommt die Zugangsdaten -----------------------------
+    # --- The boundary: who receives the credentials -----------------------
 
     def is_repository_url(self, url: str) -> bool:
-        """Ob ``url`` das konfigurierte Repositorium anspricht.
+        """Whether ``url`` addresses the configured repository.
 
-        Praefix UND Grenze, damit ein aehnlich benannter Host
-        (``https://repo.example.test.angreifer.test``) nicht durchrutscht.
+        Prefix AND boundary, so a look-alike host
+        (``https://repo.example.test.attacker.test``) cannot slip through.
         """
         base = self.repository_url
         return url == base or url.startswith((f"{base}/", f"{base}?"))
 
     def _resolve(self, path: str) -> str:
-        """Relative Pfade an die REST-Wurzel haengen, absolute unveraendert lassen."""
+        """Append relative paths to the REST root, leave absolute ones alone."""
         if path.startswith(("http://", "https://")):
             return path
         return f"{self.rest_url}{path if path.startswith('/') else '/' + path}"
@@ -128,7 +127,7 @@ class Transport:
             headers.update(extra)
         return headers
 
-    # --- Anfragen ---------------------------------------------------------
+    # --- Requests ---------------------------------------------------------
 
     async def request(
         self,
@@ -142,24 +141,24 @@ class Transport:
         files: Any = None,
         headers: dict[str, str] | None = None,
     ) -> httpx.Response:
-        """Stelle eine Anfrage und gib die Antwort zurueck.
+        """Make a request and return the response.
 
         Args:
-            path: Pfad relativ zur REST-Wurzel (``/_about``) oder absolute URL.
-            credential: Zugangsdaten nur fuer diese Anfrage.
+            path: path relative to the REST root (``/_about``) or an absolute URL.
+            credential: credentials for this request only.
 
         Raises:
-            EduSharingError: bei jedem Status ab 400, als passender Untertyp.
-            TransportError: wenn die Anfrage den Server nicht erreicht hat.
+            EduSharingError: on any status from 400 up, as the matching subtype.
+            TransportError: when the request never reached the server.
         """
         url = self._resolve(path)
         cred = self.credential if credential is None else credential_from(credential)
         request_headers = self._headers(url, cred, headers)
 
-        letzter: EduSharingError | None = None
-        for versuch in range(self.max_retries + 1):
-            if versuch:
-                await asyncio.sleep(self.backoff_base * (2 ** (versuch - 1)))
+        last: EduSharingError | None = None
+        for attempt in range(self.max_retries + 1):
+            if attempt:
+                await asyncio.sleep(self.backoff_base * (2 ** (attempt - 1)))
             try:
                 async with self._semaphore:
                     response = await self._client.request(
@@ -168,8 +167,8 @@ class Transport:
                         files=files, headers=request_headers,
                     )
             except httpx.HTTPError as exc:
-                # Netzwerkebene: Timeout, DNS, TLS, Verbindungsabbruch.
-                letzter = TransportError(
+                # Network layer: timeout, DNS, TLS, dropped connection.
+                last = TransportError(
                     f"{type(exc).__name__}: {exc}", url=url,
                 )
                 continue
@@ -177,21 +176,20 @@ class Transport:
             if response.status_code < 400:
                 return response
 
-            letzter = error_from_response(response.status_code, url, response.text)
-            # Wiederholt wird nur, was der Server voruebergehend nicht
-            # leisten konnte. Ein 500, das in Wahrheit "nicht angemeldet"
-            # heisst, ist bereits als AuthenticationError klassifiziert und
-            # faellt hier nicht mehr unter ServerError.
-            if not isinstance(letzter, ServerError):
-                raise letzter
+            last = error_from_response(response.status_code, url, response.text)
+            # Only what the server could temporarily not deliver gets retried.
+            # A 500 that in truth means "not signed in" was already classified
+            # as AuthenticationError and no longer counts as a ServerError here.
+            if not isinstance(last, ServerError):
+                raise last
 
-        # ``max_retries >= 0`` ist im Konstruktor geprueft, die Schleife laeuft
-        # also mindestens einmal und hat ``letzter`` in jedem Zweig gesetzt, der
-        # nicht selbst zurueckkehrt oder wirft.
-        raise letzter
+        # ``max_retries >= 0`` is checked in the constructor, so the loop runs at
+        # least once and has set ``last`` on every branch that does not itself
+        # return or raise.
+        raise last
 
     async def json(self, method: str, path: str, **kwargs: Any) -> Any:
-        """Wie ``request``, gibt aber den geparsten JSON-Koerper zurueck."""
+        """Like ``request``, but returns the parsed JSON body."""
         response = await self.request(method, path, **kwargs)
         return response.json()
 

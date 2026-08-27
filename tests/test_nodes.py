@@ -439,7 +439,7 @@ async def test_download_ohne_datei_meldet_das_klar():
     node._data["downloadUrl"] = f"{REPO}/eduservlet/download?node={NID}"
     node._data["content"] = {"hash": None}
     assert node.content.has_content is False
-    with pytest.raises(Exception, match="keine Datei"):
+    with pytest.raises(Exception, match="carries no file"):
         await node.content.download()
 
 

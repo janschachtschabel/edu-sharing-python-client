@@ -1,25 +1,25 @@
-"""Vokabularwerte -- Labels statt URIs, gefragt statt mitgeliefert.
+"""Vocabulary values -- labels instead of URIs, asked for rather than shipped.
 
-Hier entscheidet sich, ob die Bibliothek an eine Instanz gebunden ist. Ein
-eingebautes Faecher-Verzeichnis waere bequem und waere fuer jedes Repositorium
-ausser einem falsch. Also wird gefragt::
+This is where it is decided whether the library is tied to one instance. A
+built-in subject directory would be convenient and would be wrong for every
+repository but one. So it asks::
 
     POST /mds/v1/metadatasets/{repo}/{mds}/values
     {"valueParameters": {"query": "ngsearch", "property": "ccm:taxonid",
                          "pattern": ""}, "criteria": []}
 
-Zwei Eigenheiten, beide gemessen (edu-sharing 11.0, Staging, 27.08.2026):
+Two quirks, both measured (edu-sharing 11.0, staging, 2026-08-27):
 
-* **``pattern: ""`` listet alles.** Das naheliegende ``"-all-"`` liefert eine
-  leere Liste -- lautlos, also ohne dass etwas auf den Fehler hinweist.
-* **Die Antwortform weicht von der OpenAPI-Spezifikation ab.** Die deklariert
-  ``MdsValue {id, caption}``; geliefert wird ``{key, displayString}``. Wer sich
-  hier auf die generierte Schicht verlaesst, liest leere Felder.
+* **``pattern: ""`` lists everything.** The obvious ``"-all-"`` returns an empty
+  list -- silently, so nothing points at the mistake.
+* **The response shape deviates from the OpenAPI specification.** That declares
+  ``MdsValue {id, caption}``; what arrives is ``{key, displayString}``. Anyone
+  relying on the generated layer here reads empty fields.
 
-Aufgeloest wird **exakt**, nie unscharf. Im WLO-MCP ist nachgewiesen, wohin
-unscharfes Raten fuehrt: ``bildungsinhalte`` loest dort auf **Bild** auf und
-verwandelt eine Themensuche in eine Bildersuche. Ein ``None`` mit einem
-Vorschlag aus ``suggest()`` ist ehrlicher.
+Resolution is **exact**, never fuzzy. The WLO MCP demonstrates where fuzzy
+guessing leads: there ``bildungsinhalte`` resolves to **Bild** (image) and turns
+a topic search into an image search. A ``None`` plus a suggestion from
+``suggest()`` is more honest.
 """
 
 from __future__ import annotations
@@ -34,37 +34,37 @@ __all__ = ["VocabularyValue", "Vocabulary"]
 DEFAULT_METADATASET = "-default-"
 DEFAULT_QUERY = "ngsearch"
 
-#: ``pattern`` fuer "alle Werte" -- siehe Modul-Docstring.
-_ALLE = ""
+#: ``pattern`` meaning "all values" -- see the module docstring.
+_ALL = ""
 
 
 @dataclass(frozen=True, slots=True)
 class VocabularyValue:
-    """Ein Wert aus einem kontrollierten Vokabular."""
+    """One value from a controlled vocabulary."""
 
-    #: Der Wert, auf den das Repositorium filtert (meist eine SKOS-URI).
+    #: The value the repository filters on (usually a SKOS URI).
     uri: str
-    #: Die menschenlesbare Form in der angefragten Sprache.
+    #: The human-readable form in the requested language.
     label: str
 
     def __str__(self) -> str:
         return self.label
 
 
-def _ist_uri(wert: str) -> bool:
-    return wert.startswith(("http://", "https://"))
+def _is_uri(value: str) -> bool:
+    return value.startswith(("http://", "https://"))
 
 
 class Vocabulary:
-    """Vokabularzugriff fuer einen Metadatensatz.
+    """Vocabulary access for one metadata set.
 
     Args:
-        transport: die Verbindung zum Repositorium.
-        metadataset: Metadatensatz, gegen den aufgeloest wird. ``-default-``
-            ist der von der Instanz vorgegebene.
-        query: Abfragekontext, in dem die Property definiert ist. ``ngsearch``
-            ist die edu-sharing-Konvention; der Name steht **nicht** im MDS und
-            laesst sich daher nicht ermitteln, nur setzen.
+        transport: the connection to the repository.
+        metadataset: the metadata set resolved against. ``-default-`` is
+            whichever the instance nominates.
+        query: the query context the property is defined in. ``ngsearch`` is the
+            edu-sharing convention; the name does **not** appear in the MDS and
+            can therefore only be set, not discovered.
     """
 
     def __init__(
@@ -80,87 +80,86 @@ class Vocabulary:
         self._cache: dict[tuple[str, str | None], list[VocabularyValue]] = {}
         self._locks: dict[tuple[str, str | None], asyncio.Lock] = {}
 
-    # --- Werte ------------------------------------------------------------
+    # --- Values -----------------------------------------------------------
 
     async def values(
         self, prop: str, *, locale: str | None = None
     ) -> list[VocabularyValue]:
-        """Alle Werte, die diese Instanz fuer ``prop`` kennt.
+        """Every value this instance knows for ``prop``.
 
-        Das Ergebnis wird zwischengespeichert -- Vokabulare aendern sich selten,
-        und dieselbe Property wird bei einem Fan-out vielfach gebraucht. Ein
-        Fehlschlag landet nicht im Cache.
+        The result is cached -- vocabularies change rarely, and the same
+        property is needed many times over during a fan-out. A failure does not
+        enter the cache.
 
         Args:
-            prop: Property-Name, etwa ``ccm:taxonid``.
-            locale: Sprache der Labels, etwa ``en_EN``. Getrennt gecacht.
+            prop: property name, e.g. ``ccm:taxonid``.
+            locale: label language, e.g. ``en_EN``. Cached separately.
 
         Returns:
-            Leere Liste, wenn die Property kein Vokabular hat.
+            An empty list when the property has no vocabulary.
         """
-        schluessel = (prop, locale)
-        if schluessel in self._cache:
-            return self._cache[schluessel]
+        key = (prop, locale)
+        if key in self._cache:
+            return self._cache[key]
 
-        # Ohne Sperre laedt bei gleichzeitigen Zugriffen jeder dasselbe
-        # Vokabular einzeln -- bei einem Fan-out also vielfach.
-        lock = self._locks.setdefault(schluessel, asyncio.Lock())
+        # Without a lock, concurrent access loads the same vocabulary once per
+        # caller -- during a fan-out, many times over.
+        lock = self._locks.setdefault(key, asyncio.Lock())
         async with lock:
-            if schluessel in self._cache:
-                return self._cache[schluessel]
-            werte = await self._fetch(prop, _ALLE, locale)
-            self._cache[schluessel] = werte
-            return werte
+            if key in self._cache:
+                return self._cache[key]
+            values = await self._fetch(prop, _ALL, locale)
+            self._cache[key] = values
+            return values
 
     async def suggest(
         self, prop: str, text: str, *, locale: str | None = None
     ) -> list[VocabularyValue]:
-        """Werte, deren Label ``text`` **enthaelt** -- serverseitige Suche.
+        """Values whose label **contains** ``text`` -- a server-side search.
 
-        Teilstring, nicht Praefix: gemessen liefert ``"ysik"`` Physik,
-        Atomphysik und Kernphysik. Wer ein Typeahead darauf baut, bekommt also
-        auch Treffer, die nicht mit der Eingabe beginnen -- das ist meist
-        erwuenscht, sollte aber bekannt sein.
+        Substring, not prefix: measured, ``"ysik"`` returns Physik, Atomphysik
+        and Kernphysik. Anyone building a typeahead on it also gets hits that do
+        not begin with the input -- usually desirable, but worth knowing.
 
-        Nicht gecacht: jede Eingabe ist eine eigene Anfrage, ein Cache darueber
-        wuerde nur Speicher fuellen.
+        Not cached: every input is its own request, and a cache over that would
+        only fill memory.
         """
         return await self._fetch(prop, text, locale)
 
     async def resolve(
-        self, prop: str, label_oder_uri: str, *, locale: str | None = None
+        self, prop: str, label_or_uri: str, *, locale: str | None = None
     ) -> str | None:
-        """Uebersetze ein Label in den Wert, auf den das Repositorium filtert.
+        """Translate a label into the value the repository filters on.
 
         Args:
-            label_oder_uri: ein Label (``"Physik"``) oder bereits eine URI --
-                letztere wird unveraendert durchgereicht, ohne Anfrage.
+            label_or_uri: a label (``"Biologie"``) or already a URI -- the
+                latter passes through unchanged, without a request.
 
         Returns:
-            Den Filterwert, oder ``None``, wenn das Label unbekannt ist. Kein
-            unscharfer Abgleich: ein falsch geratener Wert schraenkt die Suche
-            auf etwas ein, das niemand angefragt hat. Fuer eine Rueckfrage
-            liefert ``suggest()`` Vorschlaege.
+            The filter value, or ``None`` when the label is unknown. No fuzzy
+            matching: a wrongly guessed value narrows the search to something
+            nobody asked for. For a follow-up question, ``suggest()`` provides
+            candidates.
         """
-        wert = label_oder_uri.strip()
-        if _ist_uri(wert):
-            return wert
-        gesucht = wert.casefold()
-        for eintrag in await self.values(prop, locale=locale):
-            if eintrag.label.strip().casefold() == gesucht:
-                return eintrag.uri
+        value = label_or_uri.strip()
+        if _is_uri(value):
+            return value
+        wanted = value.casefold()
+        for entry in await self.values(prop, locale=locale):
+            if entry.label.strip().casefold() == wanted:
+                return entry.uri
         return None
 
     def clear_cache(self) -> None:
-        """Verwirf die zwischengespeicherten Vokabulare."""
+        """Discard the cached vocabularies."""
         self._cache.clear()
 
-    # --- intern -----------------------------------------------------------
+    # --- Internals --------------------------------------------------------
 
     async def _fetch(
         self, prop: str, pattern: str, locale: str | None
     ) -> list[VocabularyValue]:
-        antwort = await self._transport.json(
+        response = await self._transport.json(
             "POST",
             f"/mds/v1/metadatasets/-home-/{self.metadataset}/values",
             json={
@@ -169,17 +168,17 @@ class Vocabulary:
                     "property": prop,
                     "pattern": pattern,
                 },
-                # Pflichtfeld, verengt aber nicht: gemessen liefert die Abfrage
-                # mit und ohne Kriterien dieselben 416 Werte. Es ist eine
-                # Vokabularliste, keine kontextabhaengige Vorschlagsliste.
+                # Required field, but it does not narrow: measured, the query
+                # returns the same 416 values with and without criteria. It is a
+                # vocabulary listing, not a context-dependent suggestion list.
                 "criteria": [],
             },
             headers={"locale": locale} if locale else None,
         )
         return [
-            VocabularyValue(uri=eintrag["key"], label=eintrag.get("displayString") or "")
-            for eintrag in (antwort.get("values") or [])
-            if eintrag.get("key")
+            VocabularyValue(uri=entry["key"], label=entry.get("displayString") or "")
+            for entry in (response.get("values") or [])
+            if entry.get("key")
         ]
 
     def __repr__(self) -> str:

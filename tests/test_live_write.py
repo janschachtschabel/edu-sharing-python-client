@@ -204,7 +204,7 @@ async def test_knoten_ohne_datei_meldet_das_klar(repo, ordner):
     node = await repo.create_node(ordner.id, name="ohne-datei.txt")
     assert node.content.download_url, "downloadUrl ist auch ohne Inhalt gesetzt"
     assert node.content.has_content is False
-    with pytest.raises(EduSharingError, match="keine Datei"):
+    with pytest.raises(EduSharingError, match="carries no file"):
         await node.content.download()
 
 
