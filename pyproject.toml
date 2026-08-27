@@ -43,6 +43,9 @@ packages = ["src/edusharing"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# Netzzugriff ist nie die Vorgabe: `pytest` laeuft offline und deterministisch.
+# Live-Tests gezielt anfordern mit `pytest -m live`.
+addopts = "-m 'not live and not write'"
 markers = [
     "live: Test spricht mit einer echten Instanz (braucht EDU_SHARING_URL)",
     "write: Test SCHREIBT in ein Repositorium (braucht Zugangsdaten + Wegwerf-Ordner)",
@@ -53,3 +56,21 @@ line-length = 100
 src = ["src"]
 # Die generierte Schicht wird nie von Hand angefasst.
 extend-exclude = ["src/edusharing/_generated"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",    # pycodestyle
+    "F",         # pyflakes
+    "I",         # Import-Reihenfolge
+    "UP",        # veraltete Schreibweisen
+    "B",         # haeufige Fallen (bugbear)
+    "PIE",       # ueberfluessige Konstrukte
+    "PYI",       # Typannotationen
+    "RUF",       # ruff-eigene Regeln
+]
+ignore = [
+    # __all__ ist in dieser Bibliothek nach Themen gruppiert und kommentiert
+    # (Einstieg / Zugangsdaten / Fehler), nicht alphabetisch. Die Gruppierung
+    # sagt einer lesenden Person mehr als die Sortierung.
+    "RUF022",
+]
