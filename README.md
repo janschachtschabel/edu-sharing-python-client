@@ -190,7 +190,8 @@ if created["unresolved"]:             # values that did NOT stick
     ...
 ```
 
-Ten flows: `search`, `vocabulary`, `describe`, `relations`, `find_collections`,
+Eleven flows: `search`, `vocabulary`, `describe`, `relations`, `child_objects`,
+`find_collections`,
 `collection_contents`, `add_material`, `update_material`,
 `build_collection`, `delete`. Full input and output for each in
 **[docs/FLOWS.md](docs/FLOWS.md)**.
@@ -236,6 +237,22 @@ than documented:
   hash, which also tells a 0-byte file from *no* file.
 - **Keywords are a shared list.** `add_keywords` extends; setting
   `cclom:general_keyword` directly deletes other people's entries.
+
+### Child objects — documents that belong to one material
+
+An answer sheet, a handout, a second file format: edu-sharing keeps those under
+the main node, not beside it.
+
+```python
+node = await repo.node(node_id)
+await node.children.add(pdf, filename="loesung.pdf", mimetype="application/pdf")
+await repo.flows.child_objects(node_id)
+```
+
+The three parameters that create one cannot be guessed —
+`ccm:io_childobject` is an aspect, not a type, and without
+`assocType=ccm:childio` the repository answers HTTP 500. Details in
+[docs/FLOWS.md](docs/FLOWS.md).
 
 ### Relations — nodes that belong together
 

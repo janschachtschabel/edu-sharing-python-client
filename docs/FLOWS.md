@@ -42,6 +42,7 @@ out by hand.
 | `vocabulary` | 1 | resolve short name → fetch values (cached) |
 | `describe` | 1 | load node |
 | `relations` | 1 | read the node's links |
+| `child_objects` | 2 | load parent → its children, filtered and sorted |
 | `find_collections` | 2, parallel | both collection routes → merge on id |
 | `collection_contents` | 2, parallel | material listing + sub-collection listing |
 | `add_material` | 2–4 | whoami (if no parent) → resolve vocabulary → create → add to collection (if asked) |
@@ -289,6 +290,68 @@ when a field has no short name.
 ---
 
 ---
+
+---
+
+## `child_objects` — further documents of one node
+
+A worksheet's answer sheet, a lesson plan's handouts. These belong **to** the
+parent rather than standing on their own — which is what separates them from a
+collection's contents and from a relation between two independent nodes.
+
+**Input**
+
+```python
+repo.flows.child_objects("haupt-1")
+```
+
+**Output**
+
+```json
+{
+  "id": "haupt-1",
+  "count": 2,
+  "children": [
+    {"id": "…", "name": "loesungsblatt.pdf", "title": "Lösungen",
+     "url": "https://…", "mimetype": "application/pdf",
+     "has_content": true, "order": 0},
+    {"id": "…", "name": "handout.pdf", "…": "…", "order": 1}
+  ]
+}
+```
+
+Ordered by `ccm:childobject_order`, then by creation time. Only nodes carrying
+the `ccm:io_childobject` aspect are returned — a node has other children,
+versions among them, and returning those as attachments would be wrong in a way
+nobody notices until a version appears in a download list.
+
+**Behind it** — 2 requests:
+
+```python
+# what repo.flows.child_objects("haupt-1") does
+node = await repo.nodes.get("haupt-1")      # 1. load the parent
+children = await node.children.list()        # 2. its children, filtered + sorted
+```
+
+### Writing child objects
+
+```python
+node = await repo.node("haupt-1")
+child = await node.children.add(pdf_bytes, filename="loesung.pdf",
+                                mimetype="application/pdf")
+await child.delete()                          # an ordinary node from here on
+```
+
+`add()` is **two requests**: create the child, then upload the bytes. If the
+upload fails the child is removed again — a node without content shows up in
+every listing and downloads as nothing.
+
+> **The combination that creates one cannot be guessed.** Measured on
+> 2026-08-27: `type=ccm:io_childobject` answers HTTP 500 (no such type),
+> `type=ccm:io` without `assocType` answers HTTP 500 (integrity violation). What
+> works is `type=ccm:io` **plus** `assocType=ccm:childio` **plus**
+> `aspects=ccm:io_childobject` — because `ccm:io_childobject` is an *aspect*,
+> not a type. The library sets all three.
 
 ## `relations` — what a node is linked to
 

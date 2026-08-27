@@ -194,7 +194,8 @@ if angelegt["unresolved"]:            # Werte, die NICHT ankamen
     ...
 ```
 
-Zehn Abläufe: `search`, `vocabulary`, `describe`, `relations`, `find_collections`,
+Elf Abläufe: `search`, `vocabulary`, `describe`, `relations`, `child_objects`,
+`find_collections`,
 `collection_contents`, `add_material`, `update_material`,
 `build_collection`, `delete`. Ein- und Ausgabe im Einzelnen in
 **[docs/FLOWS.de.md](docs/FLOWS.de.md)**.
@@ -272,6 +273,22 @@ Läuft offline und deterministisch. Tests gegen eine echte Instanz sind separat:
 ```bash
 EDU_SHARING_URL=https://repository.staging.openeduhub.net uv run pytest -m live
 ```
+
+### Serienobjekte — Dokumente, die zu einem Material gehören
+
+Ein Lösungsblatt, ein Handout, ein zweites Dateiformat: edu-sharing führt die
+unter dem Hauptknoten, nicht daneben.
+
+```python
+node = await repo.node(node_id)
+await node.children.add(pdf, filename="loesung.pdf", mimetype="application/pdf")
+await repo.flows.child_objects(node_id)
+```
+
+Die drei Parameter, die eines anlegen, sind nicht zu erraten —
+`ccm:io_childobject` ist ein Aspekt, kein Typ, und ohne
+`assocType=ccm:childio` antwortet das Repositorium mit HTTP 500. Einzelheiten in
+[docs/FLOWS.de.md](docs/FLOWS.de.md).
 
 ### Relationen — Knoten, die zusammengehören
 

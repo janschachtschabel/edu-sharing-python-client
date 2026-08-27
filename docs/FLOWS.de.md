@@ -43,6 +43,7 @@ nur von Hand ausgeschrieben.
 | `vocabulary` | 1 | Kurzname auflösen → Werte holen (zwischengespeichert) |
 | `describe` | 1 | Knoten laden |
 | `relations` | 1 | die Verknüpfungen des Knotens lesen |
+| `child_objects` | 2 | Hauptknoten laden → seine Kinder, gefiltert und sortiert |
 | `find_collections` | 2, parallel | beide Sammlungswege → über die ID zusammenlegen |
 | `collection_contents` | 2, parallel | Materialliste + Untersammlungsliste |
 | `add_material` | 2–4 | whoami (ohne parent) → Vokabular auflösen → anlegen → einlegen (auf Wunsch) |
@@ -295,6 +296,70 @@ keine Sackgasse, sobald ein Feld keinen Kurznamen hat.
 ---
 
 ---
+
+---
+
+## `child_objects` — weitere Dokumente eines Knotens
+
+Das Lösungsblatt zu einem Arbeitsblatt, die Handouts zu einem Unterrichtsplan.
+Sie gehören **zum** Hauptdokument und stehen nicht für sich — das unterscheidet
+sie vom Inhalt einer Sammlung und von einer Relation zwischen zwei
+eigenständigen Knoten.
+
+**Eingabe**
+
+```python
+repo.flows.child_objects("haupt-1")
+```
+
+**Ausgabe**
+
+```json
+{
+  "id": "haupt-1",
+  "count": 2,
+  "children": [
+    {"id": "…", "name": "loesungsblatt.pdf", "title": "Lösungen",
+     "url": "https://…", "mimetype": "application/pdf",
+     "has_content": true, "order": 0},
+    {"id": "…", "name": "handout.pdf", "…": "…", "order": 1}
+  ]
+}
+```
+
+Sortiert nach `ccm:childobject_order`, dann nach Erstellungszeit. Zurückgegeben
+werden nur Knoten mit dem Aspekt `ccm:io_childobject` — ein Knoten hat auch
+andere Kinder, Versionen etwa, und die als Anhänge auszugeben wäre auf eine
+Weise falsch, die erst auffällt, wenn eine Version in einer Download-Liste
+auftaucht.
+
+**Was dahinter läuft** — 2 Anfragen:
+
+```python
+# was repo.flows.child_objects("haupt-1") tut
+node = await repo.nodes.get("haupt-1")      # 1. den Hauptknoten laden
+kinder = await node.children.list()          # 2. seine Kinder, gefiltert + sortiert
+```
+
+### Serienobjekte schreiben
+
+```python
+node = await repo.node("haupt-1")
+kind = await node.children.add(pdf_bytes, filename="loesung.pdf",
+                               mimetype="application/pdf")
+await kind.delete()                           # ab hier ein gewöhnlicher Knoten
+```
+
+`add()` sind **zwei Anfragen**: das Kind anlegen, dann die Bytes hochladen.
+Schlägt der Upload fehl, wird das Kind wieder entfernt — ein Knoten ohne Inhalt
+steht in jeder Liste und lädt nichts herunter.
+
+> **Die nötige Kombination ist nicht zu erraten.** Gemessen am 27.08.2026:
+> `type=ccm:io_childobject` antwortet mit HTTP 500 (den Typ gibt es nicht),
+> `type=ccm:io` ohne `assocType` antwortet mit HTTP 500 (Integritätsverletzung).
+> Es funktioniert `type=ccm:io` **plus** `assocType=ccm:childio` **plus**
+> `aspects=ccm:io_childobject` — denn `ccm:io_childobject` ist ein *Aspekt*,
+> kein Typ. Die Bibliothek setzt alle drei.
 
 ## `relations` — womit ein Knoten verknüpft ist
 

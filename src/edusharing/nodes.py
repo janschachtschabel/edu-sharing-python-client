@@ -31,6 +31,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .childobjects import ChildObjects
 from .content import NodeContent
 from .errors import SilentDropError, ValidationError
 from .transport import Transport
@@ -135,6 +136,14 @@ class Node:
     def get_all(self, prop: str) -> list[str]:
         """Every value of a property."""
         return _as_list(self.properties.get(prop))
+
+    @property
+    def children(self) -> ChildObjects:
+        """Further documents belonging to this one -- an answer sheet, handouts.
+
+        ``await node.children.list()``
+        """
+        return ChildObjects(self, self._nodes)
 
     @property
     def content(self) -> NodeContent:

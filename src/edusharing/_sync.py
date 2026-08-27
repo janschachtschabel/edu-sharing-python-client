@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from .nodes import Node
 
 __all__ = ["LoopThread", "SyncTransport", "SyncNode", "SyncNodeContent",
-           "SyncFlows", "SyncRelations"]
+           "SyncChildObjects", "SyncFlows", "SyncRelations"]
 
 T = TypeVar("T")
 
@@ -99,6 +99,11 @@ class SyncNode:
     # Reading access is synchronous anyway and is passed straight through.
     def __getattr__(self, name: str) -> Any:
         return getattr(self._node, name)
+
+    @property
+    def children(self) -> SyncChildObjects:
+        """Further documents belonging to this one. Its methods block."""
+        return SyncChildObjects(self._node.children, self._loop)
 
     @property
     def content(self) -> SyncNodeContent:
@@ -186,6 +191,10 @@ class SyncFlows:
         """Like ``Flows.describe``, blocking."""
         return self._loop.run(self._flows.describe(node_id))
 
+    def child_objects(self, node_id: str) -> dict[str, Any]:
+        """Like ``Flows.child_objects``, blocking."""
+        return self._loop.run(self._flows.child_objects(node_id))
+
     def relations(self, node_id: str) -> dict[str, Any]:
         """Like ``Flows.relations``, blocking."""
         return self._loop.run(self._flows.relations(node_id))
@@ -245,3 +254,23 @@ class SyncRelations:
 
     def __repr__(self) -> str:
         return f"SyncRelations({self._relations!r})"
+
+
+class SyncChildObjects:
+    """Synchronous pass-through to ``ChildObjects``."""
+
+    def __init__(self, children: Any, loop: LoopThread) -> None:
+        self._children = children
+        self._loop = loop
+
+    def list(self) -> Any:
+        """Like ``ChildObjects.list``, blocking."""
+        return [SyncNode(child, self._loop)
+                for child in self._loop.run(self._children.list())]
+
+    def add(self, data: bytes, **kwargs: Any) -> Any:
+        """Like ``ChildObjects.add``, blocking."""
+        return SyncNode(self._loop.run(self._children.add(data, **kwargs)), self._loop)
+
+    def __repr__(self) -> str:
+        return f"SyncChildObjects({self._children!r})"

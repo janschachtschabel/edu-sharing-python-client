@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, Any
 
+from ..childobjects import ORDER_PROPERTY
 from ..errors import ValidationError
 from ..results import SearchHit
 from ..urls import path_segment
@@ -22,9 +23,11 @@ from .rerank import DEFAULT_POOL, search_reranked
 from .serialize import hit_as_dict, result_as_dict
 
 if TYPE_CHECKING:  # pragma: no cover
+    from ..nodes import Node
     from ..repository import AsyncRepository
 
 __all__ = [
+    "child_objects",
     "collection_contents",
     "describe",
     "field_property",
@@ -357,3 +360,50 @@ async def relations(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
             "approved": relation.approved,
         })
     return {"id": node_id, "count": len(entries), "relations": entries}
+
+
+async def child_objects(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
+    """The further documents belonging to one node, as JSON.
+
+    A worksheet's answer sheet, a lesson plan's handouts. They belong to the
+    parent rather than standing on their own, which is what separates them from
+    a collection's contents.
+
+    Args:
+        repo: the connection.
+        node_id: the main node.
+
+    Returns:
+        ``{id, count, children}``. Each child carries ``id``, ``name``,
+        ``title``, ``url``, ``mimetype``, ``order`` and ``has_content``.
+
+    Raises:
+        NotFoundError: when no node carries this id.
+    """
+    node = await repo.nodes.get(node_id)
+    children = await node.children.list()
+    return {
+        "id": node_id,
+        "count": len(children),
+        "children": [
+            {
+                "id": child.id,
+                "name": child.name,
+                "title": child.title,
+                "url": child.url,
+                "mimetype": child.content.mimetype,
+                "has_content": child.content.has_content,
+                "order": _order_of(child),
+            }
+            for child in children
+        ],
+    }
+
+
+def _order_of(child: Node) -> int | None:
+    """The display position, or ``None`` when the child carries none."""
+    raw = child.get(ORDER_PROPERTY)
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None

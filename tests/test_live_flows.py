@@ -232,17 +232,23 @@ async def test_wer_nur_material_abfragt_haelt_die_sammlung_fuer_leer(repo):
     for kandidat in eltern:
         cid = (kandidat.get("ref") or {}).get("id")
         inhalt = await repo.flows.collection_contents(cid)
-        if inhalt["collections"]:
-            nur_material = await repo.raw.json(
-                "GET", f"/node/v1/nodes/-home-/{cid}/children",
-                params={"filter": "files", "maxItems": 20})
-            assert not (nur_material.get("nodes") or []), (
-                "diese Sammlung enthaelt auch Material -- fuer den Nachweis "
-                "wird eine gebraucht, die nur Untersammlungen hat")
-            assert inhalt["collections"], (
-                "collection_contents muss die Untersammlungen zeigen, die der "
-                "Materialfilter verschweigt")
-            return
+        if not inhalt["collections"]:
+            continue
+
+        # Die Aussage, unabhaengig davon, ob diese Sammlung auch Material hat:
+        # der Materialfilter zeigt die Untersammlungen NICHT.
+        nur_material = await repo.raw.json(
+            "GET", f"/node/v1/nodes/-home-/{cid}/children",
+            params={"filter": "files", "maxItems": 100, "propertyFilter": "-all-"})
+        material_ids = {(n.get("ref") or {}).get("id")
+                        for n in (nur_material.get("nodes") or [])}
+        unter_ids = {c["id"] for c in inhalt["collections"]}
+
+        assert unter_ids, "Vorbedingung: diese Sammlung hat Untersammlungen"
+        assert not (unter_ids & material_ids), (
+            "Untersammlungen tauchen im Materialfilter auf -- dann braeuchte "
+            "collection_contents den zweiten Endpunkt nicht")
+        return
     pytest.skip("keine Sammlung mit Untersammlungen gefunden")
 
 
@@ -386,3 +392,63 @@ async def test_freigabe_einer_maschinellen_verknuepfung(repo, ordner):
     await repo.relations.approve(a["id"], "references", b["id"])
     nachher = (await repo.flows.relations(a["id"]))["relations"][0]
     assert nachher["approved"] is True, "die Freigabe kam nicht an"
+
+
+# --- Serienobjekte --------------------------------------------------------
+
+
+@pytest.mark.live
+@pytest.mark.write
+async def test_weitere_dokumente_an_einem_hauptdokument(repo, ordner):
+    """Serienobjekte, wie die Ideendatenbank sie nutzt: zusaetzliche Dateien,
+    die zum Hauptdokument gehoeren und nicht fuer sich stehen.
+
+    Die noetige Kombination ist nicht zu erraten -- ccm:io_childobject ist ein
+    ASPEKT, kein Typ, und ohne assocType=ccm:childio antwortet die Instanz mit
+    HTTP 500. Gemessen am 27.08.2026.
+    """
+    haupt = await repo.create_node(ordner.id, name="hauptdokument.txt",
+                                   title="Das Arbeitsblatt")
+    haupt = await haupt.content.upload(b"Das Arbeitsblatt.",
+                                       filename="hauptdokument.txt",
+                                       mimetype="text/plain")
+
+    loesung = await haupt.children.add(
+        b"Die Loesungen.", filename="loesungsblatt.txt", mimetype="text/plain")
+    handout = await haupt.children.add(
+        b"Das Handout.", filename="handout.txt", mimetype="text/plain")
+
+    kinder = await haupt.children.list()
+    assert [k.name for k in kinder] == ["loesungsblatt.txt", "handout.txt"], (
+        "die Reihenfolge muss der Anlage folgen")
+    assert {k.id for k in kinder} == {loesung.id, handout.id}
+
+    # Der Inhalt haengt wirklich am Kind, nicht am Hauptknoten.
+    assert await kinder[0].content.download() == b"Die Loesungen."
+    assert await haupt.content.download() == b"Das Arbeitsblatt."
+
+    # Und ueber den Ablauf als JSON.
+    ergebnis = await repo.flows.child_objects(haupt.id)
+    assert ergebnis["count"] == 2
+    assert [c["order"] for c in ergebnis["children"]] == [0, 1]
+    json.dumps(ergebnis)
+
+
+@pytest.mark.live
+@pytest.mark.write
+async def test_serienobjekte_erscheinen_nicht_als_eigenes_material(repo, ordner):
+    """Sie gehoeren zum Hauptdokument. Taeuchten sie in der Ordnerliste als
+    eigene Materialien auf, zaehlte jeder Anhang als Treffer."""
+    haupt = await repo.create_node(ordner.id, name="mit-anhang.txt", title="Haupt")
+    haupt = await haupt.content.upload(b"x", filename="mit-anhang.txt",
+                                       mimetype="text/plain")
+    await haupt.children.add(b"y", filename="anhang.txt", mimetype="text/plain")
+
+    im_ordner = await repo.raw.json(
+        "GET", f"/node/v1/nodes/-home-/{ordner.id}/children",
+        params={"filter": "files", "maxItems": 50, "propertyFilter": "-all-"})
+    namen = {n.get("name") for n in (im_ordner.get("nodes") or [])}
+    assert "mit-anhang.txt" in namen
+    assert "anhang.txt" not in namen, (
+        "das Serienobjekt steht im Ordner -- dann waere es kein Anhang, "
+        "sondern eigenes Material")

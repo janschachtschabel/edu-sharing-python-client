@@ -285,3 +285,12 @@ def test_neue_flows_synchron(repo):
     assert _kein_coroutine(repo.flows.find_collections("Optik"))["hits"] is not None
     assert _kein_coroutine(repo.flows.collection_contents("coll-1"))["id"] == "coll-1"
     assert _kein_coroutine(repo.flows.update_material(NID, title="Neu"))["id"] == NID
+
+
+def test_serienobjekte_synchron(repo):
+    """Fuenftes Mal dieselbe Falle: neue asynchrone Flaeche am Node, Durchgriff
+    vergessen, Aufruf liefert stumm eine Coroutine."""
+    kinder = repo.node(NID).children
+    assert not inspect.iscoroutinefunction(kinder.list)
+    assert _kein_coroutine(kinder.list()) == []
+    assert _kein_coroutine(repo.flows.child_objects(NID))["count"] == 0

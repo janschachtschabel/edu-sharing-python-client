@@ -224,6 +224,8 @@ Not assumed but checked (staging, 2026-08-27, unless noted otherwise):
 
 **The search index holds nodes that no longer exist.** Measured on 2026-08-27 against staging: of 25 hits for "Physik", **4 were not retrievable** -- `NotFoundError` from `/node/v1/nodes/-home-/{id}/metadata`, although the hit carried a title and full metadata in the search response. Anything chaining search to a detail lookup -- which is exactly what an MCP does -- has to survive that. Recorded because it looks like a library bug and is not.
 
+**Three separate concepts join nodes, and mixing them up is easy.** A **collection** is a container of references. A **relation** (`/relation/v1`) joins two nodes that stand on their own -- a series and what it is based on -- and keeps the opposite direction automatically. A **child object** belongs to its parent and has no life without it: an answer sheet, a handout. Only the last one needed reverse-engineering: measured 2026-08-27, `type=ccm:io_childobject` answers HTTP 500 because `ccm:io_childobject` is an *aspect*, and the working call is `type=ccm:io` with `assocType=ccm:childio` and `aspects=ccm:io_childobject`. Taken from the Ideendatenbank, which uses it in production.
+
 ## 8. Stages
 
 | # | Content | Done when |

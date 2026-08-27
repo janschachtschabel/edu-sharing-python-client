@@ -80,6 +80,10 @@ class Flows:
         """Everything about one node in a single call. See ``discover.describe``."""
         return await discover.describe(self._repo, node_id)
 
+    async def child_objects(self, node_id: str) -> dict[str, Any]:
+        """Further documents belonging to one node. See ``discover.child_objects``."""
+        return await discover.child_objects(self._repo, node_id)
+
     async def relations(self, node_id: str) -> dict[str, Any]:
         """What this node is linked to. See ``discover.relations``.
 
