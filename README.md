@@ -190,7 +190,7 @@ if created["unresolved"]:             # values that did NOT stick
     ...
 ```
 
-Nine flows: `search`, `vocabulary`, `describe`, `find_collections`,
+Ten flows: `search`, `vocabulary`, `describe`, `relations`, `find_collections`,
 `collection_contents`, `add_material`, `update_material`,
 `build_collection`, `delete`. Full input and output for each in
 **[docs/FLOWS.md](docs/FLOWS.md)**.
@@ -236,6 +236,22 @@ than documented:
   hash, which also tells a 0-byte file from *no* file.
 - **Keywords are a shared list.** `add_keywords` extends; setting
   `cclom:general_keyword` directly deletes other people's entries.
+
+### Relations — nodes that belong together
+
+A series and its episodes, a worksheet and the video it is based on: edu-sharing
+keeps these as **relations** between nodes that stand side by side, separate
+from collections.
+
+```python
+await repo.relations.create(part_id, "isPartOf", series_id)
+await repo.flows.relations(series_id)     # the series reports "hasPart"
+```
+
+The opposite direction is kept automatically. The API also distinguishes
+machine-proposed links from confirmed ones (`ai_generated`, `approve`), which
+matters when a model does the proposing. Details in
+[docs/FLOWS.md](docs/FLOWS.md#relations--what-a-node-is-linked-to).
 
 ## Fields and files the short names do not cover
 

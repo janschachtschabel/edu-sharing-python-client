@@ -194,7 +194,7 @@ if angelegt["unresolved"]:            # Werte, die NICHT ankamen
     ...
 ```
 
-Neun Abläufe: `search`, `vocabulary`, `describe`, `find_collections`,
+Zehn Abläufe: `search`, `vocabulary`, `describe`, `relations`, `find_collections`,
 `collection_contents`, `add_material`, `update_material`,
 `build_collection`, `delete`. Ein- und Ausgabe im Einzelnen in
 **[docs/FLOWS.de.md](docs/FLOWS.de.md)**.
@@ -272,6 +272,22 @@ Läuft offline und deterministisch. Tests gegen eine echte Instanz sind separat:
 ```bash
 EDU_SHARING_URL=https://repository.staging.openeduhub.net uv run pytest -m live
 ```
+
+### Relationen — Knoten, die zusammengehören
+
+Eine Reihe und ihre Folgen, ein Arbeitsblatt und das Video, auf dem es aufbaut:
+edu-sharing führt das als **Relationen** zwischen Knoten, die nebeneinander
+stehen — getrennt von Sammlungen.
+
+```python
+await repo.relations.create(teil_id, "isPartOf", reihe_id)
+await repo.flows.relations(reihe_id)      # die Reihe meldet "hasPart"
+```
+
+Die Gegenrichtung wird automatisch geführt. Die API unterscheidet zudem
+maschinell vorgeschlagene von bestätigten Verknüpfungen (`ai_generated`,
+`approve`) — was zählt, wenn ein Modell die Vorschläge macht. Einzelheiten in
+[docs/FLOWS.de.md](docs/FLOWS.de.md#relations--womit-ein-knoten-verknüpft-ist).
 
 ## Felder und Dateien, die keine Kurznamen haben
 

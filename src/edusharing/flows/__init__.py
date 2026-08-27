@@ -80,6 +80,14 @@ class Flows:
         """Everything about one node in a single call. See ``discover.describe``."""
         return await discover.describe(self._repo, node_id)
 
+    async def relations(self, node_id: str) -> dict[str, Any]:
+        """What this node is linked to. See ``discover.relations``.
+
+        **Read ``ai_generated`` and ``approved``**: a machine-proposed link that
+        nobody confirmed is a suggestion, not a fact.
+        """
+        return await discover.relations(self._repo, node_id)
+
     async def find_collections(self, text: str, *, limit: int = 10) -> dict[str, Any]:
         """Search collections. See ``discover.find_collections``.
 

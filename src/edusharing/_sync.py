@@ -20,7 +20,8 @@ from typing import TYPE_CHECKING, Any, TypeVar
 if TYPE_CHECKING:
     from .nodes import Node
 
-__all__ = ["LoopThread", "SyncTransport", "SyncNode", "SyncNodeContent", "SyncFlows"]
+__all__ = ["LoopThread", "SyncTransport", "SyncNode", "SyncNodeContent",
+           "SyncFlows", "SyncRelations"]
 
 T = TypeVar("T")
 
@@ -185,6 +186,10 @@ class SyncFlows:
         """Like ``Flows.describe``, blocking."""
         return self._loop.run(self._flows.describe(node_id))
 
+    def relations(self, node_id: str) -> dict[str, Any]:
+        """Like ``Flows.relations``, blocking."""
+        return self._loop.run(self._flows.relations(node_id))
+
     def find_collections(self, text: str, **kwargs: Any) -> dict[str, Any]:
         """Like ``Flows.find_collections``, blocking."""
         return self._loop.run(self._flows.find_collections(text, **kwargs))
@@ -211,3 +216,32 @@ class SyncFlows:
 
     def __repr__(self) -> str:
         return f"SyncFlows({self._flows!r})"
+
+
+class SyncRelations:
+    """Synchronous pass-through to ``Relations``."""
+
+    def __init__(self, relations: Any, loop: LoopThread) -> None:
+        self._relations = relations
+        self._loop = loop
+
+    def of(self, node_id: str) -> Any:
+        """Like ``Relations.of``, blocking."""
+        return self._loop.run(self._relations.of(node_id))
+
+    def create(self, from_node: str, relation_type: str, to_node: str,
+               **kwargs: Any) -> None:
+        """Like ``Relations.create``, blocking."""
+        self._loop.run(
+            self._relations.create(from_node, relation_type, to_node, **kwargs))
+
+    def delete(self, from_node: str, relation_type: str, to_node: str) -> None:
+        """Like ``Relations.delete``, blocking."""
+        self._loop.run(self._relations.delete(from_node, relation_type, to_node))
+
+    def approve(self, from_node: str, relation_type: str, to_node: str) -> None:
+        """Like ``Relations.approve``, blocking."""
+        self._loop.run(self._relations.approve(from_node, relation_type, to_node))
+
+    def __repr__(self) -> str:
+        return f"SyncRelations({self._relations!r})"

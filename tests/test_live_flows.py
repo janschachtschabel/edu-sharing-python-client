@@ -326,3 +326,63 @@ async def test_material_aendern_mit_vokabular(repo, ordner):
     stand = await repo.flows.describe(angelegt["id"])
     assert stand["fields"]["subject"] == ["Physik"]
     assert stand["keywords"] == ["geaendert"]
+
+
+# --- Verknuepfungen -------------------------------------------------------
+
+
+@pytest.mark.live
+@pytest.mark.write
+async def test_eine_reihe_aus_verknuepften_knoten(repo, ordner):
+    """Serienobjekte: Knoten auf gleicher Ebene, miteinander verknuepft.
+
+    edu-sharing fuehrt dafuer eine eigene API (/relation/v1). Gemessen am
+    27.08.2026: die Gegenrichtung wird automatisch gefuehrt -- wer isPartOf von
+    Teil zu Reihe anlegt, sieht an der Reihe hasPart, ohne sie zweimal zu setzen.
+    """
+    reihe = await repo.flows.add_material("Ablauf-Test Reihe", parent_id=ordner.id)
+    teil1 = await repo.flows.add_material("Ablauf-Test Folge 1", parent_id=ordner.id)
+    teil2 = await repo.flows.add_material("Ablauf-Test Folge 2", parent_id=ordner.id)
+
+    await repo.relations.create(teil1["id"], "isPartOf", reihe["id"])
+    await repo.relations.create(teil2["id"], "isPartOf", reihe["id"])
+    # Geschwister verweisen aufeinander, und zwar maschinell vorgeschlagen.
+    await repo.relations.create(teil1["id"], "references", teil2["id"],
+                                ai_generated=True)
+
+    # Sicht der Reihe: die Gegenrichtung, die niemand gesetzt hat.
+    von_reihe = await repo.flows.relations(reihe["id"])
+    typen = {r["type"] for r in von_reihe["relations"]}
+    assert typen == {"hasPart"}, f"erwartet nur hasPart, bekam {typen}"
+    assert {r["id"] for r in von_reihe["relations"]} == {teil1["id"], teil2["id"]}
+
+    # Sicht einer Folge: gehoert zur Reihe, verweist auf die Schwester.
+    von_teil = await repo.flows.relations(teil1["id"])
+    nach_typ = {r["type"]: r for r in von_teil["relations"]}
+    assert nach_typ["isPartOf"]["id"] == reihe["id"]
+    assert nach_typ["references"]["id"] == teil2["id"]
+    assert nach_typ["references"]["ai_generated"] is True, (
+        "der maschinelle Vorschlag muss als solcher erkennbar bleiben")
+    assert nach_typ["references"]["approved"] is False, (
+        "unbestaetigt -- ein Vorschlag ist keine Tatsache")
+
+    # Und wieder loesen.
+    await repo.relations.delete(teil1["id"], "references", teil2["id"])
+    danach = await repo.flows.relations(teil1["id"])
+    assert {r["type"] for r in danach["relations"]} == {"isPartOf"}
+
+
+@pytest.mark.live
+@pytest.mark.write
+async def test_freigabe_einer_maschinellen_verknuepfung(repo, ordner):
+    """Die menschliche Haelfte: eine KI schlaegt vor, ein Mensch bestaetigt."""
+    a = await repo.flows.add_material("Ablauf-Test Quelle", parent_id=ordner.id)
+    b = await repo.flows.add_material("Ablauf-Test Ziel", parent_id=ordner.id)
+    await repo.relations.create(a["id"], "references", b["id"], ai_generated=True)
+
+    vorher = (await repo.flows.relations(a["id"]))["relations"][0]
+    assert vorher["approved"] is False
+
+    await repo.relations.approve(a["id"], "references", b["id"])
+    nachher = (await repo.flows.relations(a["id"]))["relations"][0]
+    assert nachher["approved"] is True, "die Freigabe kam nicht an"

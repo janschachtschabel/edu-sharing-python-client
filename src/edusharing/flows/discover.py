@@ -29,6 +29,7 @@ __all__ = [
     "describe",
     "field_property",
     "find_collections",
+    "relations",
     "search",
     "vocabulary",
 ]
@@ -251,6 +252,14 @@ async def collection_contents(
     and carries collection metadata, where the folder filter is a detour that
     happens to work.
 
+    **There is no search-based route to a collection's contents.** Scoping
+    ``ngsearch`` with ``virtual:primaryparent_nodeid`` is the obvious idea and
+    the repository rejects it with HTTP 400 (measured 2026-08-27, and by
+    wlo-mcp-sc on 2026-07-17). It would also be the wrong answer: a curated
+    collection holds *references* to nodes whose primary parent lives elsewhere,
+    and a parent-scoped search would miss exactly those. The two routes that do
+    exist are the two this function calls -- material and sub-collections.
+
     Args:
         repo: the connection.
         collection_id: the collection to open.
@@ -306,3 +315,45 @@ async def collection_contents(
         "total_materials": int(pagination.get("total") or 0),
         "returned_materials": len(materials),
     }
+
+
+async def relations(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
+    """What this node is linked to, as JSON.
+
+    Relations join nodes that stand side by side -- the parts of a series, a
+    resource and what it is based on. A collection is a container; this is not.
+
+    The perspective is the asked node's: a part reports ``isPartOf`` and the
+    series reports ``hasPart`` for the same link. Each entry names the node at
+    the *other* end.
+
+    Args:
+        repo: the connection.
+        node_id: the node to look at.
+
+    Returns:
+        ``{id, count, relations}``. Each relation carries ``type``, the other
+        node's ``id``/``title``/``url``, and two flags worth reading:
+        ``ai_generated`` (a machine proposed this) and ``approved`` (a person
+        confirmed it). An unapproved machine suggestion is not a fact.
+
+    Raises:
+        NotFoundError: when no node carries this id.
+    """
+    found = await repo.relations.of(node_id)
+    entries = []
+    for relation in found:
+        # The other end: whichever side is not the node we asked about.
+        other_id = relation.to_id if relation.from_id == node_id else relation.from_id
+        other_title = (
+            relation.to_title if relation.from_id == node_id else relation.from_title
+        )
+        entries.append({
+            "type": relation.type,
+            "id": other_id,
+            "title": other_title,
+            "url": f"{repo.url}/components/render/{other_id}" if other_id else "",
+            "ai_generated": relation.ai_generated,
+            "approved": relation.approved,
+        })
+    return {"id": node_id, "count": len(entries), "relations": entries}

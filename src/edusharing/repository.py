@@ -18,13 +18,20 @@ from typing import Any, Self
 
 import httpx
 
-from ._sync import LoopThread, SyncFlows, SyncNode, SyncTransport
+from ._sync import (
+    LoopThread,
+    SyncFlows,
+    SyncNode,
+    SyncRelations,
+    SyncTransport,
+)
 from .auth import ANONYMOUS, BasicCredential, Credential, credential_from
 from .collections import Collections
 from .errors import EduSharingError
 from .flows import Flows
 from .info import About, Identity, MetadataSet
 from .nodes import Node, Nodes
+from .relations import Relations
 from .search import Search, SearchResult
 from .transport import (
     DEFAULT_BACKOFF_BASE,
@@ -113,6 +120,7 @@ class AsyncRepository:
         )
         self._collections = Collections(self._transport, metadataset=metadataset)
         self._nodes = Nodes(self._transport)
+        self._relations = Relations(self._transport)
         self._flows = Flows(self)
 
     @classmethod
@@ -157,6 +165,15 @@ class AsyncRepository:
     def searcher(self) -> Search:
         """The search layer, for access to its settings."""
         return self._search
+
+    @property
+    def relations(self) -> Relations:
+        """Links between nodes that sit side by side -- a series and its parts,
+        a resource and what it is based on.
+
+        ``await repo.relations.of(node_id)``
+        """
+        return self._relations
 
     @property
     def flows(self) -> Flows:
@@ -307,6 +324,14 @@ class Repository:
     def searcher(self) -> Search:
         """The search layer, for access to its settings."""
         return self._async.searcher
+
+    @property
+    def relations(self) -> SyncRelations:
+        """Links between nodes that sit side by side.
+
+        ``repo.relations.of(node_id)``
+        """
+        return SyncRelations(self._async.relations, self._loop)
 
     @property
     def flows(self) -> SyncFlows:

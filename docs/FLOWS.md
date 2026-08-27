@@ -41,6 +41,7 @@ out by hand.
 | `search(rerank=True)` | 1 per variant (≤5), parallel | expand → query each → score and merge in memory |
 | `vocabulary` | 1 | resolve short name → fetch values (cached) |
 | `describe` | 1 | load node |
+| `relations` | 1 | read the node's links |
 | `find_collections` | 2, parallel | both collection routes → merge on id |
 | `collection_contents` | 2, parallel | material listing + sub-collection listing |
 | `add_material` | 2–4 | whoami (if no parent) → resolve vocabulary → create → add to collection (if asked) |
@@ -286,6 +287,72 @@ when a field has no short name.
 > chaining `search` → `describe` has to expect `NotFoundError`.
 
 ---
+
+---
+
+## `relations` — what a node is linked to
+
+Relations join nodes that stand **side by side** — the parts of a series, a
+resource and what it is based on. Not to be confused with a collection, which is
+a container.
+
+**Input**
+
+```python
+repo.flows.relations("teil-1")
+```
+
+**Output**
+
+```json
+{
+  "id": "teil-1",
+  "count": 2,
+  "relations": [
+    {"type": "isPartOf", "id": "reihe", "title": "Die Reihe",
+     "url": "https://…", "ai_generated": false, "approved": false},
+    {"type": "references", "id": "teil-2", "title": "Folge 2",
+     "url": "https://…", "ai_generated": true, "approved": false}
+  ]
+}
+```
+
+Each entry names the node at the *other* end, seen from the node you asked
+about.
+
+> **Read `ai_generated` and `approved` together.** A link a machine proposed and
+> nobody confirmed is a suggestion, not a fact. The API is explicitly built for
+> this: a model may propose, a person approves.
+
+**Behind it** — 1 request:
+
+```python
+# what repo.flows.relations("teil-1") does
+relations = await repo.relations.of("teil-1")     # GET /relation/v1/-home-/{id}
+```
+
+### Writing relations
+
+There is no flow for this — it is a single call at the API level:
+
+```python
+await repo.relations.create("teil-1", "isPartOf", "reihe")
+await repo.relations.create("teil-1", "references", "teil-2", ai_generated=True)
+await repo.relations.approve("teil-1", "references", "teil-2")   # a person confirms
+await repo.relations.delete("teil-1", "references", "teil-2")
+```
+
+**The opposite direction is kept for you.** Create `isPartOf` from part to
+series, and the series reports `hasPart` — measured, without setting it twice.
+Seven types can be created:
+
+`isPartOf` · `isBasedOn` · `references` · `isDuplicateOf` · `requires` ·
+`replaces` · `hasFormat`
+
+The other five (`hasPart`, `isBasisFor`, `isRequiredBy`, `isReplacedBy`,
+`isFormatOf`) arise as those opposites and are read-only. Asking for one
+directly answers HTTP 400 with nothing that says why, so the library rejects it
+first with a message naming the one to use instead.
 
 ## `find_collections` — search collections
 

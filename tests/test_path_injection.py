@@ -59,10 +59,17 @@ def _repo_mit_protokoll(antwort_id: str = "x") -> tuple[AsyncRepository, list[ht
 
 
 def _pfade_bleiben_unter(gesehen: list[httpx.URL], praefix: str) -> None:
+    """Geprueft wird ``raw_path``, nicht ``path``.
+
+    httpx dekodiert in ``path`` die Prozentzeichen wieder: ein kodierter
+    Schraegstrich sieht dort aus wie ein echter. Was der Server als Pfadsegment
+    sieht, steht in ``raw_path`` -- und nur darauf kommt es an.
+    """
     assert gesehen, "kein Request abgesetzt -- der Test prueft nichts"
     for url in gesehen:
-        assert url.path.startswith(praefix), (
-            f"Pfad verlaesst {praefix!r}: {url.path!r}"
+        gesendet = url.raw_path.decode()
+        assert gesendet.startswith(praefix), (
+            f"Pfad verlaesst {praefix!r}: {gesendet!r}"
         )
 
 
@@ -126,7 +133,8 @@ async def test_metadatensatz_bleibt_im_pfad(boese):
         await repo.search("Physik")
         await repo.vocab.values("ccm:taxonid")
     for url in gesehen:
-        assert url.path.startswith((
+        gesendet = url.raw_path.decode()
+        assert gesendet.startswith((
             "/edu-sharing/rest/search/v1/queries/-home-/",
             "/edu-sharing/rest/mds/v1/metadatasets/-home-/",
-        )), f"Pfad verlaesst den festen Teil: {url.path!r}"
+        )), f"Pfad verlaesst den festen Teil: {gesendet!r}"

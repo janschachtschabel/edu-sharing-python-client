@@ -42,6 +42,7 @@ nur von Hand ausgeschrieben.
 | `search(rerank=True)` | 1 je Variante (≤5), parallel | expandieren → je Variante suchen → im Speicher bewerten und mischen |
 | `vocabulary` | 1 | Kurzname auflösen → Werte holen (zwischengespeichert) |
 | `describe` | 1 | Knoten laden |
+| `relations` | 1 | die Verknüpfungen des Knotens lesen |
 | `find_collections` | 2, parallel | beide Sammlungswege → über die ID zusammenlegen |
 | `collection_contents` | 2, parallel | Materialliste + Untersammlungsliste |
 | `add_material` | 2–4 | whoami (ohne parent) → Vokabular auflösen → anlegen → einlegen (auf Wunsch) |
@@ -292,6 +293,72 @@ keine Sackgasse, sobald ein Feld keinen Kurznamen hat.
 > `search` und `describe` verkettet, muss mit `NotFoundError` rechnen.
 
 ---
+
+---
+
+## `relations` — womit ein Knoten verknüpft ist
+
+Relationen verbinden Knoten, die **nebeneinander** stehen — die Teile einer
+Reihe, ein Material und das, worauf es aufbaut. Nicht zu verwechseln mit einer
+Sammlung, die ein Behälter ist.
+
+**Eingabe**
+
+```python
+repo.flows.relations("teil-1")
+```
+
+**Ausgabe**
+
+```json
+{
+  "id": "teil-1",
+  "count": 2,
+  "relations": [
+    {"type": "isPartOf", "id": "reihe", "title": "Die Reihe",
+     "url": "https://…", "ai_generated": false, "approved": false},
+    {"type": "references", "id": "teil-2", "title": "Folge 2",
+     "url": "https://…", "ai_generated": true, "approved": false}
+  ]
+}
+```
+
+Jeder Eintrag benennt den Knoten am *anderen* Ende, aus Sicht des angefragten.
+
+> **`ai_generated` und `approved` gehören zusammen gelesen.** Eine Verknüpfung,
+> die eine Maschine vorschlug und niemand bestätigte, ist ein Vorschlag, keine
+> Tatsache. Die API ist ausdrücklich dafür gebaut: ein Modell darf vorschlagen,
+> ein Mensch gibt frei.
+
+**Was dahinter läuft** — 1 Anfrage:
+
+```python
+# was repo.flows.relations("teil-1") tut
+relationen = await repo.relations.of("teil-1")   # GET /relation/v1/-home-/{id}
+```
+
+### Relationen schreiben
+
+Dafür gibt es keinen Ablauf — es ist je ein Aufruf auf der API-Ebene:
+
+```python
+await repo.relations.create("teil-1", "isPartOf", "reihe")
+await repo.relations.create("teil-1", "references", "teil-2", ai_generated=True)
+await repo.relations.approve("teil-1", "references", "teil-2")   # ein Mensch bestätigt
+await repo.relations.delete("teil-1", "references", "teil-2")
+```
+
+**Die Gegenrichtung wird für Sie geführt.** Wer `isPartOf` von Teil zu Reihe
+anlegt, sieht an der Reihe `hasPart` — gemessen, ohne sie zweimal zu setzen.
+Sieben Typen lassen sich anlegen:
+
+`isPartOf` · `isBasedOn` · `references` · `isDuplicateOf` · `requires` ·
+`replaces` · `hasFormat`
+
+Die übrigen fünf (`hasPart`, `isBasisFor`, `isRequiredBy`, `isReplacedBy`,
+`isFormatOf`) entstehen als deren Gegenrichtung und sind nur lesbar. Wer einen
+davon direkt setzen will, bekommt einen HTTP 400 ohne erkennbaren Grund — die
+Bibliothek lehnt vorher ab und nennt den passenden.
 
 ## `find_collections` — Sammlungen suchen
 
