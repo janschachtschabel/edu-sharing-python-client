@@ -233,13 +233,40 @@ Die vollständige Fallensammlung wandert nach `docs/QUIRKS.md`.
 | # | Inhalt | Fertig, wenn |
 |---|---|---|
 | **0** | ~~Generator-Pipeline~~ | ✅ **erledigt** — `scripts/generate_client.py`, verifiziert (§4.1) |
-| **1** | Transport, Auth (inkl. Bearer-Falle), Fehlertypen, `_about`-Health, Identitätsprobe | Lesen funktioniert gegen eine beliebige Instanz |
+| **1** | ~~Transport, Auth (inkl. Bearer-Falle), Fehlertypen, `_about`-Health, Identitätsprobe~~ | ✅ **erledigt** — 93 Tests offline, 5 live gegen 11.0 (§8.1) |
 | **2** | MDS-Introspektion, Vokabular-Cache, Label↔URI, Suche mit Facetten, beide Sammlungs-Legs | Läuft gegen ein **Nicht-WLO-Repository** |
 | **3** | Nodes, Properties (beide Wege automatisch), Read-Back-Verify, Keywords-Merge, Collections, Dateien | Kuration ohne stille Verluste |
 | **4** | `edusharing.agent` (§6) + b-api-Client mit Policy | Ein MCP ließe sich darauf bauen, ohne die Bibliothek zu ändern |
 
 Dokumentation läuft mit, nicht hinterher: **jedes Beispiel in `docs/beispiele/` ist
 ein ausführbarer Test gegen Staging.** Was dort nicht läuft, steht nicht im README.
+
+### 8.1 Etappe 1 — was dabei herauskam
+
+| Modul | Verantwortung |
+|---|---|
+| `errors.py` | Fehlertypen; Zuordnung aus Status **und** Java-Klassenname |
+| `urls.py` | Repository-URL normalisieren, Deep-Links ablehnen |
+| `auth.py` | Zugangsdaten als Werte; Bearer wird abgelehnt; Passwörter nie in `repr` |
+| `transport.py` | httpx, Timeout, Retry, Nebenläufigkeit, Credential-Grenze |
+| `_sync.py` | Event-Loop im Hintergrund-Thread für den synchronen Zugang |
+| `repository.py` | `AsyncRepository` / `Repository`, `about()`, `whoami()`, `raw` |
+
+Drei Entscheidungen, die beim Bauen fielen und im Code begründet sind:
+
+1. **Wiederholt wird nach Fehler*typ*, nicht nach Statuscode.** Sonst würde ein
+   „Not allowed for guest user" dreimal wiederholt — dreimal dieselbe Anfrage,
+   die nie gelingen kann, auf einem Repositorium, das nichts falsch gemacht hat.
+2. **Der synchrone Zugang betreibt einen eigenen Loop in einem eigenen Thread**
+   statt `asyncio.run()`. Sonst scheitert er in Jupyter — also genau bei der
+   Zielgruppe, für die er gedacht ist.
+3. **Zugangsdaten gehen nur an die konfigurierte Repository-URL**, geprüft mit
+   Präfix *und* Grenze. Ein reines `startswith` ließe
+   `https://repo.example.test.angreifer.test` durch.
+
+Die drei kritischen Verhaltensweisen sind per Mutationstest abgesichert: Semaphore
+aushebeln, Retry auf Statuscode umstellen, Grenzprüfung durch nacktes `startswith`
+ersetzen — jede Mutation macht genau ihren Test rot.
 
 ## 9. Offene Punkte
 
