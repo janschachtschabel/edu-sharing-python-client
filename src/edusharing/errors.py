@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 
 __all__ = [
+    "at_least",
     "EduSharingError",
     "TransportError",
     "AuthenticationError",
@@ -216,3 +217,19 @@ def error_from_response(status: int, url: str, body: str) -> EduSharingError:
         error_class=error_class,
         stacktrace=stacktrace,
     )
+
+
+def at_least(name: str, value: float, limit: float) -> None:
+    """Reject a parameter that yields no sensible operation.
+
+    Early and loud rather than late and puzzling: ``max_retries=-1`` would never
+    enter the retry loop at all, and the caller would see an error with no cause
+    whatsoever.
+
+    Shared by ``Transport`` and ``BildungsAPI``: both run a retry loop, and the
+    b-api client had this check missing (audit F3, 2026-08-27).
+    """
+    if value < limit:
+        raise EduSharingError(
+            f"{name}={value!r} is not allowed -- at least {limit} is expected."
+        )

@@ -28,7 +28,7 @@ from typing import Any, Self
 
 import httpx
 
-from ..errors import EduSharingError, error_from_response
+from ..errors import EduSharingError, at_least, error_from_response
 from ..urls import path_segment
 from .policy import Model, build_body, pick_model, rank_models, read_answer
 
@@ -95,6 +95,11 @@ class BildungsAPI:
                 f"The b-api needs a key. Either set {ENV_KEY} or pass "
                 "BildungsAPI(api_key=...)."
             )
+        at_least("timeout", timeout, 0.001)
+        at_least("max_retries", max_retries, 0)
+        at_least("max_concurrency", max_concurrency, 1)
+        at_least("backoff_base", backoff_base, 0)
+        at_least("models_cache_seconds", models_cache_seconds, 0)
         self._api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.provider = provider
@@ -254,7 +259,10 @@ class BildungsAPI:
             if response.status_code not in RETRYABLE:
                 raise last
 
-        assert last is not None
+        # ``max_retries >= 0`` is checked in the constructor, so the loop runs
+        # at least once and has set ``last`` on every branch that does not
+        # itself return or raise. An assert here would vanish under ``python -O``
+        # and turn into ``raise None`` -- a TypeError instead of the real cause.
         raise last
 
     def _error(self, response: httpx.Response, url: str) -> EduSharingError:

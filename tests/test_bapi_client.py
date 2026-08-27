@@ -267,3 +267,34 @@ async def test_gewaehltes_modell_ist_ablesbar():
     async with _client(_router) as api:
         await api.chat("hallo")
         assert api.last_model == "qwen3.6-35b-a3b"
+
+
+# --- Parametervalidierung -------------------------------------------------
+#
+# Audit-Befund F2/F3 vom 27.08.2026: der b-api-Client nahm jeden Parameter
+# ungeprueft, waehrend der Transport vier davon prueft. max_retries=-1 liess die
+# Retry-Schleife nie laufen und endete in einem "assert last is not None" --
+# unter "python -O" wird daraus ein "raise None" und damit ein TypeError statt
+# der eigentlichen Fehlermeldung.
+
+@pytest.mark.parametrize("kwargs", [
+    {"max_retries": -1},
+    {"max_concurrency": 0},
+    {"timeout": 0},
+    {"backoff_base": -1},
+    {"models_cache_seconds": -1},
+])
+def test_unsinnige_parameter_werden_sofort_abgelehnt(kwargs):
+    """Frueh und laut statt spaet und raetselhaft -- dieselbe Regel, nach der
+    sich der Transport richtet."""
+    with pytest.raises(EduSharingError) as fehler:
+        BildungsAPI(api_key="k", **kwargs)
+    # Die Meldung muss den Parameter benennen, sonst hilft sie nicht.
+    assert next(iter(kwargs)) in str(fehler.value)
+
+
+def test_gueltige_grenzwerte_bleiben_erlaubt():
+    """Gegenprobe: 0 Wiederholungen und 0 Sekunden Cache sind sinnvoll."""
+    api = BildungsAPI(api_key="k", max_retries=0, backoff_base=0,
+                      models_cache_seconds=0, max_concurrency=1)
+    assert api.max_retries == 0

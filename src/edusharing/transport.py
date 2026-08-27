@@ -24,7 +24,13 @@ from typing import Any, Self
 import httpx
 
 from .auth import ANONYMOUS, Credential, credential_from
-from .errors import EduSharingError, ServerError, TransportError, error_from_response
+from .errors import (
+    EduSharingError,
+    ServerError,
+    TransportError,
+    at_least,
+    error_from_response,
+)
 from .urls import normalize_repository_url, rest_base
 
 __all__ = ["Transport"]
@@ -33,19 +39,6 @@ DEFAULT_TIMEOUT = 30.0
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_MAX_CONCURRENCY = 8
 DEFAULT_BACKOFF_BASE = 0.5
-
-
-def _at_least(name: str, value: float, limit: float) -> None:
-    """Reject a parameter that yields no sensible operation.
-
-    Early and loud rather than late and puzzling: ``max_retries=-1`` would never
-    enter the retry loop at all, and the caller would see an error with no cause
-    whatsoever.
-    """
-    if value < limit:
-        raise EduSharingError(
-            f"{name}={value!r} is not allowed -- at least {limit} is expected."
-        )
 
 
 class Transport:
@@ -73,10 +66,10 @@ class Transport:
         backoff_base: float = DEFAULT_BACKOFF_BASE,
         client: httpx.AsyncClient | None = None,
     ) -> None:
-        _at_least("timeout", timeout, 0.001)
-        _at_least("max_retries", max_retries, 0)
-        _at_least("max_concurrency", max_concurrency, 1)
-        _at_least("backoff_base", backoff_base, 0)
+        at_least("timeout", timeout, 0.001)
+        at_least("max_retries", max_retries, 0)
+        at_least("max_concurrency", max_concurrency, 1)
+        at_least("backoff_base", backoff_base, 0)
 
         self.repository_url = normalize_repository_url(repository_url)
         self.rest_url = rest_base(self.repository_url)
