@@ -139,3 +139,28 @@ async def test_loeschen_entfernt_den_knoten(repo, ordner):
     from edusharing.errors import NotFoundError
     with pytest.raises(NotFoundError):
         await repo.node(node_id)
+
+
+# --- Schlagworte: die geteilte Liste --------------------------------------
+
+async def test_schlagworte_ergaenzen_ohne_fremde_zu_verlieren(repo, ordner):
+    """Der Fall, der eine eigene Methode rechtfertigt: cclom:general_keyword
+    pflegen mehrere Beteiligte gemeinsam. Hier simuliert ein direkt gesetzter
+    Bestand die Arbeit anderer -- er muss den eigenen Zusatz ueberleben."""
+    node = await repo.create_node(ordner.id, name="schlagworte.txt")
+    fremd = await node.update(
+        properties={"cclom:general_keyword": ["Fremdes Schlagwort", "Noch eines"]})
+    assert set(fremd.keywords) == {"Fremdes Schlagwort", "Noch eines"}
+
+    ergaenzt = await fremd.add_keywords("Weimar (Ort)")
+    assert set(ergaenzt.keywords) == {"Fremdes Schlagwort", "Noch eines", "Weimar (Ort)"}
+
+    bereinigt = await ergaenzt.remove_keywords("Weimar (Ort)")
+    assert set(bereinigt.keywords) == {"Fremdes Schlagwort", "Noch eines"}
+
+
+async def test_doppeltes_schlagwort_wird_nicht_zweimal_abgelegt(repo, ordner):
+    node = await repo.create_node(ordner.id, name="doppelt.txt")
+    einmal = await node.add_keywords("Physik")
+    zweimal = await einmal.add_keywords("Physik")
+    assert zweimal.keywords.count("Physik") == 1

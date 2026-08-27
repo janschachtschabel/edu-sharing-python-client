@@ -322,3 +322,60 @@ def test_synchron_anlegen_und_loeschen():
         assert node.id == NID
         node.delete()
         assert any(r.method == "DELETE" for r in server.aufrufe)
+
+
+# --- Schlagworte: eine geteilte Liste -------------------------------------
+
+async def test_schlagworte_werden_gelesen():
+    server = Server({"cclom:general_keyword": ["Weimar", "Klassik"]})
+    node = await _nodes(server).get(NID)
+    assert node.keywords == ["Weimar", "Klassik"]
+
+
+async def test_hinzufuegen_erhaelt_fremde_eintraege():
+    """cclom:general_keyword pflegen mehrere Beteiligte gemeinsam. Wer die
+    Liste setzt statt ergaenzt, loescht die Arbeit anderer -- lautlos."""
+    server = Server({"cclom:general_keyword": ["Fremd", "Auch fremd"]})
+    node = await _nodes(server).get(NID)
+    aktualisiert = await node.add_keywords("Meins")
+    assert aktualisiert.keywords == ["Fremd", "Auch fremd", "Meins"]
+
+
+async def test_hinzufuegen_dupliziert_nicht():
+    server = Server({"cclom:general_keyword": ["Weimar"]})
+    node = await _nodes(server).get(NID)
+    aktualisiert = await node.add_keywords("Weimar", "Klassik")
+    assert aktualisiert.keywords == ["Weimar", "Klassik"]
+
+
+async def test_hinzufuegen_liest_vorher_frisch():
+    """Das Node-Objekt kann veraltet sein. Auf seinem Stand zu mergen wuerde
+    alles ueberschreiben, was seit dem Laden dazugekommen ist."""
+    server = Server({"cclom:general_keyword": ["Alt"]})
+    node = await _nodes(server).get(NID)
+    server.props["cclom:general_keyword"] = ["Alt", "Inzwischen dazugekommen"]
+    aktualisiert = await node.add_keywords("Meins")
+    assert "Inzwischen dazugekommen" in aktualisiert.keywords
+
+
+async def test_entfernen_laesst_andere_stehen():
+    server = Server({"cclom:general_keyword": ["Fremd", "Meins"]})
+    node = await _nodes(server).get(NID)
+    aktualisiert = await node.remove_keywords("Meins")
+    assert aktualisiert.keywords == ["Fremd"]
+
+
+async def test_entfernen_eines_unbekannten_ist_kein_fehler():
+    server = Server({"cclom:general_keyword": ["Fremd"]})
+    node = await _nodes(server).get(NID)
+    aktualisiert = await node.remove_keywords("gibtsnicht")
+    assert aktualisiert.keywords == ["Fremd"]
+
+
+async def test_hinzufuegen_ohne_argumente_schreibt_nicht():
+    """Ein leerer Aufruf darf keinen Schreibvorgang ausloesen."""
+    server = Server({"cclom:general_keyword": ["Fremd"]})
+    node = await _nodes(server).get(NID)
+    server.aufrufe.clear()
+    await node.add_keywords()
+    assert not any(r.method == "PUT" for r in server.aufrufe)

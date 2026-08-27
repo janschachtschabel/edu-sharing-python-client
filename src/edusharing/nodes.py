@@ -34,7 +34,7 @@ from typing import Any
 from .errors import SilentDropError, ValidationError
 from .transport import Transport
 
-__all__ = ["Node", "Nodes", "SyncNode", "WRITE_FIELD_ALIASES"]
+__all__ = ["Node", "Nodes", "SyncNode", "WRITE_FIELD_ALIASES", "KEYWORD_PROPERTY"]
 
 #: Kurznamen fuer Schreibfelder. Titel und Beschreibung gehen bewusst in
 #: **beide** Namensraeume: die edu-sharing-Oberflaeche rendert ``cm:*`` und
@@ -50,6 +50,10 @@ WRITE_FIELD_ALIASES: dict[str, tuple[str, ...]] = {
 }
 
 DEFAULT_NODE_TYPE = "ccm:io"
+
+#: Die geteilte Schlagwortliste. Eigene Konstante, weil sie an drei Stellen
+#: gebraucht wird und ein Tippfehler hier still ins Leere schreiben wuerde.
+KEYWORD_PROPERTY = "cclom:general_keyword"
 
 
 def _als_liste(wert: Any) -> list[str]:
@@ -211,6 +215,61 @@ class Node:
         frisch._pruefe({prop: _als_liste(value)}, weg="set_property")
         return frisch
 
+    # --- Schlagworte ------------------------------------------------------
+
+    @property
+    def keywords(self) -> list[str]:
+        """Die Schlagworte dieses Knotens (``cclom:general_keyword``)."""
+        return self.get_all(KEYWORD_PROPERTY)
+
+    async def add_keywords(self, *keywords: str) -> Node:
+        """Ergaenze Schlagworte, ohne vorhandene zu verlieren.
+
+        ``cclom:general_keyword`` ist eine **geteilte Liste**: mehrere
+        Beteiligte -- Redaktion, Crawler, andere Anwendungen -- pflegen sie
+        gemeinsam. Wer sie setzt statt ergaenzt, loescht die Arbeit der
+        anderen, und zwar lautlos.
+
+        Vor dem Zusammenfuehren wird frisch gelesen: dieses Objekt kann
+        veraltet sein, und auf seinem Stand zu mergen wuerde alles
+        ueberschreiben, was inzwischen dazugekommen ist.
+
+        Note:
+            Zwischen Lesen und Schreiben liegt ein Zeitfenster. edu-sharing
+            bietet dafuer keine Versionspruefung an, ein gleichzeitiger
+            fremder Schreibvorgang kann also trotzdem verlorengehen. Das
+            Fenster ist klein, aber es ist da.
+        """
+        return await self._keywords_aendern(hinzu=keywords, weg=())
+
+    async def remove_keywords(self, *keywords: str) -> Node:
+        """Entferne Schlagworte und lasse die uebrigen stehen.
+
+        Unbekannte Schlagworte zu entfernen ist kein Fehler.
+        """
+        return await self._keywords_aendern(hinzu=(), weg=keywords)
+
+    async def _keywords_aendern(
+        self, *, hinzu: tuple[str, ...], weg: tuple[str, ...]
+    ) -> Node:
+        if not hinzu and not weg:
+            return self
+
+        frisch = await self._nodes.get(self.id)
+        vorhanden = frisch.keywords
+        entfernen = {k.strip().casefold() for k in weg}
+
+        neu = [k for k in vorhanden if k.strip().casefold() not in entfernen]
+        bekannt = {k.strip().casefold() for k in neu}
+        for k in hinzu:
+            if k.strip().casefold() not in bekannt:
+                neu.append(k)
+                bekannt.add(k.strip().casefold())
+
+        if neu == vorhanden:
+            return frisch
+        return await frisch.update(properties={KEYWORD_PROPERTY: neu})
+
     async def delete(self, *, recycle: bool = True) -> None:
         """Loesche den Knoten.
 
@@ -369,6 +428,14 @@ class SyncNode:
         return SyncNode(
             self._loop.run(self._node.set_property(prop, value, **kwargs)), self._loop
         )
+
+    def add_keywords(self, *keywords: str) -> SyncNode:
+        """Wie ``Node.add_keywords``, blockierend."""
+        return SyncNode(self._loop.run(self._node.add_keywords(*keywords)), self._loop)
+
+    def remove_keywords(self, *keywords: str) -> SyncNode:
+        """Wie ``Node.remove_keywords``, blockierend."""
+        return SyncNode(self._loop.run(self._node.remove_keywords(*keywords)), self._loop)
 
     def delete(self, **kwargs: Any) -> None:
         """Wie ``Node.delete``, blockierend."""
