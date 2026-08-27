@@ -119,7 +119,7 @@ async def test_properties_sind_erreichbar():
 async def test_update_speichert_und_liest_zurueck():
     server = Server()
     node = await _nodes(server).get(NID)
-    aktualisiert = await node.update(titel="Neu")
+    aktualisiert = await node.update(title="Neu")
     assert aktualisiert.title == "Neu"
     assert any(r.method == "PUT" for r in server.aufrufe)
 
@@ -131,7 +131,7 @@ async def test_update_prueft_wirklich_zurueck():
     server = Server()
     node = await _nodes(server).get(NID)
     server.aufrufe.clear()
-    await node.update(titel="Neu")
+    await node.update(title="Neu")
     folge = [r.method for r in server.aufrufe]
     assert folge.index("PUT") < folge.index("GET"), "GET muss nach dem PUT kommen"
 
@@ -220,7 +220,7 @@ async def test_titel_wird_in_beide_namensraeume_geschrieben():
     Anzeige etwas anderes zeigt als die Anwendung geschrieben hat."""
     server = Server()
     node = await _nodes(server).get(NID)
-    await node.update(titel="Neu")
+    await node.update(title="Neu")
     assert server.props["cm:title"] == ["Neu"]
     assert server.props["cclom:title"] == ["Neu"]
 
@@ -228,7 +228,7 @@ async def test_titel_wird_in_beide_namensraeume_geschrieben():
 async def test_beschreibung_ebenfalls_doppelt():
     server = Server()
     node = await _nodes(server).get(NID)
-    await node.update(beschreibung="Text")
+    await node.update(description="Text")
     assert server.props["cm:description"] == ["Text"]
     assert server.props["cclom:general_description"] == ["Text"]
 
@@ -251,7 +251,7 @@ async def test_werte_werden_zu_listen():
 
 async def test_knoten_anlegen():
     server = Server()
-    node = await _nodes(server).create("parent-1", name="neu.txt", titel="Frisch")
+    node = await _nodes(server).create("parent-1", name="neu.txt", title="Frisch")
     assert node.id == NID
     erzeugung = next(r for r in server.aufrufe if r.url.path.endswith("/children"))
     assert "parent-1" in str(erzeugung.url)
@@ -296,7 +296,7 @@ def test_synchroner_knoten_blockiert_statt_zu_awaiten():
     ) as repo:
         node = repo.node(NID)
         assert node.title == "Alt"
-        aktualisiert = node.update(titel="Neu")
+        aktualisiert = node.update(title="Neu")
         assert aktualisiert.title == "Neu"
 
 

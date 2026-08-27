@@ -61,7 +61,7 @@ wheels = [
 ]
 
 [[package]]
-name = "edu-sharing"
+name = "edu-sharing-python-client"
 version = "0.0.0"
 source = { editable = "." }
 dependencies = [

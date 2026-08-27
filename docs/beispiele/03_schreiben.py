@@ -35,16 +35,16 @@ def main() -> int:
         home = ((wer.raw.get("person") or {}).get("homeFolder") or {}).get("id")
         ordner = repo.create_node(
             home, name=f"beispiel-{uuid.uuid4().hex[:8]}", type="cm:folder",
-            titel="Wegwerf-Ordner des Beispiels")
+            title="Wegwerf-Ordner des Beispiels")
         print(f"Wegwerf-Ordner angelegt: {ordner.name}")
 
         try:
-            node = repo.create_node(ordner.id, name="material.txt", titel="Erster Titel")
+            node = repo.create_node(ordner.id, name="material.txt", title="Erster Titel")
             print(f"  Knoten:  {node.url}")
 
             # 1. Eine Property, die der Metadatensatz kennt.
-            node = node.update(titel="Geaenderter Titel",
-                               beschreibung="Von der Bibliothek geschrieben")
+            node = node.update(title="Geaenderter Titel",
+                               description="Von der Bibliothek geschrieben")
             print(f"  Titel:   {node.get('cclom:title')}")
 
             # 2. Eine, die er nicht kennt -- der Server meldet 200 und speichert nichts.

@@ -42,12 +42,12 @@ __all__ = ["Node", "Nodes", "WRITE_FIELD_ALIASES", "KEYWORD_PROPERTY"]
 #: ``cclom:*`` an verschiedenen Stellen, und nur eines zu setzen fuehrt dazu,
 #: dass die Anzeige etwas anderes zeigt als die Anwendung geschrieben hat.
 WRITE_FIELD_ALIASES: dict[str, tuple[str, ...]] = {
-    "titel": ("cm:title", "cclom:title"),
-    "beschreibung": ("cm:description", "cclom:general_description"),
+    "title": ("cm:title", "cclom:title"),
+    "description": ("cm:description", "cclom:general_description"),
     "url": ("ccm:wwwurl",),
     "name": ("cm:name",),
-    "autor": ("ccm:author_freetext",),
-    "schlagworte": ("cclom:general_keyword",),
+    "author": ("ccm:author_freetext",),
+    "keywords": ("cclom:general_keyword",),
 }
 
 DEFAULT_NODE_TYPE = "ccm:io"
@@ -156,7 +156,7 @@ class Node:
             verify: Rueckleseprobe. Nur abschalten, wenn die zusaetzliche
                 Anfrage je Schreibvorgang nachweislich stoert -- sie ist der
                 einzige Beleg, dass etwas gespeichert wurde.
-            **aliases: Kurznamen aus ``WRITE_FIELD_ALIASES``, etwa ``titel=``.
+            **aliases: Kurznamen aus ``WRITE_FIELD_ALIASES``, etwa ``title=``.
 
         Returns:
             Einen neuen ``Node`` mit dem zurueckgelesenen Zustand.

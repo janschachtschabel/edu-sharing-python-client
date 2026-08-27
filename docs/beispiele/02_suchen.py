@@ -33,7 +33,7 @@ def main(thema: str) -> int:
         # 'Biologie' ist ein Label. Auf die URI, die DIESE Instanz dafuer
         # fuehrt, uebersetzt die Bibliothek selbst.
         print(f"\nSuche: {thema!r}, eingegrenzt auf das Fach Biologie")
-        ergebnis = repo.search(thema, fach="Biologie", limit=5,
+        ergebnis = repo.search(thema, subject="Biologie", limit=5,
                                facets=["ccm:educationalcontext"])
 
         # Konnte ein Filter nicht aufgeloest werden, ist das Ergebnis breiter

@@ -9,7 +9,7 @@ bestimmten Instanz vorauszusetzen.
         print(repo.about().repository_version)
         print(repo.whoami().authority)
 
-        for treffer in repo.search("Photosynthese", fach="Biologie"):
+        for treffer in repo.search("Photosynthese", subject="Biologie"):
             print(treffer.title, treffer.url)
 
         node = repo.node("abc-123")

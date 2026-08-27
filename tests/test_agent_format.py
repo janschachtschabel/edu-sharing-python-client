@@ -17,12 +17,12 @@ from edusharing.results import SearchHit, SearchResult, UnresolvedFilter
 REPO = "https://repo.test/edu-sharing"
 
 
-def _hit(n: int = 1, beschreibung: str = "Eine Beschreibung") -> SearchHit:
+def _hit(n: int = 1, description: str = "Eine Beschreibung") -> SearchHit:
     return SearchHit(
         id=f"id-{n}",
         title=f"Titel {n}",
         url=f"{REPO}/components/render/id-{n}",
-        description=beschreibung,
+        description=description,
         raw={"properties": {"ccm:taxonid_DISPLAYNAME": ["Biologie"]}},
     )
 
@@ -69,7 +69,7 @@ def test_treffer_traegt_titel_id_und_url():
 
 
 def test_die_beschreibung_wird_gekuerzt_nicht_der_rueckverweis():
-    text = format_hit(_hit(beschreibung="Sehr lang. " * 200), max_chars=200)
+    text = format_hit(_hit(description="Sehr lang. " * 200), max_chars=200)
     assert f"{REPO}/components/render/id-1" in text
     assert len(text) <= 200
     assert text.rstrip().endswith("…"), "die Beschreibung muesste gekuerzt sein"
@@ -83,14 +83,14 @@ def test_rueckverweis_ueberlebt_auch_ein_budget_das_nicht_reicht():
     zurueckkommen. Ein um wenige Zeichen zu langer Block ist dagegen ein
     Schoenheitsfehler. Wer hart begrenzen muss, prueft die Laenge selbst.
     """
-    text = format_hit(_hit(beschreibung="Sehr lang. " * 200), max_chars=20)
+    text = format_hit(_hit(description="Sehr lang. " * 200), max_chars=20)
     assert "id-1" in text
     assert f"{REPO}/components/render/id-1" in text
     assert len(text) > 20, "hier ist die Ueberschreitung beabsichtigt"
 
 
 def test_ohne_platz_faellt_die_beschreibung_ganz_weg():
-    text = format_hit(_hit(beschreibung="Eine Beschreibung"), max_chars=20)
+    text = format_hit(_hit(description="Eine Beschreibung"), max_chars=20)
     assert "Eine Beschreibung" not in text
 
 

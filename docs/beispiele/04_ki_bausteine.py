@@ -32,7 +32,7 @@ async def main(thema: str) -> int:
         # 1. Suchen -- als Werkzeug-Ergebnis, damit ein Fehler nicht den
         #    ganzen Durchlauf beendet, sondern eine Auskunft wird.
         ergebnis = await as_result(
-            repo.search(thema, fach="Biologie", limit=5),
+            repo.search(thema, subject="Biologie", limit=5),
             format=lambda r: format_results(r, max_chars=1500),
         )
         if not ergebnis:

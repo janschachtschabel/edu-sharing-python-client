@@ -19,7 +19,7 @@ müssen.
 
 **Repository-agnostisch** heißt: Vokabulare werden zur Laufzeit gegen den
 Metadatensatz *der jeweiligen Instanz* aufgelöst, nicht gegen eine eingebaute
-Tabelle. `fach="Biologie"` funktioniert damit auch auf einem Repositorium, das
+Tabelle. `subject="Biologie"` funktioniert damit auch auf einem Repositorium, das
 nichts mit WirLernenOnline zu tun hat.
 
 ## Was heute geht
@@ -56,7 +56,7 @@ werte = await repo.raw.json("GET", "/config/v1/values")
 
 ```python
 with Repository(url, metadataset="mds_oeh") as repo:
-    ergebnis = repo.search("Photosynthese", fach="Biologie", limit=5)
+    ergebnis = repo.search("Photosynthese", subject="Biologie", limit=5)
 
     for offen in ergebnis.unresolved:   # nicht auflösbare Filter — nie stumm
         print("!", offen)               # "ccm:taxonid='Bio' — gemeint: Biologie?"
@@ -65,7 +65,7 @@ with Repository(url, metadataset="mds_oeh") as repo:
         print(treffer.title, treffer.labels("ccm:taxonid"), treffer.url)
 ```
 
-`fach="Biologie"` wird gegen den Metadatensatz **dieser** Instanz aufgelöst, nicht
+`subject="Biologie"` wird gegen den Metadatensatz **dieser** Instanz aufgelöst, nicht
 gegen eine eingebaute Tabelle. Welche Metadatensätze es gibt, sagt
 `repo.metadatasets()`; die Wahl ändert, was filterbar ist und was gefunden wird.
 
@@ -93,7 +93,7 @@ Zum Ausprobieren: `python docs/beispiele/01_verbinden.py` und `02_suchen.py`
 
 ```python
 node = repo.node("abc-123")
-node = node.update(titel="Neuer Titel")     # zurückgelesen, wirft bei stillem Verlust
+node = node.update(title="Neuer Titel")     # zurückgelesen, wirft bei stillem Verlust
 node = node.add_keywords("Weimar (Ort)")    # ergänzt, ersetzt nicht
 node = node.content.upload(daten, filename="material.pdf", mimetype="application/pdf")
 ```
@@ -133,7 +133,7 @@ Wegwerf-Ordner an und entfernt ihn wieder.
 from edusharing.agent import as_result, as_untrusted, format_results, is_safe_url
 
 ergebnis = await as_result(                      # Fehler als Ergebnis, nicht als Exception
-    repo.search("Photosynthese", fach="Biologie"),
+    repo.search("Photosynthese", subject="Biologie"),
     format=lambda r: format_results(r, max_chars=1500),
 )
 print(ergebnis.text)                             # id und url überleben jedes Budget
@@ -149,7 +149,7 @@ Und vor dem Schreiben erst zeigen, was passieren würde:
 ```python
 from edusharing.agent import plan_update
 
-plan = await plan_update(node, titel="Neuer Titel")
+plan = await plan_update(node, title="Neuer Titel")
 print(plan.describe())        # "cclom:title: 'Alt'  ->  'Neuer Titel'"
 if plan.has_changes:
     node = await plan.apply()

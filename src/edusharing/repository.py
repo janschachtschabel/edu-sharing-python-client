@@ -68,7 +68,7 @@ class AsyncRepository:
             ``-default-`` findet 2825 Treffer fuer "Physik", ``mds_oeh`` 17994).
         query: Abfragekontext fuer Vokabular und Suche, per Konvention
             ``ngsearch``.
-        field_aliases: Kurznamen fuer Filter-Properties (``fach`` ->
+        field_aliases: Kurznamen fuer Filter-Properties (``subject`` ->
             ``ccm:taxonid``). ``None`` nimmt die Vorgabe.
         timeout: Sekunden bis zum Abbruch einer Anfrage.
         max_retries: Wiederholungen zusaetzlich zum ersten Versuch.
@@ -165,7 +165,7 @@ class AsyncRepository:
     async def search(self, text: str | None = None, **kwargs: Any) -> SearchResult:
         """Suche Material. Siehe ``Search.search`` fuer alle Parameter.
 
-        ``await repo.search("Photosynthese", fach="Biologie")``
+        ``await repo.search("Photosynthese", subject="Biologie")``
 
         Das Ergebnis traegt ``unresolved``: ist es nicht leer, konnte ein Filter
         nicht aufgeloest werden und das Ergebnis ist breiter als angefragt.

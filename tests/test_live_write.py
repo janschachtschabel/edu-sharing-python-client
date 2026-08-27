@@ -54,7 +54,7 @@ async def ordner(repo):
         home,
         name=f"pytest-edusharing-{uuid.uuid4().hex[:8]}",
         type="cm:folder",
-        titel="Wegwerf-Ordner der Testsuite",
+        title="Wegwerf-Ordner der Testsuite",
     )
     assert neu.id, "Ordner nicht angelegt"
     try:
@@ -67,7 +67,7 @@ async def ordner(repo):
 async def knoten(repo, ordner):
     """Ein Wegwerf-Knoten im Wegwerf-Ordner."""
     return await repo.create_node(
-        ordner.id, name="material.txt", titel="Ausgangstitel",
+        ordner.id, name="material.txt", title="Ausgangstitel",
     )
 
 
@@ -89,7 +89,7 @@ async def test_titel_landet_in_beiden_namensraeumen(knoten):
 # --- Der Kernfall: stiller Verlust ----------------------------------------
 
 async def test_property_im_metadatensatz_wird_gespeichert(knoten):
-    aktualisiert = await knoten.update(titel="Geaendert")
+    aktualisiert = await knoten.update(title="Geaendert")
     assert aktualisiert.get("cclom:title") == "Geaendert"
 
 
@@ -174,7 +174,7 @@ INHALT = "Hallo aus der Bibliothek.\nZweite Zeile mit Umlaut: Größe.\n".encode
 async def test_datei_hoch_und_wieder_herunterladen(repo, ordner):
     """Die Rundreise muss byte-identisch sein -- sonst geht bei Umlauten oder
     Zeilenenden unbemerkt etwas verloren."""
-    node = await repo.create_node(ordner.id, name="datei.txt", titel="Mit Datei")
+    node = await repo.create_node(ordner.id, name="datei.txt", title="Mit Datei")
     mit_datei = await node.content.upload(
         INHALT, filename="datei.txt", mimetype="text/plain",
         version_comment="Testlauf")
@@ -240,7 +240,7 @@ async def test_sammlung_ist_privat(sammlung):
 async def test_inhalt_in_sammlung_legen_und_wieder_herausnehmen(repo, sammlung, ordner):
     """Angelegt wird eine Referenz, keine Kopie: das Original ueberlebt das
     Herausnehmen."""
-    io = await repo.create_node(ordner.id, name="fuer-sammlung.txt", titel="Referenzziel")
+    io = await repo.create_node(ordner.id, name="fuer-sammlung.txt", title="Referenzziel")
 
     assert await repo.add_to_collection(sammlung.id, io.id) is True
     await repo.remove_from_collection(sammlung.id, io.id)

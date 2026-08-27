@@ -47,14 +47,14 @@ async def test_planen_schreibt_nicht():
     server = Server()
     node = await _node(server)
     server.aufrufe.clear()
-    await plan_update(node, titel="Neuer Titel")
+    await plan_update(node, title="Neuer Titel")
     assert not any(r.method == "PUT" for r in server.aufrufe)
 
 
 # --- Was der Plan zeigt ----------------------------------------------------
 
 async def test_beschreibung_zeigt_alt_und_neu():
-    plan = await plan_update(await _node(Server()), titel="Neuer Titel")
+    plan = await plan_update(await _node(Server()), title="Neuer Titel")
     text = plan.describe()
     assert "Alter Titel" in text
     assert "Neuer Titel" in text
@@ -64,12 +64,12 @@ async def test_unveraenderte_felder_werden_erkannt():
     """Ein Plan, der nichts aendert, soll das sagen -- sonst schreibt ein Agent
     ohne Not und erzeugt eine Version.
 
-    Der Ausgangszustand traegt BEIDE Titel-Namensraeume, weil titel= in beide
+    Der Ausgangszustand traegt BEIDE Titel-Namensraeume, weil title= in beide
     schreibt. Steht nur einer, ist es sehr wohl eine Aenderung -- siehe den
     naechsten Test.
     """
     server = Server({"cm:title": ["Alter Titel"], "cclom:title": ["Alter Titel"]})
-    plan = await plan_update(await _node(server), titel="Alter Titel")
+    plan = await plan_update(await _node(server), title="Alter Titel")
     assert plan.has_changes is False
     assert "keine" in plan.describe().lower()
 
@@ -79,14 +79,14 @@ async def test_halb_gesetzter_titel_ist_eine_aenderung():
     cm:title fehlt. Die Oberflaeche zeigt dann je nach Stelle Verschiedenes,
     und der Plan benennt es, bevor jemand ratlos sucht."""
     server = Server({"cclom:title": ["Alter Titel"]})
-    plan = await plan_update(await _node(server), titel="Alter Titel")
+    plan = await plan_update(await _node(server), title="Alter Titel")
     assert plan.has_changes is True
     assert "cm:title" in plan.changes
     assert "cclom:title" in plan.unchanged
 
 
 async def test_neues_feld_wird_als_neu_gezeigt():
-    plan = await plan_update(await _node(Server()), beschreibung="Ganz neu")
+    plan = await plan_update(await _node(Server()), description="Ganz neu")
     text = plan.describe()
     assert "Ganz neu" in text
     assert plan.has_changes is True
@@ -96,7 +96,7 @@ async def test_fremdinhalt_im_istwert_wird_bereinigt():
     """Der Ist-Wert kommt aus dem Repositorium und ist Fremdtext -- die
     Beschreibung landet moeglicherweise in einem Modellkontext."""
     server = Server({"cclom:title": ["Alt\u200bmit\u202eTricks"]})
-    plan = await plan_update(await _node(server), titel="Sauber")
+    plan = await plan_update(await _node(server), title="Sauber")
     assert "\u200b" not in plan.describe()
     assert "\u202e" not in plan.describe()
 
@@ -104,7 +104,7 @@ async def test_fremdinhalt_im_istwert_wird_bereinigt():
 async def test_fehlendes_schreibrecht_steht_im_plan():
     """Besser vorher sichtbar als nach einem stillen Fehlschlag."""
     server = Server(access=("Read",))
-    plan = await plan_update(await _node(server), titel="Neu")
+    plan = await plan_update(await _node(server), title="Neu")
     assert "recht" in plan.describe().lower()
     assert plan.can_write is False
 
@@ -119,7 +119,7 @@ async def test_unbekanntes_feld_faellt_beim_planen_auf():
 
 async def test_apply_schreibt_und_liest_zurueck():
     server = Server()
-    plan = await plan_update(await _node(server), titel="Neuer Titel")
+    plan = await plan_update(await _node(server), title="Neuer Titel")
     node = await plan.apply()
     assert node.title == "Neuer Titel"
     assert any(r.method == "PUT" for r in server.aufrufe)
@@ -127,7 +127,7 @@ async def test_apply_schreibt_und_liest_zurueck():
 
 async def test_apply_ohne_aenderung_schreibt_nicht():
     server = Server({"cm:title": ["Alter Titel"], "cclom:title": ["Alter Titel"]})
-    plan = await plan_update(await _node(server), titel="Alter Titel")
+    plan = await plan_update(await _node(server), title="Alter Titel")
     server.aufrufe.clear()
     await plan.apply()
     assert not any(r.method == "PUT" for r in server.aufrufe)
@@ -136,6 +136,6 @@ async def test_apply_ohne_aenderung_schreibt_nicht():
 async def test_geplante_felder_sind_einsehbar():
     """Damit eine Oberflaeche die Aenderung selbst darstellen kann, statt den
     Text zerlegen zu muessen."""
-    plan = await plan_update(await _node(Server()), titel="Neu")
+    plan = await plan_update(await _node(Server()), title="Neu")
     assert plan.changes["cclom:title"] == (["Alter Titel"], ["Neu"])
     assert plan.changes["cm:title"] == ([], ["Neu"])

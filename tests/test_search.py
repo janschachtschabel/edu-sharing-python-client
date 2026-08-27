@@ -173,7 +173,7 @@ async def test_suche_ohne_suchwort_ist_erlaubt():
 async def test_alias_wird_auf_die_property_abgebildet():
     """'fach' statt 'ccm:taxonid' -- das ist der 'wenig Code'-Teil."""
     aufrufe = []
-    await _suche(_router, aufrufe).search("x", fach="Biologie")
+    await _suche(_router, aufrufe).search("x", subject="Biologie")
     props = [k["property"] for k in _body(aufrufe[-1])["criteria"]]
     assert "ccm:taxonid" in props
 

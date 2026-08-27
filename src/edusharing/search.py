@@ -2,7 +2,7 @@
 
 Der Aufruf, den diese Bibliothek moeglich machen soll::
 
-    await repo.search("Photosynthese", fach="Biologie")
+    await repo.search("Photosynthese", subject="Biologie")
 
 Damit das repository-unabhaengig bleibt, passiert dreierlei:
 
@@ -12,7 +12,7 @@ Damit das repository-unabhaengig bleibt, passiert dreierlei:
   stillschweigend fallengelassene Einschraenkung liefert Treffer, die niemand
   angefragt hat -- das ist schaedlicher als eine leere Ergebnisliste, weil es
   wie ein Ergebnis aussieht.
-* **Die Feld-Aliase sind eine Konvention, keine Annahme.** ``fach`` zeigt auf
+* **Die Feld-Aliase sind eine Konvention, keine Annahme.** ``subject`` zeigt auf
   ``ccm:taxonid``, weil das auf den geprueften Instanzen so heisst -- und ist
   ueberschreibbar, weil das anderswo anders sein kann.
 
@@ -52,11 +52,11 @@ __all__ = ["Search", "STANDARD_FIELD_ALIASES"]
 #: fuehrt und welche davon filterbar sind, entscheidet ihr Metadatensatz.
 #: ``field_aliases`` setzt eine eigene Zuordnung.
 STANDARD_FIELD_ALIASES: dict[str, str] = {
-    "fach": "ccm:taxonid",
-    "stufe": "ccm:educationalcontext",
-    "typ": "ccm:oeh_lrt_aggregated",
-    "schwierigkeit": "ccm:educationaldifficulty",
-    "lizenz": "license",
+    "subject": "ccm:taxonid",
+    "level": "ccm:educationalcontext",
+    "type": "ccm:oeh_lrt_aggregated",
+    "difficulty": "ccm:educationaldifficulty",
+    "license": "license",
 }
 
 #: Woran die Antwort auf ein Kriterium zu erkennen ist, das dieser
@@ -124,7 +124,7 @@ class Search:
             content_type: ``FILES`` (Vorgabe) oder ``FILES_AND_FOLDERS``.
                 Sammlungen liefert diese Abfrage **nicht** -- dafuer gibt es
                 eine eigene.
-            **aliases: Kurznamen aus ``field_aliases``, etwa ``fach="Biologie"``.
+            **aliases: Kurznamen aus ``field_aliases``, etwa ``subject="Biologie"``.
 
         Returns:
             Ein ``SearchResult``. Dessen ``unresolved`` ist zu pruefen: ist es

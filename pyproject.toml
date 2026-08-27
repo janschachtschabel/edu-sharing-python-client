@@ -1,5 +1,5 @@
 [project]
-name = "edu-sharing"
+name = "edu-sharing-python-client"
 version = "0.0.0"
 description = "Python-Bibliothek fuer edu-sharing-Repositorien und die b-api — repository-agnostisch, async-first"
 readme = "README.md"
