@@ -22,6 +22,7 @@ import httpx
 from ._sync import LoopThread
 from .auth import ANONYMOUS, BasicCredential, Credential, credential_from
 from .errors import EduSharingError
+from .search import Search, SearchResult
 from .transport import (
     DEFAULT_BACKOFF_BASE,
     DEFAULT_MAX_CONCURRENCY,
@@ -133,6 +134,8 @@ class AsyncRepository:
             ``-default-`` findet 2825 Treffer fuer "Physik", ``mds_oeh`` 17994).
         query: Abfragekontext fuer Vokabular und Suche, per Konvention
             ``ngsearch``.
+        field_aliases: Kurznamen fuer Filter-Properties (``fach`` ->
+            ``ccm:taxonid``). ``None`` nimmt die Vorgabe.
         timeout: Sekunden bis zum Abbruch einer Anfrage.
         max_retries: Wiederholungen zusaetzlich zum ersten Versuch.
         max_concurrency: gleichzeitig laufende Anfragen.
@@ -147,6 +150,7 @@ class AsyncRepository:
         auth: object = None,
         metadataset: str = DEFAULT_METADATASET,
         query: str = DEFAULT_QUERY,
+        field_aliases: dict[str, str] | None = None,
         timeout: float = DEFAULT_TIMEOUT,
         max_retries: int = DEFAULT_MAX_RETRIES,
         max_concurrency: int = DEFAULT_MAX_CONCURRENCY,
@@ -167,6 +171,10 @@ class AsyncRepository:
         # Einmal angelegt und behalten: der Vokabular-Cache lebt darin, und ein
         # frisches Objekt je Zugriff wuerde ihn bei jedem Aufruf verwerfen.
         self._vocab = Vocabulary(self._transport, metadataset=metadataset, query=query)
+        self._search = Search(
+            self._transport, self._vocab,
+            metadataset=metadataset, query=query, field_aliases=field_aliases,
+        )
 
     @classmethod
     def from_env(cls, **kwargs: Any) -> AsyncRepository:
@@ -205,6 +213,23 @@ class AsyncRepository:
         ``await repo.vocab.resolve("ccm:taxonid", "Physik")``
         """
         return self._vocab
+
+    @property
+    def searcher(self) -> Search:
+        """Die Suchschicht, fuer Zugriff auf ihre Einstellungen."""
+        return self._search
+
+    # --- Suchen -----------------------------------------------------------
+
+    async def search(self, text: str | None = None, **kwargs: Any) -> SearchResult:
+        """Suche Material. Siehe ``Search.search`` fuer alle Parameter.
+
+        ``await repo.search("Photosynthese", fach="Biologie")``
+
+        Das Ergebnis traegt ``unresolved``: ist es nicht leer, konnte ein Filter
+        nicht aufgeloest werden und das Ergebnis ist breiter als angefragt.
+        """
+        return await self._search.search(text, **kwargs)
 
     # --- Auskuenfte -------------------------------------------------------
 
@@ -270,6 +295,15 @@ class Repository:
         """Vokabularwerte dieser Instanz. Die Methoden sind asynchron --
         fuer den synchronen Weg siehe ``resolve()``."""
         return self._async.vocab
+
+    @property
+    def searcher(self) -> Search:
+        """Die Suchschicht, fuer Zugriff auf ihre Einstellungen."""
+        return self._async.searcher
+
+    def search(self, text: str | None = None, **kwargs: Any) -> SearchResult:
+        """Suche Material. Siehe ``Search.search`` fuer alle Parameter."""
+        return self._loop.run(self._async.search(text, **kwargs))
 
     def resolve(self, prop: str, label: str, *, locale: str | None = None) -> str | None:
         """Uebersetze ein Label in den Wert, auf den das Repositorium filtert."""

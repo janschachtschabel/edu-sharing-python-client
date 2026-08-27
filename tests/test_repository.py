@@ -250,3 +250,46 @@ async def test_synchron_funktioniert_auch_bei_laufendem_event_loop():
         # Der Aufruf laeuft in einem eigenen Thread, nicht im laufenden Loop.
         antwort = await asyncio.to_thread(lambda: repo.about().repository_version)
     assert antwort == "11.0"
+
+
+# --- Suche ----------------------------------------------------------------
+
+TREFFER = {
+    "nodes": [{"ref": {"id": "abc-123"}, "title": "Ein Material", "properties": {}}],
+    "pagination": {"total": 1, "from": 0, "count": 1},
+}
+
+
+async def test_suche_ueber_das_repository():
+    async with _repo({"/ngsearch": TREFFER}) as repo:
+        e = await repo.search("Photosynthese")
+    assert e.total == 1
+    assert e.hits[0].id == "abc-123"
+
+
+async def test_suche_nutzt_den_gewaehlten_metadatensatz():
+    aufrufe = []
+
+    def handler(request):
+        aufrufe.append(str(request.url))
+        return httpx.Response(200, json=TREFFER)
+
+    async with AsyncRepository(
+        REPO, metadataset="mds_oeh",
+        client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+    ) as repo:
+        await repo.search("x")
+    assert "mds_oeh/ngsearch" in aufrufe[-1]
+
+
+def test_suche_auch_synchron():
+    with Repository(
+        REPO,
+        client=httpx.AsyncClient(transport=httpx.MockTransport(_handler({"/ngsearch": TREFFER}))),
+    ) as repo:
+        assert repo.search("Photosynthese").total == 1
+
+
+def test_feld_aliase_sind_ueberschreibbar():
+    repo = AsyncRepository(REPO, field_aliases={"thema": "ccm:taxonid"})
+    assert repo.searcher.field_aliases == {"thema": "ccm:taxonid"}

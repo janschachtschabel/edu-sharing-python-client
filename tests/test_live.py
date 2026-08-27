@@ -12,7 +12,7 @@ import os
 import pytest
 
 from edusharing import AsyncRepository
-from edusharing.errors import AuthenticationError, NotFoundError
+from edusharing.errors import AuthenticationError, NotFoundError, ValidationError
 
 pytestmark = [
     pytest.mark.live,
@@ -103,3 +103,94 @@ async def test_label_loest_auf_dieselbe_uri_auf(repo):
 
 async def test_unbekanntes_label_ergibt_none(repo):
     assert await repo.vocab.resolve("ccm:taxonid", "Unterwasserkorbflechten") is None
+
+
+# --- Etappe 2: Suche -------------------------------------------------------
+
+async def test_suche_liefert_treffer_mit_id_und_url(repo):
+    e = await repo.search("Photosynthese", limit=3)
+    assert e.total > 0
+    assert len(e.hits) <= 3
+    for treffer in e.hits:
+        assert treffer.id and treffer.url.endswith(treffer.id)
+        assert treffer.title
+
+
+async def test_filter_grenzt_die_treffermenge_ein():
+    """Der Kern: 'Biologie' als Label, gefiltert wird auf die URI dieser Instanz.
+
+    Gegen 'mds_oeh', nicht gegen '-default-': ccm:taxonid fuehrt in beiden ein
+    Vokabular, ist aber nur in mds_oeh filterbar. Filterbarkeit ist eine
+    Eigenschaft des Metadatensatzes, nicht der Property.
+    """
+    async with AsyncRepository(os.environ["EDU_SHARING_URL"], metadataset="mds_oeh") as r:
+        breit = await r.search("Wasser", limit=1)
+        eng = await r.search("Wasser", limit=1, filters={"ccm:taxonid": "Biologie"})
+    assert not eng.unresolved, f"Filter nicht aufgeloest: {eng.unresolved}"
+    assert 0 < eng.total < breit.total
+
+
+async def test_nicht_filterbare_property_wird_live_erklaert():
+    """Gegenprobe: dieselbe Property im Default-Metadatensatz."""
+    async with AsyncRepository(os.environ["EDU_SHARING_URL"]) as r:
+        with pytest.raises(ValidationError) as info:
+            await r.search("Wasser", limit=1, filters={"ccm:taxonid": "Biologie"})
+    assert "Metadatensatz" in str(info.value)
+
+
+async def test_unaufloesbarer_filter_wird_gemeldet(repo):
+    e = await repo.search("Wasser", limit=1, filters={"ccm:taxonid": "Gibtsnicht"})
+    assert e.unresolved
+    assert e.unresolved[0].value == "Gibtsnicht"
+
+
+async def test_facetten_zaehlen_serverseitig(repo):
+    e = await repo.search("Photosynthese", limit=1, facets=["ccm:taxonid"], facet_limit=5)
+    assert e.facets and e.facets[0].values
+    assert all(v.count > 0 for v in e.facets[0].values)
+
+
+async def test_tippfehler_liefert_einen_vorschlag(repo):
+    """Ohne returnSuggestions bekaeme die aufrufende Person nur 'keine Treffer'."""
+    e = await repo.search("Mathematick", limit=1)
+    assert e.total == 0
+    assert e.suggestions, "keine Korrekturvorschlaege trotz Tippfehler"
+
+
+# --- Etappe 2: Repository-Unabhaengigkeit ----------------------------------
+
+async def test_dieselbe_suche_laeuft_gegen_zwei_metadatensaetze():
+    """Der Nachweis fuer E4, soweit ohne zweite Instanz moeglich.
+
+    Staging fuehrt vier Metadatensaetze. '-default-' (Contentbuffet, 88
+    Widgets, 22 Vokabulare) und 'mds_oeh' (236 Widgets, 107 Vokabulare) sind
+    verschieden aufgebaut und liefern verschiedene Treffermengen. Derselbe
+    Bibliothekscode muss mit beiden arbeiten, ohne dass einer der beiden
+    eincodiert ist.
+    """
+    url = os.environ["EDU_SHARING_URL"]
+    ergebnisse = {}
+    for mds in ("-default-", "mds_oeh"):
+        async with AsyncRepository(url, metadataset=mds) as r:
+            e = await r.search("Physik", limit=1)
+            werte = await r.vocab.values("ccm:educationalcontext")
+            ergebnisse[mds] = (e.total, len(werte))
+
+    for mds, (total, vokabular) in ergebnisse.items():
+        assert total > 0, f"{mds}: keine Treffer"
+        assert vokabular > 0, f"{mds}: kein Vokabular"
+    # Verschiedene Metadatensaetze -> verschiedene Sicht auf denselben Bestand.
+    assert ergebnisse["-default-"][0] != ergebnisse["mds_oeh"][0]
+
+
+async def test_instanz_ohne_anonymen_zugriff_meldet_das_klar():
+    """stable.demo.edu-sharing.net (edu-sharing 9.0) laesst anonym nichts zu:
+    selbst /iam/.../-me- antwortet 401. Die Bibliothek muss daraus einen
+    Authentifizierungsfehler machen -- nicht abstuerzen und nicht so tun, als
+    gaebe es keine Daten.
+    """
+    async with AsyncRepository("https://stable.demo.edu-sharing.net") as r:
+        about = await r.about()
+        assert about.repository_version, "auch dort muss /_about gehen"
+        with pytest.raises(AuthenticationError):
+            await r.whoami()
