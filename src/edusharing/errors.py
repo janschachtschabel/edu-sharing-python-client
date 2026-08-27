@@ -27,6 +27,7 @@ __all__ = [
     "ValidationError",
     "ConflictError",
     "ServerError",
+    "SilentDropError",
     "error_from_response",
 ]
 
@@ -104,6 +105,26 @@ class ConflictError(EduSharingError):
 
     Typisch: ein Name, den es unter demselben Elternknoten schon gibt.
     """
+
+
+class SilentDropError(EduSharingError):
+    """Das Repositorium hat ``200 OK`` gemeldet und nichts gespeichert.
+
+    Gemessen (edu-sharing 11.0, Staging, an einem Wegwerf-Knoten): ein
+    ``PUT /metadata`` mit einer Property, die der Metadatensatz nicht kennt,
+    antwortet mit **200** -- und der Wert ist danach abwesend. Dasselbe gilt
+    fuer ein voellig erfundenes Feld.
+
+    Ein Statuscode ist hier also kein Persistenzbeweis. Ohne Rueckleseprobe
+    meldet eine Anwendung Erfolg fuer Daten, die es nicht mehr gibt.
+
+    Attribute:
+        dropped: die Properties, die nach dem Zurueckliesen fehlten.
+    """
+
+    def __init__(self, message: str, *, dropped: list[str] | None = None, **kwargs: object) -> None:
+        super().__init__(message, **kwargs)  # type: ignore[arg-type]
+        self.dropped = dropped or []
 
 
 class ServerError(EduSharingError):

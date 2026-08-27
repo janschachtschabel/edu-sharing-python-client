@@ -23,6 +23,7 @@ from .auth import ANONYMOUS, BasicCredential, Credential, credential_from
 from .collections import Collections
 from .errors import EduSharingError
 from .info import About, Identity, MetadataSet
+from .nodes import Node, Nodes, SyncNode
 from .search import Search, SearchResult
 from .transport import (
     DEFAULT_BACKOFF_BASE,
@@ -109,6 +110,7 @@ class AsyncRepository:
             metadataset=metadataset, query=query, field_aliases=field_aliases,
         )
         self._collections = Collections(self._transport, metadataset=metadataset)
+        self._nodes = Nodes(self._transport)
 
     @classmethod
     def from_env(cls, **kwargs: Any) -> AsyncRepository:
@@ -169,6 +171,21 @@ class AsyncRepository:
         nicht aufgeloest werden und das Ergebnis ist breiter als angefragt.
         """
         return await self._search.search(text, **kwargs)
+
+    # --- Knoten -----------------------------------------------------------
+
+    @property
+    def nodes(self) -> Nodes:
+        """Die Knotenschicht."""
+        return self._nodes
+
+    async def node(self, node_id: str) -> Node:
+        """Lade einen Knoten mit allen Properties."""
+        return await self._nodes.get(node_id)
+
+    async def create_node(self, parent_id: str, **kwargs: Any) -> Node:
+        """Lege einen Knoten an. Siehe ``Nodes.create``."""
+        return await self._nodes.create(parent_id, **kwargs)
 
     async def find_collections(self, text: str, **kwargs: Any) -> SearchResult:
         """Suche Sammlungen ueber beide Wege, die edu-sharing dafuer hat.
@@ -280,6 +297,22 @@ class Repository:
     def find_collections(self, text: str, **kwargs: Any) -> SearchResult:
         """Suche Sammlungen ueber beide Wege. ``total`` ist eine Untergrenze."""
         return self._loop.run(self._async.find_collections(text, **kwargs))
+
+    @property
+    def nodes(self) -> Nodes:
+        """Die Knotenschicht. Ihre Methoden sind asynchron -- fuer den
+        synchronen Weg siehe ``node()`` und ``create_node()``."""
+        return self._async.nodes
+
+    def node(self, node_id: str) -> SyncNode:
+        """Lade einen Knoten. Seine Schreibmethoden blockieren."""
+        return SyncNode(self._loop.run(self._async.node(node_id)), self._loop)
+
+    def create_node(self, parent_id: str, **kwargs: Any) -> SyncNode:
+        """Lege einen Knoten an. Siehe ``Nodes.create``."""
+        return SyncNode(
+            self._loop.run(self._async.create_node(parent_id, **kwargs)), self._loop
+        )
 
     def resolve(self, prop: str, label: str, *, locale: str | None = None) -> str | None:
         """Uebersetze ein Label in den Wert, auf den das Repositorium filtert."""
