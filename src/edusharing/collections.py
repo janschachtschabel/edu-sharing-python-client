@@ -1,33 +1,32 @@
-"""Sammlungen suchen -- ueber beide Wege, die edu-sharing dafuer hat.
+"""Searching collections -- through both routes edu-sharing offers for it.
 
-Es gibt zwei voneinander unabhaengige Sammlungs-Suchen, und **keine ist
-Obermenge der anderen**. Gemessen (Staging, 27.08.2026, je 25 Treffer):
+There are two mutually independent collection searches, and **neither is a
+superset of the other**. Measured (staging, 2026-08-27, 25 hits each):
 
 ===========  ===  ===  =========  =====  =====
-Suchwort       A    B  gemeinsam  nur A  nur B
+Term           A    B    overlap  A only B only
 ===========  ===  ===  =========  =====  =====
 Optik          5    4          4      1      0
-Deutsch       25   25          **0**   25     25
+Deutsch       25   25      **0**     25     25
 Grundschule    2    0          0      2      0
 Klimawandel   23   17         17      6      0
 Physik        25   25         20      5      5
 ===========  ===  ===  =========  =====  =====
 
-Bei "Deutsch" ist die Schnittmenge **null**: 25 gegen 25 voellig verschiedene
-Sammlungen. Wer nur einen Weg nimmt, verliert also systematisch -- und welcher
-versagt, haengt am Suchwort, nicht an der Sammlung.
+For "Deutsch" the overlap is **zero**: 25 against 25 entirely different
+collections. Taking only one route therefore loses systematically -- and which
+one fails depends on the search term, not on the collection.
 
-Die beiden Wege:
+The two routes:
 
 * **A** ``POST /search/v1/queries/-home-/{mds}/collections?contentType=COLLECTIONS``
-  -- liefert ``nodes`` und eine echte ``pagination.total``. ``ngsearch`` selbst
-  taugt dafuer nicht: es gibt ueberhaupt keine Sammlungen zurueck.
-* **B** ``GET /collection/v1/collections/-home-/search`` -- liefert
-  ``collections``, und ``pagination`` ist **null**. Es gibt hier also keine
-  Gesamtzahl.
+  -- returns ``nodes`` and a real ``pagination.total``. ``ngsearch`` itself is
+  no good for this: it returns no collections at all.
+* **B** ``GET /collection/v1/collections/-home-/search`` -- returns
+  ``collections``, and ``pagination`` is **null**. There is no total here.
 
-Deshalb ist ``total`` am Ergebnis eine **Untergrenze**: die Summe waere wegen
-der Ueberlappung zu hoch, die Zahl aus A allein zu niedrig.
+Hence ``total`` on the result is a **lower bound**: the sum would be too high
+because of the overlap, the figure from A alone too low.
 """
 
 from __future__ import annotations
@@ -45,25 +44,25 @@ __all__ = ["Collections"]
 
 DEFAULT_LIMIT = 10
 
-#: Abfragename fuer Leg A. Wie ``ngsearch`` eine Konvention des Metadatensatzes.
+#: Query name for leg A. Like ``ngsearch``, a convention of the metadata set.
 COLLECTION_QUERY = "collections"
 
-#: Sichtbarkeit einer neuen Sammlung. ``MY`` ist privat -- die Vorgabe, weil
-#: eine versehentlich oeffentliche Sammlung die ganze Instanz sieht.
+#: Visibility of a new collection. ``MY`` is private -- the default, because an
+#: accidentally public collection is visible to the whole instance.
 DEFAULT_SCOPE = "MY"
 
-#: Sammlungs-Root des Kontos. ``-collectionhome-`` wird von diesem Endpunkt
-#: **nicht** aufgeloest (gemessen: 404 InvalidNodeRefException) -- anders als
-#: an der Node-API, wo symbolische IDs greifen.
+#: The account's collection root. ``-collectionhome-`` is **not** resolved by
+#: this endpoint (measured: 404 InvalidNodeRefException) -- unlike the node API,
+#: where symbolic ids do work.
 COLLECTION_ROOT = "-root-"
 
 
 class Collections:
-    """Sammlungssuche ueber beide Wege.
+    """Collection search across both routes.
 
     Args:
-        transport: die Verbindung zum Repositorium.
-        metadataset: Metadatensatz fuer Leg A.
+        transport: the connection to the repository.
+        metadataset: metadata set for leg A.
     """
 
     def __init__(
@@ -76,19 +75,17 @@ class Collections:
         self.metadataset = metadataset
 
     async def find(self, text: str, *, limit: int = DEFAULT_LIMIT) -> SearchResult:
-        """Suche Sammlungen nach einem Stichwort.
+        """Search collections by keyword.
 
-        Beide Wege laufen gleichzeitig; die Ergebnisse werden ueber die
-        Knoten-ID zusammengefuehrt.
+        Both routes run concurrently; the results are merged on the node id.
 
-        Faellt einer der beiden aus -- auf einer fremden Instanz kann ein
-        Endpunkt fehlen --, kommt das Ergebnis des anderen zurueck, und der
-        Ausfall steht in ``warnings``. Erst wenn **beide** ausfallen, wird der
-        Fehler durchgereicht: ein halbes Ergebnis ist brauchbar, ein
-        vorgetaeuschtes leeres nicht.
+        If one of them fails -- on a foreign instance an endpoint may be absent
+        -- the other's result comes back and the failure is listed in
+        ``warnings``. Only when **both** fail is the error propagated: half a
+        result is usable, a faked empty one is not.
 
         Returns:
-            Ein ``SearchResult`` mit ``total_is_lower_bound=True``.
+            A ``SearchResult`` with ``total_is_lower_bound=True``.
         """
         leg_a, leg_b = await asyncio.gather(
             self._mds_leg(text, limit),
@@ -96,59 +93,57 @@ class Collections:
             return_exceptions=True,
         )
 
-        warnungen: list[str] = []
-        treffer: list[SearchHit] = []
-        gesehen: set[str] = set()
+        warnings: list[str] = []
+        hits: list[SearchHit] = []
+        seen: set[str] = set()
         total = 0
 
         if isinstance(leg_a, BaseException):
-            warnungen.append(
-                f"Die Sammlungsabfrage des Metadatensatzes ({COLLECTION_QUERY}) "
-                f"ist fehlgeschlagen: {leg_a}"
+            warnings.append(
+                f"The metadata set's collection query ({COLLECTION_QUERY}) "
+                f"failed: {leg_a}"
             )
         else:
-            knoten, total = leg_a
-            treffer.extend(self._als_treffer(knoten, gesehen))
+            nodes, total = leg_a
+            hits.extend(self._as_hits(nodes, seen))
 
         if isinstance(leg_b, BaseException):
-            warnungen.append(
-                f"Die REST-Sammlungssuche (collection/v1) ist fehlgeschlagen: {leg_b}"
+            warnings.append(
+                f"The REST collection search (collection/v1) failed: {leg_b}"
             )
         else:
-            treffer.extend(self._als_treffer(leg_b, gesehen))
+            hits.extend(self._as_hits(leg_b, seen))
 
         if isinstance(leg_a, BaseException) and isinstance(leg_b, BaseException):
             raise EduSharingError(
-                "Beide Sammlungs-Suchen sind fehlgeschlagen. "
-                f"Metadatensatz-Abfrage: {leg_a} | REST-Suche: {leg_b}"
+                "Both collection searches failed. "
+                f"Metadata-set query: {leg_a} | REST search: {leg_b}"
             )
 
         return SearchResult(
-            hits=treffer,
-            total=max(total, len(treffer)),
+            hits=hits,
+            total=max(total, len(hits)),
             total_is_lower_bound=True,
-            warnings=warnungen,
+            warnings=warnings,
         )
 
-    # --- intern -----------------------------------------------------------
+    # --- Internals --------------------------------------------------------
 
-    def _als_treffer(
-        self, knoten: list[dict], gesehen: set[str]
-    ) -> list[SearchHit]:
-        """Wandle Knoten in Treffer, ohne bereits gesehene IDs erneut."""
-        neu = []
-        basis = self._transport.repository_url
-        for k in knoten:
-            node_id = (k.get("ref") or {}).get("id")
-            if not node_id or node_id in gesehen:
+    def _as_hits(self, nodes: list[dict], seen: set[str]) -> list[SearchHit]:
+        """Turn nodes into hits, skipping ids already seen."""
+        fresh = []
+        base = self._transport.repository_url
+        for n in nodes:
+            node_id = (n.get("ref") or {}).get("id")
+            if not node_id or node_id in seen:
                 continue
-            gesehen.add(node_id)
-            neu.append(SearchHit.from_node(k, basis))
-        return neu
+            seen.add(node_id)
+            fresh.append(SearchHit.from_node(n, base))
+        return fresh
 
     async def _mds_leg(self, text: str, limit: int) -> tuple[list[dict], int]:
-        """Leg A -- liefert Knoten und eine echte Gesamtzahl."""
-        antwort = await self._transport.json(
+        """Leg A -- returns nodes and a real total."""
+        response = await self._transport.json(
             "POST",
             f"/search/v1/queries/-home-/{self.metadataset}/{COLLECTION_QUERY}",
             params={
@@ -156,26 +151,25 @@ class Collections:
                 "maxItems": limit,
                 "skipCount": 0,
             },
-            # Diese Abfrage nimmt ausschliesslich ngsearchword an; jedes andere
-            # Kriterium endet mit 400 DAOValidationException.
+            # This query accepts ngsearchword only; any other criterion ends in
+            # 400 DAOValidationException.
             json={"criteria": [{"property": "ngsearchword", "values": [text]}]},
         )
-        seite = antwort.get("pagination") or {}
-        return list(antwort.get("nodes") or []), int(seite.get("total") or 0)
+        page = response.get("pagination") or {}
+        return list(response.get("nodes") or []), int(page.get("total") or 0)
 
     async def _rest_leg(self, text: str, limit: int) -> list[dict]:
-        """Leg B -- eigene Projektion, ohne Gesamtzahl."""
-        antwort = await self._transport.json(
+        """Leg B -- its own projection, without a total."""
+        response = await self._transport.json(
             "GET",
             "/collection/v1/collections/-home-/search",
-            # propertyFilter wird von diesem Endpunkt ignoriert; er hat eine
-            # feste Projektion. Wer mehr Properties braucht, liest die Knoten
-            # ueber ihre ID nach.
+            # propertyFilter is ignored by this endpoint; it has a fixed
+            # projection. If you need more properties, read the nodes back by id.
             params={"query": text, "maxItems": limit, "skipCount": 0},
         )
-        return list(antwort.get("collections") or [])
+        return list(response.get("collections") or [])
 
-    # --- Schreiben --------------------------------------------------------
+    # --- Writing ----------------------------------------------------------
 
     async def create(
         self,
@@ -185,17 +179,17 @@ class Collections:
         scope: str = DEFAULT_SCOPE,
         description: str | None = None,
     ) -> Node:
-        """Lege eine Sammlung an.
+        """Create a collection.
 
-        Nicht ueber die Node-API: ein dort als ``ccm:map`` angelegter Knoten ist
-        **keine** Sammlung -- gemessen fehlt ihm der Aspekt ``collection``, und
-        jeder Referenzversuch darauf endet mit ``400 ... is not a collection``.
+        Not through the node API: a node created there as ``ccm:map`` is **not**
+        a collection -- measured, it lacks the ``collection`` aspect, and every
+        attempt to reference it ends in ``400 ... is not a collection``.
 
         Args:
-            title: Titel der Sammlung.
-            parent: Elternsammlung. Vorgabe ist der Sammlungs-Root des Kontos.
-            scope: ``MY`` (privat, Vorgabe), ``ORGANIZATION`` oder ``PUBLIC``.
-                Die Vorgabe ist bewusst die engste.
+            title: the collection's title.
+            parent: parent collection. Defaults to the account's collection root.
+            scope: ``MY`` (private, default), ``ORGANIZATION`` or ``PUBLIC``.
+                The default is deliberately the narrowest.
         """
         body: dict[str, Any] = {
             "title": title,
@@ -204,31 +198,29 @@ class Collections:
         if description:
             body["description"] = description
 
-        antwort = await self._transport.json(
+        response = await self._transport.json(
             "POST",
             f"/collection/v1/collections/-home-/{parent}/children",
             json=body,
         )
-        daten = antwort.get("collection") or antwort.get("node") or antwort
-        return Node(daten, Nodes(self._transport))
+        data = response.get("collection") or response.get("node") or response
+        return Node(data, Nodes(self._transport))
 
     async def add(self, collection_id: str, node_id: str) -> bool:
-        """Lege einen Inhalt in eine Sammlung.
+        """Place a resource into a collection.
 
-        Angelegt wird eine **Referenz**, nicht eine Kopie: das Original bleibt,
-        wo es ist, und ueberlebt auch das Entfernen der Referenz.
+        What is created is a **reference**, not a copy: the original stays where
+        it is and survives the removal of the reference.
 
-        Anders als beim Schreiben von Properties findet hier **keine**
-        Rueckleseprobe statt. Gemessen: direkt nach dem Anlegen liefert
-        ``/children/references`` eine leere Liste, obwohl die Referenz
-        existiert -- der zweite Versuch antwortet mit ``409``. Eine Probe
-        wuerde also faelschlich Alarm schlagen.
+        Unlike writing properties, **no** read-back happens here. Measured:
+        right after creation ``/children/references`` returns an empty list even
+        though the reference exists -- the second attempt answers ``409``. A
+        read-back would therefore raise a false alarm.
 
         Returns:
-            ``True``, wenn die Referenz neu angelegt wurde; ``False``, wenn sie
-            schon da war. Ein ``409`` ist hier kein Fehler -- der gewuenschte
-            Zustand ist erreicht, und ein Wiederholungslauf soll nicht daran
-            scheitern.
+            ``True`` when the reference was newly created; ``False`` when it was
+            already there. A ``409`` is not an error here -- the desired state
+            has been reached, and a repeated run should not fail on it.
         """
         try:
             await self._transport.request(
@@ -240,9 +232,9 @@ class Collections:
         return True
 
     async def remove(self, collection_id: str, node_id: str) -> None:
-        """Nimm einen Inhalt aus einer Sammlung.
+        """Take a resource out of a collection.
 
-        Entfernt nur die Referenz -- das Original bleibt unangetastet.
+        Removes only the reference -- the original is untouched.
         """
         await self._transport.request(
             "DELETE",

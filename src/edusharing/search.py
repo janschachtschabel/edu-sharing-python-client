@@ -1,25 +1,24 @@
-"""Suche: Volltext, Filter in Labels, Facetten.
+"""Search: full text, filters given as labels, facets.
 
-Der Aufruf, den diese Bibliothek moeglich machen soll::
+The call this library exists to make possible::
 
     await repo.search("Photosynthese", subject="Biologie")
 
-Damit das repository-unabhaengig bleibt, passiert dreierlei:
+Three things keep that repository-independent:
 
-* **Filterwerte werden gegen den Metadatensatz DIESER Instanz aufgeloest**
-  (siehe ``vocab``), nicht gegen eine mitgelieferte Tabelle.
-* **Was sich nicht aufloesen laesst, wird gemeldet statt verworfen.** Eine
-  stillschweigend fallengelassene Einschraenkung liefert Treffer, die niemand
-  angefragt hat -- das ist schaedlicher als eine leere Ergebnisliste, weil es
-  wie ein Ergebnis aussieht.
-* **Die Feld-Aliase sind eine Konvention, keine Annahme.** ``subject`` zeigt auf
-  ``ccm:taxonid``, weil das auf den geprueften Instanzen so heisst -- und ist
-  ueberschreibbar, weil das anderswo anders sein kann.
+* **Filter values are resolved against THIS instance's metadata set** (see
+  ``vocab``), not against a shipped table.
+* **What cannot be resolved is reported, not dropped.** A silently discarded
+  constraint returns hits nobody asked for -- more damaging than an empty result
+  list, because it looks like an answer.
+* **The field aliases are a convention, not an assumption.** ``subject`` points
+  at ``ccm:taxonid`` because that is its name on the instances checked -- and it
+  is overridable, because elsewhere it may differ.
 
-Antwortform gemessen (edu-sharing 11.0, Staging, 27.08.2026): ``nodes``,
+Response shape measured (edu-sharing 11.0, staging, 2026-08-27): ``nodes``,
 ``pagination {total, from, count}``, ``facets``, ``suggests``, ``ignored``.
-Eine **unbekannte** Property landet uebrigens nicht in ``ignored``, sondern
-beendet die Anfrage mit ``400 DAOValidationException``.
+An **unknown** property, incidentally, does not land in ``ignored`` but ends the
+request with ``400 DAOValidationException``.
 """
 
 from __future__ import annotations
@@ -39,18 +38,18 @@ from .vocab import DEFAULT_METADATASET, DEFAULT_QUERY, Vocabulary
 
 __all__ = ["Search", "STANDARD_FIELD_ALIASES"]
 
-#: Kurznamen fuer gebraeuchliche Filter-Properties.
+#: Short names for commonly filtered properties.
 #:
-#: Ermittelt aus der Schnittmenge zweier Metadatensaetze (``mds`` und
-#: ``mds_oeh``, Staging 27.08.2026) und **einzeln gegen ngsearch geprueft** --
-#: denn ein Vokabular zu fuehren und filterbar zu sein sind zwei verschiedene
-#: Dinge (siehe ``_UNBEKANNTES_KRITERIUM``). Nicht aufgenommen wurde deshalb
-#: ``ccm:educationaltypicalagerangecluster``: es hat ein Vokabular, wird aber
-#: von **keinem** der beiden Metadatensaetze als Kriterium angenommen.
+#: Derived from the intersection of two metadata sets (``mds`` and ``mds_oeh``,
+#: staging 2026-08-27) and **checked individually against ngsearch** -- because
+#: carrying a vocabulary and being filterable are two different things (see
+#: ``_UNKNOWN_CRITERION``). ``ccm:educationaltypicalagerangecluster`` was
+#: therefore left out: it has a vocabulary but is accepted as a criterion by
+#: **neither** metadata set.
 #:
-#: Das ist eine **Konvention**, kein Universal: welche Properties eine Instanz
-#: fuehrt und welche davon filterbar sind, entscheidet ihr Metadatensatz.
-#: ``field_aliases`` setzt eine eigene Zuordnung.
+#: This is a **convention**, not a universal: which properties an instance
+#: carries, and which of them are filterable, is decided by its metadata set.
+#: ``field_aliases`` sets a mapping of your own.
 STANDARD_FIELD_ALIASES: dict[str, str] = {
     "subject": "ccm:taxonid",
     "level": "ccm:educationalcontext",
@@ -59,27 +58,27 @@ STANDARD_FIELD_ALIASES: dict[str, str] = {
     "license": "license",
 }
 
-#: Woran die Antwort auf ein Kriterium zu erkennen ist, das dieser
-#: Metadatensatz nicht kennt. Gemessen: ``ccm:taxonid`` ist in ``mds_oeh``
-#: filterbar und in ``-default-`` nicht, obwohl es in beiden ein Vokabular hat.
-_UNBEKANNTES_KRITERIUM = "could not find parameter"
+#: How to recognise the answer to a criterion this metadata set does not know.
+#: Measured: ``ccm:taxonid`` is filterable in ``mds_oeh`` and not in
+#: ``-default-``, although both carry a vocabulary for it.
+_UNKNOWN_CRITERION = "could not find parameter"
 
 DEFAULT_LIMIT = 10
 DEFAULT_FACET_LIMIT = 20
 
-#: Suchwort-Kriterium von ngsearch.
+#: ngsearch's full-text criterion.
 SEARCHWORD = "ngsearchword"
 
 
 class Search:
-    """Suche gegen einen Metadatensatz.
+    """Search against one metadata set.
 
     Args:
-        transport: die Verbindung zum Repositorium.
-        vocab: loest Filter-Labels gegen dieselbe Instanz auf.
-        metadataset: Metadatensatz, gegen den gesucht wird.
-        query: Abfragename, per Konvention ``ngsearch``.
-        field_aliases: Kurznamen fuer Properties. ``None`` nimmt
+        transport: the connection to the repository.
+        vocab: resolves filter labels against the same instance.
+        metadataset: the metadata set searched against.
+        query: query name, ``ngsearch`` by convention.
+        field_aliases: short names for properties. ``None`` uses
             ``STANDARD_FIELD_ALIASES``.
     """
 
@@ -112,39 +111,37 @@ class Search:
         content_type: str = "FILES",
         **aliases: str | list[str],
     ) -> SearchResult:
-        """Suche Material.
+        """Search for material.
 
         Args:
-            text: Volltext-Suchwort. Weglassbar, wenn nur gefiltert wird.
-            filters: ``{property: label}`` -- Labels werden aufgeloest, URIs
-                unveraendert uebernommen.
-            facets: Properties, ueber die serverseitig gezaehlt werden soll.
-            facet_limit: wie viele Werte je Facette.
-            limit, offset: Seitengroesse und Startpunkt.
-            content_type: ``FILES`` (Vorgabe) oder ``FILES_AND_FOLDERS``.
-                Sammlungen liefert diese Abfrage **nicht** -- dafuer gibt es
-                eine eigene.
-            **aliases: Kurznamen aus ``field_aliases``, etwa ``subject="Biologie"``.
+            text: full-text term. Omittable when only filtering.
+            filters: ``{property: label}`` -- labels are resolved, URIs taken
+                unchanged.
+            facets: properties to count server-side.
+            facet_limit: how many values per facet.
+            limit, offset: page size and starting point.
+            content_type: ``FILES`` (default) or ``FILES_AND_FOLDERS``. This
+                query does **not** return collections -- there is a separate one
+                for those.
+            **aliases: short names from ``field_aliases``, e.g.
+                ``subject="Biologie"``.
 
         Returns:
-            Ein ``SearchResult``. Dessen ``unresolved`` ist zu pruefen: ist es
-            nicht leer, wurde weniger eingeschraenkt als angefragt.
+            A ``SearchResult``. Check its ``unresolved``: if it is non-empty,
+            less was constrained than requested.
 
         Raises:
-            ValidationError: bei einem Kurznamen, den ``field_aliases`` nicht
-                kennt -- ein Tippfehler darf nicht als "keine Einschraenkung"
-                durchgehen.
+            ValidationError: for a short name ``field_aliases`` does not know --
+                a typo must not pass as "no constraint".
         """
-        kriterien, unresolved = await self._kriterien(
-            self._felder(filters, aliases)
-        )
+        criteria, unresolved = await self._criteria(self._fields(filters, aliases))
         if text:
-            kriterien.insert(0, {"property": SEARCHWORD, "values": [text]})
+            criteria.insert(0, {"property": SEARCHWORD, "values": [text]})
 
         body: dict[str, Any] = {
-            "criteria": kriterien,
-            # Ohne dieses Flag bekommt ein Tippfehler "keine Treffer" und nichts,
-            # womit sich ein zweiter Versuch bauen liesse.
+            "criteria": criteria,
+            # Without this flag a typo yields "no hits" and nothing to build a
+            # second attempt from.
             "returnSuggestions": True,
         }
         if facets:
@@ -153,7 +150,7 @@ class Search:
             body["facetMinCount"] = 1
 
         try:
-            antwort = await self._transport.json(
+            response = await self._transport.json(
                 "POST",
                 f"/search/v1/queries/-home-/{self.metadataset}/{self.query}",
                 params={
@@ -165,55 +162,55 @@ class Search:
                 json=body,
             )
         except ValidationError as exc:
-            raise self._erklaeren(exc) from exc
-        return self._ergebnis(antwort, unresolved)
+            raise self._explain(exc) from exc
+        return self._result(response, unresolved)
 
-    # --- intern -----------------------------------------------------------
+    # --- Internals --------------------------------------------------------
 
-    def _felder(
+    def _fields(
         self,
         filters: dict[str, str | list[str]] | None,
         aliases: dict[str, str | list[str]],
     ) -> dict[str, str | list[str]]:
-        """Fuehre explizit genannte Properties und Kurznamen zusammen.
+        """Merge explicitly named properties and short names.
 
         Raises:
-            ValidationError: bei einem unbekannten Kurznamen. Ihn stumm zu
-                ignorieren hiesse, ohne die gemeinte Einschraenkung zu suchen
-                und das Ergebnis trotzdem als Treffer auszugeben.
+            ValidationError: for an unknown short name. Ignoring it silently
+                would mean searching without the intended constraint and
+                presenting the result as hits anyway.
         """
-        felder = dict(filters or {})
-        for name, wert in aliases.items():
+        fields = dict(filters or {})
+        for name, value in aliases.items():
             prop = self.field_aliases.get(name)
             if prop is None:
-                bekannt = ", ".join(sorted(self.field_aliases)) or "(keine)"
+                known = ", ".join(sorted(self.field_aliases)) or "(none)"
                 raise ValidationError(
-                    f"Unbekanntes Suchfeld {name!r}. Bekannt sind: {bekannt}. "
-                    "Eine Property laesst sich auch direkt angeben: "
-                    "filters={'ccm:...': 'Wert'}."
+                    f"Unknown search field {name!r}. Known are: {known}. "
+                    "A property can also be given directly: "
+                    "filters={'ccm:...': 'value'}."
                 )
-            felder[prop] = wert
-        return felder
+            fields[prop] = value
+        return fields
 
-    def _erklaeren(self, exc: ValidationError) -> ValidationError:
-        """Ergaenze die Servermeldung um das, was sie offen laesst.
+    def _explain(self, exc: ValidationError) -> ValidationError:
+        """Add to the server message what it leaves open.
 
-        "Could not find parameter X in the query ngsearch" sagt nicht, dass die
-        Ursache der gewaehlte Metadatensatz ist -- und genau daran scheitert
-        man sonst lange, weil die Property ja nachweislich existiert und sogar
-        ein Vokabular fuehrt.
+        "Could not find parameter X in the query ngsearch" does not say that the
+        cause is the chosen metadata set -- and that is exactly what one puzzles
+        over for a long time, since the property demonstrably exists and even
+        carries a vocabulary.
 
-        Andere Validierungsfehler bleiben unveraendert.
+        Other validation errors pass through unchanged.
         """
-        if _UNBEKANNTES_KRITERIUM not in str(exc).lower():
+        if _UNKNOWN_CRITERION not in str(exc).lower():
             return exc
         return ValidationError(
             f"{exc}\n"
-            f"Der Metadatensatz {self.metadataset!r} nimmt dieses Kriterium in der "
-            f"Abfrage {self.query!r} nicht an. Dass die Property existiert und sogar "
-            f"ein Vokabular fuehrt, sagt darueber nichts -- Filterbarkeit ist eine "
-            f"Eigenschaft des Metadatensatzes. Welche die Instanz fuehrt, zeigt "
-            f"GET /mds/v1/metadatasets/-home-; gewaehlt wird ueber "
+            f"The metadata set {self.metadataset!r} does not accept this criterion "
+            f"in the query {self.query!r}. That the property exists and even "
+            f"carries a vocabulary says nothing about it -- filterability is a "
+            f"property of the metadata set. Which ones the instance carries is "
+            f"shown by GET /mds/v1/metadatasets/-home-; the choice is made via "
             f"AsyncRepository(url, metadataset=...).",
             status=exc.status,
             url=exc.url,
@@ -221,45 +218,45 @@ class Search:
             stacktrace=exc.stacktrace,
         )
 
-    async def _kriterien(
+    async def _criteria(
         self, filters: dict[str, str | list[str]]
     ) -> tuple[list[dict[str, Any]], list[UnresolvedFilter]]:
-        """Loese Filter-Labels auf. Unaufloesbares wird gemeldet, nicht gesendet."""
-        kriterien: list[dict[str, Any]] = []
+        """Resolve filter labels. What cannot be resolved is reported, not sent."""
+        criteria: list[dict[str, Any]] = []
         unresolved: list[UnresolvedFilter] = []
 
-        for prop, roh in filters.items():
-            werte = [roh] if isinstance(roh, str) else list(roh)
-            aufgeloest: list[str] = []
-            for wert in werte:
-                uri = await self._vocab.resolve(prop, wert)
+        for prop, raw in filters.items():
+            values = [raw] if isinstance(raw, str) else list(raw)
+            resolved: list[str] = []
+            for value in values:
+                uri = await self._vocab.resolve(prop, value)
                 if uri:
-                    aufgeloest.append(uri)
+                    resolved.append(uri)
                 else:
                     unresolved.append(
                         UnresolvedFilter(
                             field=prop,
-                            value=wert,
+                            value=value,
                             suggestions=[
-                                v.label for v in await self._vocab.suggest(prop, wert)
+                                v.label for v in await self._vocab.suggest(prop, value)
                             ][:5],
                         )
                     )
-            if aufgeloest:
-                kriterien.append({"property": prop, "values": aufgeloest})
+            if resolved:
+                criteria.append({"property": prop, "values": resolved})
 
-        return kriterien, unresolved
+        return criteria, unresolved
 
-    def _ergebnis(
-        self, antwort: dict[str, Any], unresolved: list[UnresolvedFilter]
+    def _result(
+        self, response: dict[str, Any], unresolved: list[UnresolvedFilter]
     ) -> SearchResult:
-        basis = self._transport.repository_url
-        seite = antwort.get("pagination") or {}
+        base = self._transport.repository_url
+        page = response.get("pagination") or {}
         return SearchResult(
             hits=[
-                SearchHit.from_node(n, basis) for n in (antwort.get("nodes") or [])
+                SearchHit.from_node(n, base) for n in (response.get("nodes") or [])
             ],
-            total=int(seite.get("total") or 0),
+            total=int(page.get("total") or 0),
             facets=[
                 Facet(
                     property=f.get("property") or "",
@@ -269,14 +266,14 @@ class Search:
                     ],
                     other_count=int(f.get("sumOtherDocCount") or 0),
                 )
-                for f in (antwort.get("facets") or [])
+                for f in (response.get("facets") or [])
             ],
             suggestions=[
-                s.get("text") for s in (antwort.get("suggests") or []) if s.get("text")
+                s.get("text") for s in (response.get("suggests") or []) if s.get("text")
             ],
             unresolved=unresolved,
-            ignored=list(antwort.get("ignored") or []),
-            raw=antwort,
+            ignored=list(response.get("ignored") or []),
+            raw=response,
         )
 
     def __repr__(self) -> str:

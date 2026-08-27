@@ -1,7 +1,7 @@
-"""edu-sharing fuer Python.
+"""edu-sharing for Python.
 
-Zugang zu einem edu-sharing-Repositorium, ohne die Metadaten-Konventionen einer
-bestimmten Instanz vorauszusetzen.
+Access to an edu-sharing repository without presupposing the metadata
+conventions of any particular instance.
 
     from edusharing import Repository
 
@@ -9,13 +9,13 @@ bestimmten Instanz vorauszusetzen.
         print(repo.about().repository_version)
         print(repo.whoami().authority)
 
-        for treffer in repo.search("Photosynthese", subject="Biologie"):
-            print(treffer.title, treffer.url)
+        for hit in repo.search("Photosynthese", subject="Biologie"):
+            print(hit.title, hit.url)
 
         node = repo.node("abc-123")
-        node.update(titel="Neuer Titel")   # geprueft: wirft bei stillem Verlust
+        node.update(title="New title")     # verified: raises on a silent drop
 
-``AsyncRepository`` ist dieselbe Oberflaeche fuer asynchronen Code.
+``AsyncRepository`` is the same surface for asynchronous code.
 """
 
 from .auth import ANONYMOUS, AnonymousCredential, BasicCredential, Credential, credential_from
@@ -41,13 +41,13 @@ from .urls import normalize_repository_url, rest_base
 from .vocab import Vocabulary, VocabularyValue
 
 __all__ = [
-    # Einstieg
+    # Entry point
     "Repository",
     "AsyncRepository",
     "About",
     "Identity",
     "MetadataSet",
-    # Suchen
+    # Searching
     "Search",
     "Collections",
     "SearchResult",
@@ -56,21 +56,21 @@ __all__ = [
     "FacetValue",
     "UnresolvedFilter",
     "STANDARD_FIELD_ALIASES",
-    # Knoten
+    # Nodes
     "Node",
     "Nodes",
     "NodeContent",
     "WRITE_FIELD_ALIASES",
-    # Vokabular
+    # Vocabulary
     "Vocabulary",
     "VocabularyValue",
-    # Zugangsdaten
+    # Credentials
     "Credential",
     "AnonymousCredential",
     "BasicCredential",
     "ANONYMOUS",
     "credential_from",
-    # Fehler
+    # Errors
     "EduSharingError",
     "TransportError",
     "AuthenticationError",

@@ -1,14 +1,14 @@
-"""Der Einstieg: eine Verbindung zu einem edu-sharing-Repositorium.
+"""The entry point: a connection to an edu-sharing repository.
 
-``AsyncRepository`` ist die eigentliche Umsetzung, ``Repository`` reicht sie
-synchron durch. Beide bieten in dieser Etappe zwei Auskuenfte:
+``AsyncRepository`` is the actual implementation, ``Repository`` passes it
+through synchronously. Both answer two questions about the instance itself:
 
-* ``about()`` -- was ist das fuer eine Instanz, und was kann sie?
-* ``whoami()`` -- als wer laufe ich hier eigentlich?
+* ``about()`` -- what kind of instance is this, and what can it do?
+* ``whoami()`` -- who am I actually running as?
 
-Die zweite ist wichtiger, als sie klingt. Ohne sie merkt eine Anwendung nicht,
-dass sie als Gast arbeitet, und stolpert stattdessen irgendwann ueber ein
-HTTP 500 an einer Stelle, die mit der Ursache nichts zu tun hat.
+The second matters more than it sounds. Without it an application does not
+notice that it is working as a guest, and instead trips over an HTTP 500
+somewhere unrelated to the cause.
 """
 
 from __future__ import annotations
@@ -38,43 +38,44 @@ __all__ = ["AsyncRepository", "Repository"]
 
 ENV_URL = "EDU_SHARING_URL"
 
-def _url_aus_umgebung(cls: type) -> str:
-    """Lies ``EDU_SHARING_URL``. Gemeinsam fuer beide Zugaenge, damit ihr
-    Verhalten nicht auseinanderlaeuft.
+
+def _url_from_env(cls: type) -> str:
+    """Read ``EDU_SHARING_URL``. Shared by both surfaces so their behaviour
+    cannot drift apart.
 
     Raises:
-        EduSharingError: wenn die Variable fehlt. Die Meldung nennt den Aufruf
-            der Klasse, die gerade verwendet wird.
+        EduSharingError: when the variable is missing. The message names the
+            call for whichever class is in use.
     """
     url = os.environ.get(ENV_URL)
     if not url:
         raise EduSharingError(
-            f"{ENV_URL} ist nicht gesetzt. Entweder die Variable setzen oder "
-            f"die Adresse direkt uebergeben: {cls.__name__}('https://...')."
+            f"{ENV_URL} is not set. Either set the variable or pass the address "
+            f"directly: {cls.__name__}('https://...')."
         )
     return url
 
 
 class AsyncRepository:
-    """Verbindung zu einem edu-sharing-Repositorium.
+    """Connection to an edu-sharing repository.
 
     Args:
-        url: Adresse in beliebiger der ueblichen Schreibweisen.
-        auth: ``None`` (anonym), ein ``(benutzer, passwort)``-Paar oder ein
-            fertiges ``Credential``. Ein Bearer-Token wird abgelehnt.
-        metadataset: Metadatensatz fuer Vokabular und Suche. ``-default-`` ist
-            der von der Instanz vorgegebene; eine Instanz kann mehrere fuehren,
-            und die Wahl aendert, was gefunden wird (gemessen auf Staging:
-            ``-default-`` findet 2825 Treffer fuer "Physik", ``mds_oeh`` 17994).
-        query: Abfragekontext fuer Vokabular und Suche, per Konvention
-            ``ngsearch``.
-        field_aliases: Kurznamen fuer Filter-Properties (``subject`` ->
-            ``ccm:taxonid``). ``None`` nimmt die Vorgabe.
-        timeout: Sekunden bis zum Abbruch einer Anfrage.
-        max_retries: Wiederholungen zusaetzlich zum ersten Versuch.
-        max_concurrency: gleichzeitig laufende Anfragen.
-        backoff_base: Grundwert der Wartezeit zwischen Wiederholungen.
-        client: eigener httpx-Client, etwa fuer Tests.
+        url: address in any of the usual spellings.
+        auth: ``None`` (anonymous), a ``(username, password)`` pair, or a ready
+            ``Credential``. A bearer token is rejected.
+        metadataset: metadata set for vocabulary and search. ``-default-`` is
+            whichever the instance nominates; an instance may carry several, and
+            the choice changes what is found (measured on staging: ``-default-``
+            finds 2825 hits for "Physik", ``mds_oeh`` finds 17994).
+        query: query context for vocabulary and search, ``ngsearch`` by
+            convention.
+        field_aliases: short names for filter properties (``subject`` ->
+            ``ccm:taxonid``). ``None`` uses the default.
+        timeout: seconds until a request is abandoned.
+        max_retries: retries in addition to the first attempt.
+        max_concurrency: requests running at once.
+        backoff_base: base wait between retries.
+        client: your own httpx client, e.g. for tests.
     """
 
     def __init__(
@@ -102,8 +103,8 @@ class AsyncRepository:
         )
         self.metadataset = metadataset
         self.query = query
-        # Einmal angelegt und behalten: der Vokabular-Cache lebt darin, und ein
-        # frisches Objekt je Zugriff wuerde ihn bei jedem Aufruf verwerfen.
+        # Created once and kept: the vocabulary cache lives inside it, and a
+        # fresh object per access would discard it on every call.
         self._vocab = Vocabulary(self._transport, metadataset=metadataset, query=query)
         self._search = Search(
             self._transport, self._vocab,
@@ -114,29 +115,29 @@ class AsyncRepository:
 
     @classmethod
     def from_env(cls, **kwargs: Any) -> AsyncRepository:
-        """Baue eine Verbindung aus ``EDU_SHARING_URL`` und den Zugangsdaten.
+        """Build a connection from ``EDU_SHARING_URL`` and the credentials.
 
         Raises:
-            EduSharingError: wenn ``EDU_SHARING_URL`` fehlt, oder wenn von
-                Benutzername und Passwort nur eines gesetzt ist.
+            EduSharingError: when ``EDU_SHARING_URL`` is missing, or when only
+                one of username and password is set.
         """
-        return cls(_url_aus_umgebung(cls), auth=BasicCredential.from_env(), **kwargs)
+        return cls(_url_from_env(cls), auth=BasicCredential.from_env(), **kwargs)
 
-    # --- Zustand ----------------------------------------------------------
+    # --- State ------------------------------------------------------------
 
     @property
     def url(self) -> str:
-        """Die normalisierte Repository-URL."""
+        """The normalised repository URL."""
         return self._transport.repository_url
 
     @property
     def credential(self) -> Credential:
-        """Die Zugangsdaten, die ohne anderslautende Angabe verwendet werden."""
+        """The credentials used unless stated otherwise."""
         return self._transport.credential
 
     @property
     def raw(self) -> Transport:
-        """Der Transport, fuer Endpunkte ohne eigene Methode.
+        """The transport, for endpoints without a method of their own.
 
         ``await repo.raw.json("GET", "/config/v1/values")``
         """
@@ -144,7 +145,7 @@ class AsyncRepository:
 
     @property
     def vocab(self) -> Vocabulary:
-        """Vokabularwerte dieser Instanz -- Labels statt URIs.
+        """This instance's vocabulary values -- labels instead of URIs.
 
         ``await repo.vocab.resolve("ccm:taxonid", "Physik")``
         """
@@ -152,89 +153,89 @@ class AsyncRepository:
 
     @property
     def searcher(self) -> Search:
-        """Die Suchschicht, fuer Zugriff auf ihre Einstellungen."""
+        """The search layer, for access to its settings."""
         return self._search
 
     @property
     def collections(self) -> Collections:
-        """Die Sammlungssuche, fuer Zugriff auf ihre Einstellungen."""
+        """The collection search, for access to its settings."""
         return self._collections
 
-    # --- Suchen -----------------------------------------------------------
+    # --- Searching --------------------------------------------------------
 
     async def search(self, text: str | None = None, **kwargs: Any) -> SearchResult:
-        """Suche Material. Siehe ``Search.search`` fuer alle Parameter.
+        """Search for material. See ``Search.search`` for every parameter.
 
         ``await repo.search("Photosynthese", subject="Biologie")``
 
-        Das Ergebnis traegt ``unresolved``: ist es nicht leer, konnte ein Filter
-        nicht aufgeloest werden und das Ergebnis ist breiter als angefragt.
+        The result carries ``unresolved``: if it is non-empty, a filter could
+        not be resolved and the result is broader than requested.
         """
         return await self._search.search(text, **kwargs)
 
-    # --- Knoten -----------------------------------------------------------
+    # --- Nodes ------------------------------------------------------------
 
     @property
     def nodes(self) -> Nodes:
-        """Die Knotenschicht."""
+        """The node layer."""
         return self._nodes
 
     async def node(self, node_id: str) -> Node:
-        """Lade einen Knoten mit allen Properties."""
+        """Load a node with all its properties."""
         return await self._nodes.get(node_id)
 
     async def create_node(self, parent_id: str, **kwargs: Any) -> Node:
-        """Lege einen Knoten an. Siehe ``Nodes.create``."""
+        """Create a node. See ``Nodes.create``."""
         return await self._nodes.create(parent_id, **kwargs)
 
     async def create_collection(self, title: str, **kwargs: Any) -> Node:
-        """Lege eine Sammlung an. Siehe ``Collections.create``."""
+        """Create a collection. See ``Collections.create``."""
         return await self._collections.create(title, **kwargs)
 
     async def add_to_collection(self, collection_id: str, node_id: str) -> bool:
-        """Lege einen Inhalt als Referenz in eine Sammlung."""
+        """Place a resource into a collection as a reference."""
         return await self._collections.add(collection_id, node_id)
 
     async def remove_from_collection(self, collection_id: str, node_id: str) -> None:
-        """Nimm einen Inhalt aus einer Sammlung. Das Original bleibt."""
+        """Take a resource out of a collection. The original stays."""
         await self._collections.remove(collection_id, node_id)
 
     async def find_collections(self, text: str, **kwargs: Any) -> SearchResult:
-        """Suche Sammlungen ueber beide Wege, die edu-sharing dafuer hat.
+        """Search collections across both routes edu-sharing offers.
 
-        ``total`` ist eine Untergrenze -- siehe ``collections``.
+        ``total`` is a lower bound -- see ``collections``.
         """
         return await self._collections.find(text, **kwargs)
 
-    # --- Auskuenfte -------------------------------------------------------
+    # --- What the instance reports ----------------------------------------
 
     async def about(self) -> About:
-        """Version, Dienste, Plugins und Merkmale dieser Instanz."""
+        """Version, services, plugins and features of this instance."""
         return About.from_response(await self._transport.json("GET", "/_about"))
 
     async def metadatasets(self) -> list[MetadataSet]:
-        """Welche Metadatensaetze diese Instanz fuehrt.
+        """Which metadata sets this instance carries.
 
-        Billig (wenige hundert Byte) -- im Gegensatz zum Metadatensatz selbst,
-        der bei ``mds_oeh`` 17 MB umfasst.
+        Cheap (a few hundred bytes) -- unlike a metadata set itself, which
+        weighs 17 MB for ``mds_oeh``.
         """
-        antwort = await self._transport.json("GET", "/mds/v1/metadatasets/-home-")
+        response = await self._transport.json("GET", "/mds/v1/metadatasets/-home-")
         return [
             MetadataSet(id=m.get("id") or "", name=m.get("name") or "")
-            for m in (antwort.get("metadatasets") or [])
+            for m in (response.get("metadatasets") or [])
             if m.get("id")
         ]
 
     async def whoami(self) -> Identity:
-        """Als wer diese Verbindung arbeitet.
+        """Who this connection is working as.
 
-        Anonym ist kein Fehler, sondern ein gueltiger Betriebsfall -- aber die
-        Anwendung sollte es wissen, statt es zu vermuten.
+        Anonymous is not an error but a valid mode -- but the application should
+        know it rather than assume it.
         """
         data = await self._transport.json("GET", "/iam/v1/people/-home-/-me-")
         return Identity.from_response(data)
 
-    # --- Lebenszyklus -----------------------------------------------------
+    # --- Lifecycle --------------------------------------------------------
 
     async def aclose(self) -> None:
         await self._transport.aclose()
@@ -250,11 +251,10 @@ class AsyncRepository:
 
 
 class Repository:
-    """Synchroner Zugang -- fuer Skripte und Notebooks.
+    """The synchronous surface -- for scripts and notebooks.
 
-    Gleiche Signatur wie ``AsyncRepository``. Die Aufrufe laufen in einem
-    eigenen Hintergrund-Loop, damit sie auch dort funktionieren, wo bereits ein
-    Event-Loop laeuft.
+    Same signature as ``AsyncRepository``. Calls run on a background loop of
+    their own, so they also work where an event loop is already running.
     """
 
     def __init__(self, url: str, **kwargs: Any) -> None:
@@ -263,8 +263,8 @@ class Repository:
 
     @classmethod
     def from_env(cls, **kwargs: Any) -> Repository:
-        """Wie ``AsyncRepository.from_env``."""
-        return cls(_url_aus_umgebung(cls), auth=BasicCredential.from_env(), **kwargs)
+        """As ``AsyncRepository.from_env``."""
+        return cls(_url_from_env(cls), auth=BasicCredential.from_env(), **kwargs)
 
     @property
     def url(self) -> str:
@@ -276,7 +276,7 @@ class Repository:
 
     @property
     def raw(self) -> SyncTransport:
-        """Der Transport, fuer Endpunkte ohne eigene Methode.
+        """The transport, for endpoints without a method of their own.
 
         ``repo.raw.json("GET", "/config/v1/values")``
         """
@@ -288,72 +288,72 @@ class Repository:
 
     @property
     def vocab(self) -> Vocabulary:
-        """Vokabularwerte dieser Instanz. Die Methoden sind asynchron --
-        fuer den synchronen Weg siehe ``resolve()``."""
+        """This instance's vocabulary values. Its methods are asynchronous --
+        for the synchronous route see ``resolve()``."""
         return self._async.vocab
 
     @property
     def searcher(self) -> Search:
-        """Die Suchschicht, fuer Zugriff auf ihre Einstellungen."""
+        """The search layer, for access to its settings."""
         return self._async.searcher
 
     def search(self, text: str | None = None, **kwargs: Any) -> SearchResult:
-        """Suche Material. Siehe ``Search.search`` fuer alle Parameter."""
+        """Search for material. See ``Search.search`` for every parameter."""
         return self._loop.run(self._async.search(text, **kwargs))
 
     @property
     def collections(self) -> Collections:
-        """Die Sammlungssuche, fuer Zugriff auf ihre Einstellungen."""
+        """The collection search, for access to its settings."""
         return self._async.collections
 
     def find_collections(self, text: str, **kwargs: Any) -> SearchResult:
-        """Suche Sammlungen ueber beide Wege. ``total`` ist eine Untergrenze."""
+        """Search collections across both routes. ``total`` is a lower bound."""
         return self._loop.run(self._async.find_collections(text, **kwargs))
 
     @property
     def nodes(self) -> Nodes:
-        """Die Knotenschicht. Ihre Methoden sind asynchron -- fuer den
-        synchronen Weg siehe ``node()`` und ``create_node()``."""
+        """The node layer. Its methods are asynchronous -- for the synchronous
+        route see ``node()`` and ``create_node()``."""
         return self._async.nodes
 
     def create_collection(self, title: str, **kwargs: Any) -> SyncNode:
-        """Lege eine Sammlung an. Siehe ``Collections.create``."""
+        """Create a collection. See ``Collections.create``."""
         return SyncNode(
             self._loop.run(self._async.create_collection(title, **kwargs)), self._loop
         )
 
     def add_to_collection(self, collection_id: str, node_id: str) -> bool:
-        """Lege einen Inhalt als Referenz in eine Sammlung."""
+        """Place a resource into a collection as a reference."""
         return self._loop.run(self._async.add_to_collection(collection_id, node_id))
 
     def remove_from_collection(self, collection_id: str, node_id: str) -> None:
-        """Nimm einen Inhalt aus einer Sammlung. Das Original bleibt."""
+        """Take a resource out of a collection. The original stays."""
         self._loop.run(self._async.remove_from_collection(collection_id, node_id))
 
     def node(self, node_id: str) -> SyncNode:
-        """Lade einen Knoten. Seine Schreibmethoden blockieren."""
+        """Load a node. Its write methods block."""
         return SyncNode(self._loop.run(self._async.node(node_id)), self._loop)
 
     def create_node(self, parent_id: str, **kwargs: Any) -> SyncNode:
-        """Lege einen Knoten an. Siehe ``Nodes.create``."""
+        """Create a node. See ``Nodes.create``."""
         return SyncNode(
             self._loop.run(self._async.create_node(parent_id, **kwargs)), self._loop
         )
 
     def resolve(self, prop: str, label: str, *, locale: str | None = None) -> str | None:
-        """Uebersetze ein Label in den Wert, auf den das Repositorium filtert."""
+        """Translate a label into the value the repository filters on."""
         return self._loop.run(self._async.vocab.resolve(prop, label, locale=locale))
 
     def about(self) -> About:
-        """Version, Dienste, Plugins und Merkmale dieser Instanz."""
+        """Version, services, plugins and features of this instance."""
         return self._loop.run(self._async.about())
 
     def whoami(self) -> Identity:
-        """Als wer diese Verbindung arbeitet."""
+        """Who this connection is working as."""
         return self._loop.run(self._async.whoami())
 
     def metadatasets(self) -> list[MetadataSet]:
-        """Welche Metadatensaetze diese Instanz fuehrt."""
+        """Which metadata sets this instance carries."""
         return self._loop.run(self._async.metadatasets())
 
     def close(self) -> None:

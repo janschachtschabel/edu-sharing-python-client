@@ -1,30 +1,30 @@
-"""Knoten lesen, anlegen, aendern, loeschen -- mit Rueckleseprobe.
+"""Reading, creating, changing and deleting nodes -- with a read-back check.
 
-Der Grund, warum dieses Modul nicht duenn ist: **edu-sharing antwortet auf
-verlorene Schreibvorgaenge mit HTTP 200.** Gemessen an einem Wegwerf-Knoten
-(edu-sharing 11.0, Staging, 27.08.2026):
+The reason this module is not thin: **edu-sharing answers lost writes with
+HTTP 200.** Measured on a throwaway node (edu-sharing 11.0, staging,
+2026-08-27):
 
-======================================  ====  ============
-Vorgang                                 HTTP  gespeichert
-======================================  ====  ============
-``PUT /metadata``, Property im MDS       200  ja
-``PUT /metadata``, Property nicht im MDS 200  **nein**
-``POST /property``, dieselbe Property    200  ja
-``PUT /metadata``, erfundenes Feld       200  **nein**
-======================================  ====  ============
+======================================  ====  ==========
+Operation                               HTTP  stored
+======================================  ====  ==========
+``PUT /metadata``, property in the MDS   200  yes
+``PUT /metadata``, property not in MDS   200  **no**
+``POST /property``, same property        200  yes
+``PUT /metadata``, invented field        200  **no**
+======================================  ====  ==========
 
-Zweimal ein Erfolgscode fuer etwas, das nicht passiert ist. Wer sich darauf
-verlaesst, meldet seinen Nutzenden gespeicherte Daten, die es nicht gibt.
+Twice a success code for something that did not happen. Relying on it means
+telling your users their data is stored when it is not.
 
-Deshalb liest ``update()`` nach jedem Schreibvorgang zurueck und wirft
-``SilentDropError``, wenn ein Wert fehlt. Es gibt zwei uebliche Ursachen --
-die Property ist im Metadatensatz nicht vorgesehen, oder das Schreibrecht
-fehlt --, und beide sind aus der Antwort allein nicht unterscheidbar; die
-Fehlermeldung nennt daher beide samt Ausweg.
+``update()`` therefore reads back after every write and raises
+``SilentDropError`` when a value is missing. There are two usual causes -- the
+property is not provided for in the metadata set, or the write permission is
+absent -- and neither can be told from the other by the response alone; the
+error message names both, along with the way out.
 
-Automatisch auf ``set_property`` auszuweichen waere bequem und falsch: die
-Filterung des Metadatensatzes ist eine Entscheidung des Repositoriums, keine
-Panne. Sie zu umgehen ist ein bewusster Schritt.
+Falling back to ``set_property`` automatically would be convenient and wrong:
+the metadata set's filtering is a decision of the repository, not a glitch.
+Bypassing it is a deliberate step.
 """
 
 from __future__ import annotations
@@ -37,10 +37,10 @@ from .transport import Transport
 
 __all__ = ["Node", "Nodes", "WRITE_FIELD_ALIASES", "KEYWORD_PROPERTY"]
 
-#: Kurznamen fuer Schreibfelder. Titel und Beschreibung gehen bewusst in
-#: **beide** Namensraeume: die edu-sharing-Oberflaeche rendert ``cm:*`` und
-#: ``cclom:*`` an verschiedenen Stellen, und nur eines zu setzen fuehrt dazu,
-#: dass die Anzeige etwas anderes zeigt als die Anwendung geschrieben hat.
+#: Short names for write fields. Title and description deliberately go into
+#: **both** namespaces: the edu-sharing interface renders ``cm:*`` and
+#: ``cclom:*`` in different places, and setting only one makes the display show
+#: something other than what the application wrote.
 WRITE_FIELD_ALIASES: dict[str, tuple[str, ...]] = {
     "title": ("cm:title", "cclom:title"),
     "description": ("cm:description", "cclom:general_description"),
@@ -52,34 +52,33 @@ WRITE_FIELD_ALIASES: dict[str, tuple[str, ...]] = {
 
 DEFAULT_NODE_TYPE = "ccm:io"
 
-#: Die geteilte Schlagwortliste. Eigene Konstante, weil sie an drei Stellen
-#: gebraucht wird und ein Tippfehler hier still ins Leere schreiben wuerde.
+#: The shared keyword list. Its own constant because it is needed in three
+#: places and a typo here would write silently into nowhere.
 KEYWORD_PROPERTY = "cclom:general_keyword"
 
 
-def _als_liste(wert: Any) -> list[str]:
-    """edu-sharing erwartet jede Property als Liste, auch einzelne Werte."""
-    if wert is None:
+def _as_list(value: Any) -> list[str]:
+    """edu-sharing expects every property as a list, even single values."""
+    if value is None:
         return []
-    if isinstance(wert, (list, tuple)):
-        return [str(v) for v in wert]
-    return [str(wert)]
+    if isinstance(value, (list, tuple)):
+        return [str(v) for v in value]
+    return [str(value)]
 
 
 class Node:
-    """Ein geladener Knoten.
+    """A loaded node.
 
-    Unveraenderlich: ``update()`` und ``set_property()`` geben einen **neuen**
-    ``Node`` mit dem zurueckgelesenen Zustand zurueck, statt diesen hier zu
-    veraendern. So kann kein Objekt behaupten, einen Wert zu tragen, den das
-    Repositorium nie angenommen hat.
+    Immutable: ``update()`` and ``set_property()`` return a **new** ``Node``
+    carrying the read-back state instead of mutating this one. That way no
+    object can claim a value the repository never accepted.
     """
 
     def __init__(self, data: dict[str, Any], nodes: Nodes) -> None:
         self._data = data
         self._nodes = nodes
 
-    # --- Lesen ------------------------------------------------------------
+    # --- Reading ----------------------------------------------------------
 
     @property
     def id(self) -> str:
@@ -99,20 +98,21 @@ class Node:
 
     @property
     def url(self) -> str:
-        """Die Ansichts-URL -- das, was man weitergibt."""
+        """The viewer URL -- what you hand on to someone."""
         return f"{self._nodes.repository_url}/components/render/{self.id}"
 
     @property
     def access(self) -> list[str]:
-        """Die eigenen Rechte an diesem Knoten."""
+        """Your own permissions on this node."""
         return list(self._data.get("access") or [])
 
     @property
     def can_write(self) -> bool:
-        """Ob Schreiben erlaubt ist.
+        """Whether writing is permitted.
 
-        Vorab pruefbar -- sonst ist ein fehlendes Recht von einer Filterung
-        des Metadatensatzes erst nach dem Schreibversuch zu unterscheiden.
+        Checkable up front -- otherwise a missing permission is
+        indistinguishable from metadata-set filtering until after the write
+        attempt.
         """
         return "Write" in self.access
 
@@ -125,22 +125,22 @@ class Node:
         return self._data
 
     def get(self, prop: str) -> str | None:
-        """Der erste Wert einer Property, oder ``None``."""
-        werte = self.properties.get(prop)
-        if isinstance(werte, list):
-            return str(werte[0]) if werte else None
-        return str(werte) if werte else None
+        """The first value of a property, or ``None``."""
+        values = self.properties.get(prop)
+        if isinstance(values, list):
+            return str(values[0]) if values else None
+        return str(values) if values else None
 
     def get_all(self, prop: str) -> list[str]:
-        """Alle Werte einer Property."""
-        return _als_liste(self.properties.get(prop))
+        """Every value of a property."""
+        return _as_list(self.properties.get(prop))
 
     @property
     def content(self) -> NodeContent:
-        """Der Binaerinhalt: hochladen, herunterladen, Volltext."""
+        """The binary content: upload, download, full text."""
         return NodeContent(self)
 
-    # --- Schreiben --------------------------------------------------------
+    # --- Writing ----------------------------------------------------------
 
     async def update(
         self,
@@ -149,55 +149,55 @@ class Node:
         verify: bool = True,
         **aliases: Any,
     ) -> Node:
-        """Aendere Properties und lies zurueck, ob es angekommen ist.
+        """Change properties and read back whether they arrived.
 
         Args:
-            properties: ``{property: wert}``. Einzelwerte werden zu Listen.
-            verify: Rueckleseprobe. Nur abschalten, wenn die zusaetzliche
-                Anfrage je Schreibvorgang nachweislich stoert -- sie ist der
-                einzige Beleg, dass etwas gespeichert wurde.
-            **aliases: Kurznamen aus ``WRITE_FIELD_ALIASES``, etwa ``title=``.
+            properties: ``{property: value}``. Single values become lists.
+            verify: the read-back check. Only switch it off when the extra
+                request per write demonstrably hurts -- it is the only evidence
+                that anything was stored.
+            **aliases: short names from ``WRITE_FIELD_ALIASES``, e.g. ``title=``.
 
         Returns:
-            Einen neuen ``Node`` mit dem zurueckgelesenen Zustand.
+            A new ``Node`` carrying the read-back state.
 
         Raises:
-            SilentDropError: wenn das Repositorium 200 meldet und Werte danach
-                fehlen.
-            ValidationError: bei einem unbekannten Kurznamen.
+            SilentDropError: when the repository reports 200 and values are
+                missing afterwards.
+            ValidationError: for an unknown short name.
         """
-        felder = self._felder(properties, aliases)
-        if not felder:
+        fields = self._fields(properties, aliases)
+        if not fields:
             return self
 
         await self._nodes.transport.json(
-            "PUT", f"/node/v1/nodes/-home-/{self.id}/metadata", json=felder
+            "PUT", f"/node/v1/nodes/-home-/{self.id}/metadata", json=fields
         )
         if not verify:
             return self
 
-        frisch = await self._nodes.get(self.id)
-        frisch._pruefe(felder, weg="update")
-        return frisch
+        fresh = await self._nodes.get(self.id)
+        fresh._check(fields, route="update")
+        return fresh
 
     async def set_property(self, prop: str, value: Any, *, verify: bool = True) -> Node:
-        """Setze eine einzelne Property am Metadatensatz vorbei.
+        """Set a single property past the metadata set.
 
-        Der Weg fuer Felder, die der Metadatensatz nicht kennt -- und der
-        Grund, warum ``update()`` nicht selbst dorthin ausweicht: die Filterung
-        zu umgehen soll eine bewusste Entscheidung bleiben.
+        The route for fields the metadata set does not know -- and the reason
+        ``update()`` does not divert here itself: bypassing the filtering should
+        stay a deliberate decision.
 
         Args:
-            value: der Wert, oder ``None`` zum Loeschen.
+            value: the value, or ``None`` to delete.
 
         Raises:
-            SilentDropError: wenn der Wert danach nicht gesetzt ist.
+            SilentDropError: when the value is not set afterwards.
         """
         if value is None:
-            # Gemessen: sowohl ein Body "null" als auch gar kein Body loeschen
-            # die Property. Gesendet wird das explizite "null" -- es ist der
-            # dokumentierte Weg, und ein fehlender Body ist eine Auslassung,
-            # die eine andere Version anders auslegen kann.
+            # Measured: both a "null" body and no body at all delete the
+            # property. The explicit "null" is sent -- it is the documented
+            # route, and an omission is something another version may read
+            # differently.
             await self._nodes.transport.request(
                 "POST",
                 f"/node/v1/nodes/-home-/{self.id}/property",
@@ -210,83 +210,80 @@ class Node:
                 "POST",
                 f"/node/v1/nodes/-home-/{self.id}/property",
                 params={"property": prop},
-                json=_als_liste(value),
+                json=_as_list(value),
             )
         if not verify:
             return self
 
-        frisch = await self._nodes.get(self.id)
+        fresh = await self._nodes.get(self.id)
         if value is None:
-            return frisch
-        frisch._pruefe({prop: _als_liste(value)}, weg="set_property")
-        return frisch
+            return fresh
+        fresh._check({prop: _as_list(value)}, route="set_property")
+        return fresh
 
-    # --- Schlagworte ------------------------------------------------------
+    # --- Keywords ---------------------------------------------------------
 
     @property
     def keywords(self) -> list[str]:
-        """Die Schlagworte dieses Knotens (``cclom:general_keyword``)."""
+        """This node's keywords (``cclom:general_keyword``)."""
         return self.get_all(KEYWORD_PROPERTY)
 
     async def add_keywords(self, *keywords: str) -> Node:
-        """Ergaenze Schlagworte, ohne vorhandene zu verlieren.
+        """Add keywords without losing the existing ones.
 
-        ``cclom:general_keyword`` ist eine **geteilte Liste**: mehrere
-        Beteiligte -- Redaktion, Crawler, andere Anwendungen -- pflegen sie
-        gemeinsam. Wer sie setzt statt ergaenzt, loescht die Arbeit der
-        anderen, und zwar lautlos.
+        ``cclom:general_keyword`` is a **shared list**: several parties --
+        editors, crawlers, other applications -- maintain it together. Setting
+        it instead of extending it deletes the others' work, and silently.
 
-        Vor dem Zusammenfuehren wird frisch gelesen: dieses Objekt kann
-        veraltet sein, und auf seinem Stand zu mergen wuerde alles
-        ueberschreiben, was inzwischen dazugekommen ist.
+        A fresh read happens before merging: this object may be stale, and
+        merging onto its state would overwrite whatever has been added since.
 
         Note:
-            Zwischen Lesen und Schreiben liegt ein Zeitfenster. edu-sharing
-            bietet dafuer keine Versionspruefung an, ein gleichzeitiger
-            fremder Schreibvorgang kann also trotzdem verlorengehen. Das
-            Fenster ist klein, aber es ist da.
+            There is a window between reading and writing. edu-sharing offers no
+            version check to close it, so a concurrent foreign write can still
+            be lost. The window is small, but it is there.
         """
-        return await self._keywords_aendern(hinzu=keywords, weg=())
+        return await self._change_keywords(add=keywords, remove=())
 
     async def remove_keywords(self, *keywords: str) -> Node:
-        """Entferne Schlagworte und lasse die uebrigen stehen.
+        """Remove keywords and leave the rest in place.
 
-        Unbekannte Schlagworte zu entfernen ist kein Fehler.
+        Removing an unknown keyword is not an error.
         """
-        return await self._keywords_aendern(hinzu=(), weg=keywords)
+        return await self._change_keywords(add=(), remove=keywords)
 
-    async def _keywords_aendern(
-        self, *, hinzu: tuple[str, ...], weg: tuple[str, ...]
+    async def _change_keywords(
+        self, *, add: tuple[str, ...], remove: tuple[str, ...]
     ) -> Node:
-        if not hinzu and not weg:
+        if not add and not remove:
             return self
 
-        frisch = await self._nodes.get(self.id)
-        vorhanden = frisch.keywords
-        entfernen = {k.strip().casefold() for k in weg}
+        fresh = await self._nodes.get(self.id)
+        existing = fresh.keywords
+        dropping = {k.strip().casefold() for k in remove}
 
-        neu = [k for k in vorhanden if k.strip().casefold() not in entfernen]
-        bekannt = {k.strip().casefold() for k in neu}
-        for k in hinzu:
-            if k.strip().casefold() not in bekannt:
-                neu.append(k)
-                bekannt.add(k.strip().casefold())
+        merged = [k for k in existing if k.strip().casefold() not in dropping]
+        known = {k.strip().casefold() for k in merged}
+        for k in add:
+            if k.strip().casefold() not in known:
+                merged.append(k)
+                known.add(k.strip().casefold())
 
-        if neu == vorhanden:
-            return frisch
-        return await frisch.update(properties={KEYWORD_PROPERTY: neu})
+        if merged == existing:
+            return fresh
+        return await fresh.update(properties={KEYWORD_PROPERTY: merged})
 
     async def delete(self, *, recycle: bool = True) -> None:
-        """Loesche den Knoten.
+        """Delete the node.
 
         Args:
-            recycle: ``True`` legt ihn in den Papierkorb. Der Schalter wird
-                immer explizit gesendet, nie der Server-Vorgabe ueberlassen.
+            recycle: ``True`` puts it in the recycle bin. The switch is always
+                sent explicitly, never left to the server default.
 
         Note:
-            Wiederherstellbarkeit ist im Moment des Loeschens nicht
-            nachweisbar -- die Archivsuche antwortet unzuverlaessig. Ein
-            geloeschter Knoten gilt daher als weg.
+            Recoverability cannot be proven at the moment of deletion -- the
+            archive search answers unreliably. A deleted node therefore counts
+            as gone.
         """
         await self._nodes.transport.request(
             "DELETE",
@@ -294,47 +291,47 @@ class Node:
             params={"recycle": "true" if recycle else "false"},
         )
 
-    # --- intern -----------------------------------------------------------
+    # --- Internals --------------------------------------------------------
 
-    def _felder(
+    def _fields(
         self, properties: dict[str, Any] | None, aliases: dict[str, Any]
     ) -> dict[str, list[str]]:
-        felder: dict[str, list[str]] = {
-            p: _als_liste(w) for p, w in (properties or {}).items()
+        fields: dict[str, list[str]] = {
+            p: _as_list(v) for p, v in (properties or {}).items()
         }
-        for name, wert in aliases.items():
-            ziele = WRITE_FIELD_ALIASES.get(name)
-            if ziele is None:
-                bekannt = ", ".join(sorted(WRITE_FIELD_ALIASES))
+        for name, value in aliases.items():
+            targets = WRITE_FIELD_ALIASES.get(name)
+            if targets is None:
+                known = ", ".join(sorted(WRITE_FIELD_ALIASES))
                 raise ValidationError(
-                    f"Unbekanntes Feld {name!r}. Bekannt sind: {bekannt}. "
-                    "Eine Property laesst sich auch direkt angeben: "
-                    "properties={'ccm:...': 'Wert'}."
+                    f"Unknown field {name!r}. Known are: {known}. A property can "
+                    "also be given directly: properties={'ccm:...': 'value'}."
                 )
-            for ziel in ziele:
-                felder[ziel] = _als_liste(wert)
-        return felder
+            for target in targets:
+                fields[target] = _as_list(value)
+        return fields
 
-    def _pruefe(self, erwartet: dict[str, list[str]], *, weg: str) -> None:
-        """Vergleiche den zurueckgelesenen Zustand mit dem Geschriebenen."""
-        verloren = [
-            prop for prop, werte in erwartet.items()
-            if self.get_all(prop) != werte
+    def _check(self, expected: dict[str, list[str]], *, route: str) -> None:
+        """Compare the read-back state against what was written."""
+        lost = [
+            prop for prop, values in expected.items()
+            if self.get_all(prop) != values
         ]
-        if not verloren:
+        if not lost:
             return
 
-        ausweg = (
-            "node.set_property(...) umgeht die Filterung des Metadatensatzes."
-            if weg == "update"
-            else "Pruefe node.can_write -- ohne Schreibrecht bleibt auch dieser Weg wirkungslos."
+        way_out = (
+            "node.set_property(...) bypasses the metadata set's filtering."
+            if route == "update"
+            else "Check node.can_write -- without write permission this route is "
+                 "just as ineffective."
         )
         raise SilentDropError(
-            f"Nicht gespeichert: {', '.join(verloren)} (HTTP 200, nach der "
-            f"Rueckleseprobe abwesend oder abweichend). Zwei uebliche Ursachen: "
-            f"die Property ist im Metadatensatz dieser Instanz nicht vorgesehen, "
-            f"oder das Schreibrecht fehlt. {ausweg}",
-            dropped=verloren,
+            f"Not stored: {', '.join(lost)} (HTTP 200, absent or different after "
+            f"reading back). Two usual causes: the property is not provided for "
+            f"in this instance's metadata set, or the write permission is "
+            f"missing. {way_out}",
+            dropped=lost,
             url=self.url,
         )
 
@@ -343,7 +340,7 @@ class Node:
 
 
 class Nodes:
-    """Zugriff auf Knoten eines Repositoriums."""
+    """Access to a repository's nodes."""
 
     def __init__(self, transport: Transport) -> None:
         self.transport = transport
@@ -353,13 +350,13 @@ class Nodes:
         return self.transport.repository_url
 
     async def get(self, node_id: str) -> Node:
-        """Lade einen Knoten mit allen Properties."""
-        antwort = await self.transport.json(
+        """Load a node with all its properties."""
+        response = await self.transport.json(
             "GET",
             f"/node/v1/nodes/-home-/{node_id}/metadata",
             params={"propertyFilter": "-all-"},
         )
-        return Node(antwort.get("node") or {}, self)
+        return Node(response.get("node") or {}, self)
 
     async def create(
         self,
@@ -371,39 +368,39 @@ class Nodes:
         rename_if_exists: bool = True,
         **aliases: Any,
     ) -> Node:
-        """Lege einen Knoten unter ``parent_id`` an.
+        """Create a node under ``parent_id``.
 
         Args:
-            name: ``cm:name`` -- der Schluessel im Elternknoten. Pflicht, weil
-                das Ergebnis sonst vom Server abhaengt statt vorhersagbar zu sein.
-            type: Knotentyp, ``ccm:io`` fuer Material, ``cm:folder`` fuer Ordner.
-            rename_if_exists: haengt bei Namenskollision einen Zaehler an, statt
-                mit 409 zu scheitern.
-            **aliases: Kurznamen aus ``WRITE_FIELD_ALIASES``.
+            name: ``cm:name`` -- the key within the parent. Mandatory, because
+                otherwise the outcome depends on the server rather than being
+                predictable.
+            type: node type, ``ccm:io`` for material, ``cm:folder`` for folders.
+            rename_if_exists: appends a counter on a name collision instead of
+                failing with 409.
+            **aliases: short names from ``WRITE_FIELD_ALIASES``.
 
         Raises:
-            ValidationError: wenn ``name`` leer ist.
+            ValidationError: when ``name`` is empty.
         """
         if not name or not name.strip():
             raise ValidationError(
-                "Ein Knoten braucht einen name (cm:name) -- er ist der Schluessel "
-                "im Elternknoten."
+                "A node needs a name (cm:name) -- it is the key within the parent."
             )
 
-        platzhalter = Node({}, self)
-        felder = platzhalter._felder(properties, aliases)
-        felder["cm:name"] = [name]
+        placeholder = Node({}, self)
+        fields = placeholder._fields(properties, aliases)
+        fields["cm:name"] = [name]
 
-        antwort = await self.transport.json(
+        response = await self.transport.json(
             "POST",
             f"/node/v1/nodes/-home-/{parent_id}/children",
             params={
                 "type": type,
                 "renameIfExists": "true" if rename_if_exists else "false",
             },
-            json=felder,
+            json=fields,
         )
-        return Node(antwort.get("node") or {}, self)
+        return Node(response.get("node") or {}, self)
 
     def __repr__(self) -> str:
         return f"Nodes({self.repository_url!r})"
