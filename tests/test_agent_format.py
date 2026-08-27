@@ -138,12 +138,12 @@ def test_weggelassene_treffer_werden_benannt():
     zuversichtlich auf einer Teilmenge."""
     ergebnis = SearchResult(hits=[_hit(n) for n in range(50)], total=211)
     text = format_results(ergebnis, max_chars=600)
-    assert "weitere" in text.lower() or "von 211" in text
+    assert "omitted" in text.lower() or "of 211" in text
 
 
 def test_leeres_ergebnis_wird_als_solches_gemeldet():
     text = format_results(SearchResult(hits=[], total=0))
-    assert "keine" in text.lower()
+    assert "no hits" in text.lower()
 
 
 def test_korrekturvorschlaege_erscheinen():
@@ -187,10 +187,10 @@ def test_vorschlaege_nur_wenn_nichts_gefunden_wurde():
     """Live gesehen: der Server liefert 'Meinten Sie photosynthese?' auch bei
     57 Treffern. Im Modellkontext liest sich das wie ein Zweifel am Ergebnis."""
     mit_treffern = SearchResult(hits=[_hit(1)], total=57, suggestions=["photosynthese"])
-    assert "Meinten Sie" not in format_results(mit_treffern)
+    assert "Did you mean" not in format_results(mit_treffern)
 
     ohne = SearchResult(hits=[], total=0, suggestions=["mathematik"])
-    assert "Meinten Sie" in format_results(ohne)
+    assert "Did you mean" in format_results(ohne)
 
 
 def test_labels_lassen_sich_einschraenken():

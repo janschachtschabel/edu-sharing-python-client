@@ -1,14 +1,12 @@
-"""Fehler als Ergebnis statt als Ausnahme.
+"""Errors as results rather than exceptions.
 
-Ein Werkzeug, das ein Sprachmodell aufruft, muss auch im Fehlerfall etwas
-zurueckgeben, mit dem das Modell weiterarbeiten kann. Eine durchgereichte
-Ausnahme beendet stattdessen den Durchlauf -- und das Modell erfaehrt nie, dass
-bloss ein Filter unbekannt war oder ein Knoten nicht existiert. Beides waere
-eine brauchbare Auskunft.
+A tool invoked by a language model must return something usable even when it
+fails. A propagated exception ends the run instead -- and the model never learns
+that merely a filter was unknown, or a node did not exist. Either would have
+been actionable.
 
-Aufgefangen werden **ausschliesslich** Fehler dieser Bibliothek. Ein
-``TypeError`` im eigenen Code ist ein Programmierfehler; ihn in einen
-freundlichen Text zu verwandeln versteckt ihn, statt ihn zu beheben.
+Only errors from **this library** are caught. A ``TypeError`` in your own code
+is a defect; turning it into a friendly message hides it instead of fixing it.
 """
 
 from __future__ import annotations
@@ -24,19 +22,18 @@ __all__ = ["ToolResult", "as_result"]
 
 @dataclass(frozen=True)
 class ToolResult:
-    """Das Ergebnis eines Werkzeugaufrufs -- gelungen oder nicht.
+    """The outcome of a tool call -- successful or not.
 
-    ``text`` ist immer gefuellt: ein Werkzeug braucht in jedem Fall etwas
-    Ausgebbares.
+    ``text`` is always populated: a tool needs something to emit in either case.
     """
 
     ok: bool
     text: str
     data: Any = None
     error: str | None = None
-    #: Der Klassenname des Fehlers, etwa ``"ValidationError"``. Damit kann ein
-    #: Werkzeug unterscheiden, ob eine andere Frage hilft oder die Anmeldung
-    #: fehlt -- ohne den Fehlertext zu zerlegen.
+    #: The error's class name, e.g. ``"ValidationError"``. Lets a tool tell
+    #: "rephrasing might help" from "credentials are missing" without parsing
+    #: the message.
     error_type: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -49,20 +46,19 @@ async def as_result(
     *,
     format: Callable[[Any], str] | None = None,
 ) -> ToolResult:
-    """Fuehre ``awaitable`` aus und verpacke Ausgang wie Fehlschlag.
+    """Run ``awaitable`` and wrap both success and failure.
 
     Args:
-        awaitable: die Arbeit, etwa ``repo.search("...")``.
-        format: macht aus dem Ergebnis den Text. Ohne Angabe wird ``str()``
-            verwendet.
+        awaitable: the work, e.g. ``repo.search("...")``.
+        format: turns the result into text. Defaults to ``str()``.
 
     Returns:
-        Ein ``ToolResult``. Bei einem ``EduSharingError`` ist ``ok`` falsch und
-        ``error`` traegt die Meldung -- **ohne** den Java-Stacktrace, denn der
-        Text landet im Modellkontext und moeglicherweise in einer Oberflaeche.
+        A ``ToolResult``. On an ``EduSharingError``, ``ok`` is false and
+        ``error`` carries the message -- **without** the Java stack trace, since
+        the text goes into a model context and possibly into a user interface.
 
     Raises:
-        Alles, was kein ``EduSharingError`` ist. Programmierfehler bleiben laut.
+        Anything that is not an ``EduSharingError``. Defects stay loud.
     """
     try:
         ergebnis = await awaitable

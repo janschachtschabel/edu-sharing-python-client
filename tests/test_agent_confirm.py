@@ -71,7 +71,7 @@ async def test_unveraenderte_felder_werden_erkannt():
     server = Server({"cm:title": ["Alter Titel"], "cclom:title": ["Alter Titel"]})
     plan = await plan_update(await _node(server), title="Alter Titel")
     assert plan.has_changes is False
-    assert "keine" in plan.describe().lower()
+    assert "no change" in plan.describe().lower()
 
 
 async def test_halb_gesetzter_titel_ist_eine_aenderung():
@@ -105,7 +105,7 @@ async def test_fehlendes_schreibrecht_steht_im_plan():
     """Besser vorher sichtbar als nach einem stillen Fehlschlag."""
     server = Server(access=("Read",))
     plan = await plan_update(await _node(server), title="Neu")
-    assert "recht" in plan.describe().lower()
+    assert "permission" in plan.describe().lower()
     assert plan.can_write is False
 
 

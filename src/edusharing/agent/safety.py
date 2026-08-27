@@ -1,22 +1,21 @@
-"""Pruefen, ob eine URL abgerufen werden darf.
+"""Deciding whether a URL may be fetched.
 
-Ein Dienst, der Repositoriums-Inhalte an ein Sprachmodell weiterreicht, holt
-frueher oder spaeter eine URL, die aus Fremddaten stammt: ``ccm:wwwurl`` eines
-beliebigen Datensatzes, ein Link aus einem Beschreibungstext. Zeigt die auf
-``localhost`` oder in ein internes Netz, ruft der Dienst sie mit **seinen**
-Netzrechten ab -- und wird zum Werkzeug (Server-Side Request Forgery).
+A service that passes repository content to a language model will sooner or
+later encounter a URL that came from foreign data: the ``ccm:wwwurl`` of some
+record, a link inside a description. If it points at ``localhost`` or into an
+internal network, the service fetches it with **its own** network privileges --
+and becomes the instrument (server-side request forgery).
 
-Geprueft wird ohne Netzzugriff: Schema, Form, und bei IP-Literalen der Bereich.
-Die Bereichspruefung nutzt ``ipaddress`` aus der Standardbibliothek statt
-selbstgebauter Praefixvergleiche -- die sind die uebliche Fehlerquelle
-(``172.16.0.0/12`` reicht nur bis ``172.31``, nicht bis ``172.255``).
+Checking happens without network access: scheme, shape, and for IP literals the
+range. The range check uses ``ipaddress`` from the standard library rather than
+hand-rolled prefix comparisons -- those are the usual source of mistakes
+(``172.16.0.0/12`` reaches only to ``172.31``, not to ``172.255``).
 
-**Grenze, die eine Anwendung kennen muss:** ein *Name* wird hier nicht
-aufgeloest. ``interner-dienst.example.com`` kann auf ``10.0.0.5`` zeigen und
-kommt trotzdem durch. Wer das ausschliessen muss, prueft die Adresse nach der
-Aufloesung erneut oder setzt einen ausgehenden Proxy davor. Eine Aufloesung an
-dieser Stelle waere ohnehin nur Scheinsicherheit: zwischen Pruefung und Abruf
-kann sich die Antwort aendern (DNS-Rebinding).
+**A limit callers must know about:** a *name* is not resolved here.
+``internal-service.example.com`` may point to ``10.0.0.5`` and still pass. If
+you must rule that out, re-check the address after resolution or put an
+outbound proxy in front. Resolving here would be security theatre anyway: the
+answer can change between check and fetch (DNS rebinding).
 """
 
 from __future__ import annotations
@@ -28,80 +27,80 @@ from ..errors import EduSharingError
 
 __all__ = ["UnsafeUrlError", "is_safe_url", "check_url"]
 
-ERLAUBTE_SCHEMATA = frozenset({"http", "https"})
+ALLOWED_SCHEMES = frozenset({"http", "https"})
 
-#: Namen und Endungen, die per Konvention nicht ins oeffentliche Netz zeigen.
-#: Ein IP-Literal faengt bereits die Bereichspruefung ab; das hier greift fuer
-#: Namen, die gar nicht erst aufgeloest werden sollen.
-GESPERRTE_NAMEN = frozenset({"localhost"})
-GESPERRTE_ENDUNGEN = (".local", ".internal", ".localhost", ".home.arpa")
+#: Names and suffixes that by convention never point at the public internet.
+#: An IP literal is already caught by the range check; this covers names that
+#: should not even be resolved.
+BLOCKED_NAMES = frozenset({"localhost"})
+BLOCKED_SUFFIXES = (".local", ".internal", ".localhost", ".home.arpa")
 
 
 class UnsafeUrlError(EduSharingError):
-    """Die URL darf nicht abgerufen werden."""
+    """The URL must not be fetched."""
 
 
-def _grund(url: str) -> str | None:
-    """Der Grund, warum ``url`` nicht abgerufen werden darf -- oder ``None``."""
+def _reason(url: str) -> str | None:
+    """Why ``url`` must not be fetched -- or ``None`` if it may."""
     if not url or not url.strip():
-        return "leere Adresse"
+        return "empty address"
 
     try:
-        teile = urlsplit(url.strip())
+        parts = urlsplit(url.strip())
     except ValueError as exc:
-        return f"nicht lesbar ({exc})"
+        return f"unparseable ({exc})"
 
-    if teile.scheme.lower() not in ERLAUBTE_SCHEMATA:
-        return f"Schema {teile.scheme or '(keines)'!r} -- erlaubt sind nur http und https"
+    if parts.scheme.lower() not in ALLOWED_SCHEMES:
+        return f"scheme {parts.scheme or '(none)'!r} -- only http and https are allowed"
 
-    # Zugangsdaten in der URL sind ein bekannter Weg, Pruefungen zu verwirren:
-    # manche Parser lesen den Host anders als der spaetere Abruf.
-    if "@" in teile.netloc:
-        return "die Adresse enthaelt Zugangsdaten (user:pass@host)"
+    # Credentials in the URL are a known way to confuse checks: some parsers
+    # read the host differently than the later fetch does.
+    if "@" in parts.netloc:
+        return "the address embeds credentials (user:pass@host)"
 
     try:
-        host = teile.hostname
+        host = parts.hostname
     except ValueError as exc:
-        return f"Host nicht lesbar ({exc})"
+        return f"host unparseable ({exc})"
     if not host:
-        return "kein Host"
+        return "no host"
 
     host = host.lower().rstrip(".")
-    if host in GESPERRTE_NAMEN or host.endswith(GESPERRTE_ENDUNGEN):
-        return f"{host!r} ist ein lokaler Name"
+    if host in BLOCKED_NAMES or host.endswith(BLOCKED_SUFFIXES):
+        return f"{host!r} is a local name"
 
     try:
-        adresse = ipaddress.ip_address(host)
+        address = ipaddress.ip_address(host)
     except ValueError:
-        # Kein IP-Literal, sondern ein Name -- siehe Modul-Docstring.
+        # Not an IP literal but a name -- see the module docstring.
         return None
 
-    if adresse.is_loopback:
-        return f"{host} ist eine lokale Adresse (Loopback)"
-    if adresse.is_link_local:
-        # 169.254.169.254 ist der Metadaten-Dienst der meisten Cloud-Anbieter
-        # und damit das lohnendste einzelne Ziel eines SSRF-Angriffs.
-        return f"{host} ist eine Link-Local-Adresse"
-    if adresse.is_private or adresse.is_reserved or adresse.is_multicast:
-        return f"{host} ist eine private oder reservierte Adresse"
+    if address.is_loopback:
+        return f"{host} is a local (loopback) address"
+    if address.is_link_local:
+        # 169.254.169.254 is the metadata service of most cloud providers, and
+        # therefore the single most rewarding target of an SSRF attack.
+        return f"{host} is a link-local address"
+    if address.is_private or address.is_reserved or address.is_multicast:
+        return f"{host} is a private or reserved address"
     return None
 
 
 def is_safe_url(url: str) -> bool:
-    """Ob ``url`` abgerufen werden darf.
+    """Whether ``url`` may be fetched.
 
-    Im Zweifel ``False``: eine unlesbare Adresse gilt als unsicher.
+    ``False`` when in doubt: an unparseable address counts as unsafe.
     """
-    return _grund(url) is None
+    return _reason(url) is None
 
 
 def check_url(url: str) -> str:
-    """Gib ``url`` zurueck, wenn sie abgerufen werden darf.
+    """Return ``url`` if it may be fetched.
 
     Raises:
-        UnsafeUrlError: sonst, mit dem Grund in der Meldung.
+        UnsafeUrlError: otherwise, with the reason in the message.
     """
-    grund = _grund(url)
-    if grund is not None:
-        raise UnsafeUrlError(f"Adresse nicht abrufbar: {url!r} -- {grund}.")
+    reason = _reason(url)
+    if reason is not None:
+        raise UnsafeUrlError(f"Address not fetchable: {url!r} -- {reason}.")
     return url

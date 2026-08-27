@@ -1,25 +1,25 @@
-"""Modellwahl und Request-Bau der b-api -- die Regeln, ohne das Netz.
+"""Model choice and request shape for the b-api -- the rules, without the network.
 
-Getrennt vom Client, weil hier das eigentliche Wissen liegt: welche
-Modellfamilie welchen Body-Aufbau verlangt, und welches Modell gerade zu
-nehmen ist. Als reine Funktionen ist beides ohne Netzzugriff pruefbar.
+Separate from the client because this is where the actual knowledge sits: which
+model family requires which body layout, and which model to use right now. As
+pure functions both are testable without network access.
 
-Die Eigenheiten sind nicht optional. Alle sind gegen die b-api gemessen:
+The quirks are not optional. All were measured against the b-api:
 
-* **GPT-5- und o-Serie** brauchen ``max_completion_tokens`` statt
-  ``max_tokens`` und lehnen ein abweichendes ``temperature`` ab -- sonst 400.
-* **Qwen3** wird ueber ``chat_template_kwargs`` das Denken abgeschaltet, was
-  Faktor 7 bis 9 ausmacht (17,33 s gegen 1,96 s bei derselben Aufgabe).
-  ``/no_think`` im Prompt wirkt **nicht**, das ist Qwen2.5-Syntax.
-* **Mistral lehnt dasselbe Flag mit 400 ab**
-  (``chat_template is not supported for Mistral tokenizers``). Wer es generisch
-  mitsendet, faellt genau hier hin.
-* **Reasoning-Modelle zaehlen ihr Denken mit.** Ist das Budget aufgebraucht,
-  kommt ``content: null`` und der Text steht in ``reasoning``.
+* **The GPT-5 and o series** need ``max_completion_tokens`` instead of
+  ``max_tokens`` and reject a deviating ``temperature`` -- otherwise 400.
+* **Qwen3** gets thinking switched off through ``chat_template_kwargs``, worth
+  a factor of 7 to 9 (17.33 s versus 1.96 s on the same task). ``/no_think`` in
+  the prompt does **not** work -- that is Qwen2.5 syntax.
+* **Mistral rejects the very same flag with 400**
+  (``chat_template is not supported for Mistral tokenizers``). Sending it
+  generically is exactly where you fall over.
+* **Reasoning models count their thinking.** Once the budget is spent,
+  ``content`` is null and the text sits in ``reasoning``.
 
-``demand`` ist die einzige Auslastungsinformation, die es gibt, und sie sagt
-die Wartezeit gut vorher: gemessen unter 0,6 s bei 0 und 30 bis 41 s bei 5.
-Die Skala ist von GWDG nicht dokumentiert und nach oben offen.
+``demand`` is the only load information available, and it predicts waiting time
+well: measured below 0.6 s at 0 and 30 to 41 s at 5. The scale is undocumented
+by GWDG and open-ended.
 """
 
 from __future__ import annotations
@@ -29,20 +29,20 @@ from typing import Any
 
 __all__ = ["Model", "pick_model", "rank_models", "build_body", "read_answer"]
 
-#: Modellfamilien mit abweichendem Body-Aufbau.
-_MAX_COMPLETION_PRAEFIXE = ("gpt-5", "o1", "o3", "o4")
-_THINKING_PRAEFIXE = ("qwen3",)
-_KEIN_CHAT_TEMPLATE = ("mistral",)
+#: Model families with a deviating body layout.
+_MAX_COMPLETION_PREFIXES = ("gpt-5", "o1", "o3", "o4")
+_THINKING_PREFIXES = ("qwen3",)
+_NO_CHAT_TEMPLATE = ("mistral",)
 
 DEFAULT_MAX_TOKENS = 1000
 
 
 @dataclass(frozen=True)
 class Model:
-    """Ein Modell, wie ``/models`` es meldet."""
+    """A model as ``/models`` reports it."""
 
     id: str
-    #: Auslastung. ``None``, wenn der Provider sie nicht liefert (OpenAI).
+    #: Load. ``None`` when the provider does not report it (OpenAI).
     demand: int | None = None
     status: str | None = None
     input: tuple[str, ...] = ()
@@ -52,18 +52,18 @@ class Model:
 
     @property
     def is_ready(self) -> bool:
-        """Ob das Modell benutzbar gemeldet wird.
+        """Whether the model reports itself as usable.
 
-        Ein Provider ohne ``status`` (OpenAI) gilt als bereit -- die Angabe
-        fehlt dort, sie ist nicht negativ.
+        A provider without ``status`` (OpenAI) counts as ready -- the field is
+        absent there, not negative.
         """
         return self.status is None or self.status == "ready"
 
     @property
     def can_chat(self) -> bool:
-        """Ob es Text ausgibt.
+        """Whether it emits text.
 
-        Ein Embedding- oder Audio-Modell an ``/chat/completions`` antwortet mit
+        An embedding or audio model at ``/chat/completions`` answers with
         ``404 This is not a chat model``.
         """
         return not self.output or "text" in self.output
@@ -82,52 +82,52 @@ class Model:
 
 
 def rank_models(models: list[Model]) -> list[Model]:
-    """Alle brauchbaren Modelle, das am wenigsten ausgelastete zuerst.
+    """All usable models, least loaded first.
 
-    Gebraucht wird die ganze Reihenfolge, nicht nur der Erste: gemessen meldet
-    ``apertus-70b-instruct-2509`` ``status: ready`` und ``demand: 0``,
-    antwortet aber mit ``503 Model pricing unavailable``. Dass ein Modell
-    untauglich ist, steht in keiner Modellliste -- man merkt es erst beim
-    Fragen, und dann braucht man einen Nachfolger.
+    The whole ranking is needed, not just the first entry: measured,
+    ``apertus-70b-instruct-2509`` reports ``status: ready`` and ``demand: 0``
+    yet answers with ``503 Model pricing unavailable``. That a model is unusable
+    appears in no model list -- you find out by asking, and then you need a
+    successor.
     """
-    brauchbar = [m for m in models if m.is_ready and m.can_chat]
-    # demand None (Provider ohne Auslastungsangabe) hinten einsortieren, damit
-    # ein gemessener Wert einer fehlenden Angabe vorgezogen wird.
-    return sorted(brauchbar, key=lambda m: (m.demand if m.demand is not None else 99, m.id))
+    usable = [m for m in models if m.is_ready and m.can_chat]
+    # Sort demand None (providers without load info) last, so a measured value
+    # is preferred over a missing one.
+    return sorted(usable, key=lambda m: (m.demand if m.demand is not None else 99, m.id))
 
 
 def pick_model(models: list[Model], *, prefer: str | None = None) -> Model:
-    """Waehle ein Modell -- das am wenigsten ausgelastete, das antworten kann.
+    """Choose a model -- the least loaded one that can answer.
 
     Args:
-        prefer: gewuenschte Modell-ID. Ist sie nicht in der Liste, wird das
-            gemeldet statt still auf ein anderes Modell zu wechseln. Modell-IDs
-            aendern sich ohne Ankuendigung -- aus ``deepseek-v4-flash`` wurde
-            binnen neun Tagen ``deepseek-v4-flash-0731``, der alte Name
-            antwortet seither mit 503. Ein stiller Wechsel waere schlimmer als
-            ein Fehler: die Antwort kaeme von einem anderen Modell, ohne dass
-            es jemand merkt.
+        prefer: the wanted model id. If it is not in the list, that is reported
+            rather than silently switching to another model. Model ids change
+            without notice -- ``deepseek-v4-flash`` became
+            ``deepseek-v4-flash-0731`` within nine days, and the old name has
+            answered 503 ever since. A silent switch would be worse than an
+            error: the answer would come from a different model without anyone
+            noticing.
 
     Raises:
-        ValueError: wenn ``prefer`` fehlt oder kein Modell brauchbar ist.
+        ValueError: when ``prefer`` is absent or no model is usable.
     """
     if prefer:
         for m in models:
             if m.id == prefer:
                 return m
-        verfuegbar = ", ".join(m.id for m in models) or "(keine)"
+        available = ", ".join(m.id for m in models) or "(none)"
         raise ValueError(
-            f"Modell {prefer!r} gibt es hier nicht. Verfuegbar: {verfuegbar}. "
-            "Modell-IDs aendern sich ohne Ankuendigung -- vor einem festen "
-            "Eintrag gegen /models pruefen."
+            f"Model {prefer!r} does not exist here. Available: {available}. "
+            "Model ids change without notice -- check against /models before "
+            "hard-coding one."
         )
 
-    rangfolge = rank_models(models)
-    if not rangfolge:
+    ranking = rank_models(models)
+    if not ranking:
         raise ValueError(
-            f"Kein antwortbereites Textmodell unter {len(models)} gemeldeten."
+            f"No ready text model among the {len(models)} reported."
         )
-    return rangfolge[0]
+    return ranking[0]
 
 
 def build_body(
@@ -139,49 +139,49 @@ def build_body(
     thinking: bool = False,
     stream: bool = False,
 ) -> dict[str, Any]:
-    """Baue den Request-Body fuer die Modellfamilie von ``model``.
+    """Build the request body for the model family of ``model``.
 
     Args:
-        thinking: ``True`` laesst Qwen3 denken. Vorgabe ist ``False``, weil das
-            Faktor 7 bis 9 ausmacht und fuer Extraktion oder Klassifikation
-            nichts bringt.
+        thinking: ``True`` lets Qwen3 think. The default is ``False`` because
+            it costs a factor of 7 to 9 and buys nothing for extraction or
+            classification.
     """
-    kennung = model.lower()
+    key = model.lower()
     body: dict[str, Any] = {"model": model, "messages": messages}
 
-    if kennung.startswith(_MAX_COMPLETION_PRAEFIXE):
+    if key.startswith(_MAX_COMPLETION_PREFIXES):
         body["max_completion_tokens"] = max_tokens
-        # temperature bewusst weggelassen -- diese Familie lehnt einen
-        # abweichenden Wert mit 400 ab.
+        # temperature deliberately omitted -- this family rejects a deviating
+        # value with 400.
     else:
         body["max_tokens"] = max_tokens
         body["temperature"] = temperature
 
     if (
         not thinking
-        and kennung.startswith(_THINKING_PRAEFIXE)
-        and not any(k in kennung for k in _KEIN_CHAT_TEMPLATE)
+        and key.startswith(_THINKING_PREFIXES)
+        and not any(k in key for k in _NO_CHAT_TEMPLATE)
     ):
         body["chat_template_kwargs"] = {"enable_thinking": False}
 
     if stream:
         body["stream"] = True
-        # Ohne include_usage fehlt der Verbrauch im letzten Ereignis, und die
-        # Wartezeit laesst sich nicht von der Generierzeit trennen.
+        # Without include_usage the final event carries no usage, and waiting
+        # time cannot be told apart from generation time.
         body["stream_options"] = {"include_usage": True}
 
     return body
 
 
 def read_answer(response: dict[str, Any]) -> str:
-    """Lies den Antworttext.
+    """Read the answer text.
 
-    Prueft ``content`` **und** ``reasoning``: ist das Token-Budget fuer das
-    Denken draufgegangen, kommt ``content: null`` und der Text steht im
-    zweiten Feld. Wer nur ``content`` liest, bekommt dort nichts.
+    Checks ``content`` **and** ``reasoning``: if the token budget went into
+    thinking, ``content`` is null and the text sits in the second field. Reading
+    only ``content`` yields nothing there.
     """
-    auswahl = response.get("choices") or []
-    if not auswahl:
+    choices = response.get("choices") or []
+    if not choices:
         return ""
-    nachricht = auswahl[0].get("message") or {}
-    return str(nachricht.get("content") or nachricht.get("reasoning") or "")
+    message = choices[0].get("message") or {}
+    return str(message.get("content") or message.get("reasoning") or "")

@@ -1,14 +1,14 @@
-"""Bausteine fuer KI-Anwendungen auf dieser Bibliothek.
+"""Building blocks for AI applications on top of this library.
 
-Framework-neutral: kein MCP-, kein LangChain-Import. Was hier liegt, sind die
-Teile, die ein Dienst braucht, der Repositoriums-Inhalte an ein Sprachmodell
-weiterreicht -- und die ein reiner API-Client nicht mitbringt.
+Framework-neutral: no MCP, no LangChain import. What lives here are the parts a
+service needs when it passes repository content to a language model -- and that
+a plain API client does not bring along.
 
-* ``safety``   -- darf diese URL abgerufen werden? (SSRF)
-* ``sanitize`` -- Fremdinhalt fuer den Modellkontext aufbereiten
-* ``format``   -- Treffer kompakt, mit Budget, ohne die Fundstelle zu verlieren
-* ``result``   -- Fehler als Ergebnis statt als Ausnahme
-* ``confirm``  -- erst zeigen, was passieren wuerde, dann tun
+* ``safety``   -- may this URL be fetched? (SSRF)
+* ``sanitize`` -- prepare foreign content for a model context
+* ``format``   -- hits, compact, budgeted, without losing the citation
+* ``result``   -- errors as results rather than exceptions
+* ``confirm``  -- show what would happen, then do it
 """
 
 from .confirm import ChangePlan, plan_update
@@ -18,22 +18,22 @@ from .safety import UnsafeUrlError, check_url, is_safe_url
 from .sanitize import UNTRUSTED_MARKER, as_untrusted, sanitize_text
 
 __all__ = [
-    # URLs pruefen
+    # URL checking
     "is_safe_url",
     "check_url",
     "UnsafeUrlError",
-    # Fremdinhalt
+    # Foreign content
     "sanitize_text",
     "as_untrusted",
     "UNTRUSTED_MARKER",
-    # Formatierung
+    # Rendering
     "format_hit",
     "format_results",
     "cap_text",
-    # Werkzeug-Ergebnisse
+    # Tool results
     "ToolResult",
     "as_result",
-    # Vorlegen statt ausfuehren
+    # Present before executing
     "ChangePlan",
     "plan_update",
 ]

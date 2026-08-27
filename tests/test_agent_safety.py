@@ -108,4 +108,4 @@ def test_meldung_nennt_die_adresse_und_den_grund():
         check_url("http://127.0.0.1/admin")
     text = str(info.value)
     assert "127.0.0.1" in text
-    assert "lokal" in text.lower() or "privat" in text.lower()
+    assert "local" in text.lower() or "private" in text.lower()

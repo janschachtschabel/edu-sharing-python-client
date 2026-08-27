@@ -1,21 +1,20 @@
-"""Treffer fuer den Modellkontext aufbereiten.
+"""Rendering hits for a model context.
 
-Zwei Anforderungen, die sich widersprechen: der Kontext ist begrenzt, und
-``id`` und ``url`` duerfen auf keinen Fall wegfallen. Genau die verliert ein
-Sprachmodell beim Zusammenfassen als Erstes, und ohne sie kann niemand auf
-einen Treffer zurueckkommen -- eine Antwort ohne Fundstelle ist fuer eine
-Redaktion wertlos.
+Two requirements pull against each other: the context is limited, and ``id``
+and ``url`` must not fall away under any circumstance. Those are exactly what a
+language model drops first when summarising, and without them nobody can get
+back to a hit -- an answer without a citation is worthless to an editorial team.
 
-Deshalb ist die Reihenfolge beim Kuerzen festgelegt: **gekuerzt wird die
-Beschreibung, nie die Rueckverweise.**
+Hence the truncation order is fixed: **the description is shortened, never the
+back-references.**
 
-Budgetiert wird in **Zeichen**, nicht in Token. Zeichen sind exakt zaehlbar;
-eine Token-Schaetzung ohne den Tokenizer des Zielmodells waere geraten und
-haette die Genauigkeit nur vorgetaeuscht. Als grobe Umrechnung fuer deutsche
-Texte: rund 3 bis 4 Zeichen je Token.
+Budgets are counted in **characters**, not tokens. Characters are exactly
+countable; a token estimate without the target model's tokenizer would be a
+guess dressed up as precision. As a rough conversion for German text: about 3
+to 4 characters per token.
 
-Ausserdem laeuft aller Fremdtext durch ``sanitize`` -- Titel und Beschreibungen
-schreiben beliebige Personen.
+All foreign text passes through ``sanitize`` -- titles and descriptions are
+written by arbitrary people.
 """
 
 from __future__ import annotations
@@ -26,43 +25,42 @@ from .sanitize import sanitize_text
 __all__ = ["cap_text", "format_hit", "format_results", "DEFAULT_HIT_CHARS",
            "DEFAULT_RESULT_CHARS"]
 
-#: Zeichenbudget je Treffer, wenn nichts anderes gesagt wird.
+#: Character budget per hit unless stated otherwise.
 DEFAULT_HIT_CHARS = 400
 
-#: Zeichenbudget einer ganzen Ergebnisliste.
+#: Character budget for a whole result list.
 DEFAULT_RESULT_CHARS = 4000
 
-_KAPPUNGSZEICHEN = "…"
+_ELLIPSIS = "…"
 
 
-def cap_text(text: str | None, max_chars: int, *, marker: str = _KAPPUNGSZEICHEN) -> str:
-    """Kuerze ``text`` auf hoechstens ``max_chars`` Zeichen.
+def cap_text(text: str | None, max_chars: int, *, marker: str = _ELLIPSIS) -> str:
+    """Shorten ``text`` to at most ``max_chars`` characters.
 
-    Gekuerzt wird an der letzten Wortgrenze davor -- ein mitten im Wort
-    abgeschnittener Text liest sich wie ein Tippfehler. Die Kuerzung ist am
-    Markierungszeichen erkennbar: ein stillschweigend abgeschnittener Text
-    sieht aus wie ein vollstaendiger, und ein Modell zitiert ihn als solchen.
+    Cuts at the last word boundary before the limit -- text severed mid-word
+    reads like a typo. The truncation is visible through the marker: text cut
+    silently looks complete, and a model will quote it as such.
 
     Raises:
-        ValueError: bei einem Budget kleiner als 1.
+        ValueError: for a budget below 1.
     """
     if max_chars < 1:
-        raise ValueError(f"max_chars muss mindestens 1 sein, war {max_chars}.")
+        raise ValueError(f"max_chars must be at least 1, was {max_chars}.")
     if not text:
         return ""
     if len(text) <= max_chars:
         return text
 
-    platz = max_chars - len(marker)
-    if platz <= 0:
+    room = max_chars - len(marker)
+    if room <= 0:
         return marker[:max_chars]
 
-    rumpf = text[:platz]
-    letzte_luecke = rumpf.rfind(" ")
-    # Nur an der Wortgrenze schneiden, wenn dabei nicht fast alles wegfaellt.
-    if letzte_luecke > platz // 2:
-        rumpf = rumpf[:letzte_luecke]
-    return rumpf.rstrip() + marker
+    body = text[:room]
+    last_space = body.rfind(" ")
+    # Only cut at the word boundary when that does not throw away nearly all.
+    if last_space > room // 2:
+        body = body[:last_space]
+    return body.rstrip() + marker
 
 
 def format_hit(
@@ -71,44 +69,44 @@ def format_hit(
     max_chars: int = DEFAULT_HIT_CHARS,
     label_properties: list[str] | None = None,
 ) -> str:
-    """Ein Treffer als kompakter Text.
+    """One hit as compact text.
 
-    Titel und Fundstelle stehen immer; die Beschreibung fuellt den Rest des
-    Budgets und faellt notfalls ganz weg.
+    Title and citation always appear; the description fills whatever budget is
+    left and is dropped entirely if there is none.
 
     Args:
-        label_properties: auf welche Vokabularfelder die Labels beschraenkt
-            werden, etwa ``["ccm:taxonid"]``. Ohne Angabe kommen alle --
-            welche zaehlen, entscheidet der Metadatensatz der Instanz und
-            nicht diese Bibliothek. In der Praxis lohnt die Einschraenkung:
-            ``ccm:containsAdvertisement`` liefert ein "nein", das ohne sein
-            Feld gelesen nur verwirrt.
+        label_properties: which vocabulary fields the labels are limited to,
+            e.g. ``["ccm:taxonid"]``. Without it all of them appear -- which
+            ones matter is decided by the instance's metadata set, not by this
+            library. In practice the restriction pays off:
+            ``ccm:containsAdvertisement`` yields a "nein" that only confuses
+            when read without its field name.
     """
-    titel = sanitize_text(hit.title) or "(ohne Titel)"
-    # Der Rueckverweis wird nie gekuerzt -- er ist der Zweck der Ausgabe.
-    kopf = f"{titel}\n  id: {hit.id}\n  url: {hit.url}"
+    title = sanitize_text(hit.title) or "(untitled)"
+    # The citation is never shortened -- it is the point of the output.
+    head = f"{title}\n  id: {hit.id}\n  url: {hit.url}"
 
-    # "null" kommt live als String vor -- ihn dem Modell als Fachangabe
-    # vorzusetzen waere schlicht falsch.
+    # "null" occurs as a literal string in live data -- presenting it to the
+    # model as a subject would simply be wrong.
     labels = [
-        bereinigt
-        for schluessel, werte in (hit.raw.get("properties") or {}).items()
-        if schluessel.endswith("_DISPLAYNAME")
+        cleaned
+        for key, values in (hit.raw.get("properties") or {}).items()
+        if key.endswith("_DISPLAYNAME")
         and (label_properties is None
-             or schluessel[: -len("_DISPLAYNAME")] in label_properties)
-        for w in (werte if isinstance(werte, list) else [werte])
-        if (bereinigt := sanitize_text(str(w or "")).strip())
-        and bereinigt.lower() not in ("null", "none")
+             or key[: -len("_DISPLAYNAME")] in label_properties)
+        for v in (values if isinstance(values, list) else [values])
+        if (cleaned := sanitize_text(str(v or "")).strip())
+        and cleaned.lower() not in ("null", "none")
     ]
     if labels:
-        zeile = f"\n  {', '.join(dict.fromkeys(labels))}"
-        if len(kopf) + len(zeile) <= max_chars:
-            kopf += zeile
+        line = f"\n  {', '.join(dict.fromkeys(labels))}"
+        if len(head) + len(line) <= max_chars:
+            head += line
 
-    rest = max_chars - len(kopf) - len("\n  ")
-    if hit.description and rest > 20:
-        kopf += "\n  " + cap_text(sanitize_text(hit.description), rest)
-    return kopf
+    remaining = max_chars - len(head) - len("\n  ")
+    if hit.description and remaining > 20:
+        head += "\n  " + cap_text(sanitize_text(hit.description), remaining)
+    return head
 
 
 def format_results(
@@ -117,49 +115,49 @@ def format_results(
     max_chars: int = DEFAULT_RESULT_CHARS,
     hit_chars: int = DEFAULT_HIT_CHARS,
 ) -> str:
-    """Eine Ergebnisliste als Text fuer den Modellkontext.
+    """A result list as text for a model context.
 
-    Enthaelt neben den Treffern auch das, was ein Modell sonst nicht wissen
-    kann: wie viele Treffer es insgesamt gibt, wie viele davon hier stehen, ob
-    ein Filter nicht aufgeloest werden konnte und ob eine Teilabfrage
-    ausgefallen ist. All das aendert, wie belastbar eine Antwort ist.
+    Besides the hits this carries what a model cannot otherwise know: how many
+    hits exist in total, how many of them appear here, whether a filter could
+    not be resolved, and whether a sub-query failed. All of that changes how
+    much an answer can be relied upon.
     """
-    zeilen: list[str] = []
+    lines: list[str] = []
 
     if result.total:
-        vermerk = " (Untergrenze)" if result.total_is_lower_bound else ""
-        zeilen.append(f"{result.total} Treffer{vermerk}.")
+        note = " (lower bound)" if result.total_is_lower_bound else ""
+        lines.append(f"{result.total} hits{note}.")
     else:
-        zeilen.append("Keine Treffer.")
+        lines.append("No hits.")
 
-    for offen in result.unresolved:
-        zeilen.append(f"! Filter nicht aufgeloest: {offen}")
-    for warnung in result.warnings:
-        zeilen.append(f"! {sanitize_text(warnung)}")
-    # Nur bei leerem Ergebnis: der Server liefert Vorschlaege auch bei 57
-    # Treffern, und im Modellkontext liest sich das wie ein Zweifel am Ergebnis.
+    for unresolved in result.unresolved:
+        lines.append(f"! Filter not resolved: {unresolved}")
+    for warning in result.warnings:
+        lines.append(f"! {sanitize_text(warning)}")
+    # Only when the result is empty: the server also returns suggestions
+    # alongside 57 hits, and in a model context that reads as doubt.
     if result.suggestions and not result.hits:
-        zeilen.append(f"Meinten Sie: {', '.join(sanitize_text(s) for s in result.suggestions)}?")
+        lines.append(f"Did you mean: {', '.join(sanitize_text(s) for s in result.suggestions)}?")
 
-    kopf = "\n".join(zeilen)
-    verbleibend = max_chars - len(kopf)
+    head = "\n".join(lines)
+    remaining = max_chars - len(head)
 
-    gezeigt = 0
-    bloecke: list[str] = []
+    shown = 0
+    blocks: list[str] = []
     for hit in result.hits:
         block = format_hit(hit, max_chars=hit_chars)
-        # Platz fuer den Hinweis auf Weggelassenes freihalten, sonst faellt
-        # ausgerechnet er dem Budget zum Opfer.
-        if len(block) + 2 > verbleibend - 40:
+        # Keep room for the note about omitted hits, otherwise that note is
+        # exactly what the budget eats.
+        if len(block) + 2 > remaining - 40:
             break
-        bloecke.append(block)
-        verbleibend -= len(block) + 2
-        gezeigt += 1
+        blocks.append(block)
+        remaining -= len(block) + 2
+        shown += 1
 
-    text = kopf
-    if bloecke:
-        text += "\n\n" + "\n\n".join(bloecke)
-    if gezeigt < len(result.hits):
-        weitere = len(result.hits) - gezeigt
-        text += f"\n\n({weitere} weitere Treffer hier weggelassen, von {result.total} insgesamt.)"
+    text = head
+    if blocks:
+        text += "\n\n" + "\n\n".join(blocks)
+    if shown < len(result.hits):
+        omitted = len(result.hits) - shown
+        text += f"\n\n({omitted} further hits omitted here, of {result.total} in total.)"
     return text

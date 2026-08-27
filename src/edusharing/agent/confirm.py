@@ -1,17 +1,17 @@
-"""Erst zeigen, was passieren wuerde -- dann tun.
+"""Show what would happen -- then do it.
 
-Ein Agent, der im Namen einer Person schreibt, muss die Aenderung vorlegen
-koennen, bevor sie stattfindet. Sonst bleibt der Person nur, dem Modell zu
-glauben, und der Unterschied zwischen "Titel ergaenzt" und "Titel ersetzt"
-faellt erst am Ergebnis auf.
+An agent writing on someone's behalf must be able to present the change before
+it takes place. Otherwise all that person can do is believe the model, and the
+difference between "title extended" and "title replaced" only shows in the
+result.
 
-``plan_update`` liest den Ist-Zustand, vergleicht ihn mit dem Soll und schreibt
-**nichts**. Erst ``apply()`` fuehrt aus -- ueber ``Node.update`` und damit
-einschliesslich der Rueckleseprobe.
+``plan_update`` reads the current state, compares it with the intended one and
+writes **nothing**. Only ``apply()`` executes -- through ``Node.update``, and
+therefore including the read-back check.
 
-Zwei Dinge macht der Plan sichtbar, die sonst erst hinterher auffallen:
-Aenderungen, die gar keine sind (gleicher Wert -- ein Schreibvorgang darauf
-erzeugt nur eine Version), und ein fehlendes Schreibrecht.
+The plan surfaces two things that would otherwise only show afterwards: changes
+that are not changes (same value -- writing it merely creates a version), and a
+missing write permission.
 """
 
 from __future__ import annotations
@@ -25,22 +25,22 @@ from .sanitize import sanitize_text
 __all__ = ["ChangePlan", "plan_update"]
 
 
-def _zeige(werte: list[str], *, max_chars: int = 80) -> str:
-    """Werte lesbar machen -- der Ist-Wert ist Fremdtext aus dem Repositorium."""
-    if not werte:
-        return "(leer)"
-    text = ", ".join(sanitize_text(w) for w in werte)
+def _show(values: list[str], *, max_chars: int = 80) -> str:
+    """Make values readable -- the current value is foreign repository text."""
+    if not values:
+        return "(empty)"
+    text = ", ".join(sanitize_text(v) for v in values)
     return text if len(text) <= max_chars else text[: max_chars - 1] + "…"
 
 
 @dataclass
 class ChangePlan:
-    """Eine vorbereitete, noch nicht ausgefuehrte Aenderung."""
+    """A prepared change that has not been executed."""
 
     node: Node
-    #: ``{property: (ist, soll)}`` -- nur die Felder, die sich unterscheiden.
+    #: ``{property: (current, intended)}`` -- only the fields that differ.
     changes: dict[str, tuple[list[str], list[str]]] = field(default_factory=dict)
-    #: Felder, deren Sollwert dem Istwert entspricht.
+    #: Fields whose intended value already equals the current one.
     unchanged: dict[str, list[str]] = field(default_factory=dict)
 
     @property
@@ -49,46 +49,46 @@ class ChangePlan:
 
     @property
     def can_write(self) -> bool:
-        """Ob das Konto an diesem Knoten schreiben darf."""
+        """Whether the account may write to this node."""
         return self.node.can_write
 
     def describe(self) -> str:
-        """Was dieser Plan aendern wuerde, als Text zum Vorlegen."""
-        zeilen = [f"Knoten {self.node.id} ({sanitize_text(self.node.title) or 'ohne Titel'})"]
+        """What this plan would change, as text to present."""
+        lines = [f"Node {self.node.id} ({sanitize_text(self.node.title) or 'untitled'})"]
 
         if not self.can_write:
-            zeilen.append(
-                "! Kein Schreibrecht an diesem Knoten -- die Aenderung wuerde "
-                "fehlschlagen oder stillschweigend verworfen."
+            lines.append(
+                "! No write permission on this node -- the change would fail or "
+                "be discarded silently."
             )
 
         if not self.changes:
-            zeilen.append("Keine Aenderung: alle Werte stehen bereits so.")
-            return "\n".join(zeilen)
+            lines.append("No change: every value is already set that way.")
+            return "\n".join(lines)
 
-        zeilen.append(f"{len(self.changes)} Aenderung(en):")
-        for prop, (ist, soll) in self.changes.items():
-            zeilen.append(f"  {prop}: {_zeige(ist)}  ->  {_zeige(soll)}")
+        lines.append(f"{len(self.changes)} change(s):")
+        for prop, (current, intended) in self.changes.items():
+            lines.append(f"  {prop}: {_show(current)}  ->  {_show(intended)}")
         if self.unchanged:
-            zeilen.append(f"  (unveraendert: {', '.join(sorted(self.unchanged))})")
-        return "\n".join(zeilen)
+            lines.append(f"  (unchanged: {', '.join(sorted(self.unchanged))})")
+        return "\n".join(lines)
 
     async def apply(self, *, verify: bool = True) -> Node:
-        """Fuehre die Aenderung aus.
+        """Execute the change.
 
-        Ohne Aenderung wird nicht geschrieben -- ein Schreibvorgang auf
-        gleiche Werte erzeugt nur Last und moeglicherweise eine Version.
+        With nothing to change, nothing is written -- writing identical values
+        only creates load and possibly a version.
 
         Returns:
-            Den zurueckgelesenen Knoten.
+            The node as read back.
 
         Raises:
-            SilentDropError: wie bei ``Node.update``.
+            SilentDropError: as in ``Node.update``.
         """
         if not self.changes:
             return self.node
         return await self.node.update(
-            properties={prop: soll for prop, (_, soll) in self.changes.items()},
+            properties={prop: intended for prop, (_, intended) in self.changes.items()},
             verify=verify,
         )
 
@@ -102,26 +102,26 @@ async def plan_update(
     properties: dict[str, Any] | None = None,
     **aliases: Any,
 ) -> ChangePlan:
-    """Bereite eine Aenderung vor, ohne sie auszufuehren.
+    """Prepare a change without executing it.
 
-    Nimmt dieselben Argumente wie ``Node.update``. Der Sollzustand wird gegen
-    den geladenen Istzustand gehalten; geschrieben wird nichts.
+    Takes the same arguments as ``Node.update``. The intended state is held
+    against the loaded current state; nothing is written.
 
     Raises:
-        ValidationError: bei einem unbekannten Kurznamen -- ein Tippfehler soll
-            vor der Vorlage auffallen, nicht danach.
+        ValidationError: for an unknown short name -- a typo should surface
+            before the plan is presented, not after.
     """
-    # Nutzt dieselbe Alias-Aufloesung wie update(), damit Plan und Ausfuehrung
-    # nicht auseinanderlaufen koennen.
-    soll = node._felder(properties, aliases)
+    # Uses the same alias resolution as update(), so plan and execution cannot
+    # drift apart.
+    intended = node._felder(properties, aliases)
 
     changes: dict[str, tuple[list[str], list[str]]] = {}
     unchanged: dict[str, list[str]] = {}
-    for prop, neue_werte in soll.items():
-        ist = node.get_all(prop)
-        if ist == neue_werte:
-            unchanged[prop] = ist
+    for prop, new_values in intended.items():
+        current = node.get_all(prop)
+        if current == new_values:
+            unchanged[prop] = current
         else:
-            changes[prop] = (ist, neue_werte)
+            changes[prop] = (current, new_values)
 
     return ChangePlan(node=node, changes=changes, unchanged=unchanged)

@@ -258,7 +258,7 @@ async def test_wenn_alle_modelle_scheitern_wird_das_gesagt():
         return httpx.Response(503, json={"message": "Model pricing unavailable"})
 
     async with _client(handler, max_retries=0) as api:
-        with pytest.raises(EduSharingError, match="kein"):
+        with pytest.raises(EduSharingError, match="None of the models"):
             await api.chat("hallo")
 
 
