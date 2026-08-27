@@ -238,7 +238,7 @@ Die vollständige Fallensammlung wandert nach `docs/QUIRKS.md`.
 | **3** | ~~Nodes, Properties (beide Wege), Read-Back-Verify, Keywords-Merge, Collections, Dateien~~ | ✅ **erledigt** — 206 offline, 19 live lesend, 18 live **schreibend** (§8.3) |
 | **4** | ~~`edusharing.agent` (§6) + b-api-Client mit Policy~~ | ✅ **erledigt** — 342 offline, 25 live (§8.4) |
 
-Dokumentation läuft mit, nicht hinterher: **jedes Beispiel in `docs/beispiele/` ist
+Dokumentation läuft mit, nicht hinterher: **jedes Beispiel in `docs/examples/` ist
 ein ausführbarer Test gegen Staging.** Was dort nicht läuft, steht nicht im README.
 
 ### 8.1 Etappe 1 — was dabei herauskam
