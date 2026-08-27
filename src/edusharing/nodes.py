@@ -31,10 +31,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from .content import NodeContent
 from .errors import SilentDropError, ValidationError
 from .transport import Transport
 
-__all__ = ["Node", "Nodes", "SyncNode", "WRITE_FIELD_ALIASES", "KEYWORD_PROPERTY"]
+__all__ = ["Node", "Nodes", "WRITE_FIELD_ALIASES", "KEYWORD_PROPERTY"]
 
 #: Kurznamen fuer Schreibfelder. Titel und Beschreibung gehen bewusst in
 #: **beide** Namensraeume: die edu-sharing-Oberflaeche rendert ``cm:*`` und
@@ -133,6 +134,11 @@ class Node:
     def get_all(self, prop: str) -> list[str]:
         """Alle Werte einer Property."""
         return _als_liste(self.properties.get(prop))
+
+    @property
+    def content(self) -> NodeContent:
+        """Der Binaerinhalt: hochladen, herunterladen, Volltext."""
+        return NodeContent(self)
 
     # --- Schreiben --------------------------------------------------------
 
@@ -401,45 +407,3 @@ class Nodes:
 
     def __repr__(self) -> str:
         return f"Nodes({self.repository_url!r})"
-
-
-class SyncNode:
-    """Ein Knoten fuer den synchronen Zugang.
-
-    Reicht die Methoden von ``Node`` blockierend durch. Ausgeschrieben statt
-    dynamisch erzeugt: die Namen sollen in der IDE auffindbar und die
-    Signaturen lesbar bleiben.
-    """
-
-    def __init__(self, node: Node, loop: Any) -> None:
-        self._node = node
-        self._loop = loop
-
-    # Lesende Zugriffe sind ohnehin synchron und werden durchgereicht.
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._node, name)
-
-    def update(self, **kwargs: Any) -> SyncNode:
-        """Wie ``Node.update``, blockierend."""
-        return SyncNode(self._loop.run(self._node.update(**kwargs)), self._loop)
-
-    def set_property(self, prop: str, value: Any, **kwargs: Any) -> SyncNode:
-        """Wie ``Node.set_property``, blockierend."""
-        return SyncNode(
-            self._loop.run(self._node.set_property(prop, value, **kwargs)), self._loop
-        )
-
-    def add_keywords(self, *keywords: str) -> SyncNode:
-        """Wie ``Node.add_keywords``, blockierend."""
-        return SyncNode(self._loop.run(self._node.add_keywords(*keywords)), self._loop)
-
-    def remove_keywords(self, *keywords: str) -> SyncNode:
-        """Wie ``Node.remove_keywords``, blockierend."""
-        return SyncNode(self._loop.run(self._node.remove_keywords(*keywords)), self._loop)
-
-    def delete(self, **kwargs: Any) -> None:
-        """Wie ``Node.delete``, blockierend."""
-        self._loop.run(self._node.delete(**kwargs))
-
-    def __repr__(self) -> str:
-        return f"SyncNode(id={self._node.id!r}, title={self._node.title!r})"

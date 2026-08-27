@@ -164,3 +164,55 @@ async def test_doppeltes_schlagwort_wird_nicht_zweimal_abgelegt(repo, ordner):
     einmal = await node.add_keywords("Physik")
     zweimal = await einmal.add_keywords("Physik")
     assert zweimal.keywords.count("Physik") == 1
+
+
+# --- Dateien ---------------------------------------------------------------
+
+INHALT = "Hallo aus der Bibliothek.\nZweite Zeile mit Umlaut: Größe.\n".encode()
+
+
+async def test_datei_hoch_und_wieder_herunterladen(repo, ordner):
+    """Die Rundreise muss byte-identisch sein -- sonst geht bei Umlauten oder
+    Zeilenenden unbemerkt etwas verloren."""
+    node = await repo.create_node(ordner.id, name="datei.txt", titel="Mit Datei")
+    mit_datei = await node.content.upload(
+        INHALT, filename="datei.txt", mimetype="text/plain",
+        version_comment="Testlauf")
+
+    assert mit_datei.content.mimetype == "text/plain"
+    assert mit_datei.content.size == len(INHALT)
+    assert await mit_datei.content.download() == INHALT
+
+
+async def test_volltext_wird_extrahiert(repo, ordner):
+    node = await repo.create_node(ordner.id, name="volltext.txt")
+    mit_datei = await node.content.upload(
+        INHALT, filename="volltext.txt", mimetype="text/plain")
+    text = await mit_datei.content.text()
+    assert "Hallo aus der Bibliothek" in text
+
+
+async def test_knoten_ohne_datei_meldet_das_klar(repo, ordner):
+    """Ein frisch angelegter Knoten hat keinen Binaerinhalt.
+
+    Gemessen und dabei eine Annahme widerlegt: ``downloadUrl`` ist auch dann
+    gesetzt, und ein GET darauf liefert **200 mit null Bytes** -- klaglos, und
+    nicht von einer leeren Datei zu unterscheiden. Das verlaessliche Signal
+    ist ``content.hash``.
+    """
+    from edusharing.errors import EduSharingError
+    node = await repo.create_node(ordner.id, name="ohne-datei.txt")
+    assert node.content.download_url, "downloadUrl ist auch ohne Inhalt gesetzt"
+    assert node.content.has_content is False
+    with pytest.raises(EduSharingError, match="keine Datei"):
+        await node.content.download()
+
+
+async def test_leere_datei_gilt_als_inhalt(repo, ordner):
+    """Der Fall, der cclom:size als Signal ausschliesst: eine 0-Byte-Datei hat
+    dort ebenfalls None -- der Hash unterscheidet sie."""
+    node = await repo.create_node(ordner.id, name="leer.txt")
+    leer = await node.content.upload(b"", filename="leer.txt", mimetype="text/plain")
+    assert leer.content.has_content is True
+    assert leer.get("cclom:size") is None
+    assert await leer.content.download() == b""

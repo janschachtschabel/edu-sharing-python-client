@@ -379,3 +379,86 @@ async def test_hinzufuegen_ohne_argumente_schreibt_nicht():
     server.aufrufe.clear()
     await node.add_keywords()
     assert not any(r.method == "PUT" for r in server.aufrufe)
+
+
+# --- Dateien --------------------------------------------------------------
+
+async def test_datei_hochladen():
+    """mimetype ist Pflicht -- die Spec deklariert ihn als required, und ohne
+    ihn kann das Repositorium den Inhalt nicht einordnen."""
+    hochgeladen = []
+
+    class MitDatei(Server):
+        def __call__(self, request):
+            if request.method == "POST" and request.url.path.endswith("/content"):
+                hochgeladen.append(request)
+                return httpx.Response(200, json=_node_antwort(self.props))
+            return super().__call__(request)
+
+    node = await _nodes(MitDatei()).get(NID)
+    await node.content.upload(b"Hallo", filename="probe.txt", mimetype="text/plain")
+    assert hochgeladen
+    assert hochgeladen[0].url.params.get("mimetype") == "text/plain"
+
+
+async def test_upload_ohne_mimetype_wird_abgelehnt():
+    node = await _nodes(Server()).get(NID)
+    with pytest.raises(Exception, match="mimetype"):
+        await node.content.upload(b"x", filename="p.txt", mimetype="")
+
+
+async def test_download_nutzt_die_downloadurl_des_knotens():
+    """Es gibt kein GET auf .../content -- gemessen antwortet es mit 405.
+    Der Weg fuehrt ueber die downloadUrl aus den Metadaten."""
+    geholt = []
+
+    class MitDownload(Server):
+        def __call__(self, request):
+            if "eduservlet/download" in str(request.url):
+                geholt.append(request)
+                return httpx.Response(200, content=b"Dateiinhalt")
+            return super().__call__(request)
+
+    server = MitDownload()
+    node = await _nodes(server).get(NID)
+    node._data["downloadUrl"] = f"{REPO}/eduservlet/download?node={NID}"
+    node._data["content"] = {"hash": "-1222810457"}     # gemessene Form
+    assert await node.content.download() == b"Dateiinhalt"
+    assert geholt
+
+
+async def test_download_ohne_datei_meldet_das_klar():
+    """Ein Knoten ohne Datei darf keinen leeren Bytestring vortaeuschen.
+
+    Die Pruefung geht ueber den Hash, nicht ueber downloadUrl: gemessen ist
+    downloadUrl IMMER gesetzt, und ein Knoten ohne Inhalt liefert daran 200
+    mit null Bytes. Der Hash dagegen ist nur ohne Inhalt None -- bei einer
+    0-Byte-Datei ist er gesetzt.
+    """
+    node = await _nodes(Server()).get(NID)
+    node._data["downloadUrl"] = f"{REPO}/eduservlet/download?node={NID}"
+    node._data["content"] = {"hash": None}
+    assert node.content.has_content is False
+    with pytest.raises(Exception, match="keine Datei"):
+        await node.content.download()
+
+
+async def test_leere_datei_gilt_als_inhalt():
+    """Die Unterscheidung, die den Hash noetig macht: eine 0-Byte-Datei ist
+    ein Inhalt, ein Knoten ohne Datei nicht -- beide haben cclom:size None."""
+    node = await _nodes(Server()).get(NID)
+    node._data["content"] = {"hash": "-190212752"}     # gemessen bei b""
+    assert node.content.has_content is True
+
+
+async def test_textinhalt_wird_ausgepackt():
+    """textContent antwortet mit {"text": ...} -- der Rumpf ist JSON, nicht
+    der Text selbst."""
+    class MitText(Server):
+        def __call__(self, request):
+            if request.url.path.endswith("/textContent"):
+                return httpx.Response(200, json={"text": "Der extrahierte Text"})
+            return super().__call__(request)
+
+    node = await _nodes(MitText()).get(NID)
+    assert await node.content.text() == "Der extrahierte Text"

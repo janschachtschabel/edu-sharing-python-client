@@ -16,9 +16,12 @@ from __future__ import annotations
 import asyncio
 import threading
 from collections.abc import Coroutine
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
-__all__ = ["LoopThread", "SyncTransport"]
+if TYPE_CHECKING:
+    from .nodes import Node
+
+__all__ = ["LoopThread", "SyncTransport", "SyncNode", "SyncNodeContent"]
 
 T = TypeVar("T")
 
@@ -79,3 +82,80 @@ class SyncTransport:
 
     def __repr__(self) -> str:
         return f"SyncTransport({self._transport!r})"
+
+
+class SyncNode:
+    """Ein Knoten fuer den synchronen Zugang.
+
+    Reicht die Methoden von ``Node`` blockierend durch. Ausgeschrieben statt
+    dynamisch erzeugt: die Namen sollen in der IDE auffindbar und die
+    Signaturen lesbar bleiben.
+    """
+
+    def __init__(self, node: Node, loop: Any) -> None:
+        self._node = node
+        self._loop = loop
+
+    # Lesende Zugriffe sind ohnehin synchron und werden durchgereicht.
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._node, name)
+
+    @property
+    def content(self) -> SyncNodeContent:
+        """Der Binaerinhalt, blockierend."""
+        return SyncNodeContent(self._node.content, self._loop)
+
+    def update(self, **kwargs: Any) -> SyncNode:
+        """Wie ``Node.update``, blockierend."""
+        return SyncNode(self._loop.run(self._node.update(**kwargs)), self._loop)
+
+    def set_property(self, prop: str, value: Any, **kwargs: Any) -> SyncNode:
+        """Wie ``Node.set_property``, blockierend."""
+        return SyncNode(
+            self._loop.run(self._node.set_property(prop, value, **kwargs)), self._loop
+        )
+
+    def add_keywords(self, *keywords: str) -> SyncNode:
+        """Wie ``Node.add_keywords``, blockierend."""
+        return SyncNode(self._loop.run(self._node.add_keywords(*keywords)), self._loop)
+
+    def remove_keywords(self, *keywords: str) -> SyncNode:
+        """Wie ``Node.remove_keywords``, blockierend."""
+        return SyncNode(self._loop.run(self._node.remove_keywords(*keywords)), self._loop)
+
+    def delete(self, **kwargs: Any) -> None:
+        """Wie ``Node.delete``, blockierend."""
+        self._loop.run(self._node.delete(**kwargs))
+
+    def __repr__(self) -> str:
+        return f"SyncNode(id={self._node.id!r}, title={self._node.title!r})"
+
+
+class SyncNodeContent:
+    """Der Binaerinhalt eines Knotens fuer den synchronen Zugang.
+
+    Ohne diese Schicht gaebe ``SyncNode.content`` ein Objekt mit asynchronen
+    Methoden zurueck -- der Aufruf liefe ins Leere und meldete nichts.
+    """
+
+    def __init__(self, content: Any, loop: LoopThread) -> None:
+        self._content = content
+        self._loop = loop
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._content, name)
+
+    def upload(self, data: bytes, **kwargs: Any) -> Any:
+        """Wie ``NodeContent.upload``, blockierend."""
+        return SyncNode(self._loop.run(self._content.upload(data, **kwargs)), self._loop)
+
+    def download(self) -> bytes:
+        """Wie ``NodeContent.download``, blockierend."""
+        return self._loop.run(self._content.download())
+
+    def text(self, **kwargs: Any) -> str:
+        """Wie ``NodeContent.text``, blockierend."""
+        return self._loop.run(self._content.text(**kwargs))
+
+    def __repr__(self) -> str:
+        return f"SyncNodeContent({self._content!r})"

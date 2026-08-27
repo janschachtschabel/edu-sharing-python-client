@@ -18,12 +18,12 @@ from typing import Any, Self
 
 import httpx
 
-from ._sync import LoopThread, SyncTransport
+from ._sync import LoopThread, SyncNode, SyncTransport
 from .auth import ANONYMOUS, BasicCredential, Credential, credential_from
 from .collections import Collections
 from .errors import EduSharingError
 from .info import About, Identity, MetadataSet
-from .nodes import Node, Nodes, SyncNode
+from .nodes import Node, Nodes
 from .search import Search, SearchResult
 from .transport import (
     DEFAULT_BACKOFF_BASE,
