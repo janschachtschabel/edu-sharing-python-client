@@ -1,0 +1,44 @@
+name: CI
+
+# Every guarantee this library makes -- the read-back checks, the encoded path
+# segments, the credential boundary -- rests on the suite being run. Locally
+# that depends on someone remembering (audit F8).
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The package promises >=3.11. A promise nobody checks is a guess.
+        python: ["3.11", "3.12", "3.13", "3.14"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install uv
+        run: pip install uv
+
+      # --frozen: install exactly what uv.lock pins. A pyproject change without
+      # a matching lock update should fail here, not drift silently.
+      # --python: without it uv picks its own interpreter and the matrix would
+      # test the same version four times.
+      - name: Install dependencies
+        run: uv sync --group dev --frozen --python ${{ matrix.python }}
+
+      - name: Lint
+        run: uv run ruff check .
+
+      # Offline only. The live and write suites need credentials and write into
+      # a real repository -- they are deselected by addopts in pyproject.toml
+      # and stay a deliberate, local act.
+      - name: Tests
+        run: uv run pytest -q

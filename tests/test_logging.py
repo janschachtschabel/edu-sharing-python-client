@@ -15,6 +15,7 @@ import logging
 import httpx
 import pytest
 
+from edusharing.errors import ServerError
 from edusharing.transport import Transport
 
 REPO = "https://repo.test/edu-sharing"
@@ -47,7 +48,7 @@ async def test_wiederholung_wird_gemeldet(caplog):
         return httpx.Response(503, text="kurz nicht da")
 
     async with _transport(handler, max_retries=2) as t:
-        with pytest.raises(Exception):
+        with pytest.raises(ServerError):
             await t.request("GET", "/_about")
 
     assert len(versuche) == 3, "Vorbedingung: es wurde wirklich wiederholt"
@@ -65,9 +66,9 @@ async def test_zugangsdaten_stehen_nie_im_protokoll(caplog, stufe):
         return httpx.Response(503, text="weg")
 
     async with _transport(handler, max_retries=1) as t:
-        with pytest.raises(Exception):
+        with pytest.raises(ServerError):
             await t.request("GET", "/_about")
-        with pytest.raises(Exception):
+        with pytest.raises(ServerError):
             await t.request("POST", "/node/v1/nodes/-home-/x/metadata",
                             json={"cclom:title": ["Titel"]})
 
