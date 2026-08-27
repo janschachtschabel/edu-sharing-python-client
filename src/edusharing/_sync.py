@@ -18,7 +18,7 @@ import threading
 from collections.abc import Coroutine
 from typing import Any, TypeVar
 
-__all__ = ["LoopThread"]
+__all__ = ["LoopThread", "SyncTransport"]
 
 T = TypeVar("T")
 
@@ -52,3 +52,30 @@ class LoopThread:
         self._loop.call_soon_threadsafe(self._loop.stop)
         self._thread.join(timeout=_STOP_TIMEOUT)
         self._loop.close()
+
+
+class SyncTransport:
+    """Synchroner Durchgriff auf einen ``Transport``.
+
+    Der Notausgang zu den Endpunkten ohne eigene Methode muss auch dem
+    synchronen Zugang offenstehen -- sonst waere er eine Sackgasse, sobald
+    etwas gebraucht wird, das die Bibliothek noch nicht abdeckt.
+
+    Absichtlich schmal: nur ``request`` und ``json``. Alles Weitere gehoert an
+    den asynchronen Transport, nicht hierher dupliziert.
+    """
+
+    def __init__(self, transport: Any, loop: LoopThread) -> None:
+        self._transport = transport
+        self._loop = loop
+
+    def request(self, method: str, path: str, **kwargs: Any) -> Any:
+        """Wie ``Transport.request``, blockierend."""
+        return self._loop.run(self._transport.request(method, path, **kwargs))
+
+    def json(self, method: str, path: str, **kwargs: Any) -> Any:
+        """Wie ``Transport.json``, blockierend."""
+        return self._loop.run(self._transport.json(method, path, **kwargs))
+
+    def __repr__(self) -> str:
+        return f"SyncTransport({self._transport!r})"

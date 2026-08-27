@@ -27,7 +27,8 @@ from .errors import (
     TransportError,
     ValidationError,
 )
-from .repository import About, AsyncRepository, Identity, MetadataSet, Repository
+from .info import About, Identity, MetadataSet
+from .repository import AsyncRepository, Repository
 from .results import Facet, FacetValue, SearchHit, SearchResult, UnresolvedFilter
 from .search import STANDARD_FIELD_ALIASES, Search
 from .urls import normalize_repository_url, rest_base

@@ -361,3 +361,23 @@ def test_metadatensaetze_auch_synchron():
             transport=httpx.MockTransport(_handler({"/mds/v1/metadatasets/-home-": MDS_LISTE}))),
     ) as repo:
         assert len(repo.metadatasets()) == 2
+
+
+# --- Notausgang zu beliebigen Endpunkten ----------------------------------
+
+async def test_raw_erreicht_beliebige_endpunkte():
+    """389 Operationen haben keine eigene Methode -- der Notausgang muss offen
+    sein, sonst ist die Bibliothek eine Sackgasse."""
+    async with _repo({"/config/v1/values": {"a": 1}}) as repo:
+        assert await repo.raw.json("GET", "/config/v1/values") == {"a": 1}
+
+
+def test_raw_gibt_es_auch_synchron():
+    """Fehlte zuerst: der synchrone Zugang hatte keinen Notausgang, obwohl der
+    asynchrone einen hat. Wer nur `Repository` benutzt, sass fest."""
+    with Repository(
+        REPO,
+        client=httpx.AsyncClient(
+            transport=httpx.MockTransport(_handler({"/config/v1/values": {"a": 1}}))),
+    ) as repo:
+        assert repo.raw.json("GET", "/config/v1/values") == {"a": 1}
