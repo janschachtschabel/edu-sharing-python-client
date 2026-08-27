@@ -293,3 +293,71 @@ def test_suche_auch_synchron():
 def test_feld_aliase_sind_ueberschreibbar():
     repo = AsyncRepository(REPO, field_aliases={"thema": "ccm:taxonid"})
     assert repo.searcher.field_aliases == {"thema": "ccm:taxonid"}
+
+
+# --- Sammlungen -----------------------------------------------------------
+
+LEG_A = {"nodes": [{"ref": {"id": "coll-1"}, "title": "Optik", "properties": {}}],
+         "pagination": {"total": 5, "from": 0, "count": 1}}
+LEG_B = {"collections": [{"ref": {"id": "coll-2"}, "title": "Wellenoptik", "properties": {}}],
+         "pagination": None}
+
+
+def _coll_handler(request):
+    url = str(request.url)
+    if "/collection/v1/collections" in url:
+        return httpx.Response(200, json=LEG_B)
+    if "/collections" in url:
+        return httpx.Response(200, json=LEG_A)
+    return httpx.Response(404, json={"error": "x", "message": "nicht gemockt"})
+
+
+async def test_sammlungssuche_ueber_das_repository():
+    async with AsyncRepository(
+        REPO, client=httpx.AsyncClient(transport=httpx.MockTransport(_coll_handler)),
+    ) as repo:
+        e = await repo.find_collections("Optik")
+    assert {t.id for t in e.hits} == {"coll-1", "coll-2"}
+    assert e.total_is_lower_bound is True
+
+
+def test_sammlungssuche_auch_synchron():
+    with Repository(
+        REPO, client=httpx.AsyncClient(transport=httpx.MockTransport(_coll_handler)),
+    ) as repo:
+        assert len(repo.find_collections("Optik").hits) == 2
+
+
+def test_sammlungen_nutzen_den_gewaehlten_metadatensatz():
+    assert AsyncRepository(REPO, metadataset="mds_oeh").collections.metadataset == "mds_oeh"
+
+
+# --- Welche Metadatensaetze fuehrt diese Instanz? -------------------------
+
+MDS_LISTE = {"metadatasets": [
+    {"id": "mds", "name": "Contentbuffet"},
+    {"id": "mds_oeh", "name": "Wir Lernen Online"},
+]}
+
+
+async def test_metadatensaetze_werden_aufgelistet():
+    """Die Voraussetzung dafuer, nicht von einem bestimmten auszugehen:
+    Staging fuehrt vier, und welcher passt, weiss nur die Anwendung."""
+    async with _repo({"/mds/v1/metadatasets/-home-": MDS_LISTE}) as repo:
+        saetze = await repo.metadatasets()
+    assert [m.id for m in saetze] == ["mds", "mds_oeh"]
+    assert saetze[1].name == "Wir Lernen Online"
+
+
+async def test_metadatensatz_liste_vertraegt_leere_antwort():
+    async with _repo({"/mds/v1/metadatasets/-home-": {}}) as repo:
+        assert await repo.metadatasets() == []
+
+
+def test_metadatensaetze_auch_synchron():
+    with Repository(
+        REPO,
+        client=httpx.AsyncClient(
+            transport=httpx.MockTransport(_handler({"/mds/v1/metadatasets/-home-": MDS_LISTE}))),
+    ) as repo:
+        assert len(repo.metadatasets()) == 2

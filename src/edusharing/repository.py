@@ -21,6 +21,7 @@ import httpx
 
 from ._sync import LoopThread
 from .auth import ANONYMOUS, BasicCredential, Credential, credential_from
+from .collections import Collections
 from .errors import EduSharingError
 from .search import Search, SearchResult
 from .transport import (
@@ -32,7 +33,7 @@ from .transport import (
 )
 from .vocab import DEFAULT_METADATASET, DEFAULT_QUERY, Vocabulary
 
-__all__ = ["AsyncRepository", "Repository", "About", "Identity"]
+__all__ = ["AsyncRepository", "Repository", "About", "Identity", "MetadataSet"]
 
 ENV_URL = "EDU_SHARING_URL"
 
@@ -92,6 +93,18 @@ class About:
             themes_url=data.get("themesUrl"),
             raw=data,
         )
+
+
+@dataclass(frozen=True, slots=True)
+class MetadataSet:
+    """Ein Metadatensatz, den diese Instanz fuehrt.
+
+    Welcher der richtige ist, entscheidet die Anwendung: die Wahl aendert,
+    welche Properties filterbar sind und was gefunden wird.
+    """
+
+    id: str
+    name: str
 
 
 @dataclass(frozen=True)
@@ -175,6 +188,7 @@ class AsyncRepository:
             self._transport, self._vocab,
             metadataset=metadataset, query=query, field_aliases=field_aliases,
         )
+        self._collections = Collections(self._transport, metadataset=metadataset)
 
     @classmethod
     def from_env(cls, **kwargs: Any) -> AsyncRepository:
@@ -219,6 +233,11 @@ class AsyncRepository:
         """Die Suchschicht, fuer Zugriff auf ihre Einstellungen."""
         return self._search
 
+    @property
+    def collections(self) -> Collections:
+        """Die Sammlungssuche, fuer Zugriff auf ihre Einstellungen."""
+        return self._collections
+
     # --- Suchen -----------------------------------------------------------
 
     async def search(self, text: str | None = None, **kwargs: Any) -> SearchResult:
@@ -231,11 +250,31 @@ class AsyncRepository:
         """
         return await self._search.search(text, **kwargs)
 
+    async def find_collections(self, text: str, **kwargs: Any) -> SearchResult:
+        """Suche Sammlungen ueber beide Wege, die edu-sharing dafuer hat.
+
+        ``total`` ist eine Untergrenze -- siehe ``collections``.
+        """
+        return await self._collections.find(text, **kwargs)
+
     # --- Auskuenfte -------------------------------------------------------
 
     async def about(self) -> About:
         """Version, Dienste, Plugins und Merkmale dieser Instanz."""
         return About.from_response(await self._transport.json("GET", "/_about"))
+
+    async def metadatasets(self) -> list[MetadataSet]:
+        """Welche Metadatensaetze diese Instanz fuehrt.
+
+        Billig (wenige hundert Byte) -- im Gegensatz zum Metadatensatz selbst,
+        der bei ``mds_oeh`` 17 MB umfasst.
+        """
+        antwort = await self._transport.json("GET", "/mds/v1/metadatasets/-home-")
+        return [
+            MetadataSet(id=m.get("id") or "", name=m.get("name") or "")
+            for m in (antwort.get("metadatasets") or [])
+            if m.get("id")
+        ]
 
     async def whoami(self) -> Identity:
         """Als wer diese Verbindung arbeitet.
@@ -305,6 +344,15 @@ class Repository:
         """Suche Material. Siehe ``Search.search`` fuer alle Parameter."""
         return self._loop.run(self._async.search(text, **kwargs))
 
+    @property
+    def collections(self) -> Collections:
+        """Die Sammlungssuche, fuer Zugriff auf ihre Einstellungen."""
+        return self._async.collections
+
+    def find_collections(self, text: str, **kwargs: Any) -> SearchResult:
+        """Suche Sammlungen ueber beide Wege. ``total`` ist eine Untergrenze."""
+        return self._loop.run(self._async.find_collections(text, **kwargs))
+
     def resolve(self, prop: str, label: str, *, locale: str | None = None) -> str | None:
         """Uebersetze ein Label in den Wert, auf den das Repositorium filtert."""
         return self._loop.run(self._async.vocab.resolve(prop, label, locale=locale))
@@ -316,6 +364,10 @@ class Repository:
     def whoami(self) -> Identity:
         """Als wer diese Verbindung arbeitet."""
         return self._loop.run(self._async.whoami())
+
+    def metadatasets(self) -> list[MetadataSet]:
+        """Welche Metadatensaetze diese Instanz fuehrt."""
+        return self._loop.run(self._async.metadatasets())
 
     def close(self) -> None:
         try:

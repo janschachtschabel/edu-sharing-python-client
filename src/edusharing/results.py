@@ -115,6 +115,12 @@ class SearchResult:
     unresolved: list[UnresolvedFilter] = field(default_factory=list)
     #: Kriterien, die das Repositorium selbst verworfen hat.
     ignored: list[str] = field(default_factory=list)
+    #: Was am Ergebnis unvollstaendig ist -- etwa eine Teilabfrage, die
+    #: fehlgeschlagen ist. Nicht leer heisst: hier fehlt moeglicherweise etwas.
+    warnings: list[str] = field(default_factory=list)
+    #: Ob ``total`` nur eine Untergrenze ist. Trifft zu, wenn das Ergebnis aus
+    #: mehreren Abfragen stammt und nicht alle eine Gesamtzahl liefern.
+    total_is_lower_bound: bool = False
     raw: dict[str, Any] = field(default_factory=dict)
 
     def __len__(self) -> int:

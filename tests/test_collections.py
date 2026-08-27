@@ -1,0 +1,156 @@
+"""Sammlungssuche ueber zwei Wege.
+
+edu-sharing bietet zwei voneinander unabhaengige Sammlungs-Suchen, und keine
+ist Obermenge der anderen. Gemessen (Staging, 27.08.2026, je 25 Treffer):
+
+    Suchwort        A    B    gemeinsam  nur A  nur B
+    Optik           5    4    4          1      0
+    Deutsch        25   25    0          25     25     <- Schnittmenge NULL
+    Grundschule     2    0    0          2      0
+    Klimawandel    23   17   17          6      0
+    Physik         25   25   20          5      5
+
+Wer nur eines nimmt, verliert systematisch -- und welches versagt, haengt am
+Suchwort, nicht an der Sammlung.
+"""
+
+import asyncio
+
+import httpx
+import pytest
+
+from edusharing.collections import Collections
+from edusharing.errors import EduSharingError
+from edusharing.transport import Transport
+
+REPO = "https://repository.staging.openeduhub.net/edu-sharing"
+
+# Leg A: POST /search/v1/queries/-home-/{mds}/collections -> nodes, mit pagination
+LEG_A = {
+    "nodes": [
+        {"ref": {"id": "aaa-1"}, "title": "Wellenoptik", "properties": {}},
+        {"ref": {"id": "gemeinsam"}, "title": "Optik", "properties": {}},
+    ],
+    "pagination": {"total": 23, "from": 0, "count": 2},
+}
+
+# Leg B: GET /collection/v1/collections/-home-/search -> collections, total NULL
+LEG_B = {
+    "collections": [
+        {"ref": {"id": "gemeinsam"}, "title": "Optik", "properties": {}},
+        {"ref": {"id": "bbb-1"}, "title": "Geometrische Optik", "properties": {}},
+    ],
+    "pagination": None,
+}
+
+
+def _router(a=LEG_A, b=LEG_B, aufrufe=None):
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if aufrufe is not None:
+            aufrufe.append(url)
+        if "/collection/v1/collections" in url:
+            return httpx.Response(200, json=b) if not isinstance(b, int) \
+                else httpx.Response(b, json={"error": "x", "message": "weg"})
+        if "/collections" in url:
+            return httpx.Response(200, json=a) if not isinstance(a, int) \
+                else httpx.Response(a, json={"error": "x", "message": "weg"})
+        return httpx.Response(404, json={"error": "x", "message": "nicht gemockt"})
+    return handler
+
+
+def _collections(handler, **kwargs):
+    transport = Transport(
+        REPO, client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+        backoff_base=0.0,
+    )
+    return Collections(transport, metadataset="mds_oeh", **kwargs)
+
+
+# --- Zusammenfuehrung -----------------------------------------------------
+
+async def test_beide_wege_werden_abgefragt():
+    aufrufe = []
+    await _collections(_router(aufrufe=aufrufe)).find("Optik")
+    assert any("/search/v1/queries" in u for u in aufrufe), "Leg A fehlt"
+    assert any("/collection/v1/collections/-home-/search" in u for u in aufrufe), "Leg B fehlt"
+
+
+async def test_treffer_beider_wege_erscheinen():
+    e = await _collections(_router()).find("Optik")
+    ids = {t.id for t in e.hits}
+    assert "aaa-1" in ids, "Treffer aus Leg A fehlt"
+    assert "bbb-1" in ids, "Treffer aus Leg B fehlt"
+
+
+async def test_gemeinsame_treffer_erscheinen_einmal():
+    e = await _collections(_router()).find("Optik")
+    ids = [t.id for t in e.hits]
+    assert ids.count("gemeinsam") == 1
+    assert len(ids) == 3
+
+
+async def test_die_beiden_wege_laufen_gleichzeitig():
+    """Nacheinander waere die Sammlungssuche doppelt so langsam wie noetig."""
+    laufend = 0
+    hoechststand = 0
+
+    async def handler(request):
+        nonlocal laufend, hoechststand
+        laufend += 1
+        hoechststand = max(hoechststand, laufend)
+        await asyncio.sleep(0.02)
+        laufend -= 1
+        url = str(request.url)
+        return httpx.Response(
+            200, json=LEG_B if "/collection/v1/" in url else LEG_A)
+
+    await _collections(handler).find("Optik")
+    assert hoechststand == 2
+
+
+# --- Ehrlichkeit ueber die Gesamtzahl -------------------------------------
+
+async def test_gesamtzahl_ist_als_untergrenze_gekennzeichnet():
+    """Nur Leg A liefert eine Zahl; Leg B gibt pagination null zurueck. Die
+    Summe waere wegen der Ueberlappung falsch, die Zahl von A allein zu klein.
+    Sie ist also eine Untergrenze -- und das muss ablesbar sein."""
+    e = await _collections(_router()).find("Optik")
+    assert e.total >= 23
+    assert e.total_is_lower_bound is True
+
+
+# --- Ein Weg faellt aus ---------------------------------------------------
+
+async def test_ausfall_eines_weges_liefert_trotzdem_ergebnisse():
+    """Auf einer fremden Instanz kann einer der beiden Endpunkte fehlen. Dann
+    ist ein halbes Ergebnis besser als gar keines -- aber es muss als halb
+    erkennbar sein."""
+    e = await _collections(_router(b=404)).find("Optik")
+    assert {t.id for t in e.hits} == {"aaa-1", "gemeinsam"}
+    assert e.warnings, "der Ausfall muss vermerkt sein"
+
+
+async def test_ausfall_wird_benannt():
+    e = await _collections(_router(b=404)).find("Optik")
+    assert any("collection/v1" in w or "Sammlungssuche" in w for w in e.warnings)
+
+
+async def test_ausfall_beider_wege_wirft():
+    """Kein Ergebnis vorzutaeuschen, wenn gar nichts abgefragt werden konnte."""
+    with pytest.raises(EduSharingError):
+        await _collections(_router(a=500, b=500)).find("Optik")
+
+
+# --- Sonstiges ------------------------------------------------------------
+
+async def test_limit_gilt_fuer_beide_wege():
+    aufrufe = []
+    await _collections(_router(aufrufe=aufrufe)).find("Optik", limit=7)
+    assert all("maxItems=7" in u for u in aufrufe)
+
+
+async def test_treffer_tragen_die_render_url():
+    e = await _collections(_router()).find("Optik")
+    treffer = next(t for t in e.hits if t.id == "aaa-1")
+    assert treffer.url == f"{REPO}/components/render/aaa-1"
