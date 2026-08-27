@@ -176,6 +176,62 @@ async def test_die_suche_selbst_ist_nicht_reproduzierbar(repo):
                     "gemessen, aber nicht bei jedem Aufruf sichtbar")
 
 
+# --- Sammlungen -----------------------------------------------------------
+
+
+@pytest.mark.live
+async def test_sammlungen_finden_und_oeffnen(repo):
+    """Die Kette, die ein MCP faehrt: Sammlung suchen, dann hineinsehen."""
+    gefunden = await repo.flows.find_collections("Physik", limit=3)
+    assert gefunden["hits"], "keine Sammlung gefunden -- der Test prueft nichts"
+    assert gefunden["total_is_lower_bound"] is True
+    json.dumps(gefunden)
+
+    inhalt = await repo.flows.collection_contents(gefunden["hits"][0]["id"], limit=5)
+    assert inhalt["id"] == gefunden["hits"][0]["id"]
+    assert inhalt["returned_materials"] == len(inhalt["materials"])
+    assert inhalt["returned_materials"] <= 5
+    json.dumps(inhalt)
+
+
+@pytest.mark.live
+async def test_wer_nur_material_abfragt_haelt_die_sammlung_fuer_leer(repo):
+    """Der Grund, warum collection_contents zwei Wege abfragt.
+
+    Gemessen am 27.08.2026 an einer Sammlung mit zwei Untersammlungen:
+    filter=files liefert **null** Knoten. Die Untersammlungen tauchen unter
+    filter=folders durchaus auf (als ccm:map) -- eine erste Messung an einer
+    Sammlung ohne Untersammlungen hatte das Gegenteil nahegelegt, was ein
+    Fehlschluss war.
+
+    Genommen wird trotzdem der Sammlungs-Endpunkt: er ist der dafuer
+    vorgesehene und liefert Sammlungs-Metadaten (scope), waehrend der
+    Ordnerfilter ein Umweg ist, der zufaellig funktioniert.
+    """
+    wurzel = await repo.raw.json(
+        "GET", "/collection/v1/collections/-home-/-root-/children/collections",
+        params={"scope": "TYPE_EDITORIAL", "maxItems": 5})
+    eltern = [c for c in (wurzel.get("collections") or [])]
+    if not eltern:
+        pytest.skip("keine redaktionellen Wurzelsammlungen auf dieser Instanz")
+
+    for kandidat in eltern:
+        cid = (kandidat.get("ref") or {}).get("id")
+        inhalt = await repo.flows.collection_contents(cid)
+        if inhalt["collections"]:
+            nur_material = await repo.raw.json(
+                "GET", f"/node/v1/nodes/-home-/{cid}/children",
+                params={"filter": "files", "maxItems": 20})
+            assert not (nur_material.get("nodes") or []), (
+                "diese Sammlung enthaelt auch Material -- fuer den Nachweis "
+                "wird eine gebraucht, die nur Untersammlungen hat")
+            assert inhalt["collections"], (
+                "collection_contents muss die Untersammlungen zeigen, die der "
+                "Materialfilter verschweigt")
+            return
+    pytest.skip("keine Sammlung mit Untersammlungen gefunden")
+
+
 # --- schreibend -----------------------------------------------------------
 
 
@@ -237,3 +293,22 @@ async def test_loeschen_benennt_was_verschwand(repo, ordner):
     ergebnis = await repo.flows.delete(material["id"], recycle=False)
     assert ergebnis["title"] == "Ablauf-Test Wegwerf"
     assert ergebnis["recycled"] is False
+
+
+@pytest.mark.live
+@pytest.mark.write
+async def test_material_aendern_mit_vokabular(repo, ordner):
+    """Der Kreis schliesst sich: anlegen, aendern, loeschen."""
+    angelegt = await repo.flows.add_material(
+        "Ablauf-Test Aenderung", parent_id=ordner.id, subject="Biologie")
+
+    geaendert = await repo.flows.update_material(
+        angelegt["id"], title="Ablauf-Test Geaendert", subject="Physik",
+        keywords=["geaendert"])
+    assert not geaendert["unresolved"], f"nicht aufgeloest: {geaendert['unresolved']}"
+    assert geaendert["title"] == "Ablauf-Test Geaendert"
+
+    # Gegenprobe am Server, nicht an der Rueckgabe.
+    stand = await repo.flows.describe(angelegt["id"])
+    assert stand["fields"]["subject"] == ["Physik"]
+    assert stand["keywords"] == ["geaendert"]

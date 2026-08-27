@@ -101,7 +101,56 @@ repo.flows.search(
 > **`total_is_lower_bound`** being true means "at least this many". Reporting
 > that number as a fact states something that is not one.
 
-*Example: [`examples/05_flow_search.py`](examples/05_flow_search.py)*
+### `rerank=True` — rescue a naturally phrased query
+
+edu-sharing ANDs every word of a query. Words that describe the *shape* of a
+request rather than its subject appear in almost no record, so one of them
+empties the result set. Measured against staging on 2026-08-27:
+
+| query | hits |
+|---|---|
+| `Bruchrechnung` | 1591 |
+| `Ich suche ein Arbeitsblatt zur Bruchrechnung` | **0** |
+| `Französische Revolution` | 637 |
+| `Unterrichtsstunde Französische Revolution` | **0** |
+
+A language model phrases like the second line. Left alone it reports "no
+material found" about a subject with fifteen hundred records.
+
+```python
+repo.flows.search("Ich suche ein Arbeitsblatt zur Bruchrechnung", rerank=True)
+# 0 hits -> 3 hits
+```
+
+What it does: expands the query into variants (the original, one without
+framing words, one without stopwords, one per synonym), asks them in parallel,
+fuses the rankings, and reorders by text and metadata quality.
+
+**It costs one request per variant** (at most 5), so it is off by default.
+`offset` is ignored while reranking — the pool is merged across variants, so an
+offset into it would not mean what you expect.
+
+The answer carries `query.reranked` and `query.variants` so the order is
+explicable.
+
+Two honest limits:
+
+* **It does not make the search reproducible.** Measured: the same query asked
+  twice returns 25 hits of which **15 differ** — that comes from the repository,
+  not from the ranking. A larger `pool` did not help measurably.
+* **The word lists are German.** They are a parameter, not a constant:
+
+```python
+from edusharing.flows import LanguageProfile
+
+english = LanguageProfile(stopwords=frozenset({"the", "of", "a"}),
+                          framing=frozenset({"worksheet", "video"}),
+                          synonyms={})
+repo.flows.search("I need a worksheet about fractions",
+                  rerank=True, language=english)
+```
+
+*Examples: [`examples/05_flow_search.py`](examples/05_flow_search.py), [`examples/08_flow_rerank.py`](examples/08_flow_rerank.py)*
 
 ---
 
@@ -167,6 +216,82 @@ when a field has no short name.
 > chaining `search` → `describe` has to expect `NotFoundError`.
 
 ---
+
+## `find_collections` — search collections
+
+Collections are how edu-sharing groups material for teaching, so finding them is
+a different question from finding single resources — and a different endpoint.
+
+**Input**
+
+```python
+repo.flows.find_collections("Physik", limit=10)
+```
+
+**Output** — the same shape as `search`, with `query.kind` set to
+`"collections"`.
+
+> **`total_is_lower_bound` is always true here.** The collection search asks two
+> routes and merges them, so the figure counts at least this many, possibly more.
+
+---
+
+## `collection_contents` — open a collection
+
+**Input**
+
+```python
+repo.flows.collection_contents("c32b0498-…", limit=20, offset=0)
+```
+
+**Output**
+
+```json
+{
+  "id": "c32b0498-…",
+  "materials": [{"id": "…", "title": "…", "url": "…", "fields": {…}}],
+  "collections": [{"id": "…", "title": "Untersammlung", "url": "…", "fields": {}}],
+  "total_materials": 26,
+  "returned_materials": 20
+}
+```
+
+Material and sub-collections, because a collection holds both. Measured on
+2026-08-27 against a collection with two sub-collections: asking only for
+material (`filter=files`) returns **zero** nodes — that collection looks empty.
+
+Materials carry the same shape as search hits, so nothing has to tell two hit
+formats apart.
+
+---
+
+## `update_material` — change what is already there
+
+**Input**
+
+```python
+repo.flows.update_material(
+    "b1a7555d-…",
+    title="Neuer Titel",
+    keywords=["Photosynthese"],
+    subject="Physik",          # resolved, same as when creating
+)
+```
+
+**Output**
+
+```json
+{"id": "b1a7555d-…", "title": "Neuer Titel", "url": "…",
+ "name": "material.pdf", "unresolved": []}
+```
+
+Only what you pass is written; everything else stays. The write is verified by
+reading it back, so a value edu-sharing silently drops raises `SilentDropError`
+rather than passing as success.
+
+> **A change where *nothing* could be resolved raises** instead of returning
+> `unresolved`. Nothing happened, and a result that looks like a partial success
+> would suggest the rest went through. There is no rest.
 
 ## `add_material` — create with proper metadata
 

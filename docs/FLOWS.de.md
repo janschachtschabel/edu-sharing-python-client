@@ -105,7 +105,58 @@ repo.flows.search(
 > **`total_is_lower_bound`** bedeutet „mindestens so viele". Wer diese Zahl als
 > Tatsache weitergibt, behauptet etwas, das keine ist.
 
-*Beispiel: [`examples/05_flow_search.py`](examples/05_flow_search.py)*
+### `rerank=True` — die natuerlich formulierte Anfrage retten
+
+edu-sharing UND-verknüpft jedes Wort einer Anfrage. Wörter, die nur die *Form*
+einer Bitte beschreiben, stehen in fast keinem Datensatz — also leert ein
+einziges davon die Trefferliste. Gemessen gegen Staging am 27.08.2026:
+
+| Anfrage | Treffer |
+|---|---|
+| `Bruchrechnung` | 1591 |
+| `Ich suche ein Arbeitsblatt zur Bruchrechnung` | **0** |
+| `Französische Revolution` | 637 |
+| `Unterrichtsstunde Französische Revolution` | **0** |
+
+Ein Sprachmodell formuliert wie die zweite Zeile. Ohne Gegenmaßnahme meldet es
+„nichts gefunden" über ein Thema mit fünfzehnhundert Datensätzen.
+
+```python
+repo.flows.search("Ich suche ein Arbeitsblatt zur Bruchrechnung", rerank=True)
+# 0 Treffer -> 3 Treffer
+```
+
+Was dabei passiert: die Anfrage wird in Varianten zerlegt (die ursprüngliche,
+eine ohne Rahmenwörter, eine ohne Stopwörter, eine je Synonym), parallel
+gestellt, die Ranglisten werden verschmolzen und nach Text- und
+Metadatenqualität neu geordnet.
+
+**Es kostet eine Anfrage je Variante** (höchstens 5) und ist deshalb
+standardmäßig aus. `offset` wird beim Neuordnen ignoriert — der Pool ist über
+Varianten verschmolzen, ein Versatz hinein bedeutete nicht, was man erwartet.
+
+Die Antwort trägt `query.reranked` und `query.variants`, damit die Reihenfolge
+erklärbar bleibt.
+
+Zwei ehrliche Grenzen:
+
+* **Es macht die Suche nicht reproduzierbar.** Gemessen: dieselbe Anfrage
+  zweimal gestellt liefert 25 Treffer, von denen sich **15 unterscheiden** — das
+  kommt aus dem Repositorium, nicht aus der Neuordnung. Ein größerer `pool` half
+  nicht nennenswert.
+* **Die Wortlisten sind deutsch.** Sie sind ein Parameter, keine Konstante:
+
+```python
+from edusharing.flows import LanguageProfile
+
+englisch = LanguageProfile(stopwords=frozenset({"the", "of", "a"}),
+                           framing=frozenset({"worksheet", "video"}),
+                           synonyms={})
+repo.flows.search("I need a worksheet about fractions",
+                  rerank=True, language=englisch)
+```
+
+*Beispiele: [`examples/05_flow_search.py`](examples/05_flow_search.py), [`examples/08_flow_rerank.py`](examples/08_flow_rerank.py)*
 
 ---
 
@@ -171,6 +222,85 @@ keine Sackgasse, sobald ein Feld keinen Kurznamen hat.
 > `search` und `describe` verkettet, muss mit `NotFoundError` rechnen.
 
 ---
+
+## `find_collections` — Sammlungen suchen
+
+Sammlungen sind die Art, wie edu-sharing Material für den Unterricht bündelt.
+Sie zu finden ist eine andere Frage als einzelne Materialien zu finden — und ein
+anderer Endpunkt.
+
+**Eingabe**
+
+```python
+repo.flows.find_collections("Physik", limit=10)
+```
+
+**Ausgabe** — dieselbe Form wie `search`, mit `query.kind` auf `"collections"`.
+
+> **`total_is_lower_bound` ist hier immer wahr.** Die Sammlungssuche fragt zwei
+> Wege ab und legt sie zusammen; die Zahl zählt mindestens so viele, womöglich
+> mehr.
+
+---
+
+## `collection_contents` — eine Sammlung öffnen
+
+**Eingabe**
+
+```python
+repo.flows.collection_contents("c32b0498-…", limit=20, offset=0)
+```
+
+**Ausgabe**
+
+```json
+{
+  "id": "c32b0498-…",
+  "materials": [{"id": "…", "title": "…", "url": "…", "fields": {…}}],
+  "collections": [{"id": "…", "title": "Untersammlung", "url": "…", "fields": {}}],
+  "total_materials": 26,
+  "returned_materials": 20
+}
+```
+
+Material und Untersammlungen, weil eine Sammlung beides enthält. Gemessen am
+27.08.2026 an einer Sammlung mit zwei Untersammlungen: fragt man nur das
+Material ab (`filter=files`), kommen **null** Knoten zurück — die Sammlung sieht
+leer aus.
+
+Materialien tragen dieselbe Form wie Suchtreffer; niemand muss zwei
+Trefferformate auseinanderhalten.
+
+---
+
+## `update_material` — ändern, was schon da ist
+
+**Eingabe**
+
+```python
+repo.flows.update_material(
+    "b1a7555d-…",
+    title="Neuer Titel",
+    keywords=["Photosynthese"],
+    subject="Physik",          # wird aufgelöst, wie beim Anlegen
+)
+```
+
+**Ausgabe**
+
+```json
+{"id": "b1a7555d-…", "title": "Neuer Titel", "url": "…",
+ "name": "material.pdf", "unresolved": []}
+```
+
+Geschrieben wird nur, was übergeben wurde; alles andere bleibt. Der Schreibvorgang
+wird durch erneutes Lesen geprüft, sodass ein Wert, den edu-sharing stillschweigend
+verwirft, einen `SilentDropError` auslöst statt als Erfolg durchzugehen.
+
+> **Eine Änderung, bei der sich *nichts* auflösen ließ, wirft** statt
+> `unresolved` zurückzugeben. Es ist nichts passiert, und ein Ergebnis, das wie
+> ein Teilerfolg aussieht, legte nahe, der Rest sei angekommen. Es gibt keinen
+> Rest.
 
 ## `add_material` — anlegen, mit sauberen Metadaten
 

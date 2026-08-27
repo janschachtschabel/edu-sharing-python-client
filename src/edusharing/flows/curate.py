@@ -18,70 +18,15 @@ success for something that half happened.
 
 from __future__ import annotations
 
-import re
 from typing import TYPE_CHECKING, Any
 
 from ..errors import EduSharingError, ValidationError
-from .discover import field_property
+from .fields import name_from_title, resolve_vocabulary
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..repository import AsyncRepository
 
-__all__ = ["add_material", "build_collection", "delete"]
-
-#: ``cm:name`` is the key inside the parent folder, not a display title. These
-#: characters make edu-sharing reject it or mangle it.
-_UNSAFE_IN_NAME = re.compile(r"[^\w.\- ]+", re.UNICODE)
-
-
-def _name_from_title(title: str) -> str:
-    """Derive a usable ``cm:name`` from a title.
-
-    Callers think in titles; the repository needs a key. Deriving it here saves
-    the caller a decision they have no basis to make -- and ``rename_if_exists``
-    on the node layer handles the collision this may cause.
-    """
-    name = _UNSAFE_IN_NAME.sub("", title).strip()
-    return (name or "material")[:80]
-
-
-async def _resolve_vocabulary(
-    repo: AsyncRepository, aliases: dict[str, Any]
-) -> tuple[dict[str, list[str]], list[dict[str, Any]]]:
-    """Turn ``{"subject": "Biologie"}`` into ``{"ccm:taxonid": ["<uri>"]}``.
-
-    Returns the resolved properties and everything that could not be resolved.
-    Unresolvable values are NOT sent: a value the metadata set does not know is
-    rejected by the repository or stored as an unusable string, and both are
-    worse than a reported gap.
-    """
-    resolved: dict[str, list[str]] = {}
-    unresolved: list[dict[str, Any]] = []
-
-    for short_name, value in aliases.items():
-        prop = field_property(repo, short_name)
-        values = value if isinstance(value, list) else [value]
-        uris: list[str] = []
-        for single in values:
-            text = str(single)
-            # A URI is already what the repository wants -- passing it through
-            # the resolver would only fail on it.
-            if text.startswith(("http://", "https://")):
-                uris.append(text)
-                continue
-            uri = await repo.vocab.resolve(prop, text)
-            if uri is None:
-                suggestions = [v.label for v in await repo.vocab.suggest(prop, text)][:5]
-                unresolved.append(
-                    {"field": short_name, "value": text, "suggestions": suggestions}
-                )
-                continue
-            uris.append(uri)
-        if uris:
-            resolved[prop] = uris
-
-    return resolved, unresolved
-
+__all__ = ["add_material", "build_collection", "delete", "update_material"]
 
 async def add_material(
     repo: AsyncRepository,
@@ -138,7 +83,7 @@ async def add_material(
             )
         parent_id = identity.home_folder
 
-    vocabulary_props, unresolved = await _resolve_vocabulary(repo, aliases)
+    vocabulary_props, unresolved = await resolve_vocabulary(repo, aliases)
     all_properties = {**(properties or {}), **vocabulary_props}
 
     direct: dict[str, Any] = {"title": title}
@@ -151,7 +96,7 @@ async def add_material(
 
     node = await repo.nodes.create(
         parent_id,
-        name=name or _name_from_title(title),
+        name=name or name_from_title(title),
         properties=all_properties or None,
         **direct,
     )
@@ -168,6 +113,73 @@ async def add_material(
         "parent_id": parent_id,
         "name": node.name,
         "collection": collection,
+        "unresolved": unresolved,
+    }
+
+
+async def update_material(
+    repo: AsyncRepository,
+    node_id: str,
+    *,
+    title: str | None = None,
+    url: str | None = None,
+    description: str | None = None,
+    keywords: list[str] | None = None,
+    properties: dict[str, Any] | None = None,
+    **aliases: Any,
+) -> dict[str, Any]:
+    """Change an existing piece of material -- with vocabulary, like creating it.
+
+    Only what is passed is written; everything else stays. The node layer
+    verifies the write by reading it back, so a value edu-sharing silently drops
+    raises instead of passing as success.
+
+    Args:
+        repo: the connection.
+        node_id: what to change.
+        title, url, description, keywords: the usual metadata.
+        properties: raw edu-sharing properties, for anything not covered.
+        **aliases: configured short names -- ``subject="Biologie"`` is resolved
+            against this instance's vocabulary.
+
+    Returns:
+        ``{id, title, url, name, unresolved}`` -- the state after the change.
+
+        **Check ``unresolved``.** Those values were not written, and the rest of
+        the change went through regardless.
+
+    Raises:
+        ValidationError: when nothing was passed to change.
+        SilentDropError: when the repository accepted the write and did not
+            store it.
+        NotFoundError: when no node carries this id.
+    """
+    vocabulary_props, unresolved = await resolve_vocabulary(repo, aliases)
+    all_properties = {**(properties or {}), **vocabulary_props}
+
+    direct: dict[str, Any] = {}
+    for name, value in (("title", title), ("url", url),
+                        ("description", description), ("keywords", keywords)):
+        if value is not None:
+            direct[name] = value
+
+    if not direct and not all_properties:
+        # An empty PUT would overwrite nothing and report success -- the caller
+        # would believe a change happened. If everything they passed failed to
+        # resolve, that is what they need to hear.
+        raise ValidationError(
+            "Nothing to change: no field was given"
+            + (f", and these could not be resolved: {unresolved}" if unresolved else ".")
+        )
+
+    node = await repo.nodes.get(node_id)
+    updated = await node.update(properties=all_properties or None, **direct)
+
+    return {
+        "id": updated.id,
+        "title": updated.title,
+        "url": updated.url,
+        "name": updated.name,
         "unresolved": unresolved,
     }
 

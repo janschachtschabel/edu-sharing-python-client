@@ -277,3 +277,11 @@ def test_schreibende_flows_synchron(repo):
 
     geloescht = _kein_coroutine(repo.flows.delete(NID))
     assert geloescht["recycled"] is True
+
+
+def test_neue_flows_synchron(repo):
+    """Dieselbe Falle, viertes Mal: neue asynchrone Flaeche, Durchgriff
+    vergessen, Aufruf liefert stumm eine Coroutine."""
+    assert _kein_coroutine(repo.flows.find_collections("Optik"))["hits"] is not None
+    assert _kein_coroutine(repo.flows.collection_contents("coll-1"))["id"] == "coll-1"
+    assert _kein_coroutine(repo.flows.update_material(NID, title="Neu"))["id"] == NID

@@ -194,12 +194,19 @@ if angelegt["unresolved"]:            # Werte, die NICHT ankamen
     ...
 ```
 
-Sechs Abläufe: `search`, `vocabulary`, `describe`, `add_material`,
+Neun Abläufe: `search`, `vocabulary`, `describe`, `find_collections`,
+`collection_contents`, `add_material`, `update_material`,
 `build_collection`, `delete`. Ein- und Ausgabe im Einzelnen in
 **[docs/FLOWS.de.md](docs/FLOWS.de.md)**.
 
+`search` nimmt zusätzlich `rerank=True`. edu-sharing UND-verknüpft jedes
+Wort, weshalb eine natürlich formulierte Frage nichts findet: gemessen hat
+*„Bruchrechnung"* 1591 Datensätze, *„Ich suche ein Arbeitsblatt zur
+Bruchrechnung"* **null**. Die Neuordnung fragt mehrere Anfragevarianten und
+sortiert nach Relevanz — sie kostet eine Anfrage je Variante und ist aus.
+
 Ausprobieren: `python docs/examples/05_flow_search.py`, `06_flow_create.py`,
-`07_flow_collection.py`
+`07_flow_collection.py`, `08_flow_rerank.py`, `09_flow_browse.py`
 
 ## ⏳ Wohin es geht
 

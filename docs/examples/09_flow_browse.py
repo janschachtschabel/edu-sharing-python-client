@@ -1,0 +1,109 @@
+"""Use case: find a collection, open it, change what is inside.
+
+    EDU_SHARING_USER=... EDU_SHARING_PASSWORD=... \\
+        python docs/examples/09_flow_browse.py
+
+Reading is anonymous; the last section needs credentials and creates a
+throwaway folder of its own, which it removes afterwards. Nothing that was
+already there is touched.
+
+This is the chain an MCP server runs most often: search collections, look
+inside one, and act on what is there.
+"""
+
+import sys
+import uuid
+
+# The Windows console otherwise emits cp1252 and mangles umlauts.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+from edusharing import Repository
+
+
+def browse(repo) -> None:
+    """Find collections and open one. Read-only."""
+    found = repo.flows.find_collections("Physik", limit=5)
+    print(f"{found['total']} collections found "
+          f"(a lower bound: {found['total_is_lower_bound']} -- two routes merged)")
+    for hit in found["hits"][:5]:
+        print(f"  {hit['title']}")
+    print()
+
+    if not found["hits"]:
+        return
+
+    first = found["hits"][0]
+    contents = repo.flows.collection_contents(first["id"], limit=5)
+    print(f"Inside {first['title']!r}:")
+    print(f"  {contents['total_materials']} materials, "
+          f"showing {contents['returned_materials']}")
+    for material in contents["materials"][:3]:
+        fields = ", ".join(
+            f"{k}={'/'.join(v)}" for k, v in list(material["fields"].items())[:2])
+        print(f"    {material['title'][:52]}")
+        if fields:
+            print(f"      {fields}")
+    if contents["collections"]:
+        print(f"  {len(contents['collections'])} sub-collections:")
+        for sub in contents["collections"][:3]:
+            print(f"    {sub['title']}")
+    else:
+        # Worth stating: asking only for material would show the same emptiness
+        # even when sub-collections exist.
+        print("  no sub-collections")
+
+
+def edit(repo) -> None:
+    """Create, change, verify, remove. Needs credentials."""
+    who = repo.whoami()
+    folder = repo.create_node(
+        who.home_folder,
+        name=f"example-browse-{uuid.uuid4().hex[:8]}",
+        type="cm:folder",
+        title="Throwaway folder of this example",
+    )
+    try:
+        created = repo.flows.add_material(
+            "Browse example: optics", parent_id=folder.id, subject="Physik")
+        print(f"  created {created['id']}")
+
+        changed = repo.flows.update_material(
+            created["id"],
+            title="Browse example: optics, revised",
+            keywords=["Optik", "überarbeitet"],
+            subject="Biologie",          # a label, resolved on write too
+        )
+        print(f"  changed to {changed['title']!r}, "
+              f"unresolved: {changed['unresolved'] or 'none'}")
+
+        # Verify at the server, not from the return value.
+        state = repo.flows.describe(created["id"])
+        print(f"  as stored: subject={state['fields'].get('subject')}, "
+              f"keywords={state['keywords']}")
+    finally:
+        folder.delete(recycle=False)
+        print(f"  throwaway folder removed: {folder.name}")
+
+
+def main() -> int:
+    with Repository.from_env(metadataset="mds_oeh") as repo:
+        print("Browsing collections")
+        print("=" * 72)
+        browse(repo)
+
+        print()
+        print("Changing material")
+        print("=" * 72)
+        who = repo.whoami()
+        if who.is_anonymous:
+            print("  skipped -- set EDU_SHARING_USER and EDU_SHARING_PASSWORD "
+                  "to run this part.")
+            return 0
+        edit(repo)
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

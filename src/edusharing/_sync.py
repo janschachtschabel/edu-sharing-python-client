@@ -185,6 +185,18 @@ class SyncFlows:
         """Like ``Flows.describe``, blocking."""
         return self._loop.run(self._flows.describe(node_id))
 
+    def find_collections(self, text: str, **kwargs: Any) -> dict[str, Any]:
+        """Like ``Flows.find_collections``, blocking."""
+        return self._loop.run(self._flows.find_collections(text, **kwargs))
+
+    def collection_contents(self, collection_id: str, **kwargs: Any) -> dict[str, Any]:
+        """Like ``Flows.collection_contents``, blocking."""
+        return self._loop.run(self._flows.collection_contents(collection_id, **kwargs))
+
+    def update_material(self, node_id: str, **kwargs: Any) -> dict[str, Any]:
+        """Like ``Flows.update_material``, blocking."""
+        return self._loop.run(self._flows.update_material(node_id, **kwargs))
+
     def add_material(self, title: str, **kwargs: Any) -> dict[str, Any]:
         """Like ``Flows.add_material``, blocking."""
         return self._loop.run(self._flows.add_material(title, **kwargs))

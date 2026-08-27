@@ -80,6 +80,21 @@ class Flows:
         """Everything about one node in a single call. See ``discover.describe``."""
         return await discover.describe(self._repo, node_id)
 
+    async def find_collections(self, text: str, *, limit: int = 10) -> dict[str, Any]:
+        """Search collections. See ``discover.find_collections``.
+
+        ``total_is_lower_bound`` is always true here -- two routes are merged.
+        """
+        return await discover.find_collections(self._repo, text, limit=limit)
+
+    async def collection_contents(
+        self, collection_id: str, *, limit: int = 20, offset: int = 0
+    ) -> dict[str, Any]:
+        """Material and sub-collections of one collection.
+        See ``discover.collection_contents``."""
+        return await discover.collection_contents(
+            self._repo, collection_id, limit=limit, offset=offset)
+
     # --- writing ----------------------------------------------------------
 
     async def add_material(
@@ -103,6 +118,26 @@ class Flows:
             self._repo, title, url=url, parent_id=parent_id, name=name,
             description=description, keywords=keywords,
             collection_id=collection_id, properties=properties, **aliases,
+        )
+
+    async def update_material(
+        self,
+        node_id: str,
+        *,
+        title: str | None = None,
+        url: str | None = None,
+        description: str | None = None,
+        keywords: list[str] | None = None,
+        properties: dict[str, Any] | None = None,
+        **aliases: Any,
+    ) -> dict[str, Any]:
+        """Change existing material, with vocabulary. See ``curate.update_material``.
+
+        Only what is passed is written. **Check ``unresolved``.**
+        """
+        return await curate.update_material(
+            self._repo, node_id, title=title, url=url, description=description,
+            keywords=keywords, properties=properties, **aliases,
         )
 
     async def build_collection(

@@ -190,12 +190,19 @@ if created["unresolved"]:             # values that did NOT stick
     ...
 ```
 
-Six flows: `search`, `vocabulary`, `describe`, `add_material`,
+Nine flows: `search`, `vocabulary`, `describe`, `find_collections`,
+`collection_contents`, `add_material`, `update_material`,
 `build_collection`, `delete`. Full input and output for each in
 **[docs/FLOWS.md](docs/FLOWS.md)**.
 
+`search` also takes `rerank=True`. edu-sharing ANDs every query word, so a
+naturally phrased question finds nothing: measured, *"Bruchrechnung"* has
+1591 records and *"Ich suche ein Arbeitsblatt zur Bruchrechnung"* has
+**zero**. Reranking asks several query variants and reorders by relevance --
+it costs one request per variant and is off by default.
+
 Try it: `python docs/examples/05_flow_search.py`, `06_flow_create.py`,
-`07_flow_collection.py`
+`07_flow_collection.py`, `08_flow_rerank.py`, `09_flow_browse.py`
 
 ## ⏳ Where this is going
 

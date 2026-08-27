@@ -11,10 +11,12 @@ adds capability; it removes steps.
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Any
 
 from ..errors import ValidationError
 from ..results import SearchHit
+from ..urls import path_segment
 from .language import GERMAN, LanguageProfile
 from .rerank import DEFAULT_POOL, search_reranked
 from .serialize import hit_as_dict, result_as_dict
@@ -22,7 +24,14 @@ from .serialize import hit_as_dict, result_as_dict
 if TYPE_CHECKING:  # pragma: no cover
     from ..repository import AsyncRepository
 
-__all__ = ["describe", "field_property", "search", "vocabulary"]
+__all__ = [
+    "collection_contents",
+    "describe",
+    "field_property",
+    "find_collections",
+    "search",
+    "vocabulary",
+]
 
 
 def field_property(repo: AsyncRepository, field: str) -> str:
@@ -190,3 +199,100 @@ async def describe(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
         "properties": node.properties,
     })
     return data
+
+
+async def find_collections(
+    repo: AsyncRepository, text: str, *, limit: int = 10
+) -> dict[str, Any]:
+    """Search collections and return the outcome as JSON.
+
+    Collections are how edu-sharing groups material for teaching, so finding
+    them is a different question from finding single resources -- and it uses a
+    different endpoint.
+
+    Args:
+        repo: the connection.
+        text: what to search for.
+        limit: how many to return.
+
+    Returns:
+        The same shape as ``search``. ``total_is_lower_bound`` is **true**: the
+        collection search asks two routes and merges them, so the figure counts
+        at least this many, possibly more.
+
+    Raises:
+        EduSharingError: for anything the repository refuses.
+    """
+    result = await repo.collections.find(text, limit=limit)
+    query: dict[str, Any] = {
+        "text": text,
+        "metadataset": repo.metadataset,
+        "limit": limit,
+        "kind": "collections",
+    }
+    return result_as_dict(result, query=query, aliases=repo.searcher.field_aliases)
+
+
+async def collection_contents(
+    repo: AsyncRepository, collection_id: str, *, limit: int = 20, offset: int = 0
+) -> dict[str, Any]:
+    """What is inside a collection: material and sub-collections.
+
+    Both, because a collection holds both -- and the material listing alone
+    does not show them. Measured on 2026-08-27 against a collection with two
+    sub-collections: ``filter=files`` returns **zero** nodes. Asking only for
+    material makes that collection look empty.
+
+    Sub-collections do also appear under ``filter=folders`` (as ``ccm:map``).
+    The collection endpoint is used regardless: it is the one meant for the job
+    and carries collection metadata, where the folder filter is a detour that
+    happens to work.
+
+    Args:
+        repo: the connection.
+        collection_id: the collection to open.
+        limit, offset: page size and starting point, applied to the material.
+
+    Returns:
+        ``{id, materials, collections, total_materials, returned_materials}``.
+        Materials carry the same shape as search hits.
+
+    Raises:
+        NotFoundError: when no collection carries this id.
+    """
+    segment = path_segment(collection_id)
+
+    async def material() -> dict[str, Any]:
+        return await repo.raw.json(
+            "GET", f"/node/v1/nodes/-home-/{segment}/children",
+            params={"maxItems": limit, "skipCount": offset, "filter": "files"},
+        )
+
+    async def sub_collections() -> dict[str, Any]:
+        return await repo.raw.json(
+            "GET", f"/collection/v1/collections/-home-/{segment}/children/collections",
+            params={"maxItems": limit},
+        )
+
+    nodes_response, collections_response = await asyncio.gather(
+        material(), sub_collections()
+    )
+
+    aliases = repo.searcher.field_aliases
+    materials = [
+        hit_as_dict(SearchHit.from_node(node, repo.url), aliases)
+        for node in (nodes_response.get("nodes") or [])
+    ]
+    children = [
+        hit_as_dict(SearchHit.from_node(node, repo.url), aliases)
+        for node in (collections_response.get("collections") or [])
+    ]
+
+    pagination = nodes_response.get("pagination") or {}
+    return {
+        "id": collection_id,
+        "materials": materials,
+        "collections": children,
+        "total_materials": int(pagination.get("total") or 0),
+        "returned_materials": len(materials),
+    }
