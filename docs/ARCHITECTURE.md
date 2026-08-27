@@ -78,6 +78,7 @@ The library decides that itself.
 | E6 | Import `edusharing`, distribution `edu-sharing-python-client` | The bare name `edu-sharing` would have looked like an official client of metaVentis GmbH, from whom edu-sharing originates. |
 | E7 | **Field aliases in English, values in German** | The rest of the API is English (`Repository`, `search`, `update`). The values are the repository's own labels and stay as they are. |
 | E8 | **Identifiers are percent-encoded in exactly one place** (`urls.path_segment`) | Interpolating an id into a path with an f-string lets it escape the path: measured on 2026-08-27, a node id of `../../../admin/v1/applications` reached a different endpoint, and `abc?admin=1` swallowed the trailing `/metadata`. Encoding at each of the 16 call sites would mean 16 chances to forget; one helper plus an integration test that walks every call site makes a forgotten site fail loudly. Relevant because under an MCP the id comes from the model, i.e. from foreign data. See audit F1. |
+| E9 | **Two levels: API-close objects and JSON flows** | The API level returns `SearchResult` and `Node` -- right for writing Python, wrong for anything that passes the result onwards. `repo.flows.*` chains the same calls and ends at `dict`. Flows add no capability; they remove steps. Kept separate rather than merged, because an object with methods and a JSON-serialisable structure are genuinely different things and picking one would have made the other awkward. Output keys are the configured aliases, so the shape is not tied to a profile (see E4). |
 
 ### 4.1 Feasibility proof (carried out 2026-08-27 against staging)
 
@@ -219,6 +220,8 @@ Not assumed but checked (staging, 2026-08-27, unless noted otherwise):
   GPT-5/o, `enable_thinking:false` for Qwen3 — but **not** for Mistral, which
   answers 400), retry on 429/502/503/504, semaphore, `content or reasoning` when
   reading.
+
+**The search index holds nodes that no longer exist.** Measured on 2026-08-27 against staging: of 25 hits for "Physik", **4 were not retrievable** -- `NotFoundError` from `/node/v1/nodes/-home-/{id}/metadata`, although the hit carried a title and full metadata in the search response. Anything chaining search to a detail lookup -- which is exactly what an MCP does -- has to survive that. Recorded because it looks like a library bug and is not.
 
 ## 8. Stages
 

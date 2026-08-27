@@ -175,6 +175,32 @@ in `bapi.policy`.
 
 Zum Ausprobieren: `python docs/examples/04_agent_blocks.py`
 
+### Abläufe — ein Anwendungsfall, ein Aufruf
+
+Alles bisher Gezeigte ist nah an edu-sharing und liefert Objekte. Das ist
+richtig für Python und unpassend für alles, was das Ergebnis weiterreichen muss.
+`repo.flows` erledigt dieselbe Arbeit in einem Aufruf und antwortet in JSON:
+
+```python
+ergebnis = repo.flows.search("Photosynthese", subject="Biologie")
+json.dumps(ergebnis)                  # geht -- genau darum geht es
+
+angelegt = repo.flows.add_material(   # landet im Home-Verzeichnis
+    "Photosynthese einfach erklärt",
+    url="https://beispiel.org/m",
+    subject="Biologie",               # wird auch schreibend aufgelöst
+)
+if angelegt["unresolved"]:            # Werte, die NICHT ankamen
+    ...
+```
+
+Sechs Abläufe: `search`, `vocabulary`, `describe`, `add_material`,
+`build_collection`, `delete`. Ein- und Ausgabe im Einzelnen in
+**[docs/FLOWS.de.md](docs/FLOWS.de.md)**.
+
+Ausprobieren: `python docs/examples/05_flow_search.py`, `06_flow_create.py`,
+`07_flow_collection.py`
+
 ## ⏳ Wohin es geht
 
 Ein MCP-Server als dünner Adapter über `edusharing.agent` — die Bausteine dafür

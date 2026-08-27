@@ -33,9 +33,8 @@ def main() -> int:
         print(f"Signed in as {who.display_name} ({who.authority})")
         print()
 
-        home = ((who.raw.get("person") or {}).get("homeFolder") or {}).get("id")
         folder = repo.create_node(
-            home, name=f"example-{uuid.uuid4().hex[:8]}", type="cm:folder",
+            who.home_folder, name=f"example-{uuid.uuid4().hex[:8]}", type="cm:folder",
             title="Throwaway folder of this example")
         print(f"Throwaway folder created: {folder.name}")
 

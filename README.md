@@ -171,6 +171,32 @@ for Qwen3 — but not for Mistral) live in `bapi.policy`.
 
 Try it: `python docs/examples/04_agent_blocks.py`
 
+### Flows — a use case in one call
+
+Everything above is close to edu-sharing and returns objects. That is right for
+Python, and wrong for anything that has to pass the result onwards. `repo.flows`
+does the same work in one call and answers in JSON:
+
+```python
+result = repo.flows.search("Photosynthese", subject="Biologie")
+json.dumps(result)                    # works -- that is the point
+
+created = repo.flows.add_material(    # lands in your home folder
+    "Photosynthese einfach erklärt",
+    url="https://example.org/m",
+    subject="Biologie",               # resolved while writing, too
+)
+if created["unresolved"]:             # values that did NOT stick
+    ...
+```
+
+Six flows: `search`, `vocabulary`, `describe`, `add_material`,
+`build_collection`, `delete`. Full input and output for each in
+**[docs/FLOWS.md](docs/FLOWS.md)**.
+
+Try it: `python docs/examples/05_flow_search.py`, `06_flow_create.py`,
+`07_flow_collection.py`
+
 ## ⏳ Where this is going
 
 An MCP server as a thin adapter over `edusharing.agent` — the building blocks
