@@ -226,6 +226,25 @@ Not assumed but checked (staging, 2026-08-27, unless noted otherwise):
 
 **Three separate concepts join nodes, and mixing them up is easy.** A **collection** is a container of references. A **relation** (`/relation/v1`) joins two nodes that stand on their own -- a series and what it is based on -- and keeps the opposite direction automatically. A **child object** belongs to its parent and has no life without it: an answer sheet, a handout. Only the last one needed reverse-engineering: measured 2026-08-27, `type=ccm:io_childobject` answers HTTP 500 because `ccm:io_childobject` is an *aspect*, and the working call is `type=ccm:io` with `assocType=ccm:childio` and `aspects=ccm:io_childobject`. Taken from the Ideendatenbank, which uses it in production.
 
+**Writing can half-succeed, and the response says so.** Three cases measured on
+2026-08-28, all answering HTTP 200:
+
+* ``ccm:oeh_lrt_aggregated`` is derived from ``ccm:oeh_lrt``. Sent while
+  creating a node it comes back absent, while ``ccm:taxonid`` in the same call
+  arrives.
+* Creating a ``cm:folder`` with ``cm:title`` overwrites that title with
+  ``cm:name``. The same title on a ``ccm:io`` arrives -- it is a rule of the
+  folder type. Set afterwards with ``update()`` it works.
+* Keywords sent while creating a *collection* are dropped; they need a second
+  call.
+
+The first two are why ``Nodes.create`` now reads back like ``update`` and
+``set_property`` always did. It costs nothing: the POST response carries the
+created node and already shows the loss. The check found the folder-title case
+on its own -- every throwaway folder in this repository's tests had been passing
+a title that never arrived.
+
+
 ## 8. Stages
 
 | # | Content | Done when |

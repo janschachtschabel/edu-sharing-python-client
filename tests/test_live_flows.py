@@ -299,6 +299,14 @@ async def test_sammlung_anlegen_fuellen_und_wieder_loeschen(repo, ordner):
     try:
         assert sammlung["added"] == [material["id"]], sammlung["failed"]
         assert not sammlung["failed"]
+
+        # Die Beschreibung wurde bisher gesetzt, aber nie nachgeprueft. Sie
+        # gehoert in das collection-Objekt; auf oberster Ebene lehnt die API sie
+        # ab, als properties["cm:description"] wird sie verworfen (gemessen
+        # 27.08.2026, siehe Collections.create).
+        knoten = await repo.nodes.get(sammlung["id"])
+        assert (knoten.raw.get("collection") or {}).get("description") == (
+            "Von der Testsuite angelegt")
     finally:
         geloescht = await repo.flows.delete(sammlung["id"], recycle=False)
         assert geloescht["id"] == sammlung["id"]

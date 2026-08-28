@@ -238,6 +238,22 @@ than documented:
 - **Keywords are a shared list.** `add_keywords` extends; setting
   `cclom:general_keyword` directly deletes other people's entries.
 
+### When a write half-succeeds
+
+edu-sharing answers HTTP 200 to writes it does not fully store. The library
+reads back after every write -- creating included -- and raises `SilentDropError`
+naming the properties that did not arrive.
+
+Three measured causes:
+
+| Cause | Example | What to do |
+|---|---|---|
+| Not in the metadata set | `ccm:oeh_collection_compendium_text` | `set_property()` writes past it |
+| Derived by the repository | `ccm:oeh_lrt_aggregated` from `ccm:oeh_lrt` | write the source field |
+| A rule of the node type | `cm:title` on a new `cm:folder` | set it afterwards with `update()` |
+
+`create(verify=False)` switches the check off for a field you know is derived.
+
 ### Child objects — documents that belong to one material
 
 An answer sheet, a handout, a second file format: edu-sharing keeps those under

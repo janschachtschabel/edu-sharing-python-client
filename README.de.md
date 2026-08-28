@@ -274,6 +274,24 @@ Läuft offline und deterministisch. Tests gegen eine echte Instanz sind separat:
 EDU_SHARING_URL=https://repository.staging.openeduhub.net uv run pytest -m live
 ```
 
+### Wenn ein Schreibvorgang halb glückt
+
+edu-sharing antwortet mit HTTP 200 auch auf Schreibvorgänge, die es nicht
+vollständig speichert. Die Bibliothek liest nach jedem Schreiben zurück — auch
+nach dem Anlegen — und wirft einen `SilentDropError`, der die nicht
+angekommenen Eigenschaften benennt.
+
+Drei gemessene Ursachen:
+
+| Ursache | Beispiel | Was hilft |
+|---|---|---|
+| Nicht im Metadatensatz | `ccm:oeh_collection_compendium_text` | `set_property()` schreibt daran vorbei |
+| Vom Repositorium abgeleitet | `ccm:oeh_lrt_aggregated` aus `ccm:oeh_lrt` | das Quellfeld schreiben |
+| Regel des Knotentyps | `cm:title` an einem neuen `cm:folder` | nachträglich per `update()` setzen |
+
+`create(verify=False)` schaltet die Prüfung ab, wenn ein abgeleitetes Feld
+bewusst mitgeschickt wird.
+
 ### Serienobjekte — Dokumente, die zu einem Material gehören
 
 Ein Lösungsblatt, ein Handout, ein zweites Dateiformat: edu-sharing führt die
