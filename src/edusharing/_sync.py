@@ -410,6 +410,14 @@ class SyncFlows:
         """Like ``Flows.related``, blocking."""
         return self._loop.run(self._flows.related(node_id, **kwargs))
 
+    def page(self, collection_id: str, **kwargs: Any) -> dict[str, Any]:
+        """Like ``Flows.page``, blocking."""
+        return self._loop.run(self._flows.page(collection_id, **kwargs))
+
+    def find_pages(self, text: str = "", **kwargs: Any) -> dict[str, Any]:
+        """Like ``Flows.find_pages``, blocking."""
+        return self._loop.run(self._flows.find_pages(text, **kwargs))
+
     def browse_tree(self, collection_id: str, **kwargs: Any) -> dict[str, Any]:
         """Like ``Flows.browse_tree``, blocking."""
         return self._loop.run(self._flows.browse_tree(collection_id, **kwargs))

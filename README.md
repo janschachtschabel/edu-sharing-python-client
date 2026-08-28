@@ -190,11 +190,11 @@ if created["unresolved"]:             # values that did NOT stick
     ...
 ```
 
-Eighteen flows: `search`, `search_all`, `vocabulary`, `describe`,
+Twenty flows: `search`, `search_all`, `vocabulary`, `describe`,
 `describe_many`, `related`, `placement`, `relations`, `child_objects`,
 `browse_tree`, `search_in_collection`, `collection_stats`,
-`find_collections`,
-`collection_contents`, `add_material`, `update_material`,
+`find_collections`, `collection_contents`, `page`, `find_pages`,
+`add_material`, `update_material`,
 `build_collection`, `delete`. Full input and output for each in
 **[docs/FLOWS.md](docs/FLOWS.md)**.
 
@@ -498,6 +498,56 @@ machine-proposed links from confirmed ones (`ai_generated`, `approve`), which
 matters when a model does the proposing. Details in
 [docs/FLOWS.md](docs/FLOWS.md#relations--what-a-node-is-linked-to).
 
+### Curated pages — what a collection renders
+
+edu-sharing's page builder: a collection may carry a landing page built from
+*swimlanes*, each holding widgets, each widget pointing at a node.
+WirLernenOnline calls these “Themenseiten”, but nothing about them is WLO's —
+the properties belong to edu-sharing's content model, and any instance using
+the page builder stores them the same way.
+
+```python
+node = await repo.node(collection_id)
+page = await node.page.get()              # None when this collection has none
+if page:
+    print(page.rendered.title, len(page.rendered.swimlanes))
+    await node.page.render(other_variant_id)   # immediately public
+```
+
+Or as a flow, JSON-ready:
+
+```python
+await repo.flows.find_pages("Deutsch")    # which collections carry one
+await repo.flows.page(collection_id, resolve_widgets=True)
+```
+
+Three things worth knowing before you use it, all measured on 2026-08-28:
+
+* A page document **without** a `default` renders the *first* variant of its
+  list. `by_position` tells the two states apart — they look identical to a
+  visitor and are not the same thing to a write.
+* **Having a page is not having content.** One measured collection carries a
+  page whose single variant configures zero swimlanes.
+* **Nothing validates these documents.** The property route stores the literal
+  string `"not json at all"` with a `200`. So reading never raises on a broken
+  one (`readable` says so) and `render()` refuses everything it cannot prove,
+  editing the stored document rather than composing a new one.
+
+Details in [docs/FLOWS.md](docs/FLOWS.md#page--the-curated-page-a-collection-renders).
+
+### What this library does not do
+
+* **Fetch arbitrary URLs, or summarise Wikipedia.** Neither is edu-sharing. An
+  edu-sharing client that fetches any URL you hand it is an SSRF surface in a
+  package where nobody goes looking for one. `httpx` is already a dependency
+  here — use it directly and own that decision.
+* **Parse repository-specific document conventions.** Finding a document is
+  generic and is shown under *Fields and files* below; what its Markdown means
+  is the convention of the people who wrote it.
+* **Create, delete or reorder page variants, or edit swimlanes.** Only which
+  variant renders. A malformed page document does not fail on write — it fails
+  later, in the page builder, on a page the public is reading.
+
 ## Fields and files the short names do not cover
 
 The aliases (`subject`, `level`, …) are a convenience for the handful of
@@ -554,6 +604,32 @@ file, gathered in a collection. Reading them needs nothing special —
 result as untrusted input: it is uploaded content, and `edusharing.agent`
 carries the guards for that.
 
+Such records are usually marked by a content type, and that *is* filterable:
+
+```python
+CONTENT_TYPE = "ccm:oeh_extendedType"
+WANTED = "http://w3id.org/openeduhub/vocabs/contentTypes/ai_skill"
+
+found = await repo.search(filters={CONTENT_TYPE: WANTED})   # anywhere
+
+page = await repo.nodes.children(collection_id, limit=100)  # in one collection
+mine = [n for n in page.nodes if n.get(CONTENT_TYPE) == WANTED]
+```
+
+Measured on 2026-08-28 against staging: 34 records, each 13–14 kB of Markdown
+that `download()` returns and `text()` reports as empty — the table above, on
+live data.
+
+**Through the children, not the index, when the question is what a collection
+*approves*.** The search index and the node store are separate systems in
+edu-sharing, and a record can fall out of the former while sitting perfectly in
+the latter — the WLO MCP watched it happen to a live collection on 2026-08-09.
+
+The URI is yours to choose. This library resolves vocabularies against the
+metadata set of the instance at hand and ships no table of its own; a URI from
+one repository's vocabulary has no business compiled into a client for all of
+them.
+
 ## Examples
 
 Every one of them runs against a real instance; the writing ones create a
@@ -581,6 +657,7 @@ them:
 | [`09_flow_browse.py`](docs/examples/09_flow_browse.py) | find collections, open one, change what is inside |
 | [`12_flow_place.py`](docs/examples/12_flow_place.py) | one query for material and collections, then where a hit sits |
 | [`13_flow_tree.py`](docs/examples/13_flow_tree.py) | walk a collection, search inside it, count what is in it |
+| [`14_flow_page.py`](docs/examples/14_flow_page.py) | read the curated page a collection renders, widgets and all |
 
 **Both levels side by side:**
 

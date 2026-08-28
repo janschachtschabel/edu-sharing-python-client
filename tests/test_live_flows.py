@@ -618,3 +618,68 @@ async def test_eine_sammlung_auszaehlen(repo):
     assert zahlen["complete"] == (zahlen["sampled"] >= zahlen["materials"])
     for feld, zaehler in zahlen["by"].items():
         assert sum(zaehler.values()) >= 1, feld
+
+
+# --- Kuratierte Seiten -----------------------------------------------------
+#
+# Beide Tests gehen die Treffer DURCH, statt den ersten zu nehmen. Zwei Gruende,
+# beide am 28.08.2026 gemessen: die Sammlungssuche liefert bei gleicher Anfrage
+# nicht dieselbe Treffermenge, und eine Seite kann gar nichts rendern -- die
+# Sammlung Hexen traegt eine Variante mit lesbarem Dokument und leerer
+# Schwimmlinienliste.
+
+@pytest.mark.live
+async def test_seiten_finden_und_ausgeben(repo):
+    """Uebersprungen, wenn die Instanz keinen Page Builder fuehrt -- er ist
+    eine Moeglichkeit von edu-sharing, keine Pflicht."""
+    gefunden = await repo.flows.find_pages("Deutsch", limit=25)
+    json.dumps(gefunden)
+    assert gefunden["checked"] >= 1, (
+        "kein einziger Sammlungstreffer war beurteilbar -- die Projektion fehlt")
+    if not gefunden["hits"]:
+        pytest.skip("diese Instanz fuehrt keine kuratierte Seite unter diesem Suchwort")
+
+    mit_inhalt = None
+    for treffer in gefunden["hits"]:
+        assert treffer["folder_id"] and treffer["folder_id"] != treffer["id"]
+        seite = await repo.flows.page(treffer["id"])
+        json.dumps(seite)
+        assert seite["folder_id"] == treffer["folder_id"]
+        assert seite["rendered"] is not None, "eine Seite ohne Varianten"
+        assert seite["reason"] == ""
+        assert all(v["readable"] for v in seite["variants"])
+        if seite["swimlanes"]:
+            mit_inhalt = mit_inhalt or seite
+
+    if mit_inhalt is None:
+        pytest.skip("jede gefundene Seite rendert nichts -- gemessen moeglich")
+    assert mit_inhalt["node_ids"]
+    assert all(linie["items"] for linie in mit_inhalt["swimlanes"])
+    assert mit_inhalt["resolved"] is False
+
+
+@pytest.mark.live
+async def test_widgets_aufloesen(repo):
+    gefunden = await repo.flows.find_pages("Deutsch", limit=25)
+    if not gefunden["hits"]:
+        pytest.skip("diese Instanz fuehrt keine kuratierte Seite unter diesem Suchwort")
+
+    for treffer in gefunden["hits"]:
+        seite = await repo.flows.page(treffer["id"], resolve_widgets=True,
+                                      max_widgets=6)
+        json.dumps(seite)
+        assert seite["resolved"] is True
+        aufgeloest = [element for linie in seite["swimlanes"]
+                      for element in linie["items"]
+                      if {"description", "node_ids", "search"} & set(element)]
+        if not aufgeloest:
+            continue
+        # Gemessen: ein Widget traegt entweder eine feste Liste oder eine
+        # gespeicherte Suche. Die Suche wird genannt, nicht ausgefuehrt.
+        for element in aufgeloest:
+            if "search" in element:
+                assert set(element["search"]) == {"text", "filters"}
+            if "node_ids" in element:
+                assert all(isinstance(i, str) for i in element["node_ids"])
+        return
+    pytest.skip("keine der gefundenen Seiten fuehrt aufloesbare Widgets")

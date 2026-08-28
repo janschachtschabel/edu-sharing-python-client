@@ -352,6 +352,29 @@ children it did not open, because they come free with their parent's answer.
 straight past the cap the caller had set. A test written before the code found
 it; the same cap now bounds both.
 
+**The page builder writes documents nobody validates.** A collection's curated
+page lives in two JSON blobs -- ``ccm:page_config`` on a folder,
+``ccm:page_variant_config`` on each of its children -- and the property route
+that stores them checks nothing. Measured: it accepted the literal string
+``"not json at all"`` with a ``200``, and accepted the property on a node that
+is no page folder at all.
+
+``pages.py`` is shaped entirely by that. Reading never raises on a broken
+document; it reports ``readable=False``, because one bad variant must not cost
+the whole page. Writing goes the other way and refuses everything it cannot
+prove -- no document, not JSON, not an object, no variant list, variant not in
+it -- and **edits** the stored blob instead of composing one, so every key the
+page builder owns survives a change this library made.
+
+Two further things the shape had to account for. A document without a
+``default`` renders ``variants[0]``: "nothing chosen" and "the first one
+chosen" are indistinguishable to a visitor and different to a write, so
+``by_position`` names the difference. And ``render()`` sits on the accessor,
+not on the value object: an ``async`` method on a frozen value object would
+have been this library's first, and ``SyncNodePage.get()`` would then hand the
+synchronous caller an object whose ``render()`` is an un-awaited coroutine --
+exactly the trap the synchronous surface exists to prevent.
+
 ## 8. Stages
 
 | # | Content | Done when |

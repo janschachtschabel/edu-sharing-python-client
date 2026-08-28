@@ -195,6 +195,18 @@ async def test_variante_ohne_dokument_ist_lesbar_aber_leer():
     assert seite.variants[0].swimlanes == ()
 
 
+async def test_seite_ohne_schwimmlinien_ist_lesbar():
+    """Gemessen am 28.08.2026: die Sammlung Hexen traegt eine Seite mit einer
+    Variante, deren Dokument lesbar ist und deren swimlanes leer sind. "Hat
+    eine Seite" und "hat Inhalt" sind zwei Fragen."""
+    instanz = Instanz(varianten=[_node(V1, props={
+        "ccm:page_variant_config": [_variant_config(lanes=[])]})])
+    seite = await _seite(instanz)
+    assert seite.variants[0].readable is True
+    assert seite.variants[0].swimlanes == ()
+    assert seite.rendered is not None, "die Variante gibt es, sie zeigt nur nichts"
+
+
 async def test_voreinstellung_wird_gelesen():
     """Gemessen: der variables-Block traegt die Voreinstellung des
     Profil-Waehlers, und die Bildungsstufen stehen dort als EINE

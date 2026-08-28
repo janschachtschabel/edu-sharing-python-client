@@ -30,6 +30,10 @@ Measured against edu-sharing 11.0 (staging, 2026-08-28), on the collection
 * **``ccm:page_variant_is_template`` is a string**, ``"false"``.
 * **A grid element without ``nodeId`` is normal** -- 1 of the 10 measured
   elements is one (``wlo-editorial-members``, a widget that needs no node).
+* **A page can render nothing at all.** The collection ``Hexen`` carries a
+  page, one variant, a readable document -- whose ``structure.swimlanes`` is an
+  empty list. "Has a page" and "has content" are separate questions, and a
+  caller that assumes the first implies the second is wrong on staging today.
 * **The audience fields are mostly empty** while the document's ``variables``
   block does carry a preset. The two are different claims: the MCP measured
   them contradicting each other on 2026-08-11 (target group ``learner`` beside

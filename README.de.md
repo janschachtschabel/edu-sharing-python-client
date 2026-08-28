@@ -194,11 +194,11 @@ if angelegt["unresolved"]:            # Werte, die NICHT ankamen
     ...
 ```
 
-Achtzehn Abläufe: `search`, `search_all`, `vocabulary`, `describe`,
+Zwanzig Abläufe: `search`, `search_all`, `vocabulary`, `describe`,
 `describe_many`, `related`, `placement`, `relations`, `child_objects`,
 `browse_tree`, `search_in_collection`, `collection_stats`,
-`find_collections`,
-`collection_contents`, `add_material`, `update_material`,
+`find_collections`, `collection_contents`, `page`, `find_pages`,
+`add_material`, `update_material`,
 `build_collection`, `delete`. Ein- und Ausgabe im Einzelnen in
 **[docs/FLOWS.de.md](docs/FLOWS.de.md)**.
 
@@ -541,6 +541,60 @@ maschinell vorgeschlagene von bestätigten Verknüpfungen (`ai_generated`,
 `approve`) — was zählt, wenn ein Modell die Vorschläge macht. Einzelheiten in
 [docs/FLOWS.de.md](docs/FLOWS.de.md#relations--womit-ein-knoten-verknüpft-ist).
 
+### Kuratierte Seiten — was eine Sammlung rendert
+
+Der Page Builder von edu-sharing: eine Sammlung kann eine Startseite tragen,
+aufgebaut aus *Schwimmlinien*, jede mit Widgets, jedes Widget auf einen Knoten
+zeigend. WirLernenOnline nennt das „Themenseite“, aber daran ist nichts von WLO
+— die Eigenschaften gehören zum Inhaltsmodell von edu-sharing, und jede
+Instanz, die den Page Builder benutzt, speichert sie gleich.
+
+```python
+node = await repo.node(collection_id)
+page = await node.page.get()              # None, wenn die Sammlung keine hat
+if page:
+    print(page.rendered.title, len(page.rendered.swimlanes))
+    await node.page.render(andere_variante)   # sofort öffentlich sichtbar
+```
+
+Oder als Ablauf, JSON-fertig:
+
+```python
+await repo.flows.find_pages("Deutsch")    # welche Sammlungen eine tragen
+await repo.flows.page(collection_id, resolve_widgets=True)
+```
+
+Drei Dinge, die man vorher wissen sollte, alle am 28.08.2026 gemessen:
+
+* Ein Seitendokument **ohne** `default` rendert die *erste* Variante seiner
+  Liste. `by_position` hält die beiden Zustände auseinander — für den Besucher
+  sehen sie gleich aus, für einen Schreibvorgang sind sie es nicht.
+* **Eine Seite zu haben ist nicht, Inhalt zu haben.** Eine gemessene Sammlung
+  trägt eine Seite, deren einzige Variante null Schwimmlinien konfiguriert.
+* **An diesen Dokumenten validiert nichts.** Die Property-Route speichert die
+  Zeichenkette `"not json at all"` mit einer `200`. Darum wirft das Lesen an
+  einem kaputten Dokument nie (`readable` sagt es), und `render()` verweigert
+  alles, was es nicht belegen kann — es redigiert das gespeicherte Dokument,
+  statt ein neues zu komponieren.
+
+Im Einzelnen in
+[docs/FLOWS.de.md](docs/FLOWS.de.md#page--die-kuratierte-seite-die-eine-sammlung-rendert).
+
+### Was diese Bibliothek nicht tut
+
+* **Beliebige URLs abrufen oder Wikipedia zusammenfassen.** Beides ist kein
+  edu-sharing. Ein edu-sharing-Client, der jede übergebene URL abruft, ist eine
+  SSRF-Oberfläche in einem Paket, in dem niemand danach sucht. `httpx` ist hier
+  ohnehin schon Abhängigkeit — nimm es direkt und triff die Entscheidung
+  selbst.
+* **Dokumentkonventionen einzelner Repositorien parsen.** Ein Dokument zu
+  finden ist generisch und steht unten unter *Felder und Dateien*; was sein
+  Markdown bedeutet, ist die Konvention derer, die es geschrieben haben.
+* **Varianten anlegen, löschen, umsortieren oder Schwimmlinien bearbeiten.**
+  Nur, welche Variante rendert. Ein kaputtes Seitendokument fällt nicht beim
+  Schreiben auf, sondern später, im Page Builder, auf einer Seite, die das
+  Publikum liest.
+
 ## Felder und Dateien, die keine Kurznamen haben
 
 Die Kurznamen (`subject`, `level`, …) sind eine Bequemlichkeit für die Handvoll
@@ -597,6 +651,34 @@ Besonderes — `flows.collection_contents(id)`, dann `content.download()` je
 Eintrag. Behandeln Sie das Ergebnis als nicht vertrauenswürdige Eingabe: es ist
 hochgeladener Inhalt, und `edusharing.agent` trägt die Schutzmaßnahmen dafür.
 
+Solche Datensätze sind meist durch einen Inhaltstyp gekennzeichnet, und auf den
+lässt sich sehr wohl filtern:
+
+```python
+INHALTSTYP = "ccm:oeh_extendedType"
+GESUCHT = "http://w3id.org/openeduhub/vocabs/contentTypes/ai_skill"
+
+treffer = await repo.search(filters={INHALTSTYP: GESUCHT})   # irgendwo
+
+seite = await repo.nodes.children(collection_id, limit=100)  # in einer Sammlung
+eigene = [n for n in seite.nodes if n.get(INHALTSTYP) == GESUCHT]
+```
+
+Am 28.08.2026 gegen Staging gemessen: 34 Datensätze, je 13 bis 14 kB Markdown,
+die `download()` liefert und `text()` als leer meldet — die Tabelle oben, an
+echten Daten.
+
+**Über die Kinder, nicht über den Index, wenn die Frage ist, was eine Sammlung
+*freigibt*.** Suchindex und Knotenspeicher sind in edu-sharing getrennte
+Systeme, und ein Datensatz kann aus dem einen fallen, während er im anderen
+tadellos liegt — dem WLO-MCP ist das am 09.08.2026 an einer laufenden Sammlung
+passiert.
+
+Die URI wählt der Aufrufer. Diese Bibliothek löst Vokabulare gegen den
+Metadatensatz der jeweiligen Instanz auf und bringt keine eigene Tabelle mit;
+eine URI aus dem Vokabular eines Repositoriums hat in einem Client für alle
+nichts verloren.
+
 ## Beispiele
 
 Jedes läuft gegen eine echte Instanz; die schreibenden legen einen eigenen
@@ -624,6 +706,7 @@ wird:
 | [`09_flow_browse.py`](docs/examples/09_flow_browse.py) | Sammlungen finden, öffnen, Inhalt ändern |
 | [`12_flow_place.py`](docs/examples/12_flow_place.py) | eine Anfrage für Material und Sammlungen, dann wo ein Treffer liegt |
 | [`13_flow_tree.py`](docs/examples/13_flow_tree.py) | eine Sammlung ablaufen, darin suchen, sie auszählen |
+| [`14_flow_page.py`](docs/examples/14_flow_page.py) | die kuratierte Seite einer Sammlung lesen, samt Widgets |
 
 **Beide Ebenen nebeneinander:**
 

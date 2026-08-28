@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from . import curate, discover, tree
+from . import curate, discover, pages, tree
 from .language import GERMAN, LanguageProfile
 from .rerank import DEFAULT_POOL
 
@@ -129,6 +129,14 @@ class Flows:
         read.
         """
         return await discover.placement(self._repo, node_id)
+
+    async def page(self, collection_id: str, **kwargs: Any) -> dict[str, Any]:
+        """The curated page a collection renders. See ``flows.pages.page``."""
+        return await pages.page(self._repo, collection_id, **kwargs)
+
+    async def find_pages(self, text: str = "", **kwargs: Any) -> dict[str, Any]:
+        """Which collections carry one. See ``flows.pages.find_pages``."""
+        return await pages.find_pages(self._repo, text, **kwargs)
 
     async def browse_tree(self, collection_id: str, **kwargs: Any) -> dict[str, Any]:
         """The collections underneath one collection. See ``tree.browse_tree``.

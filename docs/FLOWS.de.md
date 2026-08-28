@@ -49,6 +49,8 @@ nur von Hand ausgeschrieben.
 | `browse_tree` | eine je geöffneter Sammlung | Untersammlungen ablaufen, entdoppelt und gedeckelt |
 | `search_in_collection` | eine je Sammlung + zwei je Sammlung für ihr Material | ablaufen → Material lesen → lokal vergleichen |
 | `collection_stats` | 2, parallel | Materialliste + Untersammlungsliste → lokal auszählen |
+| `page` | 3 (+1 je Widget mit `resolve_widgets`) | Sammlung laden -> ihren Seiten-Ordner -> dessen Varianten |
+| `find_pages` | 2, parallel | beide Sammlungsrouten -> die Treffer mit Seiten-Ref behalten |
 | `relations` | 1 | die Verknüpfungen des Knotens lesen |
 | `child_objects` | 2 | Hauptknoten laden → seine Kinder, gefiltert und sortiert |
 | `find_collections` | 2, parallel | beide Sammlungswege → über die ID zusammenlegen |
@@ -890,6 +892,122 @@ dreihundert ist nützlich; sie für das Ganze zu halten nicht.
 page = await collection_contents(repo, "abc", limit=100)   # Material + Untersammlungen
 # dann page["materials"] nach ihren aufgeloesten Feldwerten auszaehlen
 ```
+
+---
+
+## `page` — die kuratierte Seite, die eine Sammlung rendert
+
+Der Page Builder von edu-sharing: eine Sammlung kann eine Startseite tragen,
+aufgebaut aus *Schwimmlinien*, jede mit Widgets, jedes Widget auf einen Knoten
+zeigend. WirLernenOnline nennt das „Themenseite“; daran ist nichts von WLO, und
+darum benutzt dieser Ablauf das Wort nicht.
+
+**Eingabe**
+
+```python
+repo.flows.page("abc-123")                       # die Variante, die rendert
+repo.flows.page("abc-123", variant="v-2")        # eine bestimmte
+repo.flows.page("abc-123", resolve_widgets=True) # + was jedes Widget hält
+```
+
+**Ausgabe**
+
+```json
+{
+  "collection": {"id": "abc-123", "title": "Deutsch", "url": "https://…"},
+  "folder_id": "f2020460-…",
+  "rendered": {"id": "a95029c1-…", "title": "Fachportal Startseite",
+               "by_position": true},
+  "variants": [{"id": "a95029c1-…", "title": "Fachportal Startseite",
+                "is_template": false, "target_group": null,
+                "educational_contexts": [], "intention": "teach",
+                "education_levels": ["…/sekundarstufe_1"], "readable": true}],
+  "swimlanes": [
+    {"heading": "Themenübersicht", "type": "container",
+     "items": [{"widget": "wlo-collection-chips", "node_id": "4d39f9a1-…",
+                "description": "Die folgenden Sammlungen …",
+                "node_ids": ["69756a85-…", "cffaadfb-…"]}]}
+  ],
+  "node_ids": ["4d39f9a1-…"],
+  "resolved": true, "truncated": false, "reason": ""
+}
+```
+
+**`by_position` ist keine Zierde.** Ein Seitendokument ohne `default` rendert
+die *erste* Variante seiner Liste. „Nichts festgelegt“ und „die erste
+festgelegt“ sehen für den Besucher gleich aus und sind verschiedene Zustände —
+und davon wegzuschalten ist zweimal ein anderer Satz.
+
+**Eine Seite kann nichts rendern.** Gemessen am 28.08.2026: die Sammlung
+`Hexen` trägt eine Seite, eine Variante, ein lesbares Dokument — mit leerer
+Schwimmlinienliste. *Hat eine Seite* und *hat Inhalt* sind zwei Fragen.
+
+**Gespeicherte Suchen werden genannt, nicht ausgeführt.** Ein Widget hält
+entweder eine feste Liste (`sortedNodeIds`, wird aufgelöst) oder eine
+gespeicherte Suche (`searchText` + `propertyFilters`, steht unter `search` und
+bleibt liegen). Deren Filter tragen `virtual:`-Felder, die der Metadatensatz
+nicht kennt; sie auszuführen hieße raten. Nimm `flows.search` mit Filtern, die
+du selbst gewählt hast.
+
+**Dahinter** — 3 Anfragen:
+
+```python
+# was repo.flows.page("abc") tut
+node = await repo.node("abc")            # wegen ccm:page_config_ref
+page = await node.page.get()             # Ordner + seine Kinder, 2 Anfragen
+```
+
+**Schreiben.** Welche Variante rendert, ist ein Schreibvorgang — und sofort
+öffentlich sichtbar:
+
+```python
+node = await repo.node("abc-123")
+page = await node.page.render("v-2")     # liest, redigiert, schreibt, liest zurück
+```
+
+Er **redigiert** das gespeicherte Dokument — jeder Schlüssel, der dem Page
+Builder gehört, reist unverändert mit — und verweigert alles, was er nicht
+belegen kann: kein Dokument, kein JSON, kein Objekt, keine Variantenliste,
+Variante nicht gelistet. Nichts davor prüft es; gemessen speichert die
+Property-Route die Zeichenkette `"not json at all"` mit einer `200`.
+
+---
+
+## `find_pages` — welche Sammlungen eine tragen
+
+**Eingabe**
+
+```python
+repo.flows.find_pages("Deutsch", limit=25)
+```
+
+**Ausgabe**
+
+```json
+{"query": "Deutsch", "checked": 50, "total": 876,
+ "hits": [{"id": "69f9ff64-…", "title": "Deutsch", "url": "https://…",
+           "folder_id": "f2020460-…"}],
+ "reason": ""}
+```
+
+Eine Anfrage. Eine Teilmenge von `find_collections`: jede kuratierte Seite ist
+eine Sammlung, aber wenige Sammlungen haben eine.
+
+**`checked` sagt, wie viele Treffer überhaupt beurteilbar waren.** Ein Weg der
+Sammlungssuche hat eine feste Projektion und liefert keine Eigenschaften; an
+diesen Treffern ist eine Seite nicht zu erkennen. Ohne die Zahl liest sich ein
+leeres `hits` wie eine Aussage über die Instanz, obwohl es eine über die
+Projektion war.
+
+**Ein Lauf ist eine Stichprobe, kein Katalog.** Am 28.08.2026 sechsmal mit
+demselben Suchwort gemessen: drei verschiedene Treffermengen, `checked`
+zwischen 50 und 100. Beide Sammlungsrouten sind beteiligt, und keine ist
+Obermenge der anderen.
+
+> **Warum kein Filter?** Weil es keinen gibt. `ccm:page_config_ref` als
+> Suchkriterium antwortet mit `400 DAOValidationException: Widget
+> ccm:page_config_ref was not found in the mds`. Eine Seite wird aus der
+> Antwort erkannt.
 
 ---
 

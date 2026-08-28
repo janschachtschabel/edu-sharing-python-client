@@ -408,6 +408,14 @@ def test_neue_flows_synchron(repo):
     assert _kein_coroutine(repo.flows.update_material(NID, title="Neu"))["id"] == NID
 
 
+def test_seiten_ablaeufe_synchron(repo):
+    """Sechstes Mal dieselbe Falle."""
+    seite = _kein_coroutine(repo.flows.page(NID))
+    assert seite["collection"]["id"] == NID
+    assert seite["swimlanes"] == [], "der gemockte Knoten traegt keine Seite"
+    assert _kein_coroutine(repo.flows.find_pages("Optik"))["hits"] == []
+
+
 def test_serienobjekte_synchron(repo):
     """Fuenftes Mal dieselbe Falle: neue asynchrone Flaeche am Node, Durchgriff
     vergessen, Aufruf liefert stumm eine Coroutine."""

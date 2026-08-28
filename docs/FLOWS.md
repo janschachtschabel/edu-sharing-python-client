@@ -48,6 +48,8 @@ out by hand.
 | `browse_tree` | one per collection opened | walk the sub-collections, de-duplicated and capped |
 | `search_in_collection` | one per collection + two per collection for its material | walk → read material → compare locally |
 | `collection_stats` | 2, parallel | material listing + sub-collection listing → tally locally |
+| `page` | 3 (+1 per widget with `resolve_widgets`) | load collection -> its page folder -> the folder's variants |
+| `find_pages` | 2, parallel | both collection routes -> keep the hits carrying a page ref |
 | `relations` | 1 | read the node's links |
 | `child_objects` | 2 | load parent → its children, filtered and sorted |
 | `find_collections` | 2, parallel | both collection routes → merge on id |
@@ -868,6 +870,118 @@ useful; mistaking it for the whole is not.
 page = await collection_contents(repo, "abc", limit=100)   # material + sub-collections
 # then tally page["materials"] by their resolved field labels
 ```
+
+---
+
+## `page` — the curated page a collection renders
+
+edu-sharing's page builder: a collection may carry a landing page made of
+*swimlanes*, each holding widgets, each widget pointing at a node.
+WirLernenOnline calls these “Themenseiten”; nothing about them is WLO's, so
+this flow does not use the word.
+
+**Input**
+
+```python
+repo.flows.page("abc-123")                       # the variant that renders
+repo.flows.page("abc-123", variant="v-2")        # a specific one
+repo.flows.page("abc-123", resolve_widgets=True) # + what each widget holds
+```
+
+**Output**
+
+```json
+{
+  "collection": {"id": "abc-123", "title": "Deutsch", "url": "https://…"},
+  "folder_id": "f2020460-…",
+  "rendered": {"id": "a95029c1-…", "title": "Fachportal Startseite",
+               "by_position": true},
+  "variants": [{"id": "a95029c1-…", "title": "Fachportal Startseite",
+                "is_template": false, "target_group": null,
+                "educational_contexts": [], "intention": "teach",
+                "education_levels": ["…/sekundarstufe_1"], "readable": true}],
+  "swimlanes": [
+    {"heading": "Themenübersicht", "type": "container",
+     "items": [{"widget": "wlo-collection-chips", "node_id": "4d39f9a1-…",
+                "description": "Die folgenden Sammlungen …",
+                "node_ids": ["69756a85-…", "cffaadfb-…"]}]}
+  ],
+  "node_ids": ["4d39f9a1-…"],
+  "resolved": true, "truncated": false, "reason": ""
+}
+```
+
+**`by_position` is not decoration.** A page document without a `default` renders
+the *first* variant of its list. “Nothing chosen” and “the first one chosen”
+look identical to a visitor and are different states — and switching away from
+one is a different sentence than switching away from the other.
+
+**A page can render nothing.** Measured 2026-08-28: the collection `Hexen`
+carries a page, one variant, a readable document — whose swimlane list is
+empty. *Has a page* and *has content* are separate questions.
+
+**Saved searches are named, not run.** A widget holds either a fixed list
+(`sortedNodeIds`, resolved) or a saved search (`searchText` + `propertyFilters`,
+reported under `search` and left alone). Those filters carry `virtual:` fields
+the metadata set does not know; running them would be guessing. Use
+`flows.search` with filters you chose.
+
+**Behind it** — 3 requests:
+
+```python
+# what repo.flows.page("abc") does
+node = await repo.node("abc")            # for ccm:page_config_ref
+page = await node.page.get()             # folder + its children, 2 requests
+```
+
+**Writing.** Which variant renders is a write, and it is immediately public:
+
+```python
+node = await repo.node("abc-123")
+page = await node.page.render("v-2")     # reads, edits, writes, reads back
+```
+
+It **edits** the stored document — every key the page builder owns travels
+through untouched — and refuses everything it cannot prove: no document, not
+JSON, not an object, no variant list, variant not listed. Nothing upstream
+validates it; measured, the property route stores the literal string
+`"not json at all"` with a `200`.
+
+---
+
+## `find_pages` — which collections carry one
+
+**Input**
+
+```python
+repo.flows.find_pages("Deutsch", limit=25)
+```
+
+**Output**
+
+```json
+{"query": "Deutsch", "checked": 50, "total": 876,
+ "hits": [{"id": "69f9ff64-…", "title": "Deutsch", "url": "https://…",
+           "folder_id": "f2020460-…"}],
+ "reason": ""}
+```
+
+One request. A subset of `find_collections`: every curated page is a
+collection, few collections have one.
+
+**`checked` says how many hits could be judged at all.** One leg of the
+collection search has a fixed projection and returns no properties; a page
+cannot be recognised on those hits. Without that number, an empty `hits` reads
+as a statement about the repository when it was one about the projection.
+
+**One run is a sample, not the catalogue.** Measured six times on 2026-08-28
+with the same term: three different hit sets, `checked` swinging between 50 and
+100. Both collection routes are involved and neither is a superset of the
+other.
+
+> **Why not a filter?** Because there is none. `ccm:page_config_ref` as a search
+> criterion answers `400 DAOValidationException: Widget ccm:page_config_ref was
+> not found in the mds`. A page is recognised from the answer.
 
 ---
 
