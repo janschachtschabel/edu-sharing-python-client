@@ -94,7 +94,23 @@ async def placement(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
     ancestry, collections = await asyncio.gather(
         placement_api.ancestry_of(repo.nodes, node_id),
         placement_api.collections_of(repo.nodes, node_id),
+        return_exceptions=True,
     )
+    if isinstance(ancestry, BaseException) and isinstance(collections, BaseException):
+        # Nothing to report is not a partial result: an empty answer would
+        # claim the node sits nowhere. ``collections.find`` draws the same line.
+        raise ancestry
+
+    failed: list[dict[str, str]] = []
+    if isinstance(ancestry, BaseException):
+        failed.append({"part": "path",
+                       "reason": f"{type(ancestry).__name__}: {ancestry}"})
+        ancestry = placement_api.Ancestry(node=None, parents=(), scope="")
+    if isinstance(collections, BaseException):
+        failed.append({"part": "collections",
+                       "reason": f"{type(collections).__name__}: {collections}"})
+        collections = []
+
     return {
         "id": node_id,
         # From the parents answer, where the node is the first entry -- so the
@@ -103,6 +119,7 @@ async def placement(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
         "path": [_step(n) for n in reversed(ancestry.parents)],
         "collections": [_step(n) for n in collections],
         "scope": ancestry.scope,
+        "failed": failed,
     }
 
 

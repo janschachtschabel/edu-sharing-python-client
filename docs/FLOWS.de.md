@@ -287,7 +287,7 @@ repo.flows.search_all("Zellteilung", subject="Biologie", limit=5)
   },
   "collections": {
     "total": 7, "total_is_lower_bound": true, "returned": 3,
-    "hits": [...], "filters_ignored": ["subject"]
+    "hits": [...], "filters_ignored": ["subject"], "error": ""
   }
 }
 ```
@@ -304,6 +304,14 @@ den anderen verdrängt.
 > **nicht** den anderen. Ihn auf die eine Seite anzuwenden und stillschweigend
 > nicht auf die andere hieße, eine Einschränkung zu behaupten, die es nie gab —
 > deshalb werden die Namen der nicht angewandten Filter gemeldet.
+>
+> **Und `collections.error` lesen.** Fällt die Sammlungssuche ganz aus,
+> kommt der Korb leer zurück und nennt dort den Grund — die Materialtreffer
+> kommen trotzdem an. Sie zu verlieren, weil der andere Endpunkt weg war,
+> hieße eine Antwort wegzuwerfen, die es gab; dieselbe Grenze zieht
+> `collections.find` schon zwischen seinen eigenen zwei Wegen. Fällt die
+> **Materialsuche** aus, wirft der Ablauf sehr wohl: diesen Korb leer
+> zurückzugeben behauptete, es gebe nichts.
 
 **Was dahinter läuft** — 3 Anfragen, gemeinsam gesendet (4, wenn ein Filter
 aufgelöst werden muss):
@@ -570,13 +578,27 @@ repo.flows.placement("1f71f84a-a67d-4b93-b55f-3ba4f39571d8")
   "collections": [
     {"id": "…", "title": "Ökosysteme", "type": "ccm:map"}
   ],
-  "scope": "COLLECTION"
+  "scope": "COLLECTION",
+  "failed": []
 }
 ```
 
 `path` läuft **von oben nach unten**, fertig zum Anzeigen — anders als
 `node.parents()`, das die Antwort des Endpunkts spiegelt und den nächsten zuerst
 gibt. Live gemessen: `WLO > Biologie > Pflanzen: Form & Funktion`.
+
+> **`failed` benennt die Hälfte, die nicht geantwortet hat.** Die beiden
+> Endpunkte fallen unabhängig voneinander aus, und bei fremdem Material tut es
+> meistens einer: gemessen am 28.08.2026 antwortet `/parents` für Material aus
+> einer Suche mit *500 AccessDeniedException*, während derselbe Endpunkt bei
+> einem eigenen Knoten ein sauberes 403 liefert. Von 20 Materialtreffern traf
+> das 18 — und die Sammlungshälfte antwortete jedes Mal.
+>
+> Eine verweigerte Hälfte wird deshalb gemeldet, nicht geworfen: `path` kommt
+> leer zurück, und in `failed` steht
+> `{"part": "path", "reason": "PermissionDeniedError: …"}`. Erst wenn **beide**
+> Hälften ausfallen, wirft der Ablauf — nichts zu berichten ist kein
+> Teilergebnis, und eine leere Antwort behauptete, der Knoten liege nirgends.
 
 > **`scope` lesen.** Es benennt den Baum, in dem der Pfad liegt — gemessene
 > Werte sind `COLLECTION` für den kuratierten Baum und `MY_FILES` für die
@@ -844,9 +866,18 @@ repo.flows.search_in_collection("abc-123", "zelle", depth=2)
   "query": "zelle",
   "hits": [{"id": "…", "title": "Zellteilung", "…": "…"}],
   "searched": 4,
+  "unreadable": 0,
   "truncated": false
 }
 ```
+
+> **`unreadable` zählt die Untersammlungen, die sich verweigert haben.**
+> Der Gang findet sie in den Antworten ihrer Eltern, die Liste enthält also
+> auch Sammlungen, die dieses Konto nie geöffnet hat und deren Rechte es
+> nicht kennt. Ein 403 unter fünfundzwanzig machte aus einer Teilantwort
+> früher gar keine; jetzt wird der Rest durchsucht und die Zahl steht neben
+> `truncated` — aus demselben Grund: stilles Abschneiden liest sich wie
+> Vollständigkeit.
 
 > **Eine Suche lässt sich nicht auf eine Sammlung eingrenzen.** Drei Mal
 > gemessen — vom `wlo-mcp-sc` am 17.07.2026, hier am 27. und 28.08.2026 —

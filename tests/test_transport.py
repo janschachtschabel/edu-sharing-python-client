@@ -338,3 +338,54 @@ async def test_als_401_verkleideter_500_wird_nicht_wiederholt():
         with pytest.raises(AuthenticationError):
             await t.request("GET", "/_about")
     assert len(versuche) == 1
+
+
+# --- Umleitungen (Audit A8) -----------------------------------------------
+
+async def test_eine_umleitung_ist_kein_erfolg():
+    """``status_code < 400`` liess jede 3xx als Erfolg durch. Dieser Client
+    folgt Umleitungen nicht -- ``follow_redirects`` bleibt bei der Vorgabe
+    ``False`` --, also kam der leere Koerper der Umleitung zurueck. Bei
+    ``Content.download`` sind das null Bytes statt der Datei, still.
+
+    Gemessen am 28.08.2026 gegen Staging: acht Downloads, null Umleitungen --
+    auf dieser Instanz also nicht ausgeloest. Hinter einem Proxy, der auf eine
+    Anmeldeseite umlenkt, oder bei Inhalten von einem CDN schon.
+    """
+    def handler(_request):
+        return httpx.Response(302, headers={"Location": "https://cdn.test/datei.pdf"})
+
+    async with _transport(handler) as t:
+        with pytest.raises(EduSharingError) as info:
+            await t.request("GET", "/node/v1/nodes/-home-/abc/content")
+    assert info.value.status == 302
+    assert "cdn.test" in str(info.value), "die Umleitung gehoert in die Meldung"
+
+
+async def test_eine_umleitung_wird_nicht_wiederholt():
+    """Eine Umleitung ist eine Aussage, keine Stoerung."""
+    versuche = []
+
+    def handler(_request):
+        versuche.append(1)
+        return httpx.Response(301, headers={"Location": "https://anderswo.test/"})
+
+    async with _transport(handler, max_retries=3) as t:
+        with pytest.raises(EduSharingError):
+            await t.request("GET", "/_about")
+    assert len(versuche) == 1
+
+
+async def test_eine_umleitung_ohne_location_wird_trotzdem_gemeldet():
+    def handler(_request):
+        return httpx.Response(304)
+
+    async with _transport(handler) as t:
+        with pytest.raises(EduSharingError):
+            await t.request("GET", "/_about")
+
+
+async def test_zweihundert_bleibt_erfolg():
+    """Gegenprobe: die neue Grenze darf den Normalfall nicht treffen."""
+    async with _transport(_ok) as t:
+        assert (await t.request("GET", "/_about")).status_code == 200

@@ -230,6 +230,82 @@ async def test_placement_nennt_den_titel_des_knotens():
     assert ergebnis["title"] == "Mein Titel"
 
 
+# --- Wenn eine der beiden Haelften nicht antwortet (Audit A3) -------------
+
+async def test_ein_verweigerter_weg_nach_oben_kostet_nicht_die_sammlungen():
+    """Gemessen am 28.08.2026 gegen Staging: ``/parents`` antwortet fuer
+    **fremdes** Material mit 500 AccessDeniedException, waehrend derselbe
+    Endpunkt bei einem eigenen Knoten ein sauberes 403 liefert. Fremdes
+    Material ist das, was eine Suche liefert -- und ``placement`` warf damit
+    bei **18 von 20** Materialtreffern, obwohl die Sammlungshaelfte jedes Mal
+    antwortete. Von 58 solchen Knoten haetten 48 eine brauchbare Antwort
+    geliefert, 4 davon mit echten Sammlungszugehoerigkeiten.
+
+    Jeder andere Teilausfall in dieser Bibliothek wird berichtet statt
+    geworfen: ``describe_many`` ueberlebt tote Knoten, ``collections.find``
+    ueberlebt einen ausgefallenen Weg. ``placement`` war der Ausreisser.
+    """
+    instanz = Instanz(eltern_fehler=403)
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.placement(NID)
+    assert [s["id"] for s in ergebnis["collections"]] == ["s-1", "s-2"]
+    assert ergebnis["path"] == []
+    assert ergebnis["failed"] == [
+        {"part": "path", "reason": ergebnis["failed"][0]["reason"]}]
+    assert "PermissionDeniedError" in ergebnis["failed"][0]["reason"]
+    json.dumps(ergebnis)
+
+
+async def test_verweigerte_sammlungen_kosten_nicht_den_weg_nach_oben():
+    """Die Gegenrichtung: ``/usage/v1/.../collections`` antwortet gemessen mit
+    500 fuer eine ID, fuer die der Knotenendpunkt 404 sagt."""
+    instanz = Instanz()
+    urspruenglich = instanz.handler
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "/usage/v1" in request.url.path:
+            instanz.anfragen.append(request)
+            return httpx.Response(500, json={
+                "error": "java.lang.Exception", "message": "Node does not exist"})
+        return urspruenglich(request)
+
+    instanz.handler = handler
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.placement(NID)
+    assert [s["title"] for s in ergebnis["path"]] == ["Oberordner", "Unterordner"]
+    assert ergebnis["collections"] == []
+    assert ergebnis["failed"][0]["part"] == "collections"
+    assert "NotFoundError" in ergebnis["failed"][0]["reason"]
+
+
+async def test_faellt_beides_aus_wird_geworfen():
+    """Nichts zu berichten ist kein Teilergebnis. Ein leeres ``placement`` waere
+    die Behauptung, der Knoten liege nirgends -- ``collections.find`` zieht
+    dieselbe Grenze."""
+    instanz = Instanz(eltern_fehler=403)
+    urspruenglich = instanz.handler
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "/usage/v1" in request.url.path:
+            instanz.anfragen.append(request)
+            return httpx.Response(403, json={
+                "error": "DAOSecurityException", "message": "nein"})
+        return urspruenglich(request)
+
+    instanz.handler = handler
+    async with instanz.repo() as repo:
+        with pytest.raises(PermissionDeniedError):
+            await repo.flows.placement(NID)
+
+
+async def test_ohne_ausfall_bleibt_failed_leer():
+    """Gegenprobe: das neue Feld darf im Normalfall nicht stoeren."""
+    instanz = Instanz()
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.placement(NID)
+    assert ergebnis["failed"] == []
+
+
 # --- Wie weit die Antwort reicht ------------------------------------------
 
 async def test_der_scope_wird_durchgereicht():

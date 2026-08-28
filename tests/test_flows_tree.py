@@ -322,6 +322,42 @@ async def test_die_zahlen_kosten_zwei_anfragen():
     assert len(instanz.anfragen) == 2, instanz.anfragen
 
 
+async def test_eine_unlesbare_untersammlung_kostet_nicht_die_ganze_suche():
+    """Audit A10. ``browse_tree`` findet Untersammlungen in der Antwort ihrer
+    Eltern -- darunter also auch solche, die das Konto nie geoeffnet hat und
+    deren Rechte es nicht kennt. Ein 403 unter fuenfundzwanzig machte aus einer
+    Teilantwort gar keine.
+
+    Dieselbe Grenze wie ueberall sonst: gemeldet statt geworfen, und die Zahl
+    steht neben ``truncated`` -- das Modul argumentiert selbst, stilles
+    Abschneiden lese sich wie Vollstaendigkeit.
+    """
+    instanz = Instanz()
+    urspruenglich = instanz.handler
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        pfad = request.url.path
+        if pfad.endswith("/children") and "/nodes/-home-/b/" in pfad:
+            instanz.anfragen.append(pfad)
+            return httpx.Response(403, json={
+                "error": "DAOSecurityException", "message": "nicht fuer dich"})
+        return urspruenglich(request)
+
+    instanz.handler = handler
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.search_in_collection("wurzel", "zellteilung")
+    assert [h["id"] for h in ergebnis["hits"]] == ["m1"], "der Rest wurde gesucht"
+    assert ergebnis["unreadable"] == 1
+    json.dumps(ergebnis)
+
+
+async def test_ohne_ausfall_ist_unreadable_null():
+    instanz = Instanz()
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.search_in_collection("wurzel", "zellteilung")
+    assert ergebnis["unreadable"] == 0
+
+
 async def test_die_zaehler_teilen_die_stichprobe_nicht_auf():
     """Ein Feld ist mehrwertig -- live gemessen trugen 15 Materialien zusammen
     25 Stufenangaben. Wer die Zaehler als Aufteilung liest, rechnet falsch."""

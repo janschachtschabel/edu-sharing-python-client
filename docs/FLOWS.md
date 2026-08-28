@@ -278,7 +278,7 @@ repo.flows.search_all("Zellteilung", subject="Biologie", limit=5)
   },
   "collections": {
     "total": 7, "total_is_lower_bound": true, "returned": 3,
-    "hits": [...], "filters_ignored": ["subject"]
+    "hits": [...], "filters_ignored": ["subject"], "error": ""
   }
 }
 ```
@@ -294,6 +294,14 @@ is not. `limit` applies per bucket, so neither crowds out the other.
 > **not** the other one. Applying it to one side and silently not to the other
 > would claim a narrowing that never happened, which is why the names of the
 > dropped filters are reported.
+>
+> **And read `collections.error`.** If the collection search fails
+> entirely, the bucket comes back empty with the failure named there, and
+> the material hits still arrive. Losing them because the other endpoint
+> was down would throw away an answer that existed — the same line
+> `collections.find` already draws between its own two routes. A failing
+> **material** search does raise: handing that bucket back empty would
+> claim there is nothing.
 
 **Behind it** — 3 requests, sent together (4 when a filter has to be resolved):
 
@@ -556,13 +564,26 @@ repo.flows.placement("1f71f84a-a67d-4b93-b55f-3ba4f39571d8")
   "collections": [
     {"id": "…", "title": "Ökosysteme", "type": "ccm:map"}
   ],
-  "scope": "COLLECTION"
+  "scope": "COLLECTION",
+  "failed": []
 }
 ```
 
 `path` runs **top down**, ready to print as a breadcrumb — unlike
 `node.parents()`, which mirrors the endpoint and gives the nearest first.
 Measured live: `WLO > Biologie > Pflanzen: Form & Funktion`.
+
+> **`failed` names the half that did not answer.** The two endpoints fail
+> independently, and for foreign material one of them usually does: measured on
+> 2026-08-28, `/parents` answers *500 AccessDeniedException* for material found
+> by a search, while the very same endpoint gives a proper 403 for a node of
+> one's own. Of 20 material hits, 18 hit exactly that — and the collections half
+> answered every time.
+>
+> So a refused half is reported, not raised: `path` comes back empty with
+> `{"part": "path", "reason": "PermissionDeniedError: …"}` in `failed`. Only
+> when **both** halves fail does the flow raise — nothing to report is not a
+> partial result, and an empty answer would claim the node sits nowhere.
 
 > **Read `scope`.** It names the tree the path lives in — measured values are
 > `COLLECTION` for the curated tree and `MY_FILES` for your own folders — and
@@ -822,9 +843,17 @@ repo.flows.search_in_collection("abc-123", "zelle", depth=2)
   "query": "zelle",
   "hits": [{"id": "…", "title": "Zellteilung", "…": "…"}],
   "searched": 4,
+  "unreadable": 0,
   "truncated": false
 }
 ```
+
+> **`unreadable` counts the sub-collections that refused.** The walk finds
+> them in their parents' answers, so the list includes collections this
+> account has never opened and whose permissions it does not know. One 403
+> among twenty-five used to turn a partial answer into no answer at all;
+> now the rest is searched and the number stands next to `truncated`, for
+> the same reason: cutting in silence reads like completeness.
 
 > **A search cannot be scoped to a collection.** Measured three times — by
 > `wlo-mcp-sc` on 2026-07-17, here on 2026-08-27 and again on 2026-08-28 —

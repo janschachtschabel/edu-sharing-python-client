@@ -174,19 +174,28 @@ async def search_in_collection(
     found = [collection_id, *_ids_of(tree["collections"])]
     ids = found[:max_collections]
 
+    # ``return_exceptions``: the ids come from their parents' answers, so they
+    # include collections this account has never opened and whose permissions
+    # it does not know. One 403 among twenty-five used to turn a partial answer
+    # into no answer at all (audit A10). Reported next to ``truncated``, for
+    # the reason this module already argues elsewhere: cutting in silence reads
+    # like completeness.
     pages = await asyncio.gather(
-        *(collection_contents(repo, i, limit=limit) for i in ids)
+        *(collection_contents(repo, i, limit=limit) for i in ids),
+        return_exceptions=True,
     )
+    readable = [p for p in pages if not isinstance(p, BaseException)]
     hits = [
         hit
-        for page in pages
+        for page in readable
         for hit in page["materials"]
         if _matches(hit, needle)
     ]
     return {
         "query": query,
         "hits": hits,
-        "searched": len(ids),
+        "searched": len(readable),
+        "unreadable": len(pages) - len(readable),
         "truncated": tree["truncated"] or len(found) > len(ids),
     }
 

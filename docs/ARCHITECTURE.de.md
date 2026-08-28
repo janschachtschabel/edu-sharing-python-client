@@ -394,6 +394,31 @@ wird — aneinanderreihen und dann schneiden ließe Weg A den Deckel bei jeder
 breiten Anfrage allein füllen, und Weg B findet nachweislich Sammlungen, die A
 nicht findet.
 
+**Eine Teilantwort ist besser als eine Ausnahme, und vier Abläufe wussten
+das nicht.** Gemessen am 28.08.2026: `flows.placement()` warf bei **18 von 20**
+Materialtreffern einer Suche, weil `/parents` bei fremdem Material mit *500
+AccessDeniedException* antwortet, während es bei einem eigenen Knoten ein
+sauberes 403 liefert — und die Sammlungshälfte antwortete jedes einzelne Mal.
+Über vier Suchbegriffe hinweg hätten von 58 Knoten, bei denen der Ablauf warf,
+48 eine brauchbare Antwort geliefert, 4 davon mit echten
+Sammlungszugehörigkeiten. Das Prinzip stand schon in `describe_many`, in
+`collections.find` („half a result is usable, a faked empty one is not") und in
+`flows/tree.py` — umgesetzt war es an drei von sieben Stellen, an denen es
+gilt. `placement`, `search_all` und `search_in_collection` melden den
+verweigerten Teil jetzt (`failed`, `error`, `unreadable`) und werfen nur, wenn
+nichts mehr zu berichten ist. Nach der Änderung antworten 16 derselben 20; die
+4, die noch werfen, sind die toten Indexeinträge, bei denen beide Hälften
+ausfallen.
+
+**Eine Umleitung galt als Erfolg.** `status_code < 400` ließ jede 3xx als
+Antwort durch. Dieser Client folgt Umleitungen nicht — `follow_redirects` bleibt
+bei der httpx-Vorgabe `False`, weil eine Umleitung vom Repositorium weg die
+Zugangsdaten mitnähme —, zurück kam also der leere Körper der Umleitung. Bei
+`Content.download` sind das null Bytes statt der Datei, still: dieselbe Familie
+wie das Rücklese-Problem, eine Statusklasse weiter. Gemessen leitet auf der
+Referenzinstanz kein Download um (0 von 8), der Fall war also latent, nicht
+akut; hinter einem Proxy, der auf eine Anmeldeseite umlenkt, ist er es nicht.
+
 **Sammlungen bilden einen gerichteten Graphen, keinen Baum.** Eine
 Untersammlung kann unter mehreren Elternsammlungen hängen, und zwei können
 untereinander hängen. Jeder Gang in `flows/tree.py` entdoppelt deshalb über die

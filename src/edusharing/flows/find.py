@@ -13,6 +13,7 @@ from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
 from ..errors import ValidationError
+from ..results import SearchResult
 from . import dedupe
 from .describe import describe
 from .language import GERMAN, LanguageProfile
@@ -268,7 +269,30 @@ async def search_all(
                rerank=rerank, pool=pool, language=language,
                deduplicate=deduplicate, **aliases),
         find_collections(repo, text, limit=limit),
+        return_exceptions=True,
     )
+    if isinstance(materials, BaseException):
+        # The material bucket is the main question. Handing it back empty would
+        # claim there is nothing, which is a different statement from "the
+        # search failed".
+        raise materials
+    if isinstance(collections, BaseException):
+        # ``collections.find`` already says one level down that half a result
+        # is usable and a faked empty one is not. It applies that between its
+        # two routes; between the two buckets it did not, so a collection
+        # outage took the material hits with it (audit A9).
+        #
+        # Built through ``result_as_dict`` rather than written out, so the
+        # empty bucket cannot drift away from the filled one.
+        failure = f"{type(collections).__name__}: {collections}"
+        collections = result_as_dict(
+            SearchResult(total_is_lower_bound=True, warnings=[failure]),
+            query={"text": text, "metadataset": repo.metadataset,
+                   "limit": limit, "kind": "collections"},
+            aliases=repo.searcher.field_aliases,
+        )
+        collections["error"] = failure
+    collections.setdefault("error", "")
     collections["filters_ignored"] = [*(filters or {}), *aliases]
     return {
         "query": {"text": text, "metadataset": repo.metadataset, "limit": limit},

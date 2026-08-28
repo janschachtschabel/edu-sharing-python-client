@@ -17,8 +17,10 @@ gibt.
 import json
 
 import httpx
+import pytest
 
 from edusharing import AsyncRepository
+from edusharing.errors import EduSharingError
 
 REPO = "https://repo.test/edu-sharing"
 
@@ -161,3 +163,54 @@ async def test_das_limit_gilt_je_korb():
         ergebnis = await repo.flows.search_all("Zelle", limit=5)
     assert ergebnis["materials"]["returned"] == 5
     assert ergebnis["collections"]["returned"] == 5
+
+
+# --- Wenn ein Korb ganz ausfaellt (Audit A9) ------------------------------
+
+async def test_ein_ausgefallener_sammlungskorb_kostet_nicht_das_material():
+    """``collections.find`` sagt eine Ebene tiefer: "half a result is usable, a
+    faked empty one is not" -- und wendet das zwischen seinen zwei Wegen an.
+    Zwischen den zwei Koerben galt es nicht: fielen beide Sammlungswege aus,
+    verlor der Aufrufer die Materialtreffer gleich mit, obwohl sie da waren.
+    """
+    instanz = Instanz()
+    urspruenglich = instanz.handler
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "collection" in str(request.url).lower():
+            instanz.anfragen.append(str(request.url.path))
+            return httpx.Response(503, json={"error": "x", "message": "Dienst weg"})
+        return urspruenglich(request)
+
+    instanz.handler = handler
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.search_all("Zelle", limit=3)
+    assert [h["id"] for h in ergebnis["materials"]["hits"]] == ["m-1"]
+    assert ergebnis["collections"]["hits"] == []
+    assert "503" in ergebnis["collections"]["error"]
+    json.dumps(ergebnis)
+
+
+async def test_faellt_das_material_aus_wird_geworfen():
+    """Der Materialkorb ist die Hauptfrage. Ihn stillschweigend leer zu
+    liefern hiesse zu behaupten, es gebe nichts."""
+    instanz = Instanz()
+    urspruenglich = instanz.handler
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "/ngsearch" in str(request.url):
+            instanz.anfragen.append(str(request.url.path))
+            return httpx.Response(503, json={"error": "x", "message": "weg"})
+        return urspruenglich(request)
+
+    instanz.handler = handler
+    async with instanz.repo() as repo:
+        with pytest.raises(EduSharingError):
+            await repo.flows.search_all("Zelle")
+
+
+async def test_ohne_ausfall_ist_error_leer():
+    instanz = Instanz()
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.search_all("Zelle")
+    assert ergebnis["collections"]["error"] == ""

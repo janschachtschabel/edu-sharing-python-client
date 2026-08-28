@@ -359,6 +359,30 @@ represented, so the merged list is taken round-robin before it is cut —
 concatenating and then cutting would let route A fill the cap on its own for
 any broad query, and route B measurably finds collections A does not.
 
+**A partial answer beats an exception, and four flows did not know it.**
+Measured on 2026-08-28: `flows.placement()` raised for **18 of 20** material
+search hits, because `/parents` answers *500 AccessDeniedException* for foreign
+material while giving a proper 403 for a node of one's own -- and the
+collections half answered every single time. Across four search terms, of 58
+material nodes where the flow raised, 48 would have returned a usable answer, 4
+of them with real collection memberships. The principle was already stated in
+`describe_many`, in `collections.find` ("half a result is usable, a faked empty
+one is not") and in `flows/tree.py`; it was implemented in three of the seven
+places it applies. `placement`, `search_all` and `search_in_collection` now
+report the refused part (`failed`, `error`, `unreadable`) and raise only when
+there is nothing left to report. After the change: 16 of the same 20 answer,
+and the 4 that still raise are the dead index entries where both halves fail.
+
+**A redirect was a success.** `status_code < 400` let every 3xx through as an
+answer. This client does not follow redirects -- `follow_redirects` stays at
+httpx's default of `False`, because following one off the repository would
+carry the credentials to whatever it names -- so what came back was the empty
+body of the redirect. For `Content.download` that is zero bytes instead of the
+file, silently: the same family as the read-back problem, one status class
+over. Measured, no download on the reference instance redirects (0 of 8), so
+this was latent rather than live; behind a proxy that bounces to a login page
+it is not.
+
 **Collections form a directed graph, not a tree.** A sub-collection can hang
 under several parents, and two can hang under each other. Every walk in
 ``flows/tree.py`` therefore de-duplicates by id and caps how many collections

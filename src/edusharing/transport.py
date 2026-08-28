@@ -203,6 +203,22 @@ class Transport:
                 )
                 continue
 
+            if 300 <= response.status_code < 400:
+                # Reported, not followed. ``follow_redirects`` stays at httpx's
+                # default of ``False`` on purpose: following one off the
+                # repository would carry the credentials to whatever it names.
+                # Not reporting it was worse -- the empty body of a redirect
+                # came back as success, which for ``Content.download`` means
+                # zero bytes instead of the file (audit A8).
+                raise EduSharingError(
+                    f"HTTP {response.status_code}: the repository redirected to "
+                    f"{response.headers.get('location') or '(no Location header)'!r}. "
+                    "This client does not follow redirects -- a redirect off "
+                    "the repository would take the credentials with it. If your "
+                    "installation sits behind a proxy that bounces, point "
+                    "EDU_SHARING_URL at the address it bounces to.",
+                    status=response.status_code, url=url,
+                )
             if response.status_code < 400:
                 return response
 
