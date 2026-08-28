@@ -6,10 +6,10 @@ Python-Bibliothek für [edu-sharing](https://edu-sharing.com)-Repositorien und d
 **b-api** (Bildungs-API, OpenEduHub) — **repository-agnostisch** und **async-first**.
 
 > **Status: in Arbeit.** Lesen, Suchen und Schreiben stehen und sind gegen
-> edu-sharing 11.0 geprüft — auch schreibend, gegen eine echte Instanz. Offen
-> sind die Bausteine für KI-Anwendungen und der b-api-Client; der Fahrplan steht
-> in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Was unten mit ⏳ markiert ist,
-> beschreibt das Ziel, nicht den Ist-Stand.
+> edu-sharing 11.0 geprüft — auch schreibend, gegen eine echte Instanz. Der
+> Fahrplan steht in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — als
+> Entwurfsprotokoll nur auf Englisch. Was unten mit ⏳ markiert ist, beschreibt
+> das Ziel, nicht den Ist-Stand.
 
 ## Warum
 
@@ -79,6 +79,10 @@ for wert in ergebnis.facets[0].values:
     print(wert.count, wert.value)
 ```
 
+**Als Ablauf:** `repo.flows.search("Photosynthese", subject="Biologie")`
+sendet dieselben zwei Anfragen und antwortet mit einem `dict`;
+`repo.flows.vocabulary("subject")` sagt, was ein Feld annimmt.
+
 ### Sammlungen
 
 ```python
@@ -90,6 +94,9 @@ zusammen — keine ist Obermenge der anderen. Bei „Deutsch" ist ihre Schnittme
 gemessen **null**.
 
 Zum Ausprobieren: `python docs/examples/01_connect.py` und `02_search.py`
+
+**Als Ablauf:** `repo.flows.find_collections("Optik")`, und
+`repo.flows.collection_contents(id)`, um eine zu öffnen.
 
 ### Schreiben — mit Rückleseprobe
 
@@ -126,6 +133,10 @@ repo.add_to_collection(sammlung.id, node.id)          # Referenz, keine Kopie
 
 Zum Ausprobieren: `python docs/examples/03_write.py` — legt einen eigenen
 Wegwerf-Ordner an und entfernt ihn wieder.
+
+**Als Ablauf:** `repo.flows.add_material(…)` und
+`repo.flows.update_material(…)` — dieselben Anfragen, ein `dict` zurück.
+`10_two_levels.py` lässt beide Fassungen nebeneinander laufen und zählt mit.
 
 ### Für KI-Anwendungen
 
@@ -261,6 +272,14 @@ Wort, weshalb eine natürlich formulierte Frage nichts findet: gemessen hat
 Bruchrechnung"* **null**. Die Neuordnung fragt mehrere Anfragevarianten und
 sortiert nach Relevanz — sie kostet eine Anfrage je Variante und ist aus.
 
+**Nicht alles hat einen Ablauf, und das mit Absicht.** Bewertungen,
+Kommentare, Vorschläge, die redaktionelle Weitergabe, Gruppen,
+Vorschaubilder und das Umbenennen einer Sammlung bleiben jeweils bei einer
+Endpunktfamilie. Ein Ablauf verdient seinen Platz dadurch, dass er mehrere
+zusammenführt — `placement` fragt zwei, `search_all` drei. Eine einzelne
+Familie zu umhüllen änderte die Form der Antwort und spart nichts. Diese
+Anwendungsfälle stehen oben, auf der API-Ebene.
+
 Ausprobieren: `python docs/examples/05_flow_search.py`, `06_flow_create.py`,
 `07_flow_collection.py`, `08_flow_rerank.py`, `09_flow_browse.py`
 
@@ -306,37 +325,6 @@ eincodiert statt dokumentiert:
   Schnitt; entfernt wird mit `unrate()`.
 - **Ein Kommentartext wird Byte für Byte abgelegt.** Als JSON gesendet landen
   die Anführungszeichen mit im Text.
-
-## Protokoll
-
-Die Bibliothek schweigt standardmäßig, wie eine Bibliothek es soll. Ein Dienst
-schaltet sie ein, wo er sie braucht:
-
-```python
-import logging
-
-logging.getLogger("edusharing").setLevel(logging.INFO)   # Wiederholungen, Modellwechsel
-logging.getLogger("edusharing").setLevel(logging.DEBUG)  # zusätzlich jede Anfrage
-```
-
-`INFO` meldet, worüber man sonst im Nachhinein rätselt: eine Wiederholung, und
-welches b-api-Modell geantwortet hat, nachdem ein früherer Kandidat abgelehnt
-hatte. `DEBUG` ergänzt Methode und URL jeder Anfrage.
-
-Header werden nie protokolliert. Dort stehen die Zugangsdaten, und eine
-Protokollzeile wird aggregiert, durchsucht und aufbewahrt.
-
-## Tests
-
-```bash
-uv run pytest
-```
-
-Läuft offline und deterministisch. Tests gegen eine echte Instanz sind separat:
-
-```bash
-EDU_SHARING_URL=https://repository.staging.openeduhub.net uv run pytest -m live
-```
 
 ### Veröffentlichen — der Schritt, den edu-sharing nicht tut
 
@@ -758,6 +746,7 @@ wird:
 | [`03_write.py`](docs/examples/03_write.py) | anlegen, ändern, prüfen — und wie ein stiller Verlust aussieht |
 | [`04_agent_blocks.py`](docs/examples/04_agent_blocks.py) | die Bausteine für KI-Nutzung: Sicherheit, Bereinigung, Formatierung |
 | [`11_publish.py`](docs/examples/11_publish.py) | Material für andere sichtbar machen — der Schritt, den nichts von allein tut |
+| [`15_full_text.py`](docs/examples/15_full_text.py) | der Volltext eines Materials, aus dem Repositorium oder vom Extraktionsdienst |
 
 **Über Abläufe** — es kommt ein `dict` zurück, fertig zum Weiterreichen:
 
@@ -770,7 +759,7 @@ wird:
 | [`09_flow_browse.py`](docs/examples/09_flow_browse.py) | Sammlungen finden, öffnen, Inhalt ändern |
 | [`12_flow_place.py`](docs/examples/12_flow_place.py) | eine Anfrage für Material und Sammlungen, dann wo ein Treffer liegt |
 | [`13_flow_tree.py`](docs/examples/13_flow_tree.py) | eine Sammlung ablaufen, darin suchen, sie auszählen |
-| [`14_flow_page.py`](docs/examples/14_flow_page.py) | die kuratierte Seite einer Sammlung lesen, samt Widgets |
+| [`14_flow_page.py`](docs/examples/14_flow_page.py) | die kuratierte Seite einer Sammlung lesen, samt Widgets — und dieselbe Seite als Objekte |
 
 **Beide Ebenen nebeneinander:**
 
@@ -788,10 +777,19 @@ Arbeit — und wo ein Ablauf wirklich einen Umlauf spart.
 | Schicht | Inhalt |
 |---|---|
 | `edusharing.agent` | Bausteine für KI-Anwendungen: Formatierung, Token-Budget, Preview-then-confirm, Sanitisierung |
-| `edusharing` (Ressourcen) | `search()`, `node()`, `collection()` — die intuitive Oberfläche |
+| `edusharing.flows` | zwanzig Abläufe: ein Anwendungsfall, ein Aufruf, ein `dict` zurück |
+| `edusharing` (Ressourcen) | `search()`, `node()`, `collection()` — Objekte zurück |
 | Profil & MDS | Vokabular-Auflösung, Property-Fähigkeiten, Wahl des Schreibwegs |
-| Transport | httpx, Auth, Retry, Concurrency, Read-Back-Verify |
+| Transport | httpx, Auth, Retry, Concurrency, Rückleseprobe |
 | `_generated` | alle 389 Operationen, aus `openapi.json` erzeugt |
+
+Daneben, nicht darin — zwei Dienste mit eigener Adresse, eigenständig gebaut,
+weil eine Verbindung zum Repositorium nichts darüber sagt, ob es sie gibt:
+
+| Modul | Dienst |
+|---|---|
+| `edusharing.bapi` | das LLM-Gateway (`B_API_KEY`) |
+| `edusharing.extraction` | der Volltextdienst (`EDU_SHARING_TEXT_EXTRACTION_URL`) |
 
 ## Generierte Schicht neu bauen
 
@@ -802,6 +800,45 @@ python scripts/generate_client.py --from-instance https://repository.staging.ope
 Die Referenz-Spec (edu-sharing 11.0) liegt unter `openapi/`. Das Script normalisiert
 sie zuerst — ohne diesen Schritt erzeugt der Generator ungültiges Python; die
 Begründung steht im Docstring des Scripts.
+
+## Protokoll
+
+Die Bibliothek schweigt standardmäßig, wie eine Bibliothek es soll. Ein Dienst
+schaltet sie ein, wo er sie braucht:
+
+```python
+import logging
+
+logging.getLogger("edusharing").setLevel(logging.INFO)   # Wiederholungen, Modellwechsel
+logging.getLogger("edusharing").setLevel(logging.DEBUG)  # zusätzlich jede Anfrage
+```
+
+`INFO` meldet, worüber man sonst im Nachhinein rätselt: eine Wiederholung, und
+welches b-api-Modell geantwortet hat, nachdem ein früherer Kandidat abgelehnt
+hatte. `DEBUG` ergänzt Methode und URL jeder Anfrage.
+
+Header werden nie protokolliert. Dort stehen die Zugangsdaten, und eine
+Protokollzeile wird aggregiert, durchsucht und aufbewahrt.
+
+## Tests
+
+```bash
+uv run pytest
+```
+
+Läuft offline und deterministisch. Tests gegen eine echte Instanz sind separat:
+
+```bash
+EDU_SHARING_URL=https://repository.staging.openeduhub.net uv run pytest -m live
+```
+
+Schreibtests (`-m write`) brauchen Zugangsdaten und arbeiten ausschließlich in
+einem Wegwerf-Ordner, den sie selbst anlegen.
+
+Die Suiten gegen die beiden Nachbardienste überspringen sich still ohne ihre
+eigene Variable — `B_API_KEY` für das LLM-Gateway,
+`EDU_SHARING_TEXT_EXTRACTION_URL` für den Extraktionsdienst. Ein Übersprungen
+heißt dort „nicht konfiguriert“, nicht „nicht abgedeckt“.
 
 ## Lizenz
 

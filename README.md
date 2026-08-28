@@ -78,6 +78,10 @@ for value in result.facets[0].values:
     print(value.count, value.value)
 ```
 
+**As a flow:** `repo.flows.search("Photosynthese", subject="Biologie")`
+sends the same two requests and answers with a `dict`;
+`repo.flows.vocabulary("subject")` lists what a field accepts.
+
 ### Collections
 
 ```python
@@ -89,6 +93,9 @@ them — neither is a superset of the other. For "Deutsch" their overlap was
 measured as **zero**.
 
 Try it: `python docs/examples/01_connect.py` and `02_search.py`
+
+**As a flow:** `repo.flows.find_collections("Optik")`, and
+`repo.flows.collection_contents(id)` to open one.
 
 ### Writing — with a read-back check
 
@@ -123,6 +130,10 @@ repo.add_to_collection(collection.id, node.id)         # a reference, not a copy
 
 Try it: `python docs/examples/03_write.py` — creates a throwaway folder of its
 own and removes it afterwards.
+
+**As a flow:** `repo.flows.add_material(…)` and
+`repo.flows.update_material(…)` — the same requests, a `dict` back.
+`10_two_levels.py` runs both versions side by side and counts them.
 
 ### For AI applications
 
@@ -252,6 +263,13 @@ naturally phrased question finds nothing: measured, *"Bruchrechnung"* has
 1591 records and *"Ich suche ein Arbeitsblatt zur Bruchrechnung"* has
 **zero**. Reranking asks several query variants and reorders by relevance --
 it costs one request per variant and is off by default.
+
+**Not everything has a flow, and that is deliberate.** Ratings, comments,
+proposals, the editorial handover, groups, preview images and renaming a
+collection each stay with one endpoint family. A flow earns its place by
+composing several — `placement` asks two, `search_all` three. Wrapping a
+single family would change the shape of the answer and save nothing. Those
+use cases live at the API level, above.
 
 Try it: `python docs/examples/05_flow_search.py`, `06_flow_create.py`,
 `07_flow_collection.py`, `08_flow_rerank.py`, `09_flow_browse.py`
@@ -704,6 +722,7 @@ them:
 | [`03_write.py`](docs/examples/03_write.py) | create, change, verify — and what a silent drop looks like |
 | [`04_agent_blocks.py`](docs/examples/04_agent_blocks.py) | the building blocks for AI use: safety, sanitising, formatting |
 | [`11_publish.py`](docs/examples/11_publish.py) | make material visible to others — the step nothing does for you |
+| [`15_full_text.py`](docs/examples/15_full_text.py) | the full text of a material, from the repository or the extraction service |
 
 **Working through flows** — a `dict` comes back, ready to hand on:
 
@@ -716,7 +735,7 @@ them:
 | [`09_flow_browse.py`](docs/examples/09_flow_browse.py) | find collections, open one, change what is inside |
 | [`12_flow_place.py`](docs/examples/12_flow_place.py) | one query for material and collections, then where a hit sits |
 | [`13_flow_tree.py`](docs/examples/13_flow_tree.py) | walk a collection, search inside it, count what is in it |
-| [`14_flow_page.py`](docs/examples/14_flow_page.py) | read the curated page a collection renders, widgets and all |
+| [`14_flow_page.py`](docs/examples/14_flow_page.py) | read the curated page a collection renders, widgets and all — then the same page as objects |
 
 **Both levels side by side:**
 
@@ -728,6 +747,25 @@ Start with `10_two_levels.py` if you are deciding which level to write against.
 It shows that `search` and `add_material` send exactly the same requests either
 way — the flow changes the output shape, not the work — and where a flow does
 save a round trip.
+
+## Structure
+
+| Layer | Content |
+|---|---|
+| `edusharing.agent` | Building blocks for AI use: formatting, token budget, preview-then-confirm, sanitising |
+| `edusharing.flows` | Twenty flows: one use case, one call, a `dict` back |
+| `edusharing` (resources) | `search()`, `node()`, `collection()` — objects back |
+| Profile & MDS | Vocabulary resolution, property capabilities, choosing the write route |
+| Transport | httpx, auth, retry, concurrency, read-back check |
+| `_generated` | All 389 operations, generated from `openapi.json` |
+
+Beside it, not inside it — two services with their own address, built on their
+own because a connection to a repository says nothing about whether they exist:
+
+| Module | Service |
+|---|---|
+| `edusharing.bapi` | The LLM gateway (`B_API_KEY`) |
+| `edusharing.extraction` | The text-extraction service (`EDU_SHARING_TEXT_EXTRACTION_URL`) |
 
 ## Rebuilding the generated layer
 
@@ -772,6 +810,11 @@ EDU_SHARING_URL=https://repository.staging.openeduhub.net uv run pytest -m live
 
 Write tests (`-m write`) need credentials and operate exclusively inside a
 throwaway folder they create themselves.
+
+The suites against the two neighbouring services skip themselves silently
+without their own variable — `B_API_KEY` for the LLM gateway,
+`EDU_SHARING_TEXT_EXTRACTION_URL` for the extraction service. A skip there means
+"not configured", not "not covered".
 
 ## Licence
 

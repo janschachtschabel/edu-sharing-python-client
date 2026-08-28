@@ -56,10 +56,15 @@ layer, not a prerequisite.
 ┌─ 4  Integrations ───── MCP server · tool schemas · framework adapters
 │                        NOT part of v1 — but v1 must carry them
 ├─ 3  Agent blocks ───── formatting · budget · confirm · sanitize · safety
+├─ 2b Flows ──────────── one use case, one call, a dict back — see FLOWS.md
 ├─ 2  Resources ──────── repo.search() · node.update() · collection.add()
 ├─ 1  Profile & MDS ──── vocabulary resolution · property capabilities
 ├─ 0  Transport ──────── httpx · auth · retry · concurrency · read-back · errors
 └─ _generated ────────── 389 operations · 378 models, from openapi.json
+
+   beside it, not in it:
+   edusharing.bapi ─────── the LLM gateway
+   edusharing.extraction ─ the text-extraction service
 ```
 
 Layer 1 also answers the question third parties cannot: **which write route
