@@ -388,6 +388,18 @@ when a field has no short name.
 
 ---
 
+**Behind it** — 1 request:
+
+```python
+# what repo.flows.describe("abc") does
+node = await repo.node("abc")        # exactly the same single request
+# then: resolve the vocabulary fields to labels, key them by short name,
+#       and hand back a dict instead of a Node
+```
+
+This flow saves no round trip. What it changes is the shape of the answer —
+which is the whole point when the answer has to travel onwards.
+
 ---
 
 ## `child_objects` — further documents of one node
@@ -449,6 +461,8 @@ every listing and downloads as nothing.
 > works is `type=ccm:io` **plus** `assocType=ccm:childio` **plus**
 > `aspects=ccm:io_childobject` — because `ccm:io_childobject` is an *aspect*,
 > not a type. The library sets all three.
+
+---
 
 ## `relations` — what a node is linked to
 
@@ -513,6 +527,8 @@ The other five (`hasPart`, `isBasisFor`, `isRequiredBy`, `isReplacedBy`,
 `isFormatOf`) arise as those opposites and are read-only. Asking for one
 directly answers HTTP 400 with nothing that says why, so the library rejects it
 first with a message naming the one to use instead.
+
+---
 
 ## `placement` — where a node sits, and who curated it
 
@@ -988,6 +1004,19 @@ other.
 > criterion answers `400 DAOValidationException: Widget ccm:page_config_ref was
 > not found in the mds`. A page is recognised from the answer.
 
+**Behind it** — 2 requests, in parallel:
+
+```python
+# what repo.flows.find_pages("Deutsch") does
+found = await repo.find_collections("Deutsch", limit=25)   # both routes at once
+# then: keep the hits whose properties carry ccm:page_config_ref,
+#       and count how many hits carried properties at all
+```
+
+At the API level the same recognition is one line:
+`hit.properties().get("ccm:page_config_ref")`. Reading the page behind it is
+`node.page.get()`.
+
 ---
 
 ## `update_material` — change what is already there
@@ -1017,6 +1046,19 @@ rather than passing as success.
 > **A change where *nothing* could be resolved raises** instead of returning
 > `unresolved`. Nothing happened, and a result that looks like a partial success
 > would suggest the rest went through. There is no rest.
+**Behind it** — 3 to 4 requests:
+
+```python
+# what repo.flows.update_material("abc", title="New", subject="Biologie") does
+await repo.vocab.resolve("ccm:taxonid", "Biologie")   # cached after the first
+node = await repo.node("abc")
+await node.update(title="New", properties={...})      # writes, then reads back
+```
+
+The read-back is not the flow's doing — `node.update()` carries it either way.
+
+---
+
 
 ## `add_material` — create with proper metadata
 

@@ -399,6 +399,18 @@ keine Sackgasse, sobald ein Feld keinen Kurznamen hat.
 
 ---
 
+**Was dahinter läuft** — 1 Anfrage:
+
+```python
+# was repo.flows.describe("abc") tut
+node = await repo.node("abc")        # genau dieselbe eine Anfrage
+# dann: die Vokabularfelder zu Labels auflösen, unter den Kurznamen ablegen
+#       und ein dict statt eines Node zurückgeben
+```
+
+Dieser Ablauf spart keine Anfrage. Er ändert die Form der Antwort — und genau
+darum geht es, wenn die Antwort weiterreisen soll.
+
 ---
 
 ## `child_objects` — weitere Dokumente eines Knotens
@@ -463,6 +475,8 @@ steht in jeder Liste und lädt nichts herunter.
 > `aspects=ccm:io_childobject` — denn `ccm:io_childobject` ist ein *Aspekt*,
 > kein Typ. Die Bibliothek setzt alle drei.
 
+---
+
 ## `relations` — womit ein Knoten verknüpft ist
 
 Relationen verbinden Knoten, die **nebeneinander** stehen — die Teile einer
@@ -526,6 +540,8 @@ Die übrigen fünf (`hasPart`, `isBasisFor`, `isRequiredBy`, `isReplacedBy`,
 `isFormatOf`) entstehen als deren Gegenrichtung und sind nur lesbar. Wer einen
 davon direkt setzen will, bekommt einen HTTP 400 ohne erkennbaren Grund — die
 Bibliothek lehnt vorher ab und nennt den passenden.
+
+---
 
 ## `placement` — wo ein Knoten liegt, und wer ihn kuratiert hat
 
@@ -949,7 +965,7 @@ bleibt liegen). Deren Filter tragen `virtual:`-Felder, die der Metadatensatz
 nicht kennt; sie auszuführen hieße raten. Nimm `flows.search` mit Filtern, die
 du selbst gewählt hast.
 
-**Dahinter** — 3 Anfragen:
+**Was dahinter läuft** — 3 Anfragen:
 
 ```python
 # was repo.flows.page("abc") tut
@@ -1014,6 +1030,19 @@ Obermenge der anderen.
 > ccm:page_config_ref was not found in the mds`. Eine Seite wird aus der
 > Antwort erkannt.
 
+**Was dahinter läuft** — 2 Anfragen, parallel:
+
+```python
+# was repo.flows.find_pages("Deutsch") tut
+treffer = await repo.find_collections("Deutsch", limit=25)   # beide Wege zugleich
+# dann: die Treffer behalten, deren Eigenschaften ccm:page_config_ref tragen,
+#       und zählen, wie viele überhaupt Eigenschaften trugen
+```
+
+Auf der API-Ebene ist dasselbe Erkennen eine Zeile:
+`hit.properties().get("ccm:page_config_ref")`. Die Seite dahinter liest
+`node.page.get()`.
+
 ---
 
 ## `update_material` — ändern, was schon da ist
@@ -1044,6 +1073,20 @@ verwirft, einen `SilentDropError` auslöst statt als Erfolg durchzugehen.
 > `unresolved` zurückzugeben. Es ist nichts passiert, und ein Ergebnis, das wie
 > ein Teilerfolg aussieht, legte nahe, der Rest sei angekommen. Es gibt keinen
 > Rest.
+**Was dahinter läuft** — 3 bis 4 Anfragen:
+
+```python
+# was repo.flows.update_material("abc", title="Neu", subject="Biologie") tut
+await repo.vocab.resolve("ccm:taxonid", "Biologie")   # danach aus dem Cache
+node = await repo.node("abc")
+await node.update(title="Neu", properties={...})      # schreibt, liest zurück
+```
+
+Die Rückleseprobe ist nicht das Verdienst des Ablaufs — `node.update()` bringt
+sie ohnehin mit.
+
+---
+
 
 ## `add_material` — anlegen, mit sauberen Metadaten
 
