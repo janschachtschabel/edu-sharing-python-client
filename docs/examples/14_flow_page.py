@@ -74,16 +74,38 @@ def main() -> int:
             print("\nThis page renders nothing: its variant configures zero"
                   "\nswimlanes. Having a page and having content are two"
                   "\nquestions, and this is the measured answer to the second.")
-            return 0
+        else:
+            print(f"\n{len(page['swimlanes'])} swimlanes"
+                  f"{', cut short' if page['truncated'] else ''}:")
+            for lane in page["swimlanes"]:
+                print(f"\n  {lane['heading'] or '(no heading)'}   [{lane['type']}]")
+                for item in lane["items"]:
+                    _print_item(item)
 
-        print(f"\n{len(page['swimlanes'])} swimlanes"
-              f"{', cut short' if page['truncated'] else ''}:")
-        for lane in page["swimlanes"]:
-            print(f"\n  {lane['heading'] or '(no heading)'}   [{lane['type']}]")
-            for item in lane["items"]:
-                _print_item(item)
+            print(f"\n{len(page['node_ids'])} nodes embedded across the page.")
 
-        print(f"\n{len(page['node_ids'])} nodes embedded across the page.")
+        # --- 4. The same page at the API level ---------------------------
+        # The flow answers with a dict, ready to hand on. The API level answers
+        # with objects you keep working with -- and it is where writing lives.
+        node = repo.node(page["collection"]["id"])
+        curated = node.page.get()               # None for a node without one
+        print()
+        print("-" * 66)
+        print("API level, the same page as objects:")
+        print(f"  node.page.get()      -> {curated!r}")
+        print(f"  .by_position         -> {curated.by_position}")
+        print(f"  .rendered.swimlanes  -> {len(curated.rendered.swimlanes)}")
+        print(f"  .rendered.node_ids   -> {len(curated.rendered.node_ids)} nodes")
+        for variant in curated.variants:
+            mark = "renders" if variant.id == curated.rendered.id else "       "
+            print(f"  {mark}  {variant.id[:8]}\u2026  {variant.title!r}")
+
+        print()
+        print("Writing goes the same way and is NOT done here:")
+        print("    node.page.render(variant_id)      # immediately public")
+        print("It edits the stored document rather than composing one, refuses")
+        print("what it cannot prove, and reads back. This example only reads --")
+        print("and the test account may not write a page it did not build.")
 
     return 0
 
