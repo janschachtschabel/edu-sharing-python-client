@@ -432,6 +432,7 @@ def test_seite_gibt_ein_synchrones_objekt(repo):
     node = repo.node(NID)
     assert not inspect.iscoroutinefunction(node.page.get)
     assert not inspect.iscoroutinefunction(node.page.render)
+    assert NID in repr(node.page)
     # Der gemockte Knoten traegt kein ccm:page_config_ref -- der Normalfall.
     assert _kein_coroutine(node.page.get()) is None
     with pytest.raises(ConflictError):

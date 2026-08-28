@@ -285,6 +285,12 @@ class NodePage:
         Two requests: the folder for its document, its children for the
         variants. The children arrive with their configuration documents, so
         there is no third round.
+
+        Read off the node **as it was loaded**. Every route in this library
+        that builds a ``Node`` asks for ``propertyFilter=-all-``, so the marker
+        is there -- but a node assembled from a thinner projection would answer
+        ``None`` here, and that would read as "no page" when it meant "not in
+        this projection".
         """
         ref = self._node.get(PAGE_REF)
         if not ref:
