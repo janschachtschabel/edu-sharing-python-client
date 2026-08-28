@@ -190,8 +190,9 @@ if created["unresolved"]:             # values that did NOT stick
     ...
 ```
 
-Thirteen flows: `search`, `search_all`, `vocabulary`, `describe`, `placement`,
-`relations`, `child_objects`,
+Eighteen flows: `search`, `search_all`, `vocabulary`, `describe`,
+`describe_many`, `related`, `placement`, `relations`, `child_objects`,
+`browse_tree`, `search_in_collection`, `collection_stats`,
 `find_collections`,
 `collection_contents`, `add_material`, `update_material`,
 `build_collection`, `delete`. Full input and output for each in
@@ -579,6 +580,7 @@ them:
 | [`08_flow_rerank.py`](docs/examples/08_flow_rerank.py) | what a framing word costs, and what `rerank=True` recovers |
 | [`09_flow_browse.py`](docs/examples/09_flow_browse.py) | find collections, open one, change what is inside |
 | [`12_flow_place.py`](docs/examples/12_flow_place.py) | one query for material and collections, then where a hit sits |
+| [`13_flow_tree.py`](docs/examples/13_flow_tree.py) | walk a collection, search inside it, count what is in it |
 
 **Both levels side by side:**
 

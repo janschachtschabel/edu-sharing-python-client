@@ -43,6 +43,11 @@ out by hand.
 | `describe` | 1 | load node |
 | `search_all` | 3–4 | material search (+1 to resolve a filter) + collection search (its two routes), in parallel |
 | `placement` | 2 | way up + collections holding a reference, in parallel |
+| `describe_many` | one per distinct id, in parallel | load each, report the ones that are gone |
+| `related` | 2 (+1 per filter resolved) | describe the seed → search with its fields → drop the seed |
+| `browse_tree` | one per collection opened | walk the sub-collections, de-duplicated and capped |
+| `search_in_collection` | one per collection + two per collection for its material | walk → read material → compare locally |
+| `collection_stats` | 2, parallel | material listing + sub-collection listing → tally locally |
 | `relations` | 1 | read the node's links |
 | `child_objects` | 2 | load parent → its children, filtered and sorted |
 | `find_collections` | 2, parallel | both collection routes → merge on id |
@@ -651,6 +656,218 @@ materials, children = await asyncio.gather(
 
 Written out at the API level this is two waits instead of one — and the second
 endpoint is easy to forget entirely.
+
+---
+
+## `describe_many` — several nodes at once
+
+**Input**
+
+```python
+repo.flows.describe_many(["abc-…", "def-…", "ghi-…"])
+```
+
+**Output**
+
+```json
+{
+  "requested": 3,
+  "found": 2,
+  "nodes": [{"id": "abc-…", "title": "…", "…": "…"}],
+  "failed": [{"id": "ghi-…", "reason": "NotFoundError: HTTP 404 …"}]
+}
+```
+
+`nodes` keeps the order of the request, so the answer lines up with what was
+asked. Duplicates are fetched once.
+
+> **A missing node is reported, not raised.** Measured on 2026-08-27: **4 of
+> 25** search hits were no longer retrievable. An index that outlives its nodes
+> is the ordinary case here, and losing the whole list because one entry is
+> gone makes a search result unusable.
+
+**Behind it** — one request per distinct id, sent together:
+
+```python
+# what repo.flows.describe_many(["a", "b"]) does
+results = await asyncio.gather(*(describe(repo, i) for i in ["a", "b"]))
+# each failure caught and reported instead of raised
+```
+
+---
+
+## `related` — more material like this one
+
+**Not a relation.** `flows.relations` gives the links somebody *asserted*
+between two nodes. This computes a *resemblance*: the seed's own subject and
+level become filters of an ordinary search, and the seed drops out of the
+result. Both are called "related", and telling them apart matters.
+
+**Input**
+
+```python
+repo.flows.related("abc-123", on=("subject", "level"), limit=10)
+```
+
+**Output**
+
+```json
+{
+  "seed": {"id": "abc-123", "title": "Zellteilung"},
+  "based_on": {"subject": ["Biologie"], "level": ["Sekundarstufe I"]},
+  "hits": [{"id": "…", "title": "…", "…": "…"}],
+  "unresolved": [],
+  "reason": ""
+}
+```
+
+> **Read `based_on`.** Without it nobody can judge the resemblance. And read
+> `unresolved`: a value the instance could not resolve did **not** narrow the
+> search, so the result is broader than it looks.
+
+When the seed carries none of the fields, `hits` is empty and `reason` says so.
+An unfiltered search would answer "more of this" with anything.
+
+`on` is a default, not a fixture — which short names exist at all is decided by
+the instance's metadata set.
+
+**Behind it** — 2 requests plus vocabulary:
+
+```python
+# what repo.flows.related("abc") does
+seed = await discover.describe(repo, "abc")           # 1. load it
+found = await discover.search(repo, None, **based_on) # 2. its fields as filters
+hits = [h for h in found["hits"] if h["id"] != "abc"] # drop the seed
+```
+
+---
+
+## `browse_tree` — the collections under one collection
+
+**Input**
+
+```python
+repo.flows.browse_tree("abc-123", depth=2, max_collections=50)
+```
+
+**Output**
+
+```json
+{
+  "id": "abc-123",
+  "collections": [
+    {"id": "…", "title": "Biologie", "collections": [
+      {"id": "…", "title": "Zellbiologie", "collections": []}
+    ]}
+  ],
+  "opened": 3,
+  "truncated": false
+}
+```
+
+> **Collections form a graph, not a tree.** A sub-collection can hang under
+> several parents, and two can hang under each other. The walk de-duplicates by
+> id — without that it runs in circles — and caps how many it opens. **Read
+> `truncated`**: a shortened tree must not read as a complete one.
+
+Only the collections. Their material is a second request per node —
+`collection_stats` counts it, `collection_contents` lists it.
+
+**Behind it** — one request per collection opened:
+
+```python
+# what repo.flows.browse_tree("abc", depth=2) does
+GET /collection/v1/collections/-home-/abc/children/collections
+# then the same for each child, to the given depth, skipping ids already seen
+```
+
+---
+
+## `search_in_collection` — find something inside one collection
+
+**Input**
+
+```python
+repo.flows.search_in_collection("abc-123", "zelle", depth=2)
+```
+
+**Output**
+
+```json
+{
+  "query": "zelle",
+  "hits": [{"id": "…", "title": "Zellteilung", "…": "…"}],
+  "searched": 4,
+  "truncated": false
+}
+```
+
+> **A search cannot be scoped to a collection.** Measured three times — by
+> `wlo-mcp-sc` on 2026-07-17, here on 2026-08-27 and again on 2026-08-28 —
+> `ngsearch` with `virtual:primaryparent_nodeid` answers HTTP 400. It would
+> also be the wrong answer: a collection holds *references* to nodes whose own
+> parent lives elsewhere, so a parent-scoped search would miss exactly the
+> curated ones. So this flow walks and compares locally.
+
+Compared are title, description and the resolved field labels — what a
+serialised hit actually carries. For full text across the whole repository,
+`flows.search` is the better tool.
+
+> **Read `truncated`.** An empty result from a walk that stopped early is not
+> "there is none".
+
+**Behind it** — one request per collection for the walk, two more per
+collection for its material:
+
+```python
+# what repo.flows.search_in_collection("abc", "zelle") does
+tree = await browse_tree(repo, "abc", depth=2)        # the walk
+pages = await asyncio.gather(*(collection_contents(repo, i) for i in ids))
+hits = [h for page in pages for h in page["materials"] if matches(h)]
+```
+
+---
+
+## `collection_stats` — how much is in there, and what of
+
+**Input**
+
+```python
+repo.flows.collection_stats("abc-123", sample=100)
+```
+
+**Output**
+
+```json
+{
+  "id": "abc-123",
+  "materials": 342,
+  "collections": 7,
+  "sampled": 100,
+  "complete": false,
+  "by": {"subject": {"Biologie": 61, "Chemie": 22}, "level": {"Sekundarstufe I": 74}}
+}
+```
+
+The counts are exact — they come from the pagination totals. **The breakdown is
+a sample**: `sampled` says how many records it was tallied over, `complete`
+whether that was all of them. And **the counters do not partition it**: a field
+is multi-valued, so measured live, 15 materials carried 25 level assignments
+between them. Each counter says how many records mention a value. A breakdown over a hundred of three hundred is
+useful; mistaking it for the whole is not.
+
+> **Not from a facet query.** A collection curates *references* to nodes whose
+> primary parent lives elsewhere, so a facet scoped by parent returns nothing
+> for them. The children endpoint returns the referenced files with their
+> `*_DISPLAYNAME` labels, so a local tally is both correct and readable.
+
+**Behind it** — 2 requests:
+
+```python
+# what repo.flows.collection_stats("abc") does
+page = await collection_contents(repo, "abc", limit=100)   # material + sub-collections
+# then tally page["materials"] by their resolved field labels
+```
 
 ---
 

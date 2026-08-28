@@ -194,8 +194,9 @@ if angelegt["unresolved"]:            # Werte, die NICHT ankamen
     ...
 ```
 
-Dreizehn Abläufe: `search`, `search_all`, `vocabulary`, `describe`, `placement`,
-`relations`, `child_objects`,
+Achtzehn Abläufe: `search`, `search_all`, `vocabulary`, `describe`,
+`describe_many`, `related`, `placement`, `relations`, `child_objects`,
+`browse_tree`, `search_in_collection`, `collection_stats`,
 `find_collections`,
 `collection_contents`, `add_material`, `update_material`,
 `build_collection`, `delete`. Ein- und Ausgabe im Einzelnen in
@@ -622,6 +623,7 @@ wird:
 | [`08_flow_rerank.py`](docs/examples/08_flow_rerank.py) | was ein Rahmenwort kostet und was `rerank=True` zurückholt |
 | [`09_flow_browse.py`](docs/examples/09_flow_browse.py) | Sammlungen finden, öffnen, Inhalt ändern |
 | [`12_flow_place.py`](docs/examples/12_flow_place.py) | eine Anfrage für Material und Sammlungen, dann wo ein Treffer liegt |
+| [`13_flow_tree.py`](docs/examples/13_flow_tree.py) | eine Sammlung ablaufen, darin suchen, sie auszählen |
 
 **Beide Ebenen nebeneinander:**
 

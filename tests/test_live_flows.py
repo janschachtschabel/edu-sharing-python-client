@@ -531,3 +531,90 @@ async def test_search_all_kostet_nicht_mehr_als_die_einzelnen(repo):
     ergebnis = await repo.flows.search_all("Photosynthese", limit=3)
     assert len(ergebnis["materials"]["hits"]) <= 3
     assert len(ergebnis["collections"]["hits"]) <= 3
+
+
+@pytest.mark.live
+async def test_describe_many_ueberlebt_einen_toten_indexeintrag(repo):
+    """Gemessen am 27.08.2026 waren 4 von 25 Treffern des Suchindex nicht mehr
+    abrufbar. Wer die ganze Liste verliert, weil einer fehlt, kann eine Suche
+    nicht weiterverarbeiten."""
+    treffer = await repo.flows.search("Photosynthese", limit=8)
+    ids = [h["id"] for h in treffer["hits"]]
+    ergebnis = await repo.flows.describe_many([*ids, "gibtesnicht-0000"])
+
+    json.dumps(ergebnis)
+    assert ergebnis["requested"] == len(ids) + 1
+    assert any(f["id"] == "gibtesnicht-0000" for f in ergebnis["failed"])
+    assert ergebnis["found"] + len(ergebnis["failed"]) == ergebnis["requested"]
+
+
+@pytest.mark.live
+@pytest.mark.write
+async def test_related_baut_auf_fach_und_stufe(repo, ordner):
+    """Mit einem selbst angelegten Ausgangsknoten, weil der Suchindex Knoten
+    haelt, die es nicht mehr gibt -- ein Treffer von dort waere ein
+    unzuverlaessiger Ausgangspunkt, und der Test wuerde sich wegdruecken."""
+    seed = await repo.flows.add_material(
+        "Ausgangsmaterial fuer related", parent_id=ordner.id,
+        subject="Biologie", level="Sekundarstufe I")
+    assert seed["unresolved"] == [], "Vorbedingung: Fach und Stufe kamen an"
+
+    ergebnis = await repo.flows.related(seed["id"], limit=5)
+    json.dumps(ergebnis)
+
+    assert ergebnis["based_on"] == {"subject": ["Biologie"],
+                                    "level": ["Sekundarstufe I"]}
+    assert seed["id"] not in [h["id"] for h in ergebnis["hits"]], \
+        "der Ausgangsknoten ist nicht sein eigener Verwandter"
+    assert ergebnis["hits"], "zu Biologie/Sek I gibt es anderes Material"
+
+
+@pytest.mark.live
+async def test_related_ohne_fach_und_stufe_erfindet_nichts(repo):
+    """Eine ungefilterte Suche waere keine Antwort auf 'mehr davon'."""
+    wer = await repo.whoami()
+    ergebnis = await repo.flows.related(wer.home_folder)
+    assert ergebnis["hits"] == []
+    assert ergebnis["reason"]
+
+
+@pytest.mark.live
+async def test_der_sammlungsbaum_bleibt_im_deckel(repo):
+    """Sammlungen bilden einen Graphen. Der Ablauf muss enden, und er muss
+    sagen, wenn er abgeschnitten hat."""
+    sammlungen = await repo.flows.find_collections("Biologie", limit=3)
+    assert sammlungen["hits"], "keine Sammlung zum Ausgehen"
+
+    baum = await repo.flows.browse_tree(sammlungen["hits"][0]["id"],
+                                        depth=2, max_collections=6)
+    json.dumps(baum)
+    assert baum["opened"] <= 6
+    assert isinstance(baum["truncated"], bool)
+
+
+@pytest.mark.live
+async def test_in_einer_sammlung_suchen(repo):
+    """Eine Suche laesst sich nicht auf eine Sammlung eingrenzen -- gemessen.
+    Also wird gelaufen und lokal verglichen."""
+    sammlungen = await repo.flows.find_collections("Biologie", limit=3)
+    ergebnis = await repo.flows.search_in_collection(
+        sammlungen["hits"][0]["id"], "zelle", depth=2, max_collections=6)
+    json.dumps(ergebnis)
+    assert ergebnis["searched"] >= 1
+    assert all("zelle" in (h["title"] or "").lower()
+               or "zelle" in (h["description"] or "").lower()
+               or any("zelle" in v.lower()
+                      for werte in h["fields"].values() for v in werte)
+               for h in ergebnis["hits"])
+
+
+@pytest.mark.live
+async def test_eine_sammlung_auszaehlen(repo):
+    sammlungen = await repo.flows.find_collections("Biologie", limit=3)
+    zahlen = await repo.flows.collection_stats(sammlungen["hits"][0]["id"],
+                                               sample=20)
+    json.dumps(zahlen)
+    assert zahlen["materials"] >= zahlen["sampled"]
+    assert zahlen["complete"] == (zahlen["sampled"] >= zahlen["materials"])
+    for feld, zaehler in zahlen["by"].items():
+        assert sum(zaehler.values()) >= 1, feld

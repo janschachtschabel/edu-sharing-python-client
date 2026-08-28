@@ -373,6 +373,30 @@ class SyncFlows:
         """Like ``Flows.placement``, blocking."""
         return self._loop.run(self._flows.placement(node_id))
 
+    def describe_many(self, node_ids: Any) -> dict[str, Any]:
+        """Like ``Flows.describe_many``, blocking."""
+        return self._loop.run(self._flows.describe_many(node_ids))
+
+    def related(self, node_id: str, **kwargs: Any) -> dict[str, Any]:
+        """Like ``Flows.related``, blocking."""
+        return self._loop.run(self._flows.related(node_id, **kwargs))
+
+    def browse_tree(self, collection_id: str, **kwargs: Any) -> dict[str, Any]:
+        """Like ``Flows.browse_tree``, blocking."""
+        return self._loop.run(self._flows.browse_tree(collection_id, **kwargs))
+
+    def search_in_collection(
+        self, collection_id: str, query: str, **kwargs: Any
+    ) -> dict[str, Any]:
+        """Like ``Flows.search_in_collection``, blocking."""
+        return self._loop.run(
+            self._flows.search_in_collection(collection_id, query, **kwargs))
+
+    def collection_stats(self, collection_id: str, **kwargs: Any) -> dict[str, Any]:
+        """Like ``Flows.collection_stats``, blocking."""
+        return self._loop.run(
+            self._flows.collection_stats(collection_id, **kwargs))
+
     def update_material(self, node_id: str, **kwargs: Any) -> dict[str, Any]:
         """Like ``Flows.update_material``, blocking."""
         return self._loop.run(self._flows.update_material(node_id, **kwargs))

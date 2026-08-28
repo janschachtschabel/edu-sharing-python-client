@@ -280,3 +280,23 @@ async def test_reprs_nennen_den_knoten():
         knoten = await repo.node(NID)
         assert NID in repr(knoten.suggestions)
         assert NID in repr(knoten.workflow)
+
+
+async def test_eine_wirkungslose_entscheidung_wird_gemeldet():
+    """Genau der Fall, den ein Live-Test beim Bauen gefangen hat: die IDs im
+    Body statt im Query, 200 zurueck, und jeder Vorschlag bleibt PENDING."""
+    from edusharing.errors import SilentDropError
+
+    class Taub(Instanz):
+        def handler(self, request: httpx.Request) -> httpx.Response:
+            if request.method == "PATCH" and "/suggestions/v1" in request.url.path:
+                self.anfragen.append(request)
+                return httpx.Response(200, json=[])
+            return super().handler(request)
+
+    instanz = Taub([_vorschlag("s-1", "ccm:taxonid", "Biologie")])
+    async with instanz.repo() as repo:
+        knoten = await repo.node(NID)
+        with pytest.raises(SilentDropError) as fehler:
+            await knoten.suggestions.decide(["s-1"])
+    assert "s-1" in fehler.value.dropped

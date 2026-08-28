@@ -44,6 +44,11 @@ nur von Hand ausgeschrieben.
 | `describe` | 1 | Knoten laden |
 | `search_all` | 3–4 | Materialsuche (+1 zum Auflösen eines Filters) + Sammlungssuche (ihre zwei Wege), parallel |
 | `placement` | 2 | Weg nach oben + Sammlungen mit Referenz, parallel |
+| `describe_many` | eine je verschiedener ID, parallel | jeden laden, die verschwundenen melden |
+| `related` | 2 (+1 je aufgelöstem Filter) | Ausgang beschreiben → mit seinen Feldern suchen → Ausgang herausnehmen |
+| `browse_tree` | eine je geöffneter Sammlung | Untersammlungen ablaufen, entdoppelt und gedeckelt |
+| `search_in_collection` | eine je Sammlung + zwei je Sammlung für ihr Material | ablaufen → Material lesen → lokal vergleichen |
+| `collection_stats` | 2, parallel | Materialliste + Untersammlungsliste → lokal auszählen |
 | `relations` | 1 | die Verknüpfungen des Knotens lesen |
 | `child_objects` | 2 | Hauptknoten laden → seine Kinder, gefiltert und sortiert |
 | `find_collections` | 2, parallel | beide Sammlungswege → über die ID zusammenlegen |
@@ -668,6 +673,223 @@ material, kinder = await asyncio.gather(
 
 Von Hand geschrieben sind das zwei Wartezeiten statt einer — und der zweite
 Endpunkt wird leicht ganz vergessen.
+
+---
+
+## `describe_many` — mehrere Knoten auf einmal
+
+**Eingabe**
+
+```python
+repo.flows.describe_many(["abc-…", "def-…", "ghi-…"])
+```
+
+**Ausgabe**
+
+```json
+{
+  "requested": 3,
+  "found": 2,
+  "nodes": [{"id": "abc-…", "title": "…", "…": "…"}],
+  "failed": [{"id": "ghi-…", "reason": "NotFoundError: HTTP 404 …"}]
+}
+```
+
+`nodes` behält die Reihenfolge der Anfrage, damit sich die Antwort mit der
+Eingabe zusammenbringen lässt. Doppelte IDs werden einmal geholt.
+
+> **Ein fehlender Knoten wird gemeldet, nicht geworfen.** Gemessen am
+> 27.08.2026: **4 von 25** Treffern des Suchindex waren nicht mehr abrufbar.
+> Ein Index, der seine Knoten überlebt, ist hier der Normalfall — und wer die
+> ganze Liste verliert, weil einer fehlt, kann ein Suchergebnis nicht
+> weiterverarbeiten.
+
+**Was dahinter läuft** — eine Anfrage je verschiedener ID, gemeinsam gesendet:
+
+```python
+# was repo.flows.describe_many(["a", "b"]) tut
+results = await asyncio.gather(*(describe(repo, i) for i in ["a", "b"]))
+# jeder Fehlschlag wird gefangen und gemeldet, nicht geworfen
+```
+
+---
+
+## `related` — mehr Material wie dieses
+
+**Keine Relation.** `flows.relations` gibt die Verknüpfungen, die jemand
+*behauptet* hat. Dieser Ablauf errechnet eine *Ähnlichkeit*: Fach und Stufe des
+Ausgangsknotens werden zu Filtern einer gewöhnlichen Suche, und der Knoten
+selbst fällt aus dem Ergebnis. Beides heißt „verwandt", und der Unterschied
+zählt.
+
+**Eingabe**
+
+```python
+repo.flows.related("abc-123", on=("subject", "level"), limit=10)
+```
+
+**Ausgabe**
+
+```json
+{
+  "seed": {"id": "abc-123", "title": "Zellteilung"},
+  "based_on": {"subject": ["Biologie"], "level": ["Sekundarstufe I"]},
+  "hits": [{"id": "…", "title": "…", "…": "…"}],
+  "unresolved": [],
+  "reason": ""
+}
+```
+
+> **`based_on` lesen.** Ohne diese Angabe lässt sich die Ähnlichkeit nicht
+> beurteilen. Und `unresolved`: ein Wert, den die Instanz nicht auflösen
+> konnte, hat die Suche **nicht** verengt — das Ergebnis ist breiter, als es
+> aussieht.
+
+Trägt der Ausgangsknoten keines der Felder, ist `hits` leer und `reason` sagt
+es. Eine ungefilterte Suche beantwortete „mehr davon" mit irgendetwas.
+
+`on` ist eine Vorgabe, keine Festlegung — welche Kurznamen es überhaupt gibt,
+entscheidet der Metadatensatz der Instanz.
+
+**Was dahinter läuft** — 2 Anfragen plus Vokabular:
+
+```python
+# was repo.flows.related("abc") tut
+seed = await discover.describe(repo, "abc")           # 1. laden
+found = await discover.search(repo, None, **based_on) # 2. seine Felder als Filter
+hits = [h for h in found["hits"] if h["id"] != "abc"] # den Ausgang herausnehmen
+```
+
+---
+
+## `browse_tree` — die Sammlungen unter einer Sammlung
+
+**Eingabe**
+
+```python
+repo.flows.browse_tree("abc-123", depth=2, max_collections=50)
+```
+
+**Ausgabe**
+
+```json
+{
+  "id": "abc-123",
+  "collections": [
+    {"id": "…", "title": "Biologie", "collections": [
+      {"id": "…", "title": "Zellbiologie", "collections": []}
+    ]}
+  ],
+  "opened": 3,
+  "truncated": false
+}
+```
+
+> **Sammlungen bilden einen Graphen, keinen Baum.** Eine Untersammlung kann
+> unter mehreren Elternteilen hängen, und zwei können untereinander hängen. Der
+> Lauf entdoppelt nach ID — ohne das läuft er im Kreis — und deckelt, wie viele
+> er öffnet. **`truncated` lesen**: ein abgeschnittener Baum darf sich nicht
+> wie ein vollständiger lesen.
+
+Nur die Sammlungen. Ihr Material ist eine zweite Anfrage je Knoten —
+`collection_stats` zählt es, `collection_contents` listet es.
+
+**Was dahinter läuft** — eine Anfrage je geöffneter Sammlung:
+
+```python
+# was repo.flows.browse_tree("abc", depth=2) tut
+GET /collection/v1/collections/-home-/abc/children/collections
+# dann dasselbe je Kind, bis zur Tiefe, unter Auslassung schon gesehener IDs
+```
+
+---
+
+## `search_in_collection` — etwas in einer Sammlung finden
+
+**Eingabe**
+
+```python
+repo.flows.search_in_collection("abc-123", "zelle", depth=2)
+```
+
+**Ausgabe**
+
+```json
+{
+  "query": "zelle",
+  "hits": [{"id": "…", "title": "Zellteilung", "…": "…"}],
+  "searched": 4,
+  "truncated": false
+}
+```
+
+> **Eine Suche lässt sich nicht auf eine Sammlung eingrenzen.** Drei Mal
+> gemessen — vom `wlo-mcp-sc` am 17.07.2026, hier am 27. und 28.08.2026 —
+> antwortet `ngsearch` mit `virtual:primaryparent_nodeid` mit HTTP 400. Es wäre
+> auch die falsche Antwort: eine Sammlung hält *Referenzen* auf Knoten, deren
+> eigenes Elternteil woanders liegt — eine nach Elternteil eingegrenzte Suche
+> verfehlte genau die kuratierten. Also wird gelaufen und lokal verglichen.
+
+Verglichen werden Titel, Beschreibung und die aufgelösten Feldwerte — was ein
+serialisierter Treffer wirklich trägt. Für Volltext über den ganzen Bestand ist
+`flows.search` das bessere Werkzeug.
+
+> **`truncated` lesen.** Ein leeres Ergebnis aus einem Lauf, der früh
+> aufgehört hat, ist kein „gibt es nicht".
+
+**Was dahinter läuft** — eine Anfrage je Sammlung für den Lauf, zwei weitere je
+Sammlung für ihr Material:
+
+```python
+# was repo.flows.search_in_collection("abc", "zelle") tut
+tree = await browse_tree(repo, "abc", depth=2)        # der Lauf
+pages = await asyncio.gather(*(collection_contents(repo, i) for i in ids))
+hits = [h for page in pages for h in page["materials"] if passt(h)]
+```
+
+---
+
+## `collection_stats` — wie viel darin liegt, und wovon
+
+**Eingabe**
+
+```python
+repo.flows.collection_stats("abc-123", sample=100)
+```
+
+**Ausgabe**
+
+```json
+{
+  "id": "abc-123",
+  "materials": 342,
+  "collections": 7,
+  "sampled": 100,
+  "complete": false,
+  "by": {"subject": {"Biologie": 61, "Chemie": 22}, "level": {"Sekundarstufe I": 74}}
+}
+```
+
+Die Zahlen sind genau — sie kommen aus der Paginierung. **Die Aufschlüsselung
+ist eine Stichprobe**: `sampled` sagt, über wie viele Datensätze ausgezählt
+wurde, `complete`, ob das alle waren. Und **die Zähler teilen sie nicht auf**:
+ein Feld ist mehrwertig, live gemessen trugen 15 Materialien zusammen 25
+Stufenangaben. Jeder Zähler sagt, wie viele Datensätze einen Wert nennen. Eine Aufschlüsselung über hundert von
+dreihundert ist nützlich; sie für das Ganze zu halten nicht.
+
+> **Nicht über eine Facettenabfrage.** Eine Sammlung kuratiert *Referenzen* auf
+> Knoten, deren primäres Elternteil woanders liegt — eine nach Elternteil
+> eingegrenzte Facette liefert für sie nichts. Der Kinder-Endpunkt gibt die
+> referenzierten Dateien mit ihren `*_DISPLAYNAME`-Labels zurück, also ist das
+> lokale Auszählen richtig und lesbar zugleich.
+
+**Was dahinter läuft** — 2 Anfragen:
+
+```python
+# was repo.flows.collection_stats("abc") tut
+page = await collection_contents(repo, "abc", limit=100)   # Material + Untersammlungen
+# dann page["materials"] nach ihren aufgeloesten Feldwerten auszaehlen
+```
 
 ---
 

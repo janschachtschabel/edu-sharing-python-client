@@ -12,12 +12,13 @@ adds capability; it removes steps.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Sequence
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
 from .. import placement as placement_api
 from ..childobjects import ORDER_PROPERTY
-from ..errors import ValidationError
+from ..errors import EduSharingError, ValidationError
 from ..results import SearchHit
 from ..urls import path_segment
 from . import dedupe
@@ -33,9 +34,11 @@ __all__ = [
     "child_objects",
     "collection_contents",
     "describe",
+    "describe_many",
     "field_property",
     "find_collections",
     "placement",
+    "related",
     "relations",
     "search",
     "search_all",
@@ -273,6 +276,132 @@ async def placement(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
 def _step(node: Node) -> dict[str, Any]:
     """One station of a path or one collection -- what a breadcrumb needs."""
     return {"id": node.id, "title": node.title or node.name, "type": node.type}
+
+
+async def describe_many(
+    repo: AsyncRepository, node_ids: Sequence[str]
+) -> dict[str, Any]:
+    """Describe several nodes at once, surviving the ones that are gone.
+
+    Sent together, so the wall clock is one request rather than *n* -- the
+    transport's own concurrency limit still applies.
+
+    **A missing node is reported, not raised.** Measured on 2026-08-27, **4 of
+    25** search hits were no longer retrievable: an index that outlives its
+    nodes is the ordinary case here, and losing the whole list because one
+    entry is gone makes a search result unusable.
+
+    Args:
+        repo: the connection.
+        node_ids: the nodes to describe. Duplicates are fetched once.
+
+    Returns:
+        ``{requested, found, nodes, failed}``. ``nodes`` keeps the order of the
+        request, so a caller can line the answer up with what it asked for.
+        ``failed`` names each id and why.
+    """
+    wanted = list(dict.fromkeys(node_ids))
+    if not wanted:
+        return {"requested": 0, "found": 0, "nodes": [], "failed": []}
+
+    async def one(node_id: str) -> tuple[str, dict[str, Any] | str]:
+        try:
+            return node_id, await describe(repo, node_id)
+        except EduSharingError as exc:
+            return node_id, f"{type(exc).__name__}: {exc}"
+
+    results = await asyncio.gather(*(one(i) for i in wanted))
+    nodes = [r for _, r in results if isinstance(r, dict)]
+    failed = [
+        {"id": node_id, "reason": reason}
+        for node_id, reason in results
+        if isinstance(reason, str)
+    ]
+    return {
+        "requested": len(wanted),
+        "found": len(nodes),
+        "nodes": nodes,
+        "failed": failed,
+    }
+
+
+#: What "more of this" is decided by, unless the caller says otherwise. Two
+#: topical fields; ``license`` or ``difficulty`` would say nothing about what a
+#: resource is about.
+RELATED_ON = ("subject", "level")
+
+
+async def related(
+    repo: AsyncRepository,
+    node_id: str,
+    *,
+    on: Sequence[str] = RELATED_ON,
+    limit: int = 10,
+) -> dict[str, Any]:
+    """More material like this one.
+
+    **Not a relation.** ``/relation/v1`` links two nodes because somebody said
+    they belong together; this takes the seed's own fields, searches with them
+    as filters, and drops the seed from the result. Both are called "related",
+    and the difference is worth stating: one is an assertion, the other a
+    resemblance.
+
+    Args:
+        repo: the connection.
+        node_id: the node to start from.
+        on: which short names decide the resemblance. The default is topical;
+            which short names exist at all is the instance's metadata set.
+        limit: how many to return.
+
+    Returns:
+        ``{seed, based_on, hits, unresolved, reason}``. ``based_on`` names the
+        values the search was built from -- without it nobody can judge the
+        resemblance. ``unresolved`` names the ones the instance could not
+        resolve: those did **not** narrow the search, so the result is broader
+        than it looks. When the seed carries none of the fields, ``hits`` is
+        empty and ``reason`` says so -- an unfiltered search would answer
+        "more of this" with anything.
+
+    Raises:
+        ValidationError: for a short name the search does not know -- a typo
+            must not pass as "no filter".
+        NotFoundError: when no node carries this id.
+    """
+    aliases = repo.searcher.field_aliases
+    unknown = [name for name in on if name not in aliases]
+    if unknown:
+        raise ValidationError(
+            f"Unknown short name(s) for related(): {', '.join(unknown)}. "
+            f"This instance knows: {', '.join(sorted(aliases))}."
+        )
+
+    seed = await describe(repo, node_id)
+    based_on = {
+        name: list(seed["fields"][name])
+        for name in on
+        if seed["fields"].get(name)
+    }
+    if not based_on:
+        return {
+            "seed": {"id": node_id, "title": seed.get("title")},
+            "based_on": {},
+            "hits": [],
+            "unresolved": [],
+            "reason": (
+                f"The node carries none of {', '.join(on)}, and a search "
+                "without them would answer 'more of this' with anything."
+            ),
+        }
+
+    found = await search(repo, None, filters=None, limit=limit + 1, **based_on)
+    hits = [h for h in found["hits"] if h["id"] != node_id][:limit]
+    return {
+        "seed": {"id": node_id, "title": seed.get("title")},
+        "based_on": based_on,
+        "hits": hits,
+        "unresolved": found["unresolved"],
+        "reason": "",
+    }
 
 
 async def find_collections(

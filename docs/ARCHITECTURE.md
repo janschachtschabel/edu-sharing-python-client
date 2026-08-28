@@ -339,6 +339,19 @@ twice. ``submit()`` reads it back and takes the first match, so a repeated
 submission returns the step just made rather than an older one that looked the
 same.
 
+**Collections form a directed graph, not a tree.** A sub-collection can hang
+under several parents, and two can hang under each other. Every walk in
+``flows/tree.py`` therefore de-duplicates by id and caps how many collections
+it opens -- and says in its answer when it stopped early. Truncating in silence
+reads like completeness, and a caller cannot tell an empty result from an
+unfinished one.
+
+One consequence caught itself during implementation: ``browse_tree`` lists
+children it did not open, because they come free with their parent's answer.
+``search_in_collection`` was reading material from all of them, which walked
+straight past the cap the caller had set. A test written before the code found
+it; the same cap now bounds both.
+
 ## 8. Stages
 
 | # | Content | Done when |

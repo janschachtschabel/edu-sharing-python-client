@@ -106,6 +106,8 @@ def _handler(request: httpx.Request) -> httpx.Response:
             "groupName": "x", "profile": {"displayName": "X"}}})
     if url.endswith("/preview") or "/preview?" in url:
         return httpx.Response(200, json=_node_response())
+    if url.endswith("/children/collections"):
+        return httpx.Response(200, json={"collections": []})
     if url.endswith("/children") and method == "GET":
         return httpx.Response(200, json={
             "nodes": [_node_response()["node"]],
@@ -526,3 +528,13 @@ def test_blaettern_synchron(repo):
 
 def test_sammlung_aendern_synchron(repo):
     assert _kein_coroutine(repo.update_collection("coll-1", title="Neu"))
+
+
+def test_die_fuenf_neuen_ablaeufe_synchron(repo):
+    """Fuenf neue asynchrone Flaechen auf einmal -- ohne Durchgriff liefert
+    jede eine Coroutine, die nichts tut und nichts meldet."""
+    assert _kein_coroutine(repo.flows.describe_many([NID]))["found"] == 1
+    _kein_coroutine(repo.flows.related(NID))
+    _kein_coroutine(repo.flows.browse_tree("coll-1", depth=1))
+    _kein_coroutine(repo.flows.search_in_collection("coll-1", "x", depth=1))
+    _kein_coroutine(repo.flows.collection_stats("coll-1"))

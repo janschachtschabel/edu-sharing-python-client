@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from . import curate, discover
+from . import curate, discover, tree
 from .language import GERMAN, LanguageProfile
 from .rerank import DEFAULT_POOL
 
@@ -90,6 +90,24 @@ class Flows:
         """Everything about one node in a single call. See ``discover.describe``."""
         return await discover.describe(self._repo, node_id)
 
+    async def describe_many(self, node_ids: Any) -> dict[str, Any]:
+        """Describe several nodes at once. See ``discover.describe_many``.
+
+        **Check ``failed``**: a node the search index still knows but the
+        repository no longer has is reported there, not raised.
+        """
+        return await discover.describe_many(self._repo, node_ids)
+
+    async def related(self, node_id: str, **kwargs: Any) -> dict[str, Any]:
+        """More material like this one. See ``discover.related``.
+
+        **Not a relation** -- ``flows.relations`` gives the links somebody
+        asserted; this gives a resemblance computed from the node's own fields.
+        **Read ``based_on``** to judge it, and **``unresolved``** for the
+        values that did not narrow the search after all.
+        """
+        return await discover.related(self._repo, node_id, **kwargs)
+
     async def child_objects(self, node_id: str) -> dict[str, Any]:
         """Further documents belonging to one node. See ``discover.child_objects``."""
         return await discover.child_objects(self._repo, node_id)
@@ -111,6 +129,36 @@ class Flows:
         read.
         """
         return await discover.placement(self._repo, node_id)
+
+    async def browse_tree(self, collection_id: str, **kwargs: Any) -> dict[str, Any]:
+        """The collections underneath one collection. See ``tree.browse_tree``.
+
+        **Read ``truncated``**: collections form a graph, and the walk is
+        capped -- a shortened tree must not read as a complete one.
+        """
+        return await tree.browse_tree(self._repo, collection_id, **kwargs)
+
+    async def search_in_collection(
+        self, collection_id: str, query: str, **kwargs: Any
+    ) -> dict[str, Any]:
+        """Find material inside one collection. See ``tree.search_in_collection``.
+
+        Walks and compares locally: a search cannot be scoped to a collection,
+        measured three times. **Read ``truncated``** -- an empty result from a
+        walk that stopped early is not "there is none".
+        """
+        return await tree.search_in_collection(
+            self._repo, collection_id, query, **kwargs)
+
+    async def collection_stats(
+        self, collection_id: str, **kwargs: Any
+    ) -> dict[str, Any]:
+        """How much a collection holds, and what of. See ``tree.collection_stats``.
+
+        The counts are exact; **the breakdown is a sample** -- ``sampled`` and
+        ``complete`` say which.
+        """
+        return await tree.collection_stats(self._repo, collection_id, **kwargs)
 
     async def find_collections(self, text: str, *, limit: int = 10) -> dict[str, Any]:
         """Search collections. See ``discover.find_collections``.
