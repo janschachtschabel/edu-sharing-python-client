@@ -9,22 +9,22 @@ Without the b-api key everything but the last step still runs.
 None of this is MCP-specific -- an MCP server would be a thin adapter on top.
 """
 
-import sys
-
-# The Windows console otherwise emits cp1252 and mangles umlauts.
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-
+import asyncio
 import os
+import sys
 
 from edusharing import AsyncRepository, EduSharingError
 from edusharing.agent import as_result, as_untrusted, format_results, is_safe_url
 from edusharing.bapi import BildungsAPI
 
+# The Windows console otherwise emits cp1252 and mangles umlauts.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 REPO = "https://repository.staging.openeduhub.net"
 
 
-async def main(topic: str) -> int:
+async def main(topic: str = "Photosynthese") -> int:
     async with AsyncRepository(REPO, metadataset="mds_oeh") as repo:
         # 1. Search -- as a tool result, so a failure does not end the whole run
         #    but becomes information.
@@ -86,11 +86,8 @@ async def main(topic: str) -> int:
 
 
 if __name__ == "__main__":
-    import asyncio
-
-    subject = sys.argv[1] if len(sys.argv) > 1 else "Photosynthese"
     try:
-        raise SystemExit(asyncio.run(main(subject)))
+        raise SystemExit(asyncio.run(main(*sys.argv[1:2])))
     except EduSharingError as exc:
         print(f"Failed: {exc}", file=sys.stderr)
         raise SystemExit(1) from None

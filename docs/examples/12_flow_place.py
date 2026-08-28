@@ -15,16 +15,16 @@ Two flows that belong together in practice:
 
 import sys
 
-# The Windows console otherwise emits cp1252 and mangles umlauts.
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-
 from edusharing import (
     EduSharingError,
     NotFoundError,
     PermissionDeniedError,
     Repository,
 )
+
+# The Windows console otherwise emits cp1252 and mangles umlauts.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 QUERY = "Photosynthese"
 

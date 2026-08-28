@@ -9,18 +9,18 @@ in the environment the example signs in and shows the difference.
 
 import sys
 
+from edusharing import BasicCredential, EduSharingError, Repository
+
 # The Windows console otherwise emits cp1252 and mangles umlauts. This affects
 # only this example's output -- the library works in UTF-8 throughout and does
 # not touch stdout.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-from edusharing import BasicCredential, EduSharingError, Repository
-
 DEFAULT = "https://repository.staging.openeduhub.net"
 
 
-def main(url: str) -> int:
+def main(url: str = DEFAULT) -> int:
     with Repository(url, auth=BasicCredential.from_env()) as repo:
         print(f"Repository: {repo.url}")
         print()
@@ -51,9 +51,9 @@ def main(url: str) -> int:
 
 if __name__ == "__main__":
     try:
-        raise SystemExit(main(sys.argv[1] if len(sys.argv) > 1 else DEFAULT))
+        raise SystemExit(main(*sys.argv[1:2]))
     except EduSharingError as exc:
-        # Errors from this library are explained errors -- they need no
-        # traceback to be understood.
+        # Errors from this library are explained errors -- a traceback
+        # would add noise, not information.
         print(f"Failed: {exc}", file=sys.stderr)
         raise SystemExit(1) from None

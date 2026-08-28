@@ -18,11 +18,11 @@ import json
 import os
 import sys
 
+from edusharing import EduSharingError, Repository
+
 # The Windows console otherwise emits cp1252 and mangles umlauts.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-
-from edusharing import Repository
 
 METADATA_SET = os.environ.get("EDU_SHARING_MDS", "mds_oeh")
 
@@ -96,4 +96,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except EduSharingError as exc:
+        print(f"Failed: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None

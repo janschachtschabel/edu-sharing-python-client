@@ -13,11 +13,11 @@ every answer says what it left out.
 
 import sys
 
+from edusharing import EduSharingError, Repository
+
 # The Windows console otherwise emits cp1252 and mangles umlauts.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-
-from edusharing import EduSharingError, Repository
 
 TOPIC = "Biologie"
 TERM = "zelle"

@@ -259,7 +259,7 @@ class TextExtraction:
         Cheapest and most certain first: a literal address needs no resolver,
         a name does.
         """
-        if _is_private(host):
+        if is_unroutable_host(host):
             logger.warning("text extraction refused a private host: %s", host)
             return "private_host"
 
@@ -271,7 +271,7 @@ class TextExtraction:
             # not, and then the check would have checked nothing.
             return "dns_failed"
 
-        if any(_is_private(address) for address in addresses):
+        if any(is_unroutable_host(address) for address in addresses):
             logger.warning("text extraction refused %s by resolution", host)
             return "private_host"
         return ""
@@ -324,22 +324,6 @@ def _check_base(value: str) -> str:
             "service itself; the route is appended to it."
         )
     return f"{parts.scheme}://{parts.netloc}{parts.path.rstrip('/')}"
-
-
-def _is_private(host: str) -> bool:
-    """True for anything that must not be fetched, judged on the literal alone.
-
-    A thin name over ``agent.safety.is_unroutable_host``, which owns this
-    decision for the whole library. It used to be a second implementation here,
-    and the two disagreed (audit A6): this one caught CGNAT and let NAT64
-    through, the other the reverse.
-
-    ``_check_shape`` covers what ``ipaddress`` refuses to read at all -- a
-    decimal or hexadecimal spelling of the same address (audit A7). A name that
-    is neither is left to the resolver, and ``_judge`` re-checks what comes
-    back.
-    """
-    return is_unroutable_host(host)
 
 
 def _miss(url: str, reason: str) -> ExtractedText:

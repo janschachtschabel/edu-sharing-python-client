@@ -9,16 +9,16 @@ set, because filter values are resolved at runtime against *this* instance.
 
 import sys
 
+from edusharing import EduSharingError, Repository
+
 # The Windows console otherwise emits cp1252 and mangles umlauts.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-from edusharing import EduSharingError, Repository
-
 DEFAULT = "https://repository.staging.openeduhub.net"
 
 
-def main(topic: str) -> int:
+def main(topic: str = "Photosynthese") -> int:
     with Repository(DEFAULT, metadataset="mds_oeh") as repo:
         # Which metadata sets exist at all? The choice changes what is
         # filterable and what gets found.
@@ -69,7 +69,7 @@ def main(topic: str) -> int:
 
 if __name__ == "__main__":
     try:
-        raise SystemExit(main(sys.argv[1] if len(sys.argv) > 1 else "Photosynthese"))
+        raise SystemExit(main(*sys.argv[1:2]))
     except EduSharingError as exc:
         print(f"Failed: {exc}", file=sys.stderr)
         raise SystemExit(1) from None

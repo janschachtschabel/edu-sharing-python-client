@@ -12,11 +12,11 @@ answers lost writes with HTTP 200.
 import sys
 import uuid
 
+from edusharing import EduSharingError, Repository, SilentDropError
+
 # The Windows console otherwise emits cp1252 and mangles umlauts.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-
-from edusharing import EduSharingError, Repository, SilentDropError
 
 # The metadata set mds_oeh does not know this property -- it is what makes the
 # silent drop visible.

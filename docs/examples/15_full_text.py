@@ -19,22 +19,22 @@ families; this composes one repository call with a second *service*, and which
 service that is, is the caller's configuration, not the repository's.
 """
 
+import asyncio
+import os
 import sys
+
+from edusharing import AsyncRepository, EduSharingError, NotFoundError
+from edusharing.extraction import TextExtraction
 
 # The Windows console otherwise emits cp1252 and mangles umlauts.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-import os
-
-from edusharing import AsyncRepository, EduSharingError, NotFoundError
-from edusharing.extraction import TextExtraction
-
 REPO = "https://repository.staging.openeduhub.net"
 LIMIT = 8
 
 
-async def main(topic: str) -> int:
+async def main(topic: str = "Photosynthese") -> int:
     configured = bool(os.environ.get(TextExtraction.ENV_BASE_URL))
     if not configured:
         print(f"({TextExtraction.ENV_BASE_URL} not set — the fallback is skipped.")
@@ -125,11 +125,8 @@ async def _report(repo, hits, service) -> None:
 
 
 if __name__ == "__main__":
-    import asyncio
-
-    subject = sys.argv[1] if len(sys.argv) > 1 else "Photosynthese"
     try:
-        raise SystemExit(asyncio.run(main(subject)))
+        raise SystemExit(asyncio.run(main(*sys.argv[1:2])))
     except EduSharingError as exc:
         print(f"Failed: {exc}", file=sys.stderr)
         raise SystemExit(1) from None

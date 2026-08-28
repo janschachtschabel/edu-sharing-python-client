@@ -22,11 +22,11 @@ Four measured behaviours it demonstrates rather than describes:
 import sys
 import uuid
 
+from edusharing import EduSharingError, Repository
+
 # The Windows console otherwise emits cp1252 and mangles umlauts.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-
-from edusharing import EduSharingError, Repository
 
 #: WLO's first editorial step. The vocabulary belongs to the instance, so this
 #: is the one value in this file another repository will not know.
