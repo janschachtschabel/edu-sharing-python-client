@@ -32,6 +32,7 @@ because of the overlap, the figure from A alone too low.
 from __future__ import annotations
 
 import asyncio
+from itertools import zip_longest
 from typing import Any
 
 from .errors import ConflictError, EduSharingError, SilentDropError
@@ -56,6 +57,20 @@ DEFAULT_SCOPE = "MY"
 #: this endpoint (measured: 404 InvalidNodeRefException) -- unlike the node API,
 #: where symbolic ids do work.
 COLLECTION_ROOT = "-root-"
+
+
+def _interleave(a: list[SearchHit], b: list[SearchHit]) -> list[SearchHit]:
+    """Round-robin over both legs, so a cap cannot silence one of them.
+
+    Concatenating and then cutting at ``limit`` would be the wrong repair: leg A
+    fills the cap on its own for any broad query, and leg B -- which measurably
+    finds collections leg A does not -- would never appear. Whichever leg runs
+    out first, the other fills the rest.
+    """
+    out: list[SearchHit] = []
+    for pair in zip_longest(a, b):
+        out.extend(hit for hit in pair if hit is not None)
+    return out
 
 
 class Collections:
@@ -95,7 +110,8 @@ class Collections:
         )
 
         warnings: list[str] = []
-        hits: list[SearchHit] = []
+        from_a: list[SearchHit] = []
+        from_b: list[SearchHit] = []
         seen: set[str] = set()
         total = 0
 
@@ -106,14 +122,14 @@ class Collections:
             )
         else:
             nodes, total = leg_a
-            hits.extend(self._as_hits(nodes, seen))
+            from_a = self._as_hits(nodes, seen)
 
         if isinstance(leg_b, BaseException):
             warnings.append(
                 f"The REST collection search (collection/v1) failed: {leg_b}"
             )
         else:
-            hits.extend(self._as_hits(leg_b, seen))
+            from_b = self._as_hits(leg_b, seen)
 
         if isinstance(leg_a, BaseException) and isinstance(leg_b, BaseException):
             raise EduSharingError(
@@ -121,9 +137,12 @@ class Collections:
                 f"Metadata-set query: {leg_a} | REST search: {leg_b}"
             )
 
+        merged = _interleave(from_a, from_b)
         return SearchResult(
-            hits=hits,
-            total=max(total, len(hits)),
+            hits=merged[:limit],
+            # Aus der ungedeckelten Zahl: der Deckel sagt, wie viel
+            # zurueckkommt, nicht wie viel es gibt.
+            total=max(total, len(merged)),
             total_is_lower_bound=True,
             warnings=warnings,
         )

@@ -631,6 +631,13 @@ repo.flows.find_collections("Physik", limit=10)
 > **`total_is_lower_bound` ist hier immer wahr.** Die Sammlungssuche fragt zwei
 > Wege ab und legt sie zusammen; die Zahl zählt mindestens so viele, womöglich
 > mehr.
+>
+> **`limit` deckelt, was zurückkommt, und beide Wege kommen durch den Deckel.**
+> Jeder Weg wird nach `limit` gefragt, und die zusammengeführte Liste wird im
+> Wechsel genommen, bevor sie geschnitten wird — `limit=10` gibt also etwa fünf
+> aus jedem statt zehn aus dem ersten. Die Aneinanderreihung zu schneiden würde
+> den zweiten Weg bei jeder breiten Anfrage verstummen lassen, und er findet
+> nachweislich Sammlungen, die der erste nicht findet.
 
 
 **Was dahinter läuft** — 2 Anfragen, parallel:

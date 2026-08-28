@@ -382,6 +382,18 @@ Einreichen. `submit()` liest ihn zurück und nimmt den ersten Treffer, eine
 wiederholte Einreichung liefert also den eben gemachten Schritt und nicht einen
 älteren, der genauso aussah.
 
+**`limit` war ein Deckel je Weg, kein Deckel auf das Ergebnis.** Gemessen am
+28.08.2026: `collections.find("Biologie", limit=10)` gab **19** Treffer zurück,
+`limit=3` gab 4 — jeder Weg wurde nach `limit` gefragt und die Antworten wurden
+aneinandergereiht, während zwei Ablauf-Docstrings `limit` als „wie viele
+zurückkommen" beschrieben. Für das Hauptpublikum dieser Bibliothek ist das
+nicht kosmetisch: ein Modellkontext mit Budget bekam still das Doppelte des
+Bestellten. Die Reparatur musste beide Wege vertreten lassen, die
+zusammengeführte Liste wird deshalb im Wechsel genommen, bevor sie geschnitten
+wird — aneinanderreihen und dann schneiden ließe Weg A den Deckel bei jeder
+breiten Anfrage allein füllen, und Weg B findet nachweislich Sammlungen, die A
+nicht findet.
+
 **Sammlungen bilden einen gerichteten Graphen, keinen Baum.** Eine
 Untersammlung kann unter mehreren Elternsammlungen hängen, und zwei können
 untereinander hängen. Jeder Gang in `flows/tree.py` entdoppelt deshalb über die

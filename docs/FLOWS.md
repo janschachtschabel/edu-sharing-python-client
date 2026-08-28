@@ -615,6 +615,12 @@ repo.flows.find_collections("Physik", limit=10)
 
 > **`total_is_lower_bound` is always true here.** The collection search asks two
 > routes and merges them, so the figure counts at least this many, possibly more.
+>
+> **`limit` caps what comes back, and both routes get through it.** Each route
+> is asked for `limit`, and the merged list is taken round-robin before it is
+> cut — so `limit=10` gives roughly five from each rather than ten from the
+> first. Cutting the concatenation instead would silence the second route for
+> any broad query, and it measurably finds collections the first one does not.
 
 
 **Behind it** — 2 requests, run in parallel:
@@ -996,8 +1002,8 @@ cannot be recognised on those hits. Without that number, an empty `hits` reads
 as a statement about the repository when it was one about the projection.
 
 **One run is a sample, not the catalogue.** Measured six times on 2026-08-28
-with the same term: three different hit sets, `checked` swinging between 50 and
-100. Both collection routes are involved and neither is a superset of the
+with the same term: three different hit sets, `checked` swinging between 50
+and 100. Both collection routes are involved and neither is a superset of the
 other.
 
 > **Why not a filter?** Because there is none. `ccm:page_config_ref` as a search

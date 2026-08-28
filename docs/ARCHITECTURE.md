@@ -349,6 +349,16 @@ twice. ``submit()`` reads it back and takes the first match, so a repeated
 submission returns the step just made rather than an older one that looked the
 same.
 
+**`limit` was a per-route limit, not a result limit.** Measured on
+2026-08-28: `collections.find("Biologie", limit=10)` returned **19** hits, and
+`limit=3` returned 4 — each route was asked for `limit` and the answers were
+concatenated, while two flow docstrings called `limit` "how many to return".
+For this library's main audience that is not cosmetic: a model context with a
+budget quietly got twice what it ordered. The repair had to keep both routes
+represented, so the merged list is taken round-robin before it is cut —
+concatenating and then cutting would let route A fill the cap on its own for
+any broad query, and route B measurably finds collections A does not.
+
 **Collections form a directed graph, not a tree.** A sub-collection can hang
 under several parents, and two can hang under each other. Every walk in
 ``flows/tree.py`` therefore de-duplicates by id and caps how many collections

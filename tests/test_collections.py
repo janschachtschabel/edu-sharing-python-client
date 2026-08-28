@@ -175,6 +175,51 @@ async def test_ausfall_beider_wege_wirft():
 
 # --- Sonstiges ------------------------------------------------------------
 
+async def test_limit_deckelt_auch_das_zusammengefuehrte_ergebnis():
+    """`limit` heisst in beiden Ablauf-Docstrings "wie viele zurueckkommen".
+
+    Der Code hielt das nicht: jeder Weg bekam `limit`, und das Ergebnis war
+    beider Summe. Gemessen am 28.08.2026 gegen Staging -- "Biologie" mit
+    limit=10 gab **19** Treffer zurueck, "Photosynthese" mit limit=3 gab 4.
+
+    Fuer das Hauptpublikum dieser Bibliothek ist das kein Schoenheitsfehler:
+    ein Modellkontext mit Budget bekommt still das Doppelte des Bestellten.
+    """
+    a = {"nodes": [{"ref": {"id": f"a-{i}"}, "title": f"A{i}", "properties": {}}
+                   for i in range(5)],
+         "pagination": {"total": 99, "from": 0, "count": 5}}
+    b = {"collections": [{"ref": {"id": f"b-{i}"}, "title": f"B{i}", "properties": {}}
+                         for i in range(5)], "pagination": None}
+
+    e = await _collections(_router(a=a, b=b)).find("Optik", limit=4)
+    assert len(e.hits) == 4, f"bestellt 4, bekommen {len(e.hits)}"
+
+
+async def test_der_deckel_laesst_beide_wege_zu_wort_kommen():
+    """Hinten abzuschneiden waere die falsche Reparatur: Weg A fuellt den
+    Deckel allein, und Weg B -- der nachweislich Sammlungen findet, die A
+    nicht findet -- kaeme nie vor. Der Kopf dieser Datei misst genau das."""
+    a = {"nodes": [{"ref": {"id": f"a-{i}"}, "title": f"A{i}", "properties": {}}
+                   for i in range(5)],
+         "pagination": {"total": 99, "from": 0, "count": 5}}
+    b = {"collections": [{"ref": {"id": f"b-{i}"}, "title": f"B{i}", "properties": {}}
+                         for i in range(5)], "pagination": None}
+
+    ids = [t.id for t in (await _collections(_router(a=a, b=b)).find("Optik", limit=4)).hits]
+    assert any(i.startswith("a-") for i in ids), "Weg A kommt nicht vor"
+    assert any(i.startswith("b-") for i in ids), "Weg B wurde weggeschnitten"
+
+
+async def test_der_deckel_verschenkt_nichts_wenn_ein_weg_leer_ist():
+    """Ein Weg allein darf den Deckel ausfuellen -- sonst kostet das
+    Verschraenken Treffer, die es gibt."""
+    a = {"nodes": [{"ref": {"id": f"a-{i}"}, "title": f"A{i}", "properties": {}}
+                   for i in range(5)],
+         "pagination": {"total": 99, "from": 0, "count": 5}}
+    e = await _collections(_router(a=a, b={"collections": []})).find("Optik", limit=4)
+    assert len(e.hits) == 4
+
+
 async def test_limit_gilt_fuer_beide_wege():
     aufrufe = []
     await _collections(_router(aufrufe=aufrufe)).find("Optik", limit=7)
