@@ -465,6 +465,18 @@ Keine.
    Builder, und ein Schreibvorgang muss sie durchreichen. Es offenzulegen
    kostet nichts und erspart dem Aufrufer eine zweite Anfrage.
 
+4. **Zwei Pakete kamen dazu, die nicht im Plan standen** — beide durch das
+   Ausführen aufgedeckt, beide als eigener Commit:
+
+   * **Ein 401 unter Gleichzeitigkeit.** Beispiel 13 scheiterte sporadisch.
+     Nachgemessen: dieselben 20 Knoten, gültige Anmeldung — nacheinander 0 von
+     100 Anfragen mit 401, gleichzeitig 9 von 100. Der Transport wiederholt
+     einen echten 401-Status jetzt genau einmal, und nur angemeldet. Danach 1,
+     0 und 0 von 100 über drei Läufe.
+   * **`find_pages` gab die Gesamtzahl als exakt aus.** Sie kommt aus der
+     Sammlungssuche und ist dort seit jeher eine Untergrenze
+     (`total_is_lower_bound`) — der Ablauf hat das Feld unterschlagen.
+
 ## Verifikationsplan
 
 | Kriterium | Befehl | Erfolg |
