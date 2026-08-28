@@ -268,6 +268,19 @@ async def test_default_steht_vorn():
     assert [v.id for v in seite.variants] == [V2, V1]
 
 
+async def test_default_auf_eine_verschwundene_variante():
+    """Das Dokument nennt einen default, den Knoten gibt es nicht mehr. Der
+    Page Builder rendert dann die erste der Liste -- genau wie ohne default.
+    Beides gleich zu melden ist richtig; der aufgezeichnete Wert steht fuer
+    eine Fehlersuche weiter in ``document``."""
+    instanz = Instanz(page_config=json.dumps(
+        {"variants": [_ref(V1), _ref(V2)], "default": _ref("weg-1")}))
+    seite = await _seite(instanz)
+    assert seite.by_position is True
+    assert seite.rendered.id == V1
+    assert "weg-1" in seite.document
+
+
 async def test_variante_ausserhalb_des_dokuments_geht_nicht_verloren():
     """Der Ordner kann Kinder haben, die das Dokument nie genannt hat. Sie
     hinten anzuhaengen ist ehrlicher, als sie zu verschweigen."""

@@ -257,11 +257,17 @@ class CuratedPage:
 
     @property
     def by_position(self) -> bool:
-        """True when nothing is recorded and the first variant renders by luck.
+        """True when no usable default is recorded and ``variants[0]`` renders.
 
         The distinction matters for a write: switching away from a variant that
         was never chosen is a different sentence than switching away from one
         that was.
+
+        *Usable* covers a second case: a document whose ``default`` names a
+        variant that is no longer a child of the folder. The page builder
+        renders the first of the list then, exactly as it does with no default
+        at all, so this reports the two the same way -- ``document`` still holds
+        the recorded value for anyone diagnosing the fault.
         """
         return not self.rendered_id
 
