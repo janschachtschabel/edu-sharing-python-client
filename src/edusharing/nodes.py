@@ -38,8 +38,10 @@ from .content import NodeContent
 from .errors import SilentDropError, ValidationError
 from .permissions import NodePermissions
 from .ratings import Rating
+from .suggestions import Suggestions
 from .transport import Transport
 from .urls import path_segment
+from .workflow import Workflow
 
 __all__ = ["Node", "Nodes", "WRITE_FIELD_ALIASES", "KEYWORD_PROPERTY"]
 
@@ -185,6 +187,22 @@ class Node:
         See ``placement.collections_of``.
         """
         return await placement.collections_of(self._nodes, self.id)
+
+    @property
+    def workflow(self) -> Workflow:
+        """The editorial history -- and the way into it.
+
+        ``await node.workflow.submit("GROUP_redaktion", "100_tocheck")``
+        """
+        return Workflow(self)
+
+    @property
+    def suggestions(self) -> Suggestions:
+        """Metadata proposed for this node but not written to it.
+
+        ``await node.suggestions.propose("ccm:taxonid", uri, "why")``
+        """
+        return Suggestions(self)
 
     @property
     def comments(self) -> Comments:

@@ -344,6 +344,38 @@ node.comments.delete(c.id)
 > `POST` on the comment; a `PUT` there creates a comment *on the comment* and
 > answers 500.
 
+### Proposing instead of writing, and handing on for review
+
+Two steps a machine should take *instead* of writing: propose a value for a
+person to weigh, and put a record into an editorial queue.
+
+```python
+node = repo.node("abc-123")
+s = node.suggestions.propose("ccm:taxonid", uri, "The title names cells", confidence=0.9)
+node.suggestions.list()              # [Suggestion('ccm:taxonid'='…', PENDING)]
+node.suggestions.decide([s.id])      # ACCEPTED — see the warning
+node.suggestions.decide([s.id], accept=False)
+```
+
+> **Accepting does not write the value.** Measured on 2026-08-28 and by
+> `wlo-mcp-sc` before that: after `ACCEPTED` the node's keywords were still
+> empty. `/suggestions/v1` is a staging area with a record — who proposed what,
+> who decided what. Putting the value on the node stays a separate, deliberate
+> write.
+>
+> The ids also go in the **query**, not the body. Sent as a body they are
+> ignored and every suggestion stays `PENDING` — with a 200 in front of it, so
+> `decide()` reads the statuses back.
+
+```python
+node.workflow.submit("GROUP_redaktion", "100_tocheck", "Bitte prüfen")
+node.workflow.history()              # newest first
+```
+
+`status` has no default: the vocabulary belongs to the instance (WLO uses
+`100_tocheck`), and guessing would file material into a queue that does not
+exist.
+
 ### Groups — who may moderate
 
 ```python

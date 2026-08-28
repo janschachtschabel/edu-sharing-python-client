@@ -549,3 +549,70 @@ async def test_auf_einen_kommentar_antworten(knoten):
 
     alle = await knoten.comments.list()
     assert {k.id for k in alle} == {frage.id, antwort.id}
+
+
+# --- Vorschlaege und redaktionelle Einreichung -----------------------------
+
+async def test_vorschlagen_und_entscheiden(repo, knoten):
+    assert await knoten.suggestions.list() == []
+
+    vorschlag = await knoten.suggestions.propose(
+        "cclom:general_keyword", "Photosynthese",
+        "Der Titel nennt das Thema", confidence=0.9)
+    assert vorschlag.status == "PENDING"
+    assert vorschlag.value == "Photosynthese"
+
+    (gelesen,) = await knoten.suggestions.list()
+    assert gelesen.id == vorschlag.id
+    assert gelesen.why == "Der Titel nennt das Thema"
+
+
+async def test_annehmen_traegt_den_wert_nicht_ein(repo, knoten):
+    """Der Vorbehalt, live reproduziert. Der wlo-mcp-sc hat ihn am 01.08.2026
+    gemessen, hier ist er noch einmal: nach ACCEPTED steht das Schlagwort
+    nicht am Knoten. Wer glaubt, es stuende dort, hat einen Datensatz, der
+    aussieht wie gepflegt und keiner ist."""
+    vorschlag = await knoten.suggestions.propose(
+        "cclom:general_keyword", "Photosynthese", "Weil")
+    await knoten.suggestions.decide([vorschlag.id])
+
+    frisch = await repo.node(knoten.id)
+    assert frisch.keywords == [], "der Endpunkt wendet nichts an"
+
+    (danach,) = await knoten.suggestions.list()
+    assert danach.status == "ACCEPTED", "nur der Stand wandert"
+
+
+async def test_ablehnen_setzt_den_anderen_stand(repo, knoten):
+    vorschlag = await knoten.suggestions.propose("ccm:taxonid", "Biologie", "Weil")
+    await knoten.suggestions.decide([vorschlag.id], accept=False)
+    (danach,) = await knoten.suggestions.list()
+    assert danach.status == "DECLINED"
+
+
+async def test_einreichen_und_verlauf(repo, knoten):
+    assert await knoten.workflow.history() == []
+
+    wer = await repo.whoami()
+    schritt = await knoten.workflow.submit(wer.authority, "100_tocheck",
+                                           "Bitte pruefen")
+    assert schritt.status == "100_tocheck"
+    assert schritt.receivers == (wer.authority,)
+    assert schritt.comment == "Bitte pruefen"
+    assert schritt.editor == wer.authority
+
+    verlauf = await knoten.workflow.history()
+    assert len(verlauf) == 1
+
+
+async def test_der_verlauf_kommt_neueste_zuerst(repo, knoten):
+    """Der Verlauf ist ein Protokoll, kein Zustand -- jeder Schritt bleibt.
+    Und er kommt in umgekehrter Reihenfolge zurueck: gemessen am 28.08.2026
+    stand der zweite Schritt vorn. Darauf beruht die Rueckleseprobe von
+    submit(), die den ersten Treffer nimmt."""
+    wer = await repo.whoami()
+    await knoten.workflow.submit(wer.authority, "100_tocheck", "Erst")
+    await knoten.workflow.submit(wer.authority, "200_tosave", "Dann")
+    verlauf = await knoten.workflow.history()
+    assert [s.status for s in verlauf] == ["200_tosave", "100_tocheck"]
+    assert verlauf[0].at >= verlauf[1].at

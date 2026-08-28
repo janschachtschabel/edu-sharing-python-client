@@ -56,6 +56,12 @@ _ACL: list[dict] = []
 # Und fuer die Kommentare, deren Anlegen ebenfalls zurueckliest.
 _COMMENTS: list[dict] = []
 
+# Der Workflow-Verlauf, aus demselben Grund.
+_WORKFLOW: list[dict] = []
+
+# Und die Vorschlaege, deren Entscheiden ebenfalls zurueckliest.
+_SUGGESTIONS: list[dict] = []
+
 
 def _node_response() -> dict:
     node = dict(NODE["node"])
@@ -98,6 +104,32 @@ def _handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"group": {
             "authorityName": "GROUP_x", "authorityType": "GROUP",
             "groupName": "x", "profile": {"displayName": "X"}}})
+    if "/suggestions/v1" in url:
+        if method == "GET":
+            return httpx.Response(200, json={
+                "nodeId": NID,
+                "suggestions": {"ccm:taxonid": _SUGGESTIONS} if _SUGGESTIONS else {}})
+        if method == "POST":
+            _SUGGESTIONS.append({
+                "id": "s-1", "propertyId": "ccm:taxonid", "value": "Biologie",
+                "status": "PENDING", "description": "Weil",
+                "createdBy": {"authorityName": "alice"}})
+            return httpx.Response(200, json=[_SUGGESTIONS[-1]])
+        # PATCH: die IDs stehen im Query, nicht im Body.
+        for sid in request.url.params.get_list("id"):
+            for v in _SUGGESTIONS:
+                if v["id"] == sid:
+                    v["status"] = request.url.params.get("status")
+        return httpx.Response(200, json=[])
+    if url.endswith("/workflow") or "/workflow?" in url:
+        if method == "GET":
+            return httpx.Response(200, json=_WORKFLOW)
+        _WORKFLOW.append({
+            "time": 1787913246139, "status": json.loads(request.content)["status"],
+            "comment": "", "editor": {"authorityName": "alice"},
+            "receiver": [{"authorityName": r["authorityName"]}
+                         for r in json.loads(request.content)["receiver"]]})
+        return httpx.Response(200, content=b"")
     if "/comment/v1" in url:
         if method == "GET":
             return httpx.Response(200, json={"comments": _COMMENTS})
@@ -165,6 +197,8 @@ def repo():
     _PROPS.clear()
     _ACL.clear()
     _COMMENTS.clear()
+    _WORKFLOW.clear()
+    _SUGGESTIONS.clear()
     r = Repository(
         REPO, client=httpx.AsyncClient(transport=httpx.MockTransport(_handler)))
     try:
@@ -441,3 +475,19 @@ def test_people_synchron(repo):
     _kein_coroutine(leute.add_member("GROUP_x", "alice"))
     _kein_coroutine(leute.remove_member("GROUP_x", "alice"))
     _kein_coroutine(leute.delete_group("GROUP_neu"))
+
+
+def test_vorschlaege_synchron(repo):
+    node = repo.node(NID)
+    assert _kein_coroutine(node.suggestions.list()) == []
+    neu = _kein_coroutine(node.suggestions.propose("ccm:taxonid", "Biologie", "Weil"))
+    _kein_coroutine(node.suggestions.decide([neu.id]))
+    assert NID in repr(node.suggestions)
+
+
+def test_workflow_synchron(repo):
+    node = repo.node(NID)
+    assert _kein_coroutine(node.workflow.history()) == []
+    schritt = _kein_coroutine(node.workflow.submit("bob", "100_tocheck"))
+    assert schritt.status == "100_tocheck"
+    assert NID in repr(node.workflow)

@@ -120,6 +120,16 @@ class SyncNode:
         """What people wrote about this node, blocking."""
         return SyncComments(self._node.comments, self._loop)
 
+    @property
+    def suggestions(self) -> SyncSuggestions:
+        """Metadata proposed for this node, blocking."""
+        return SyncSuggestions(self._node.suggestions, self._loop)
+
+    @property
+    def workflow(self) -> SyncWorkflow:
+        """The editorial history, blocking."""
+        return SyncWorkflow(self._node.workflow, self._loop)
+
     def rate(self, value: float, text: str = "") -> Any:
         """Like ``Node.rate``, blocking."""
         return self._loop.run(self._node.rate(value, text))
@@ -199,6 +209,49 @@ class SyncNodePermissions:
 
     def __repr__(self) -> str:
         return f"Sync{self._permissions!r}"
+
+
+class SyncSuggestions:
+    """A node's proposals for the synchronous surface."""
+
+    def __init__(self, suggestions: Any, loop: LoopThread) -> None:
+        self._suggestions = suggestions
+        self._loop = loop
+
+    def list(self) -> list[Any]:
+        """Like ``Suggestions.list``, blocking."""
+        return self._loop.run(self._suggestions.list())
+
+    def propose(self, property: str, value: str, reason: str, **kwargs: Any) -> Any:
+        """Like ``Suggestions.propose``, blocking."""
+        return self._loop.run(
+            self._suggestions.propose(property, value, reason, **kwargs))
+
+    def decide(self, ids: Any, **kwargs: Any) -> None:
+        """Like ``Suggestions.decide``, blocking. Writes nothing to the node."""
+        self._loop.run(self._suggestions.decide(ids, **kwargs))
+
+    def __repr__(self) -> str:
+        return f"Sync{self._suggestions!r}"
+
+
+class SyncWorkflow:
+    """A node's editorial history for the synchronous surface."""
+
+    def __init__(self, workflow: Any, loop: LoopThread) -> None:
+        self._workflow = workflow
+        self._loop = loop
+
+    def history(self) -> list[Any]:
+        """Like ``Workflow.history``, blocking."""
+        return self._loop.run(self._workflow.history())
+
+    def submit(self, receiver: Any, status: str, comment: str = "") -> Any:
+        """Like ``Workflow.submit``, blocking."""
+        return self._loop.run(self._workflow.submit(receiver, status, comment))
+
+    def __repr__(self) -> str:
+        return f"Sync{self._workflow!r}"
 
 
 class SyncComments:

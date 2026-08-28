@@ -384,6 +384,39 @@ node.comments.delete(c.id)
 > `POST` am Kommentar; ein `PUT` dort legt einen Kommentar *am Kommentar* an
 > und antwortet 500.
 
+### Vorschlagen statt schreiben, und zur Prüfung weiterreichen
+
+Zwei Schritte, die eine Maschine tun sollte, *statt* zu schreiben: einen Wert
+zur Abwägung vorschlagen, und einen Datensatz in eine Redaktions-Warteschlange
+legen.
+
+```python
+node = repo.node("abc-123")
+v = node.suggestions.propose("ccm:taxonid", uri, "Der Titel nennt Zellen", confidence=0.9)
+node.suggestions.list()              # [Suggestion('ccm:taxonid'='…', PENDING)]
+node.suggestions.decide([v.id])      # ACCEPTED — siehe den Vorbehalt
+node.suggestions.decide([v.id], accept=False)
+```
+
+> **Annehmen trägt den Wert nicht ein.** Gemessen am 28.08.2026, und vom
+> `wlo-mcp-sc` davor: nach `ACCEPTED` waren die Schlagworte des Knotens
+> weiterhin leer. `/suggestions/v1` ist ein Ablagefach mit Protokoll — wer was
+> vorgeschlagen, wer was entschieden hat. Den Wert an den Knoten zu schreiben
+> bleibt ein eigener, bewusster Schritt.
+>
+> Die IDs gehören außerdem in den **Query**, nicht in den Body. Als Body
+> gesendet werden sie ignoriert, und jeder Vorschlag bleibt `PENDING` — mit
+> einem 200 davor, weshalb `decide()` die Stände zurückliest.
+
+```python
+node.workflow.submit("GROUP_redaktion", "100_tocheck", "Bitte prüfen")
+node.workflow.history()              # neueste zuerst
+```
+
+`status` hat keine Vorgabe: das Vokabular gehört der Instanz (WLO nutzt
+`100_tocheck`), und Raten legte Material in eine Warteschlange, die es nicht
+gibt.
+
 ### Gruppen — wer moderieren darf
 
 ```python

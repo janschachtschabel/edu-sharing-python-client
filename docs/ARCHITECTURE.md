@@ -321,6 +321,24 @@ The good news repeats itself: the node response carries ``rating`` -- average,
 count and this account's own vote -- so reading one costs no request, exactly
 as with ``isPublic``.
 
+**A whole endpoint can answer 200 and do nothing.** ``/suggestions/v1`` is a
+staging area with a record, not a mechanism: measured on 2026-08-28, a proposal
+moved to ``ACCEPTED`` left the node's property absent -- the same result
+wlo-mcp-sc measured on 2026-08-01. Applying the value stays the caller's job,
+through the ordinary write path with its read-back.
+
+Worse, the ids for that call belong in the **query**, not the body. Sent as a
+JSON body they are ignored and every suggestion stays ``PENDING``, with a 200
+in front of it. A live test caught exactly that during implementation, which is
+the argument for having live tests at all: the offline mock had been written to
+the same wrong assumption as the code, so it agreed with it. ``decide()``
+therefore reads the statuses back.
+
+The workflow history is ordered **newest first** -- measured by submitting
+twice. ``submit()`` reads it back and takes the first match, so a repeated
+submission returns the step just made rather than an older one that looked the
+same.
+
 ## 8. Stages
 
 | # | Content | Done when |
