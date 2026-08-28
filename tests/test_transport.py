@@ -19,7 +19,7 @@ from edusharing.errors import (
     ServerError,
     TransportError,
 )
-from edusharing.transport import Transport
+from edusharing.transport import DEFAULT_TIMEOUT, Transport
 
 REPO = "https://repository.staging.openeduhub.net/edu-sharing"
 CRED = BasicCredential("alice", "geheim")
@@ -389,3 +389,51 @@ async def test_zweihundert_bleibt_erfolg():
     """Gegenprobe: die neue Grenze darf den Normalfall nicht treffen."""
     async with _transport(_ok) as t:
         assert (await t.request("GET", "/_about")).status_code == 200
+
+
+# --- Parameter, die nichts taten (Audit A11, A14) -------------------------
+
+async def test_ein_eigener_client_bringt_sein_eigenes_zeitlimit_mit():
+    """``timeout`` wurde geprueft und dann verworfen, sobald ein Client
+    uebergeben wurde -- gemessen: ``timeout=0.5`` ergab ``Timeout(5.0)``, die
+    httpx-Vorgabe. Wer fuer einen latenzkritischen Pfad kurz stellt, bekam
+    still die Vorgabe. Das Zeitlimit gehoert dem Client, also sagt es die
+    Bibliothek, statt es anzunehmen."""
+    eigener = httpx.AsyncClient(timeout=1.5)
+    with pytest.raises(EduSharingError, match="timeout"):
+        Transport(REPO, timeout=0.5, client=eigener)
+    await eigener.aclose()
+
+
+async def test_ein_eigener_client_ohne_zeitlimitangabe_ist_erlaubt():
+    """Gegenprobe: nur die *widerspruechliche* Angabe wird abgelehnt."""
+    eigener = httpx.AsyncClient(timeout=1.5)
+    t = Transport(REPO, client=eigener)
+    assert t._client.timeout.read == 1.5
+    await eigener.aclose()
+
+
+@pytest.mark.parametrize("wert", ["schnell", float("nan"), [1]])
+def test_unbrauchbare_zahlenwerte_werden_als_bibliotheksfehler_abgelehnt(wert):
+    """``at_least`` verglich blind. Ein Nicht-Zahlenwert gab einen TypeError
+    statt eines EduSharingError -- die Bibliothek deckte ihre eigene Eingabe
+    nicht mit ihrem eigenen Fehlertyp ab. Und ``nan`` kam durch, weil jeder
+    Vergleich mit nan falsch ist; httpx bekam dann ein Zeitlimit, das nie
+    ablaeuft."""
+    with pytest.raises(EduSharingError):
+        Transport(REPO, timeout=wert)
+
+
+@pytest.mark.parametrize("wert", [None, "drei", float("nan")])
+def test_unbrauchbare_wiederholungszahlen_ebenso(wert):
+    """Dieselbe Pruefung, ein anderer Parameter -- ``max_retries`` hat keinen
+    None-Sonderfall, hier bleibt None ein Fehler."""
+    with pytest.raises(EduSharingError):
+        Transport(REPO, max_retries=wert)
+
+
+def test_timeout_none_heisst_vorgabe():
+    """Die Gegenprobe zum neuen Sonderfall: ``None`` ist die Art zu sagen
+    "nimm die Vorgabe", nicht ein unbrauchbarer Wert."""
+    t = Transport(REPO, timeout=None)
+    assert t._client.timeout.read == DEFAULT_TIMEOUT

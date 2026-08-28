@@ -237,9 +237,27 @@ def at_least(name: str, value: float, limit: float) -> None:
     enter the retry loop at all, and the caller would see an error with no cause
     whatsoever.
 
-    Shared by ``Transport`` and ``BildungsAPI``: both run a retry loop, and the
-    b-api client had this check missing (audit F3, 2026-08-27).
+    Type and finiteness are checked before the comparison. A bare ``<`` let two
+    things past that this function exists to stop (audit A14): ``None`` raised a
+    ``TypeError`` rather than an ``EduSharingError``, so the library's own error
+    type did not cover its own input; and ``nan`` passed, because every
+    comparison with it is false -- httpx then received a timeout that never
+    elapses.
+
+    Shared by ``Transport``, ``BildungsAPI`` and ``TextExtraction``: all three
+    run a retry loop, and the b-api client had this check missing (audit F3,
+    2026-08-27).
     """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise EduSharingError(
+            f"{name}={value!r} is not a number -- a value of at least {limit} "
+            "is expected."
+        )
+    if value != value:  # nan: the only value that is not equal to itself
+        raise EduSharingError(
+            f"{name}=nan is not allowed -- a value of at least {limit} is "
+            "expected, and nan compares false against every limit."
+        )
     if value < limit:
         raise EduSharingError(
             f"{name}={value!r} is not allowed -- at least {limit} is expected."

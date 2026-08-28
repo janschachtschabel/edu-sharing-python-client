@@ -73,12 +73,14 @@ def main() -> int:
                 print("  the index knows it, the repository does not")
                 continue
             except PermissionDeniedError:
+                # Only when BOTH halves are refused. One alone is reported in
+                # `failed` below, and the other half still answers.
                 print(f"\n{hit['title']}")
-                print("  readable, but the way up is not")
+                print("  neither the way up nor the collections are readable")
                 continue
             placed.append(where)
 
-            print(f"\n{where['title']}")
+            print(f"\n{where['title'] or hit['title']}")
             path = " > ".join(step["title"] for step in where["path"])
             print(f"  path:        {path or '(nothing readable above it)'}")
             print(f"  reaches:     {where['scope'] or '(not stated)'}")
@@ -87,13 +89,29 @@ def main() -> int:
                     print(f"  curated in:  {coll['title']}")
             else:
                 print("  curated in:  no collection")
+            # Measured on 2026-08-28: for material found by a search this is
+            # the norm, not the exception — /parents answers 500
+            # AccessDeniedException for foreign material, 18 of 20 hits. The
+            # collections half answered every time, which is why the flow
+            # reports the refusal instead of raising.
+            for part in where["failed"]:
+                print(f"  not readable: {part['part']} "
+                      f"({part['reason'].split(':')[0]})")
 
         if not placed:
-            print("\nNothing was placeable — unusual, and not an error here.")
+            print("\nNothing was placeable — every hit refused both halves.")
             return 0
 
         # --- 3. The same two questions at the API level -----------------
-        node = repo.node(placed[0]["id"])
+        # A hit whose path half was refused is a fine flow answer and a bad
+        # subject for this comparison: `node.parents()` is the very call that
+        # was refused, and at the API level there is no `failed` to report it
+        # in — it raises. Which is the trade the two levels make.
+        readable = next((p for p in placed if not p["failed"]), None)
+        if readable is None:
+            print("\nNo hit had a readable path — nothing to compare here.")
+            return 0
+        node = repo.node(readable["id"])
         print()
         print("-" * 62)
         print("API level, the same two questions as objects:")

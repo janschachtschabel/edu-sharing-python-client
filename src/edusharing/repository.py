@@ -40,7 +40,6 @@ from .transport import (
     DEFAULT_BACKOFF_BASE,
     DEFAULT_MAX_CONCURRENCY,
     DEFAULT_MAX_RETRIES,
-    DEFAULT_TIMEOUT,
     Transport,
 )
 from .vocab import DEFAULT_METADATASET, DEFAULT_QUERY, Vocabulary
@@ -82,7 +81,9 @@ class AsyncRepository:
             convention.
         field_aliases: short names for filter properties (``subject`` ->
             ``ccm:taxonid``). ``None`` uses the default.
-        timeout: seconds until a request is abandoned.
+        timeout: seconds until a request is abandoned. Cannot be combined
+            with ``client`` -- a client carries its own, and this one
+            would be ignored.
         max_retries: retries in addition to the first attempt.
         max_concurrency: requests running at once.
         backoff_base: base wait between retries.
@@ -97,7 +98,7 @@ class AsyncRepository:
         metadataset: str = DEFAULT_METADATASET,
         query: str = DEFAULT_QUERY,
         field_aliases: dict[str, str] | None = None,
-        timeout: float = DEFAULT_TIMEOUT,
+        timeout: float | None = None,
         max_retries: int = DEFAULT_MAX_RETRIES,
         max_concurrency: int = DEFAULT_MAX_CONCURRENCY,
         backoff_base: float = DEFAULT_BACKOFF_BASE,

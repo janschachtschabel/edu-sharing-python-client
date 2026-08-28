@@ -2,7 +2,7 @@
 
 Deutsche Fassung: [`ARCHITECTURE.de.md`](ARCHITECTURE.de.md)
 
-Last updated: 2026-08-28 · Status: **eight stages complete** — 894 tests offline, 68 live reading, 68 live writing
+Last updated: 2026-08-28 · Status: **eight stages complete, audit findings closed** — 962 tests offline, 68 live reading, 68 live writing
 
 A Python library that makes the REST API of an edu-sharing repository and the
 surrounding services (b-api) accessible with little code — **without**
@@ -692,6 +692,27 @@ does not hold.
 and never tested: measured, all four of its methods were uncovered. That is the
 third instance of decision E3's maintenance cost, and the reason
 `test_sync_surface.py` exists at all. `_sync.py` is now covered completely.
+
+### 8.7 The audit of 2026-08-28
+
+A full audit across twelve dimensions found sixteen issues, five of them
+measured rather than suspected. All are closed; the report with the
+evidence is in [`audits/2026-08-28-audit.md`](audits/2026-08-28-audit.md).
+
+Three of them shared one cause and are the reason this section exists:
+**`agent/` cleaned foreign text but not its structure.** A record title
+carrying newlines forged a complete search hit with an attacker-chosen
+`id` and `url`, placed before the real one; the `label` of `as_untrusted`
+could close the untrusted block the body was explicitly protected against;
+and the SSRF guard the package advertised had no caller inside the
+library while `extraction` carried a second, differently-behaving copy.
+That subsystem was the youngest and the only one never exercised against
+hostile input -- every other one had been beaten on by a live instance.
+
+The fix named the rule rather than patching the sites: ``sanitize_text``
+keeps structure, and **every consumer whose output format uses that
+structure must flatten it** (``one_line``, now exported). The URL decision
+moved down to ``urls.py`` so both callers share it.
 
 ## 9. Open points
 

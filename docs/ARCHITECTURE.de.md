@@ -1,7 +1,7 @@
 # edu-sharing Python-Client — Architektur und Entwurf
 
-Stand: 28.08.2026 · Status: **acht Etappen abgeschlossen** — 894 Tests offline,
-68 live lesend, 68 live schreibend
+Stand: 28.08.2026 · Status: **acht Etappen abgeschlossen, Audit-Befunde
+behoben** — 962 Tests offline, 68 live lesend, 68 live schreibend
 
 Eine Python-Bibliothek, die die REST-API eines edu-sharing-Repositoriums und
 der Dienste daneben (b-api) mit wenig Code zugänglich macht — **ohne** die
@@ -746,6 +746,29 @@ wurde gebaut und nie geprüft: gemessen waren alle vier Methoden unbelegt. Das
 ist der dritte Fall des Wartungspreises von Entscheidung E3 und der Grund,
 warum `test_sync_surface.py` überhaupt existiert. `_sync.py` ist jetzt
 vollständig abgedeckt.
+
+### 8.7 Der Audit vom 28.08.2026
+
+Ein vollständiger Audit über zwölf Dimensionen fand sechzehn Befunde, fünf
+davon gemessen statt vermutet. Alle sind behoben; der Bericht mit den
+Belegen steht in [`audits/2026-08-28-audit.md`](audits/2026-08-28-audit.md).
+
+Drei davon hatten dieselbe Ursache und sind der Grund für diesen
+Abschnitt: **`agent/` reinigte fremden Text, aber nicht seine Struktur.**
+Ein Datensatztitel mit Zeilenumbrüchen fälschte einen vollständigen
+Suchtreffer mit fremder `id` und `url`, und zwar vor dem echten; das
+`label` von `as_untrusted` konnte den Fremdinhalts-Block schließen, gegen
+den der Rumpf ausdrücklich geschützt war; und die SSRF-Prüfung, mit der
+das Paket warb, hatte in der Bibliothek keinen Aufrufer, während
+`extraction` eine zweite, anders antwortende Kopie trug. Dieses Teilpaket
+war das jüngste und das einzige, das nie gegen feindliche Eingaben
+gelaufen war — jedes andere hatte eine echte Instanz hinter sich.
+
+Die Reparatur benannte die Regel, statt die Stellen zu flicken:
+``sanitize_text`` behält Struktur, und **jeder Verbraucher, dessen
+Ausgabeformat diese Struktur benutzt, muss sie abflachen** (``one_line``,
+jetzt exportiert). Die URL-Entscheidung ist nach ``urls.py`` gewandert,
+damit beide Aufrufer sie teilen.
 
 ## 9. Offene Punkte
 
