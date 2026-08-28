@@ -166,7 +166,7 @@ async def test_500_not_allowed_for_guest_wird_nicht_wiederholt():
     assert len(versuche) == 1
 
 
-@pytest.mark.parametrize("status", [400, 401, 403, 404, 409])
+@pytest.mark.parametrize("status", [400, 403, 404, 409])
 async def test_fehler_der_anfrage_werden_nicht_wiederholt(status):
     versuche = []
 
@@ -247,3 +247,94 @@ async def test_gleichzeitigkeit_ist_begrenzt():
 async def test_json_gibt_den_geparsten_koerper():
     async with _transport(lambda r: httpx.Response(200, json={"a": 1})) as t:
         assert await t.json("GET", "/_about") == {"a": 1}
+
+
+# --- Der eine 401, der doch wiederholt wird -------------------------------
+#
+# 401 stand bis zum 28.08.2026 in der Liste oben. Er steht dort nicht mehr,
+# weil die Liste zwei Behauptungen in einer war. Gemessen gegen Staging mit
+# gueltiger Anmeldung, 20 Knoten je Runde, 5 Runden:
+#
+#     nacheinander   0 von 100 Anfragen mit 401
+#     gleichzeitig   9 von 100 Anfragen mit 401
+#
+# Dieselben Knoten, dieselben Zugangsdaten. Ein 401 unter Gleichzeitigkeit ist
+# also keine Aussage ueber die Zugangsdaten, sondern ueber den Moment -- und er
+# trifft jeden Stapel-Ablauf dieser Bibliothek.
+
+async def test_401_mit_anmeldung_wird_einmal_wiederholt():
+    versuche = []
+
+    def handler(request):
+        versuche.append(1)
+        if len(versuche) == 1:
+            return httpx.Response(401, json={"error": "x", "message": "nope"})
+        return httpx.Response(200, json={"ok": True})
+
+    async with _transport(handler, max_retries=3) as t:
+        antwort = await t.request("GET", "/_about")
+    assert antwort.status_code == 200
+    assert len(versuche) == 2
+
+
+async def test_401_wird_hoechstens_einmal_wiederholt():
+    """Falsche Zugangsdaten duerfen nicht max_retries mal kosten -- ein
+    zusaetzlicher Versuch ist der Preis fuer den gemessenen Ausrutscher, drei
+    waeren eine Strafe fuer einen Tippfehler im Passwort."""
+    versuche = []
+
+    def handler(request):
+        versuche.append(1)
+        return httpx.Response(401, json={"error": "x", "message": "nope"})
+
+    async with _transport(handler, max_retries=3) as t:
+        with pytest.raises(AuthenticationError):
+            await t.request("GET", "/_about")
+    assert len(versuche) == 2
+
+
+async def test_401_ohne_wiederholungsbudget_bleibt_bei_einem_versuch():
+    versuche = []
+
+    def handler(request):
+        versuche.append(1)
+        return httpx.Response(401, json={"error": "x", "message": "nope"})
+
+    async with _transport(handler, max_retries=0) as t:
+        with pytest.raises(AuthenticationError):
+            await t.request("GET", "/_about")
+    assert len(versuche) == 1
+
+
+async def test_401_ohne_anmeldung_wird_nicht_wiederholt():
+    """Anonym heisst 401 "hierfuer braucht es eine Anmeldung". Das wird beim
+    zweiten Mal nicht anders."""
+    versuche = []
+
+    def handler(request):
+        versuche.append(1)
+        return httpx.Response(401, json={"error": "x", "message": "nope"})
+
+    async with _transport(handler, credential=ANONYMOUS, max_retries=3) as t:
+        with pytest.raises(AuthenticationError):
+            await t.request("GET", "/_about")
+    assert len(versuche) == 1
+
+
+async def test_als_401_verkleideter_500_wird_nicht_wiederholt():
+    """Der gemessene Ausrutscher ist ein echter 401-Status. Das "Not allowed
+    for guest" im 500er ist eine Aussage ueber die Anmeldung und bleibt bei
+    einem Versuch -- sonst waere der Sinn der Uebersetzung wieder dahin."""
+    versuche = []
+
+    def handler(request):
+        versuche.append(1)
+        return httpx.Response(500, json={
+            "error": "java.lang.Exception",
+            "message": "Not allowed for guest user",
+        })
+
+    async with _transport(handler, max_retries=3) as t:
+        with pytest.raises(AuthenticationError):
+            await t.request("GET", "/_about")
+    assert len(versuche) == 1

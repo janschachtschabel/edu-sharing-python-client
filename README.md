@@ -304,6 +304,15 @@ Three measured causes:
 
 `create(verify=False)` switches the check off for a field you know is derived.
 
+**And one that arrives with the right status and the wrong meaning.** Measured
+2026-08-28 with valid credentials: 20 nodes per round, 5 rounds — sent one
+after another, `0 of 100` requests answered `401`; sent all at once, `9 of
+100` did. Same nodes, same credentials. So the transport retries a `401`
+**once** when the connection is signed in, and not at all when it is anonymous
+(there it means "this needs a login" and will mean it again). Once, not
+`max_retries` times — an extra request is a fair price for a measured hiccup,
+three would be a penalty for a typo in a password.
+
 And three errors that arrive wearing the wrong status, so that `except
 NotFoundError` actually catches them — and so the transport does not retry
 three times what can never succeed:

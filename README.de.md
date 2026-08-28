@@ -343,6 +343,16 @@ Drei gemessene Ursachen:
 `create(verify=False)` schaltet die Prüfung ab, wenn ein abgeleitetes Feld
 bewusst mitgeschickt wird.
 
+**Und einer, der mit dem richtigen Status und der falschen Bedeutung
+ankommt.** Am 28.08.2026 mit gültiger Anmeldung gemessen: 20 Knoten je Runde,
+5 Runden — nacheinander gesendet antworteten `0 von 100` Anfragen mit `401`,
+gleichzeitig gesendet `9 von 100`. Dieselben Knoten, dieselben Zugangsdaten.
+Der Transport wiederholt einen `401` deshalb **einmal**, wenn die Verbindung
+angemeldet ist, und gar nicht, wenn sie anonym ist (dort heißt er „dafür
+braucht es eine Anmeldung“ und heißt es beim zweiten Mal wieder). Einmal, nicht
+`max_retries` mal — ein zusätzlicher Versuch ist der Preis für den gemessenen
+Ausrutscher, drei wären eine Strafe für einen Tippfehler im Passwort.
+
 Dazu drei Fehler, die mit dem falschen Status ankommen — damit `except
 NotFoundError` sie wirklich fängt, und damit der Transport nicht dreimal
 wiederholt, was nie gelingen kann:
