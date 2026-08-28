@@ -960,7 +960,7 @@ repo.flows.find_pages("Deutsch", limit=25)
 **Output**
 
 ```json
-{"query": "Deutsch", "checked": 50, "total": 876,
+{"query": "Deutsch", "checked": 50, "total": 876, "total_is_lower_bound": true,
  "hits": [{"id": "69f9ff64-…", "title": "Deutsch", "url": "https://…",
            "folder_id": "f2020460-…"}],
  "reason": ""}
@@ -968,6 +968,10 @@ repo.flows.find_pages("Deutsch", limit=25)
 
 One request. A subset of `find_collections`: every curated page is a
 collection, few collections have one.
+
+`total` counts the collections that matched, not the ones carrying a page —
+and it is a **lower bound**, because the collection search asks two routes and
+one of them reports no total at all.
 
 **`checked` says how many hits could be judged at all.** One leg of the
 collection search has a fixed projection and returns no properties; a page

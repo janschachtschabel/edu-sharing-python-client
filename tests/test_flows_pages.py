@@ -320,6 +320,15 @@ async def test_beurteilbare_treffer_werden_gezaehlt():
     assert "1" in gefunden["reason"]
 
 
+async def test_gesamtzahl_ist_als_untergrenze_gekennzeichnet():
+    """Die Sammlungssuche fragt zwei Routen und fuehrt sie zusammen; eine von
+    ihnen meldet gar keine Gesamtzahl. 876 heisst also "mindestens 876"."""
+    treffer = [_node("a", titel="Ohne Seite")]
+    async with Instanz(treffer=treffer).repo() as repo:
+        gefunden = await repo.flows.find_pages("Deutsch")
+    assert gefunden["total_is_lower_bound"] is True
+
+
 async def test_ohne_treffer_bleibt_die_antwort_still():
     async with Instanz(treffer=[]).repo() as repo:
         gefunden = await repo.flows.find_pages("gibtesnicht")

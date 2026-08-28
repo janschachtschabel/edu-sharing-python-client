@@ -152,9 +152,10 @@ async def find_pages(
         ValueError: on a limit below one.
 
     Returns:
-        ``{query, hits, checked, total, reason}``. ``total`` is the collection
-        search's own total -- how many collections matched, not how many of
-        them carry a page.
+        ``{query, hits, checked, total, total_is_lower_bound, reason}``.
+        ``total`` counts the collections that matched, not the ones carrying a
+        page -- and it is a **lower bound**: the collection search asks two
+        routes and one of them reports no total at all.
     """
     if limit < 1:
         raise ValueError(
@@ -175,6 +176,7 @@ async def find_pages(
         "hits": hits,
         "checked": len(checked),
         "total": found.total,
+        "total_is_lower_bound": found.total_is_lower_bound,
         "reason": "" if not blind else (
             f"{blind} of {len(found.hits)} hits carried no properties and could "
             "not be judged -- one leg of the collection search has a fixed "

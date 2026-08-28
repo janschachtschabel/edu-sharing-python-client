@@ -34,8 +34,9 @@ def main() -> int:
     with Repository.from_env(metadataset="mds_oeh") as repo:
         # --- 1. Which collections carry a page at all -------------------
         found = repo.flows.find_pages(TOPIC, limit=25)
+        at_least = "at least " if found["total_is_lower_bound"] else ""
         print(f"{len(found['hits'])} of {found['checked']} judgeable hits carry "
-              f"a page (the search matched {found['total']} collections)")
+              f"a page (the search matched {at_least}{found['total']} collections)")
         if found["reason"]:
             print(f"  note: {found['reason']}")
         for hit in found["hits"]:

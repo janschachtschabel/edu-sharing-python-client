@@ -984,7 +984,7 @@ repo.flows.find_pages("Deutsch", limit=25)
 **Ausgabe**
 
 ```json
-{"query": "Deutsch", "checked": 50, "total": 876,
+{"query": "Deutsch", "checked": 50, "total": 876, "total_is_lower_bound": true,
  "hits": [{"id": "69f9ff64-…", "title": "Deutsch", "url": "https://…",
            "folder_id": "f2020460-…"}],
  "reason": ""}
@@ -992,6 +992,10 @@ repo.flows.find_pages("Deutsch", limit=25)
 
 Eine Anfrage. Eine Teilmenge von `find_collections`: jede kuratierte Seite ist
 eine Sammlung, aber wenige Sammlungen haben eine.
+
+`total` zählt die Sammlungen, die getroffen haben, nicht die mit Seite — und
+es ist eine **Untergrenze**, weil die Sammlungssuche zwei Routen fragt und eine
+davon gar keine Gesamtzahl meldet.
 
 **`checked` sagt, wie viele Treffer überhaupt beurteilbar waren.** Ein Weg der
 Sammlungssuche hat eine feste Projektion und liefert keine Eigenschaften; an
