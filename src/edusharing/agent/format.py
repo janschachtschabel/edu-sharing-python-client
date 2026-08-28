@@ -20,7 +20,7 @@ written by arbitrary people.
 from __future__ import annotations
 
 from ..results import SearchHit, SearchResult
-from .sanitize import sanitize_text
+from .sanitize import one_line
 
 __all__ = ["cap_text", "format_hit", "format_results", "DEFAULT_HIT_CHARS",
            "DEFAULT_RESULT_CHARS"]
@@ -82,7 +82,10 @@ def format_hit(
             ``ccm:containsAdvertisement`` yields a "nein" that only confuses
             when read without its field name.
     """
-    title = sanitize_text(hit.title) or "(untitled)"
+    # ``one_line`` throughout this function, not ``sanitize_text``: every
+    # foreign field below lands on a line that this format uses structurally,
+    # and a newline inside one of them writes a record of its own (audit A1).
+    title = one_line(hit.title) or "(untitled)"
     # The citation is never shortened -- it is the point of the output.
     head = f"{title}\n  id: {hit.id}\n  url: {hit.url}"
 
@@ -95,7 +98,7 @@ def format_hit(
         and (label_properties is None
              or key[: -len("_DISPLAYNAME")] in label_properties)
         for v in (values if isinstance(values, list) else [values])
-        if (cleaned := sanitize_text(str(v or "")).strip())
+        if (cleaned := one_line(str(v or "")))
         and cleaned.lower() not in ("null", "none")
     ]
     if labels:
@@ -105,7 +108,7 @@ def format_hit(
 
     remaining = max_chars - len(head) - len("\n  ")
     if hit.description and remaining > 20:
-        head += "\n  " + cap_text(sanitize_text(hit.description), remaining)
+        head += "\n  " + cap_text(one_line(hit.description), remaining)
     return head
 
 
@@ -133,11 +136,12 @@ def format_results(
     for unresolved in result.unresolved:
         lines.append(f"! Filter not resolved: {unresolved}")
     for warning in result.warnings:
-        lines.append(f"! {sanitize_text(warning)}")
+        lines.append(f"! {one_line(warning)}")
     # Only when the result is empty: the server also returns suggestions
     # alongside 57 hits, and in a model context that reads as doubt.
     if result.suggestions and not result.hits:
-        lines.append(f"Did you mean: {', '.join(sanitize_text(s) for s in result.suggestions)}?")
+        lines.append(
+            f"Did you mean: {', '.join(one_line(s) for s in result.suggestions)}?")
 
     head = "\n".join(lines)
     remaining = max_chars - len(head)

@@ -141,7 +141,12 @@ def credential_from(value: object) -> Credential:
     """
     if value is None:
         return ANONYMOUS
-    if isinstance(value, (AnonymousCredential, BasicCredential)):
+    # The Protocol, not the two shipped classes: it is exported and
+    # ``runtime_checkable``, so anything satisfying it must be accepted --
+    # otherwise the extension point is advertised and closed (audit A4). A
+    # forwarded session cookie is exactly the case this module opens with.
+    # Checked before the string branch, so a ``str`` still takes that route.
+    if not isinstance(value, str) and isinstance(value, Credential):
         return value
     if isinstance(value, tuple) and len(value) == 2:
         user, password = value
@@ -159,9 +164,15 @@ def credential_from(value: object) -> Credential:
             )
         if value.lower().startswith("basic "):
             return BasicCredential.from_raw_header(value)
+        # The value is never echoed. Cutting at the first space kept a bearer
+        # token out but not a password -- a password has no space, so the
+        # single most likely way into this branch leaked it whole (audit A5).
+        # The shape is what the caller needs; the value they already know.
         raise EduSharingError(
-            f"Unknown credential shape: {value.split(' ', 1)[0]!r}. A "
-            "(username, password) pair or a 'Basic ...' header is expected."
+            f"Unknown credential shape: a {len(value)}-character string that is "
+            "neither 'Basic ...' nor 'Bearer ...'. A (username, password) pair "
+            "or a 'Basic ...' header is expected -- a bare password is not one: "
+            "Repository(url, auth=(user, password))."
         )
     raise EduSharingError(
         f"Credentials cannot be built from {type(value).__name__}. Expected "

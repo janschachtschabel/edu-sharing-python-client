@@ -9,7 +9,7 @@ import base64
 
 import pytest
 
-from edusharing.auth import ANONYMOUS, BasicCredential, credential_from
+from edusharing.auth import ANONYMOUS, BasicCredential, Credential, credential_from
 from edusharing.errors import EduSharingError
 
 
@@ -105,6 +105,46 @@ def test_credential_wird_unveraendert_durchgereicht():
 def test_unbekannte_form_wird_abgelehnt():
     with pytest.raises(EduSharingError):
         credential_from(12345)
+
+
+def test_ein_passwort_im_falschen_slot_steht_nicht_in_der_meldung():
+    """Audit A5. Der Schutz galt nur fuer Bearer-Token: die Meldung schnitt am
+    ersten Leerzeichen ab, und ein Passwort hat keins. ``auth="PASSWORT-ENTFERNT"``
+    -- die wahrscheinlichste Art, in diesen Zweig zu geraten -- landete damit
+    woertlich in der Ausnahme und von dort in Traceback, Log und Modellkontext.
+    ``BasicCredential.__repr__`` verhindert genau das an der Nachbartuer.
+    """
+    with pytest.raises(EduSharingError) as info:
+        credential_from("PASSWORT-ENTFERNT")
+    assert "PASSWORT-ENTFERNT" not in str(info.value)
+
+
+def test_ein_eigenes_credential_wird_angenommen():
+    """Audit A4. ``Credential`` ist ein ``runtime_checkable`` Protocol und wird
+    aus dem Paket exportiert -- die Bibliothek wirbt damit als Erweiterungs-
+    punkt. ``credential_from`` liess aber nur die zwei mitgelieferten Klassen
+    zu, womit der Fall, fuer den das Modul geschrieben ist (ein Dienst mit
+    vielen Nutzern, weitergereichte Sitzung), nicht bedienbar war.
+    """
+    class SitzungsCredential:
+        def headers(self) -> dict[str, str]:
+            return {"Cookie": "JSESSIONID=abc"}
+
+        @property
+        def is_anonymous(self) -> bool:
+            return False
+
+    eigenes = SitzungsCredential()
+    assert isinstance(eigenes, Credential), "das Protocol sagt ja"
+    assert credential_from(eigenes) is eigenes, "die Bibliothek muss auch ja sagen"
+
+
+def test_ein_string_geht_weiter_den_string_weg():
+    """Gegenprobe zu A4: ``str`` erfuellt das Protocol nicht, aber die Pruefung
+    darf den Bearer-Zweig auch nicht ueberholen."""
+    with pytest.raises(EduSharingError) as info:
+        credential_from("Bearer abc")
+    assert "Bearer" in str(info.value)
 
 
 # --- from_env -------------------------------------------------------------

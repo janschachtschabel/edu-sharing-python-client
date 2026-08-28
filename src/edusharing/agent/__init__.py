@@ -15,7 +15,7 @@ from .confirm import ChangePlan, plan_update
 from .format import cap_text, format_hit, format_results
 from .result import ToolResult, as_result
 from .safety import UnsafeUrlError, check_url, is_safe_url
-from .sanitize import UNTRUSTED_MARKER, as_untrusted, sanitize_text
+from .sanitize import UNTRUSTED_MARKER, as_untrusted, one_line, sanitize_text
 
 __all__ = [
     # URL checking
@@ -24,6 +24,7 @@ __all__ = [
     "UnsafeUrlError",
     # Foreign content
     "sanitize_text",
+    "one_line",
     "as_untrusted",
     "UNTRUSTED_MARKER",
     # Rendering
