@@ -16,6 +16,10 @@ Four quirks, measured against edu-sharing 11.0 (staging, 2026-08-27):
   this, since the empty file also has ``None`` there.
 * **``mimetype`` is mandatory on upload** -- the specification declares it as
   required.
+* **A preview url is always there.** ``preview.url`` is set even for a node
+  without a preview image -- the repository serves a type icon under it, and
+  even after deleting one the url comes back (with a fresh ``dontcache``).
+  ``isIcon`` is what tells the two apart. Same trap as ``downloadUrl``.
 * **``textContent`` answers with JSON**, not with the text: the body is
   ``{"text": ...}``.
 
@@ -117,6 +121,51 @@ class NodeContent:
             f"/node/v1/nodes/-home-/{path_segment(self._node.id)}/content",
             params=params,
             files={"file": (filename, data, mimetype)},
+        )
+        return await self._node._nodes.get(self._node.id)
+
+    async def set_preview(self, data: bytes, mimetype: str = "image/png") -> Node:
+        """Set the node's preview image.
+
+        The multipart field is called **``image``**, not ``file``. Measured on
+        2026-08-28: with ``file`` the endpoint answers
+        ``500 NullPointerException: inputStream`` -- a name nobody can guess
+        from an error that explains nothing.
+
+        Args:
+            data: the image bytes.
+            mimetype: the image type. ``image/png`` covers the common case.
+
+        Returns:
+            The freshly loaded node -- ``preview_url`` is only settled
+            afterwards.
+
+        Raises:
+            ValueError: on empty data. The endpoint would answer 200 and store
+                a preview of nothing.
+        """
+        if not data:
+            raise ValueError(
+                "A preview image cannot be empty -- the repository would store "
+                "one of nothing and report success."
+            )
+        await self._transport.request(
+            "POST",
+            f"/node/v1/nodes/-home-/{path_segment(self._node.id)}/preview",
+            params={"mimetype": mimetype},
+            files={"image": ("preview", data, mimetype)},
+        )
+        return await self._node._nodes.get(self._node.id)
+
+    async def delete_preview(self) -> Node:
+        """Remove the node's own preview image.
+
+        Afterwards the repository serves the type icon again, and
+        ``preview_url`` goes back to ``None``.
+        """
+        await self._transport.request(
+            "DELETE",
+            f"/node/v1/nodes/-home-/{path_segment(self._node.id)}/preview",
         )
         return await self._node._nodes.get(self._node.id)
 

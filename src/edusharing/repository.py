@@ -14,6 +14,7 @@ somewhere unrelated to the cause.
 from __future__ import annotations
 
 import os
+from dataclasses import replace
 from typing import Any, Self
 
 import httpx
@@ -392,6 +393,18 @@ class Repository:
     def remove_from_collection(self, collection_id: str, node_id: str) -> None:
         """Take a resource out of a collection. The original stays."""
         self._loop.run(self._async.remove_from_collection(collection_id, node_id))
+
+    def children(self, node_id: str, **kwargs: Any) -> Any:
+        """Like ``Nodes.children``, blocking. One page of a node's children."""
+        seite = self._loop.run(self._async.nodes.children(node_id, **kwargs))
+        return replace(seite, nodes=tuple(
+            SyncNode(n, self._loop) for n in seite.nodes))
+
+    def update_collection(self, collection_id: str, **kwargs: Any) -> SyncNode:
+        """Like ``Collections.update``, blocking."""
+        return SyncNode(
+            self._loop.run(self._async.collections.update(collection_id, **kwargs)),
+            self._loop)
 
     def node(self, node_id: str) -> SyncNode:
         """Load a node. Its write methods block."""

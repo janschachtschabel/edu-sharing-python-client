@@ -312,6 +312,7 @@ three times what can never succeed:
 | `500 Not allowed for guest user` | not signed in | any protected endpoint |
 | `500 UsageException: Node does not exist` | `404` | `/usage/v1/…/collections` |
 | `500 AccessDeniedException` | `403` | `…/parents` on foreign material |
+| `500 NotAnAdminException` | `403` | `/rating/…/history`, group members |
 
 ### Ratings and comments
 
@@ -375,6 +376,37 @@ node.workflow.history()              # newest first
 `status` has no default: the vocabulary belongs to the instance (WLO uses
 `100_tocheck`), and guessing would file material into a queue that does not
 exist.
+
+### Preview images, paging, renaming a collection
+
+```python
+node.preview_url                     # None when it is only a type icon
+node.content.set_preview(png_bytes)  # multipart field "image", not "file"
+node.content.delete_preview()
+
+page = repo.nodes.children(folder_id, limit=50, offset=0, only="files")
+page.nodes, page.total, page.offset
+
+repo.collections.update(collection_id, title="Neu", description="…")
+```
+
+> **A preview url is always there** — even for a node without one, and even
+> after deleting one. The repository serves a type icon under it. `isIcon` is
+> what tells them apart, which is why `preview_url` returns `None` rather than a
+> url that shows a generic file symbol. Same trap as `downloadUrl`.
+
+> **`repo.nodes.children()` is not `node.children`.** The first is the plain
+> listing, paged and sorted; the second returns the *child objects* — the
+> documents belonging to one piece of material. Paging has a default sort
+> because paging over an unordered listing repeats some entries and misses
+> others.
+
+> **Renaming needs `ref.id` in the body**, although the id is in the path
+> already — without it, `500 NullPointerException`. It also needs a `title`,
+> so changing only the description reads the existing one first. And the
+> description belongs *inside* the `collection` object: as
+> `properties["cm:description"]` it is silently dropped. A new title changes
+> `cm:name` too.
 
 ### Groups — who may moderate
 

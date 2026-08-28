@@ -616,3 +616,66 @@ async def test_der_verlauf_kommt_neueste_zuerst(repo, knoten):
     verlauf = await knoten.workflow.history()
     assert [s.status for s in verlauf] == ["200_tosave", "100_tocheck"]
     assert verlauf[0].at >= verlauf[1].at
+
+
+# --- Vorschaubild, Blaettern, Sammlung aendern -----------------------------
+
+# Ein gueltiges 1x1-PNG, damit der Endpunkt etwas zu speichern hat.
+PNG = bytes.fromhex(
+    "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4"
+    "890000000a49444154789c63000100000500010d0a2db40000000049454e44ae426082")
+
+
+async def test_ein_frischer_knoten_hat_kein_eigenes_vorschaubild(knoten):
+    """preview.url steht trotzdem da -- das Repositorium liefert ein
+    Typ-Symbol. preview_url unterscheidet das."""
+    assert knoten.preview_url is None
+    assert (knoten.raw.get("preview") or {}).get("url"), "eine Adresse gibt es"
+
+
+async def test_vorschaubild_setzen_und_loeschen(knoten):
+    mit = await knoten.content.set_preview(PNG)
+    assert mit.preview_url, "nach dem Setzen gibt es eine eigene Adresse"
+
+    ohne = await mit.content.delete_preview()
+    assert ohne.preview_url is None
+
+
+async def test_blaettern_und_sortieren(repo, ordner):
+    for i in range(3):
+        await repo.create_node(ordner.id, name=f"s{i}.txt", title=f"Titel {i}")
+
+    erste = await repo.nodes.children(ordner.id, limit=2)
+    assert [n.name for n in erste.nodes] == ["s0.txt", "s1.txt"]
+    assert erste.total == 3
+
+    zweite = await repo.nodes.children(ordner.id, limit=2, offset=2)
+    assert [n.name for n in zweite.nodes] == ["s2.txt"]
+    assert zweite.offset == 2
+
+    rueckwaerts = await repo.nodes.children(ordner.id, ascending=False)
+    assert [n.name for n in rueckwaerts.nodes] == ["s2.txt", "s1.txt", "s0.txt"]
+
+
+async def test_die_kinder_tragen_ihre_titel(repo, ordner):
+    """Ohne propertyFilter kaemen sie ohne -- gemessen."""
+    await repo.create_node(ordner.id, name="mit-titel.txt", title="Der Titel")
+    seite = await repo.nodes.children(ordner.id)
+    assert seite.nodes[0].title == "Der Titel"
+
+
+async def test_sammlung_umbenennen(repo, sammlung):
+    geaendert = await repo.collections.update(
+        sammlung.id, title="Neuer Titel", description="Neue Beschreibung")
+    assert geaendert.title == "Neuer Titel"
+    assert geaendert.get("cm:description") == "Neue Beschreibung"
+    assert geaendert.name == "Neuer Titel", "Umbenennen benennt auch den Knoten um"
+
+
+async def test_nur_die_beschreibung_aendern(repo, sammlung):
+    """title ist am Endpunkt Pflicht -- die Bibliothek liest den bestehenden
+    und schickt ihn mit, statt in 'cmNameReadableName is null' zu laufen."""
+    vorher = (await repo.node(sammlung.id)).title
+    geaendert = await repo.collections.update(sammlung.id, description="Nur das")
+    assert geaendert.title == vorher
+    assert geaendert.get("cm:description") == "Nur das"

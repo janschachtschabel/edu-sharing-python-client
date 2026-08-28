@@ -351,6 +351,7 @@ wiederholt, was nie gelingen kann:
 | `500 Not allowed for guest user` | nicht angemeldet | jeder geschützte Endpunkt |
 | `500 UsageException: Node does not exist` | `404` | `/usage/v1/…/collections` |
 | `500 AccessDeniedException` | `403` | `…/parents` an fremdem Material |
+| `500 NotAnAdminException` | `403` | `/rating/…/history`, Gruppenmitglieder |
 
 ### Bewertungen und Kommentare
 
@@ -416,6 +417,37 @@ node.workflow.history()              # neueste zuerst
 `status` hat keine Vorgabe: das Vokabular gehört der Instanz (WLO nutzt
 `100_tocheck`), und Raten legte Material in eine Warteschlange, die es nicht
 gibt.
+
+### Vorschaubilder, Blättern, Sammlung umbenennen
+
+```python
+node.preview_url                     # None, wenn es nur ein Typ-Symbol ist
+node.content.set_preview(png_bytes)  # Multipart-Feld "image", nicht "file"
+node.content.delete_preview()
+
+seite = repo.nodes.children(ordner_id, limit=50, offset=0, only="files")
+seite.nodes, seite.total, seite.offset
+
+repo.collections.update(sammlung_id, title="Neu", description="…")
+```
+
+> **Eine Vorschau-Adresse steht immer da** — auch ohne Bild und sogar nach dem
+> Löschen. Das Repositorium liefert darunter ein Typ-Symbol. `isIcon`
+> unterscheidet, weshalb `preview_url` lieber `None` gibt als eine Adresse, die
+> ein Allerweltssymbol zeigt. Dieselbe Falle wie bei `downloadUrl`.
+
+> **`repo.nodes.children()` ist nicht `node.children`.** Das erste ist die
+> schlichte Auflistung, geblättert und sortiert; das zweite gibt die
+> *Serienobjekte* — die Dokumente, die zu einem Material gehören. Das Blättern
+> hat eine Sortier-Vorgabe, weil Blättern über eine ungeordnete Liste Einträge
+> doppelt bringt und andere ausläßt.
+
+> **Umbenennen braucht `ref.id` im Body**, obwohl die ID im Pfad steht — ohne
+> sie: `500 NullPointerException`. Es braucht außerdem einen `title`, weshalb
+> das Ändern nur der Beschreibung den bestehenden erst liest. Und die
+> Beschreibung gehört *in* das `collection`-Objekt: als
+> `properties["cm:description"]` wird sie still verworfen. Ein neuer Titel
+> ändert auch `cm:name`.
 
 ### Gruppen — wer moderieren darf
 

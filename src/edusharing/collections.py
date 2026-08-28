@@ -34,7 +34,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from .errors import ConflictError, EduSharingError
+from .errors import ConflictError, EduSharingError, SilentDropError
 from .nodes import Node, Nodes
 from .results import SearchHit, SearchResult
 from .transport import Transport
@@ -218,6 +218,85 @@ class Collections:
         )
         data = response.get("collection") or response.get("node") or response
         return Node(data, Nodes(self._transport))
+
+    async def update(
+        self,
+        collection_id: str,
+        *,
+        title: str | None = None,
+        description: str | None = None,
+    ) -> Node:
+        """Change a collection's title or description, then read it back.
+
+        Three things here are measured against staging on 2026-08-28, and each
+        of them costs a call to find out:
+
+        * **``ref.id`` in the body is mandatory**, even though the id is
+          already in the path. Without it the endpoint answers ``500
+          NullPointerException`` (``NodeRef.getId()``) -- the DTO is read, not
+          the URL.
+        * **``title`` is mandatory too.** The endpoint derives the node name
+          from it; without one it fails with ``cmNameReadableName is null``.
+          Changing only the description therefore reads the collection first
+          and sends the existing title along.
+        * **The description belongs inside the ``collection`` object.** As
+          ``properties["cm:description"]`` it is silently discarded -- the call
+          answers 200 and stores nothing.
+
+        A new title also changes ``cm:name``: renaming renames the node.
+
+        Args:
+            collection_id: the collection to change.
+            title: the new title. ``None`` keeps the existing one.
+            description: the new description. ``None`` keeps the existing one.
+
+        Returns:
+            The collection as stored, read back -- the ``PUT`` answers with an
+            empty body.
+
+        Raises:
+            ValueError: when neither title nor description is given.
+            SilentDropError: when a value is absent after reading back.
+        """
+        if title is None and description is None:
+            raise ValueError(
+                "update() needs a title or description -- a call that changes "
+                "nothing still costs a request and reads like a change."
+            )
+
+        nodes = Nodes(self._transport)
+        current = await nodes.get(collection_id)
+        wanted_title = title if title is not None else (current.title or "")
+
+        body: dict[str, Any] = {
+            "ref": {"id": collection_id, "repo": "-home-"},
+            "title": wanted_title,
+            "properties": {"cm:title": [wanted_title]},
+            "collection": {"type": "TYPE_DEFAULT"},
+        }
+        if description is not None:
+            body["collection"]["description"] = description
+
+        await self._transport.request(
+            "PUT",
+            f"/collection/v1/collections/-home-/{path_segment(collection_id)}",
+            json=body,
+        )
+
+        stored = await nodes.get(collection_id)
+        missing = []
+        if title is not None and stored.title != title:
+            missing.append("cm:title")
+        if description is not None and stored.get("cm:description") != description:
+            missing.append("cm:description")
+        if missing:
+            raise SilentDropError(
+                f"Not stored on collection {collection_id!r}: "
+                f"{', '.join(missing)} (HTTP 200, absent or different after "
+                "reading back).",
+                dropped=missing,
+            )
+        return stored
 
     async def add(self, collection_id: str, node_id: str) -> bool:
         """Place a resource into a collection.

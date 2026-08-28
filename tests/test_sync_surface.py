@@ -104,6 +104,23 @@ def _handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"group": {
             "authorityName": "GROUP_x", "authorityType": "GROUP",
             "groupName": "x", "profile": {"displayName": "X"}}})
+    if url.endswith("/preview") or "/preview?" in url:
+        return httpx.Response(200, json=_node_response())
+    if url.endswith("/children") and method == "GET":
+        return httpx.Response(200, json={
+            "nodes": [_node_response()["node"]],
+            "pagination": {"total": 1, "from": 0, "count": 1}})
+    # Eng gefasst: das Einlegen einer Referenz ist auch ein PUT unter
+    # /collection/v1/collections und hat einen leeren Body.
+    if ("/collection/v1/collections" in url and method == "PUT"
+            and "/references/" not in url):
+        # Die Instanz setzt title, cm:title und cm:name. Hier genuegt, was
+        # Node.title liest -- diese Datei prueft den Durchgriff, die Treue zum
+        # Endpunkt steht in test_paging_preview.py.
+        neuer = json.loads(request.content)["title"]
+        _PROPS["cclom:title"] = [neuer]
+        _PROPS["cm:title"] = [neuer]
+        return httpx.Response(200, content=b"")
     if "/suggestions/v1" in url:
         if method == "GET":
             return httpx.Response(200, json={
@@ -491,3 +508,21 @@ def test_workflow_synchron(repo):
     schritt = _kein_coroutine(node.workflow.submit("bob", "100_tocheck"))
     assert schritt.status == "100_tocheck"
     assert NID in repr(node.workflow)
+
+
+def test_vorschaubild_synchron(repo):
+    node = repo.node(NID)
+    assert node.preview_url is None
+    _kein_coroutine(node.content.set_preview(b"\x89PNG"))
+    _kein_coroutine(node.content.delete_preview())
+
+
+def test_blaettern_synchron(repo):
+    seite = _kein_coroutine(repo.children(NID, limit=2))
+    assert seite.total >= 0
+    for n in seite.nodes:
+        assert not inspect.iscoroutinefunction(n.update)
+
+
+def test_sammlung_aendern_synchron(repo):
+    assert _kein_coroutine(repo.update_collection("coll-1", title="Neu"))

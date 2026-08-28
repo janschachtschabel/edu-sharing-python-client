@@ -311,6 +311,15 @@ class SyncNodeContent:
         """Like ``NodeContent.text``, blocking."""
         return self._loop.run(self._content.text(**kwargs))
 
+    def set_preview(self, data: bytes, mimetype: str = "image/png") -> Any:
+        """Like ``NodeContent.set_preview``, blocking."""
+        return SyncNode(
+            self._loop.run(self._content.set_preview(data, mimetype)), self._loop)
+
+    def delete_preview(self) -> Any:
+        """Like ``NodeContent.delete_preview``, blocking."""
+        return SyncNode(self._loop.run(self._content.delete_preview()), self._loop)
+
     def __repr__(self) -> str:
         return f"SyncNodeContent({self._content!r})"
 

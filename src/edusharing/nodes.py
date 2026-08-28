@@ -29,6 +29,7 @@ Bypassing it is a deliberate step.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from . import placement, ratings
@@ -43,7 +44,8 @@ from .transport import Transport
 from .urls import path_segment
 from .workflow import Workflow
 
-__all__ = ["Node", "Nodes", "WRITE_FIELD_ALIASES", "KEYWORD_PROPERTY"]
+__all__ = ["ChildPage", "Node", "Nodes", "WRITE_FIELD_ALIASES",
+           "KEYWORD_PROPERTY"]
 
 #: Short names for write fields. Title and description deliberately go into
 #: **both** namespaces: the edu-sharing interface renders ``cm:*`` and
@@ -138,6 +140,20 @@ class Node:
         says otherwise.
         """
         return bool(self.raw.get("isPublic"))
+
+    @property
+    def preview_url(self) -> str | None:
+        """The node's own preview image, or ``None``.
+
+        Free: the response carries it. ``None`` when the repository is serving
+        a type icon rather than a picture of this node -- measured on
+        2026-08-28, ``preview.url`` is set either way and even survives
+        deleting the image. ``isIcon`` is what tells them apart, the same trap
+        ``downloadUrl`` has.
+        """
+        preview = self.raw.get("preview") or {}
+        url = preview.get("url")
+        return str(url) if url and not preview.get("isIcon") else None
 
     @property
     def properties(self) -> dict[str, Any]:
@@ -447,6 +463,24 @@ class Node:
         return f"Node(id={self.id!r}, title={self.title!r})"
 
 
+@dataclass(frozen=True)
+class ChildPage:
+    """One page of a node's children.
+
+    Attributes:
+        nodes: the children on this page.
+        total: how many there are altogether.
+        offset: where this page started.
+    """
+
+    nodes: tuple[Node, ...]
+    total: int
+    offset: int
+
+    def __repr__(self) -> str:
+        return f"ChildPage({len(self.nodes)} von {self.total}, ab {self.offset})"
+
+
 class Nodes:
     """Access to a repository's nodes."""
 
@@ -525,6 +559,60 @@ class Nodes:
             # cost a round trip.
             node._check(fields, route="create")
         return node
+
+    async def children(
+        self,
+        node_id: str,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        sort: str = "cm:name",
+        ascending: bool = True,
+        only: str | None = None,
+    ) -> ChildPage:
+        """One page of what sits inside a folder or a node.
+
+        Not the same as ``node.children``, which returns the **child objects**
+        -- the documents belonging to one piece of material, filtered by the
+        ``ccm:io_childobject`` aspect. This is the plain listing: everything
+        the repository puts under the node, versions and all.
+
+        Args:
+            node_id: the parent.
+            limit, offset: page size and starting point.
+            sort: the property to order by. There is a default on purpose:
+                paging over an unordered listing can repeat some entries and
+                miss others, and the endpoint orders nothing by itself.
+            ascending: the direction.
+            only: ``"files"`` or ``"folders"`` to narrow it. Measured, both
+                work; other values are the instance's business.
+
+        Returns:
+            A ``ChildPage`` with the nodes, the total and the offset.
+        """
+        params: dict[str, Any] = {
+            "maxItems": limit,
+            "skipCount": offset,
+            "sortProperties": sort,
+            "sortAscending": "true" if ascending else "false",
+            # Without this the children arrive with an empty properties object
+            # -- names but no titles.
+            "propertyFilter": "-all-",
+        }
+        if only:
+            params["filter"] = only
+
+        response = await self.transport.json(
+            "GET",
+            f"/node/v1/nodes/-home-/{path_segment(node_id)}/children",
+            params=params,
+        )
+        pagination = response.get("pagination") or {}
+        return ChildPage(
+            nodes=tuple(Node(data, self) for data in (response.get("nodes") or [])),
+            total=int(pagination.get("total") or 0),
+            offset=int(pagination.get("from") or 0),
+        )
 
     def __repr__(self) -> str:
         return f"Nodes({self.repository_url!r})"
