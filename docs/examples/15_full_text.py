@@ -22,6 +22,7 @@ service that is, is the caller's configuration, not the repository's.
 import asyncio
 import os
 import sys
+from typing import NamedTuple
 
 from edusharing import AsyncRepository, EduSharingError, NotFoundError
 from edusharing.extraction import TextExtraction
@@ -34,32 +35,27 @@ REPO = "https://repository.staging.openeduhub.net"
 LIMIT = 8
 
 
-async def main(topic: str = "Photosynthese") -> int:
-    configured = bool(os.environ.get(TextExtraction.ENV_BASE_URL))
-    if not configured:
-        print(f"({TextExtraction.ENV_BASE_URL} not set — the fallback is skipped.")
-        print(" There is no default on purpose: each installation runs its own")
-        print(" service, and a default pointing at somebody else's sends your")
-        print(" material URLs into an environment you did not choose.)")
-        print()
+class Tally(NamedTuple):
+    """What the table saw, for the two notes that follow it."""
 
-    async with AsyncRepository(REPO, metadataset="mds_oeh") as repo:
-        result = await repo.search(topic, limit=LIMIT)
-        if not result.hits:
-            print(f"No material for {topic!r}.", file=sys.stderr)
-            return 0
-
-        service = TextExtraction.from_env() if configured else None
-        try:
-            await _report(repo, result.hits, service)
-        finally:
-            if service is not None:
-                await service.aclose()
-
-    return 0
+    gaps: int
+    used_service: bool
+    a_linked_url: str
 
 
-async def _report(repo, hits, service) -> None:
+def announce_missing_service() -> None:
+    """Say what is skipped, and why there is no default to fall back on."""
+    print(f"({TextExtraction.ENV_BASE_URL} not set — the fallback is skipped.")
+    print(" There is no default on purpose: each installation runs its own")
+    print(" service, and a default pointing at somebody else's sends your")
+    print(" material URLs into an environment you did not choose.)")
+    print()
+
+
+async def report_rows(
+    repo: AsyncRepository, hits: list, service: TextExtraction | None
+) -> Tally:
+    """One row per material: what the repository has, what the service adds."""
     print(f"{'material':34s} {'repository':>10s} {'service':>18s}")
     print("-" * 66)
     gaps = 0
@@ -76,7 +72,6 @@ async def _report(repo, hits, service) -> None:
         stored = await node.content.text()
         linked = node.get("ccm:wwwurl")
         column = f"{len(stored or ''):>10d}"
-
         linked_seen = linked_seen or (linked or "")
 
         if stored or not linked:
@@ -97,21 +92,29 @@ async def _report(repo, hits, service) -> None:
             print(f"    {got.lang}  “{got.text[:70].strip()}…”")
         elif got.detail:
             print(f"    {got.detail[:60]}")
+    return Tally(gaps, used_service, linked_seen)
 
+
+async def demonstrate_service(service: TextExtraction, url: str) -> None:
+    """Run the service even though nothing needed it.
+
+    Whether a hit needs the fallback depends on the day's index, and an example
+    whose point shows up only sometimes teaches it only sometimes.
+    """
+    print("No material here needed the fallback, so the service ran on a")
+    print("linked address of one of them anyway — to make its answer visible:")
+    shown = await service.text_of(url, max_chars=20_000)
+    print(f"    {url[:60]}")
+    if shown.text:
+        print(f"    {shown.lang}  {shown.char_count} chars  "
+              f"“{shown.text[:60].strip()}…”")
+    else:
+        print(f"    no text: {shown.reason} — {shown.detail[:50]}")
     print()
-    if service is not None and not used_service and linked_seen:
-        # Whether a hit needs the fallback depends on the day's index, and an
-        # example whose point shows up only sometimes teaches it only sometimes.
-        print("No material here needed the fallback, so the service ran on a")
-        print("linked address of one of them anyway — to make its answer visible:")
-        shown = await service.text_of(linked_seen, max_chars=20_000)
-        print(f"    {linked_seen[:60]}")
-        if shown.text:
-            print(f"    {shown.lang}  {shown.char_count} chars  "
-                  f"“{shown.text[:60].strip()}…”")
-        else:
-            print(f"    no text: {shown.reason} — {shown.detail[:50]}")
-        print()
+
+
+def closing_note(service: TextExtraction | None, gaps: int) -> None:
+    """What the zeros in the table do and do not mean."""
     if service is None and gaps:
         print(f"{gaps} of these carry no stored text and link elsewhere. Without the")
         print("service this library cannot answer for them — and an empty")
@@ -122,6 +125,30 @@ async def _report(repo, hits, service) -> None:
         print("A zero in the repository column is not an empty file: Markdown and")
         print("JSON are not extracted at all (measured), and for linked material")
         print("there is nothing to extract. `content.download()` still has the bytes.")
+
+
+async def main(topic: str = "Photosynthese") -> int:
+    configured = bool(os.environ.get(TextExtraction.ENV_BASE_URL))
+    if not configured:
+        announce_missing_service()
+
+    async with AsyncRepository(REPO, metadataset="mds_oeh") as repo:
+        result = await repo.search(topic, limit=LIMIT)
+        if not result.hits:
+            print(f"No material for {topic!r}.", file=sys.stderr)
+            return 0
+
+        service = TextExtraction.from_env() if configured else None
+        try:
+            tally = await report_rows(repo, result.hits, service)
+            print()
+            if service is not None and not tally.used_service and tally.a_linked_url:
+                await demonstrate_service(service, tally.a_linked_url)
+            closing_note(service, tally.gaps)
+        finally:
+            if service is not None:
+                await service.aclose()
+    return 0
 
 
 if __name__ == "__main__":

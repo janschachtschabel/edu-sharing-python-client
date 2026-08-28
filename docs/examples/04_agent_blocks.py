@@ -13,8 +13,14 @@ import asyncio
 import os
 import sys
 
-from edusharing import AsyncRepository, EduSharingError
-from edusharing.agent import as_result, as_untrusted, format_results, is_safe_url
+from edusharing import AsyncRepository, EduSharingError, SearchResult
+from edusharing.agent import (
+    ToolResult,
+    as_result,
+    as_untrusted,
+    format_results,
+    is_safe_url,
+)
 from edusharing.bapi import BildungsAPI
 
 # The Windows console otherwise emits cp1252 and mangles umlauts.
@@ -24,64 +30,83 @@ if hasattr(sys.stdout, "reconfigure"):
 REPO = "https://repository.staging.openeduhub.net"
 
 
+async def search_as_tool_result(repo: AsyncRepository, topic: str) -> ToolResult:
+    """Search as a tool result, so a failure becomes information.
+
+    Without this wrapper a refused request ends the whole run; with it the
+    model is told what went wrong and can try something else.
+    """
+    return await as_result(
+        repo.search(topic, subject="Biologie", limit=5),
+        format=lambda r: format_results(r, max_chars=1500),
+    )
+
+
+def show_context(result: ToolResult, hits: SearchResult) -> None:
+    """What the model sees -- and that every hit is still traceable."""
+    print("--- What the model would see ---")
+    print(result.text)
+    print()
+    print(f"--- Citations survive: {len(hits.hits)} ---")
+    for hit in hits.hits:
+        print(f"  {hit.id}  {hit.url}")
+
+
+def check_source_urls(hits: SearchResult) -> None:
+    """Check source URLs before anything fetches them."""
+    print()
+    print("--- Source URLs checked (SSRF) ---")
+    for hit in hits.hits[:3]:
+        source = hit.source_url
+        if source:
+            mark = "ok " if is_safe_url(source) else "BLOCKED"
+            print(f"  {mark} {source[:70]}")
+
+
+def as_model_context(hits: SearchResult) -> str:
+    """Foreign text goes into the prompt marked as such."""
+    return "\n\n".join(
+        as_untrusted(h.description or h.title, label=f"Material {h.id}")
+        for h in hits.hits[:3]
+    )
+
+
+async def ask_model(material: str) -> None:
+    """The last step, and the only one that needs a key."""
+    if not os.environ.get("B_API_KEY"):
+        print()
+        print("(B_API_KEY not set -- the model call is skipped.)")
+        print(f"The prompt would be {len(material)} characters long.")
+        return
+
+    async with BildungsAPI.from_env() as llm:
+        answer = await llm.chat(
+            f"Summarise in one sentence what these materials are about:"
+            f"\n\n{material}",
+            system="You answer briefly and in German.",
+            max_tokens=200,
+        )
+        print()
+        print(f"--- Answer from {llm.last_model} ---")
+        print(answer.strip())
+
+
 async def main(topic: str = "Photosynthese") -> int:
     async with AsyncRepository(REPO, metadataset="mds_oeh") as repo:
-        # 1. Search -- as a tool result, so a failure does not end the whole run
-        #    but becomes information.
-        result = await as_result(
-            repo.search(topic, subject="Biologie", limit=5),
-            format=lambda r: format_results(r, max_chars=1500),
-        )
+        result = await search_as_tool_result(repo, topic)
         if not result:
             print(f"Search failed ({result.error_type}): {result.error}")
             return 1
 
-        print("--- What the model would see ---")
-        print(result.text)
-
         hits = result.data
-        print()
-        print(f"--- Citations survive: {len(hits.hits)} ---")
-        for hit in hits.hits:
-            print(f"  {hit.id}  {hit.url}")
-
-        # 2. Check source URLs before anything fetches them.
-        print()
-        print("--- Source URLs checked (SSRF) ---")
-        for hit in hits.hits[:3]:
-            source = hit.source_url
-            if source:
-                mark = "ok " if is_safe_url(source) else "BLOCKED"
-                print(f"  {mark} {source[:70]}")
-
+        show_context(result, hits)
+        check_source_urls(hits)
         if not hits.hits:
             print()
             print("No hits -- without material there is no model context.")
             return 0
 
-        # 3. Foreign text goes into the prompt marked as such.
-        material = "\n\n".join(
-            as_untrusted(h.description or h.title, label=f"Material {h.id}")
-            for h in hits.hits[:3]
-        )
-
-        if not os.environ.get("B_API_KEY"):
-            print()
-            print("(B_API_KEY not set -- the model call is skipped.)")
-            print(f"The prompt would be {len(material)} characters long.")
-            return 0
-
-        async with BildungsAPI.from_env() as llm:
-            answer = await llm.chat(
-                f"Summarise in one sentence what these materials are about:"
-                f"\n\n{material}",
-                system="You answer briefly and in German.",
-                max_tokens=200,
-            )
-            print()
-            print(f"--- Answer from {llm.last_model} ---")
-            print(answer.strip())
-
+        await ask_model(as_model_context(hits))
     return 0
 
 

@@ -30,87 +30,7 @@ if hasattr(sys.stdout, "reconfigure"):
 TOPIC = "Deutsch"
 
 
-def main() -> int:
-    with Repository.from_env(metadataset="mds_oeh") as repo:
-        # --- 1. Which collections carry a page at all -------------------
-        found = repo.flows.find_pages(TOPIC, limit=25)
-        at_least = "at least " if found["total_is_lower_bound"] else ""
-        print(f"{len(found['hits'])} of {found['checked']} judgeable hits carry "
-              f"a page (the search matched {at_least}{found['total']} collections)")
-        if found["reason"]:
-            print(f"  note: {found['reason']}")
-        for hit in found["hits"]:
-            print(f"  · {hit['title']}  ({hit['id']})")
-
-        if not found["hits"]:
-            print("\nNo curated page under this term. That is not a fault — the"
-                  "\npage builder is one of edu-sharing's options, not a duty."
-                  "\nAnd one run is a sample: measured, the same call answered"
-                  "\nwith three different hit sets in a row.", file=sys.stderr)
-            return 0
-
-        # --- 2. What the first one renders ------------------------------
-        page = repo.flows.page(found["hits"][0]["id"], resolve_widgets=True,
-                               max_widgets=8)
-        print()
-        print("=" * 66)
-        print(f"{page['collection']['title']}   (folder {page['folder_id']})")
-
-        rendered = page["rendered"]
-        chosen = "no variant is recorded — the first of the list renders" \
-            if rendered["by_position"] else "recorded in the page document"
-        print(f"renders: {rendered['title']!r} — {chosen}")
-
-        for variant in page["variants"]:
-            mark = "*" if variant["id"] == rendered["id"] else " "
-            extra = [k for k in ("intention",) if variant[k]]
-            print(f" {mark} {variant['title'][:38]:40s}"
-                  f" template={variant['is_template']}"
-                  f" readable={variant['readable']}"
-                  f"{' ' + variant['intention'] if extra else ''}")
-
-        # --- 3. The page itself -----------------------------------------
-        if not page["swimlanes"]:
-            print("\nThis page renders nothing: its variant configures zero"
-                  "\nswimlanes. Having a page and having content are two"
-                  "\nquestions, and this is the measured answer to the second.")
-        else:
-            print(f"\n{len(page['swimlanes'])} swimlanes"
-                  f"{', cut short' if page['truncated'] else ''}:")
-            for lane in page["swimlanes"]:
-                print(f"\n  {lane['heading'] or '(no heading)'}   [{lane['type']}]")
-                for item in lane["items"]:
-                    _print_item(item)
-
-            print(f"\n{len(page['node_ids'])} nodes embedded across the page.")
-
-        # --- 4. The same page at the API level ---------------------------
-        # The flow answers with a dict, ready to hand on. The API level answers
-        # with objects you keep working with -- and it is where writing lives.
-        node = repo.node(page["collection"]["id"])
-        curated = node.page.get()               # None for a node without one
-        print()
-        print("-" * 66)
-        print("API level, the same page as objects:")
-        print(f"  node.page.get()      -> {curated!r}")
-        print(f"  .by_position         -> {curated.by_position}")
-        print(f"  .rendered.swimlanes  -> {len(curated.rendered.swimlanes)}")
-        print(f"  .rendered.node_ids   -> {len(curated.rendered.node_ids)} nodes")
-        for variant in curated.variants:
-            mark = "renders" if variant.id == curated.rendered.id else "       "
-            print(f"  {mark}  {variant.id[:8]}\u2026  {variant.title!r}")
-
-        print()
-        print("Writing goes the same way and is NOT done here:")
-        print("    node.page.render(variant_id)      # immediately public")
-        print("It edits the stored document rather than composing one, refuses")
-        print("what it cannot prove, and reads back. This example only reads --")
-        print("and the test account may not write a page it did not build.")
-
-    return 0
-
-
-def _print_item(item: dict) -> None:
+def print_item(item: dict) -> None:
     print(f"    {item['widget']}"
           f"{'' if item['node_id'] else '   (no node — it needs none)'}")
     if item.get("description"):
@@ -124,6 +44,101 @@ def _print_item(item: dict) -> None:
     for problem in ("unreadable", "unreachable"):
         if problem in item:
             print(f"      {problem}: {item[problem]}")
+
+
+def find_pages(repo: Repository) -> dict:
+    """Which collections carry a page at all."""
+    found = repo.flows.find_pages(TOPIC, limit=25)
+    at_least = "at least " if found["total_is_lower_bound"] else ""
+    print(f"{len(found['hits'])} of {found['checked']} judgeable hits carry "
+          f"a page (the search matched {at_least}{found['total']} collections)")
+    if found["reason"]:
+        print(f"  note: {found['reason']}")
+    for hit in found["hits"]:
+        print(f"  · {hit['title']}  ({hit['id']})")
+    return found
+
+
+def show_variants(page: dict) -> None:
+    """Which variant renders, and why that one."""
+    print()
+    print("=" * 66)
+    print(f"{page['collection']['title']}   (folder {page['folder_id']})")
+
+    rendered = page["rendered"]
+    chosen = "no variant is recorded — the first of the list renders" \
+        if rendered["by_position"] else "recorded in the page document"
+    print(f"renders: {rendered['title']!r} — {chosen}")
+
+    for variant in page["variants"]:
+        mark = "*" if variant["id"] == rendered["id"] else " "
+        extra = [k for k in ("intention",) if variant[k]]
+        print(f" {mark} {variant['title'][:38]:40s}"
+              f" template={variant['is_template']}"
+              f" readable={variant['readable']}"
+              f"{' ' + variant['intention'] if extra else ''}")
+
+
+def show_swimlanes(page: dict) -> None:
+    """The page itself -- which may be empty, and that is a real state."""
+    if not page["swimlanes"]:
+        print("\nThis page renders nothing: its variant configures zero"
+              "\nswimlanes. Having a page and having content are two"
+              "\nquestions, and this is the measured answer to the second.")
+        return
+
+    print(f"\n{len(page['swimlanes'])} swimlanes"
+          f"{', cut short' if page['truncated'] else ''}:")
+    for lane in page["swimlanes"]:
+        print(f"\n  {lane['heading'] or '(no heading)'}   [{lane['type']}]")
+        for item in lane["items"]:
+            print_item(item)
+    print(f"\n{len(page['node_ids'])} nodes embedded across the page.")
+
+
+def compare_at_api_level(repo: Repository, page: dict) -> None:
+    """The same page at the API level.
+
+    The flow answers with a dict, ready to hand on. The API level answers with
+    objects you keep working with -- and it is where writing lives.
+    """
+    node = repo.node(page["collection"]["id"])
+    curated = node.page.get()               # None for a node without one
+    print()
+    print("-" * 66)
+    print("API level, the same page as objects:")
+    print(f"  node.page.get()      -> {curated!r}")
+    print(f"  .by_position         -> {curated.by_position}")
+    print(f"  .rendered.swimlanes  -> {len(curated.rendered.swimlanes)}")
+    print(f"  .rendered.node_ids   -> {len(curated.rendered.node_ids)} nodes")
+    for variant in curated.variants:
+        mark = "renders" if variant.id == curated.rendered.id else "       "
+        print(f"  {mark}  {variant.id[:8]}…  {variant.title!r}")
+
+    print()
+    print("Writing goes the same way and is NOT done here:")
+    print("    node.page.render(variant_id)      # immediately public")
+    print("It edits the stored document rather than composing one, refuses")
+    print("what it cannot prove, and reads back. This example only reads --")
+    print("and the test account may not write a page it did not build.")
+
+
+def main() -> int:
+    with Repository.from_env(metadataset="mds_oeh") as repo:
+        found = find_pages(repo)
+        if not found["hits"]:
+            print("\nNo curated page under this term. That is not a fault — the"
+                  "\npage builder is one of edu-sharing's options, not a duty."
+                  "\nAnd one run is a sample: measured, the same call answered"
+                  "\nwith three different hit sets in a row.", file=sys.stderr)
+            return 0
+
+        page = repo.flows.page(found["hits"][0]["id"], resolve_widgets=True,
+                               max_widgets=8)
+        show_variants(page)
+        show_swimlanes(page)
+        compare_at_api_level(repo, page)
+    return 0
 
 
 if __name__ == "__main__":

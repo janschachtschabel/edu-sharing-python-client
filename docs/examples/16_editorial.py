@@ -22,7 +22,7 @@ Four measured behaviours it demonstrates rather than describes:
 import sys
 import uuid
 
-from edusharing import EduSharingError, Repository
+from edusharing import EduSharingError, Node, Repository
 
 # The Windows console otherwise emits cp1252 and mangles umlauts.
 if hasattr(sys.stdout, "reconfigure"):
@@ -33,34 +33,7 @@ if hasattr(sys.stdout, "reconfigure"):
 SUBMIT_STATUS = "100_tocheck"
 
 
-def main() -> int:
-    with Repository.from_env(metadataset="mds_oeh") as repo:
-        who = repo.whoami()
-        if who.is_anonymous:
-            print("None of this works anonymously. Please set EDU_SHARING_USER "
-                  "and EDU_SHARING_PASSWORD.", file=sys.stderr)
-            return 1
-        print(f"Signed in as {who.display_name} ({who.authority})\n")
-
-        folder = repo.create_node(
-            who.home_folder, name=f"example-{uuid.uuid4().hex[:8]}",
-            type="cm:folder")
-        try:
-            node = repo.create_node(folder.id, name="material.txt",
-                                    title="Photosynthese, kurz erklärt")
-            print(f"material: {node.url}\n")
-            _comments(node)
-            _rating(node)
-            _suggestions(repo, node)
-            _workflow(node, who.authority)
-        finally:
-            folder.delete()
-            print("\nThrowaway folder removed.")
-
-    return 0
-
-
-def _comments(node) -> None:
+def show_comments(node: Node) -> None:
     print("--- comments " + "-" * 52)
     first = node.comments.add("Nice, but the source is missing.")
     node.comments.add("Which source do you mean?", reply_to=first.id)
@@ -73,7 +46,7 @@ def _comments(node) -> None:
     print("  text. That is why the library sends raw UTF-8.")
 
 
-def _rating(node) -> None:
+def show_rating(node: Node) -> None:
     print("\n--- rating " + "-" * 54)
     # rate() returns the new summary; `node.rating` still holds what the node
     # carried when it was loaded.
@@ -95,7 +68,7 @@ def _rating(node) -> None:
     print("  None means no votes left — not an average of zero.")
 
 
-def _suggestions(repo, node) -> None:
+def show_suggestions(repo: Repository, node: Node) -> None:
     print("\n--- suggestions " + "-" * 49)
     # One property, one value, and a reason -- the reason is mandatory here and
     # upstream: a proposal nobody can weigh is not reviewable, and reviewing is
@@ -115,7 +88,7 @@ def _suggestions(repo, node) -> None:
     print("  An application that expects otherwise loses the data silently.")
 
 
-def _workflow(node, receiver: str) -> None:
+def show_workflow(node: Node, receiver: str) -> None:
     print("\n--- workflow " + "-" * 52)
     try:
         # The receiver comes first and is required: a queue nobody owns is not
@@ -132,6 +105,33 @@ def _workflow(node, receiver: str) -> None:
               f"{step.at:%Y-%m-%d %H:%M}  -> {', '.join(step.receivers)}")
     print("  Newest first — measured by submitting twice. A read-back that")
     print("  reversed the list would return the older of two identical steps.")
+
+
+def main() -> int:
+    with Repository.from_env(metadataset="mds_oeh") as repo:
+        who = repo.whoami()
+        if who.is_anonymous:
+            print("None of this works anonymously. Please set EDU_SHARING_USER "
+                  "and EDU_SHARING_PASSWORD.", file=sys.stderr)
+            return 1
+        print(f"Signed in as {who.display_name} ({who.authority})\n")
+
+        folder = repo.create_node(
+            who.home_folder, name=f"example-{uuid.uuid4().hex[:8]}",
+            type="cm:folder")
+        try:
+            node = repo.create_node(folder.id, name="material.txt",
+                                    title="Photosynthese, kurz erklärt")
+            print(f"material: {node.url}\n")
+            show_comments(node)
+            show_rating(node)
+            show_suggestions(repo, node)
+            show_workflow(node, who.authority)
+        finally:
+            folder.delete()
+            print("\nThrowaway folder removed.")
+
+    return 0
 
 
 if __name__ == "__main__":

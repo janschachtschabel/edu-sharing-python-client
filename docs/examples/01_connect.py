@@ -20,32 +20,42 @@ if hasattr(sys.stdout, "reconfigure"):
 DEFAULT = "https://repository.staging.openeduhub.net"
 
 
+def show_instance(repo: Repository) -> None:
+    """What kind of instance is this?
+
+    The answer decides what an application may presuppose -- instead of
+    guessing.
+    """
+    about = repo.about()
+    print(f"  edu-sharing    {about.repository_version}")
+    print(f"  render service {about.renderservice_version}")
+    print(f"  API            {about.api_version}")
+    print(f"  services       {len(about.services)}")
+    if about.plugins:
+        print(f"  plugins        {', '.join(about.plugins)}")
+
+
+def show_identity(repo: Repository) -> None:
+    """Who am I running as?
+
+    Without asking, an application does not notice it is working as a guest --
+    and trips later somewhere unrelated to the cause.
+    """
+    who = repo.whoami()
+    if who.is_anonymous:
+        print("  Signed in as: nobody (anonymous access)")
+        print("  For write access set EDU_SHARING_USER and EDU_SHARING_PASSWORD.")
+    else:
+        print(f"  Signed in as: {who.display_name} ({who.authority})")
+
+
 def main(url: str = DEFAULT) -> int:
     with Repository(url, auth=BasicCredential.from_env()) as repo:
         print(f"Repository: {repo.url}")
         print()
-
-        # What kind of instance is this? The answer decides what an application
-        # may presuppose -- instead of guessing.
-        about = repo.about()
-        print(f"  edu-sharing    {about.repository_version}")
-        print(f"  render service {about.renderservice_version}")
-        print(f"  API            {about.api_version}")
-        print(f"  services       {len(about.services)}")
-        if about.plugins:
-            print(f"  plugins        {', '.join(about.plugins)}")
-
-        # Who am I running as? Without asking, an application does not notice
-        # it is working as a guest -- and trips later somewhere unrelated to
-        # the cause.
-        who = repo.whoami()
+        show_instance(repo)
         print()
-        if who.is_anonymous:
-            print("  Signed in as: nobody (anonymous access)")
-            print("  For write access set EDU_SHARING_USER and EDU_SHARING_PASSWORD.")
-        else:
-            print(f"  Signed in as: {who.display_name} ({who.authority})")
-
+        show_identity(repo)
     return 0
 
 

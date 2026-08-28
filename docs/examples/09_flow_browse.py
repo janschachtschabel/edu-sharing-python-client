@@ -21,21 +21,20 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 
-def browse(repo) -> None:
-    """Find collections and open one. Read-only."""
+def find_collections(repo: Repository) -> list[dict]:
+    """Search collections, and say why the number is a floor."""
     found = repo.flows.find_collections("Physik", limit=5)
     print(f"{found['total']} collections found "
           f"(a lower bound: {found['total_is_lower_bound']} -- two routes merged)")
     for hit in found["hits"][:5]:
         print(f"  {hit['title']}")
-    print()
+    return found["hits"]
 
-    if not found["hits"]:
-        return
 
-    first = found["hits"][0]
-    contents = repo.flows.collection_contents(first["id"], limit=5)
-    print(f"Inside {first['title']!r}:")
+def show_contents(repo: Repository, collection: dict) -> None:
+    """Open one collection and look at what is inside."""
+    contents = repo.flows.collection_contents(collection["id"], limit=5)
+    print(f"Inside {collection['title']!r}:")
     print(f"  {contents['total_materials']} materials, "
           f"showing {contents['returned_materials']}")
     for material in contents["materials"][:3]:
@@ -54,7 +53,7 @@ def browse(repo) -> None:
         print("  no sub-collections")
 
 
-def edit(repo) -> None:
+def edit(repo: Repository) -> None:
     """Create, change, verify, remove. Needs credentials."""
     who = repo.whoami()
     folder = repo.create_node(
@@ -89,7 +88,10 @@ def main() -> int:
     with Repository.from_env(metadataset="mds_oeh") as repo:
         print("Browsing collections")
         print("=" * 72)
-        browse(repo)
+        hits = find_collections(repo)
+        if hits:
+            print()
+            show_contents(repo, hits[0])
 
         print()
         print("Changing material")

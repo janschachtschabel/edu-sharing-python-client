@@ -1,6 +1,6 @@
 """Use case: create material with proper metadata.
 
-    EDU_SHARING_USER=... EDU_SHARING_PASSWORD=... \\
+    EDU_SHARING_USER=... EDU_SHARING_PASSWORD=... \
         python docs/examples/06_flow_create.py
 
 Creates a throwaway folder of its own, works exclusively inside it, and removes
@@ -21,11 +21,57 @@ import json
 import sys
 import uuid
 
-from edusharing import EduSharingError, Repository
+from edusharing import EduSharingError, Node, Repository
 
 # The Windows console otherwise emits cp1252 and mangles umlauts.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+
+def create_with_vocabulary(repo: Repository, folder: Node) -> dict:
+    """Create material, giving labels instead of URIs."""
+    created = repo.flows.add_material(
+        "Photosynthesis explained simply",
+        parent_id=folder.id,
+        url="https://example.test/photosynthesis",
+        description="A worked example from the library documentation",
+        keywords=["Photosynthese", "Beispiel"],
+        subject="Biologie",          # a label, resolved for you
+        level="Sekundarstufe I",
+    )
+    print("Created:")
+    print(json.dumps(created, ensure_ascii=False, indent=2))
+    return created
+
+
+def read_back(repo: Repository, node_id: str) -> None:
+    """Read back from the server, not from the return value.
+
+    The repository is the only place that says what actually stuck.
+    """
+    stored = repo.flows.describe(node_id)
+    print("As the repository has it:")
+    for field, values in stored["fields"].items():
+        print(f"  {field}: {', '.join(values)}")
+    print(f"  keywords: {', '.join(stored['keywords'])}")
+
+
+def show_unknown_value(repo: Repository, folder: Node) -> None:
+    """A value the metadata set does not know."""
+    odd = repo.flows.add_material(
+        "Material with an unknown subject",
+        parent_id=folder.id,
+        subject="Raumschiffbau",
+    )
+    print("With an unknown value:")
+    for item in odd["unresolved"]:
+        print(f"  ! {item['field']}={item['value']!r} was NOT written")
+        if item["suggestions"]:
+            print(f"    did you mean: {', '.join(item['suggestions'][:3])}?")
+    print(f"  the material exists regardless: {odd['id']}")
+    print()
+    print("  This is the case worth knowing about: without the report,")
+    print("  you would have material that looks tagged and is not.")
 
 
 def main() -> int:
@@ -46,53 +92,16 @@ def main() -> int:
         )
         print(f"Throwaway folder created: {folder.name}")
         print()
-
         try:
-            # --- 1. Create, with vocabulary -------------------------------
-            created = repo.flows.add_material(
-                "Photosynthesis explained simply",
-                parent_id=folder.id,
-                url="https://example.test/photosynthesis",
-                description="A worked example from the library documentation",
-                keywords=["Photosynthese", "Beispiel"],
-                subject="Biologie",          # a label, resolved for you
-                level="Sekundarstufe I",
-            )
-            print("Created:")
-            print(json.dumps(created, ensure_ascii=False, indent=2))
+            created = create_with_vocabulary(repo, folder)
             print()
-
-            # --- 2. Read back from the server -----------------------------
-            # Not from the return value -- from the repository. That is the
-            # only place that says what actually stuck.
-            stored = repo.flows.describe(created["id"])
-            print("As the repository has it:")
-            for field, values in stored["fields"].items():
-                print(f"  {field}: {', '.join(values)}")
-            print(f"  keywords: {', '.join(stored['keywords'])}")
+            read_back(repo, created["id"])
             print()
-
-            # --- 3. A value the metadata set does not know ----------------
-            odd = repo.flows.add_material(
-                "Material with an unknown subject",
-                parent_id=folder.id,
-                subject="Raumschiffbau",
-            )
-            print("With an unknown value:")
-            for item in odd["unresolved"]:
-                print(f"  ! {item['field']}={item['value']!r} was NOT written")
-                if item["suggestions"]:
-                    print(f"    did you mean: {', '.join(item['suggestions'][:3])}?")
-            print(f"  the material exists regardless: {odd['id']}")
-            print()
-            print("  This is the case worth knowing about: without the report,")
-            print("  you would have material that looks tagged and is not.")
-
+            show_unknown_value(repo, folder)
         finally:
             folder.delete(recycle=False)
             print()
             print(f"Throwaway folder removed: {folder.name}")
-
     return 0
 
 
