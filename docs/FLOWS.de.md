@@ -49,8 +49,8 @@ nur von Hand ausgeschrieben.
 | `browse_tree` | eine je geöffneter Sammlung | Untersammlungen ablaufen, entdoppelt und gedeckelt |
 | `search_in_collection` | eine je Sammlung + zwei je Sammlung für ihr Material | ablaufen → Material lesen → lokal vergleichen |
 | `collection_stats` | 2, parallel | Materialliste + Untersammlungsliste → lokal auszählen |
-| `page` | 3 (+1 je Widget mit `resolve_widgets`) | Sammlung laden -> ihren Seiten-Ordner -> dessen Varianten |
-| `find_pages` | 2, parallel | beide Sammlungsrouten -> die Treffer mit Seiten-Ref behalten |
+| `page` | 3 (+1 je Widget mit `resolve_widgets`) | Sammlung laden → ihren Seiten-Ordner → dessen Varianten |
+| `find_pages` | 2, parallel | beide Sammlungswege → die Treffer mit Seiten-Ref behalten |
 | `relations` | 1 | die Verknüpfungen des Knotens lesen |
 | `child_objects` | 2 | Hauptknoten laden → seine Kinder, gefiltert und sortiert |
 | `find_collections` | 2, parallel | beide Sammlungswege → über die ID zusammenlegen |
@@ -990,8 +990,9 @@ repo.flows.find_pages("Deutsch", limit=25)
  "reason": ""}
 ```
 
-Eine Anfrage. Eine Teilmenge von `find_collections`: jede kuratierte Seite ist
-eine Sammlung, aber wenige Sammlungen haben eine.
+Eine Suche — zwei Wege parallel, genau das, was `find_collections` sendet.
+Und eine Teilmenge davon: jede kuratierte Seite ist eine Sammlung, aber wenige
+Sammlungen haben eine.
 
 `total` zählt die Sammlungen, die getroffen haben, nicht die mit Seite — und
 es ist eine **Untergrenze**, weil die Sammlungssuche zwei Routen fragt und eine

@@ -136,8 +136,9 @@ async def find_pages(
 ) -> dict[str, Any]:
     """Which collections carry a curated page.
 
-    One request. A subset of ``find_collections``: every curated page is a
-    collection, but few collections have one.
+    One search -- two routes in parallel, exactly what ``find_collections``
+    sends. A subset of it, too: every curated page is a collection, but few
+    collections have one.
 
     ``checked`` is not decoration. Hits that only the property-less leg of the
     collection search found cannot be judged, and a caller that reads an empty

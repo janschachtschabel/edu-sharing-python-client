@@ -48,8 +48,8 @@ out by hand.
 | `browse_tree` | one per collection opened | walk the sub-collections, de-duplicated and capped |
 | `search_in_collection` | one per collection + two per collection for its material | walk → read material → compare locally |
 | `collection_stats` | 2, parallel | material listing + sub-collection listing → tally locally |
-| `page` | 3 (+1 per widget with `resolve_widgets`) | load collection -> its page folder -> the folder's variants |
-| `find_pages` | 2, parallel | both collection routes -> keep the hits carrying a page ref |
+| `page` | 3 (+1 per widget with `resolve_widgets`) | load collection → its page folder → the folder's variants |
+| `find_pages` | 2, parallel | both collection routes → keep the hits carrying a page ref |
 | `relations` | 1 | read the node's links |
 | `child_objects` | 2 | load parent → its children, filtered and sorted |
 | `find_collections` | 2, parallel | both collection routes → merge on id |
@@ -966,8 +966,9 @@ repo.flows.find_pages("Deutsch", limit=25)
  "reason": ""}
 ```
 
-One request. A subset of `find_collections`: every curated page is a
-collection, few collections have one.
+One search — two routes in parallel, exactly what `find_collections` sends.
+A subset of it, too: every curated page is a collection, few collections have
+one.
 
 `total` counts the collections that matched, not the ones carrying a page —
 and it is a **lower bound**, because the collection search asks two routes and
