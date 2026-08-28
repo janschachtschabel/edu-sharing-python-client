@@ -78,9 +78,10 @@ class Transport:
     flow in this library. With the single retry in place the same measurement
     answered 1, 0 and 0 of 100 over three runs. Once, not ``max_retries``
     times: an extra request is a fair price for the measured hiccup, three
-    would be a penalty for a typo in a password. Anonymous connections are excluded, because there a ``401``
-    means "this needs a login" and will mean it again. A ``500`` that is really
-    "not signed in" is excluded too -- that one is a statement about the login.
+    would be a penalty for a typo in a password. Anonymous connections are
+    excluded, because there a ``401`` means "this needs a login" and will mean
+    it again. A ``500`` that is really "not signed in" is excluded too -- that
+    one is a statement about the login.
     """
 
     def __init__(
