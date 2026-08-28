@@ -331,6 +331,45 @@ class SyncFlows:
         return f"SyncFlows({self._flows!r})"
 
 
+class SyncPeople:
+    """Groups and memberships for the synchronous surface."""
+
+    def __init__(self, people: Any, loop: LoopThread) -> None:
+        self._people = people
+        self._loop = loop
+
+    def memberships(self) -> list[Any]:
+        """Like ``People.memberships``, blocking."""
+        return self._loop.run(self._people.memberships())
+
+    def group(self, name: str) -> Any:
+        """Like ``People.group``, blocking."""
+        return self._loop.run(self._people.group(name))
+
+    def members(self, group: str, **kwargs: Any) -> list[Any]:
+        """Like ``People.members``, blocking."""
+        return self._loop.run(self._people.members(group, **kwargs))
+
+    def create_group(self, name: str, **kwargs: Any) -> Any:
+        """Like ``People.create_group``, blocking. Not verified live."""
+        return self._loop.run(self._people.create_group(name, **kwargs))
+
+    def delete_group(self, name: str) -> None:
+        """Like ``People.delete_group``, blocking. Not verified live."""
+        self._loop.run(self._people.delete_group(name))
+
+    def add_member(self, group: str, authority: str) -> None:
+        """Like ``People.add_member``, blocking. Not verified live."""
+        self._loop.run(self._people.add_member(group, authority))
+
+    def remove_member(self, group: str, authority: str) -> None:
+        """Like ``People.remove_member``, blocking. Not verified live."""
+        self._loop.run(self._people.remove_member(group, authority))
+
+    def __repr__(self) -> str:
+        return f"Sync{self._people!r}"
+
+
 class SyncRelations:
     """Synchronous pass-through to ``Relations``."""
 

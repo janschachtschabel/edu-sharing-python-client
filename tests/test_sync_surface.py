@@ -85,6 +85,19 @@ def _handler(request: httpx.Request) -> httpx.Response:
         else:
             _PROPS[prop] = wert
         return httpx.Response(200, content=b"")
+    # Eng gefasst: /iam/v1/people/-home-/-me- ist die whoami-Route und gehoert
+    # nicht hierher.
+    if "/iam/v1/groups" in url or url.endswith("/memberships"):
+        if url.endswith("/memberships"):
+            return httpx.Response(200, json={"groups": []})
+        if "/members" in url and method == "GET":
+            return httpx.Response(200, json={"authorities": [],
+                                             "pagination": {"total": 0}})
+        if method in ("PUT", "DELETE"):
+            return httpx.Response(200, content=b"")
+        return httpx.Response(200, json={"group": {
+            "authorityName": "GROUP_x", "authorityType": "GROUP",
+            "groupName": "x", "profile": {"displayName": "X"}}})
     if "/comment/v1" in url:
         if method == "GET":
             return httpx.Response(200, json={"comments": _COMMENTS})
@@ -414,3 +427,17 @@ def test_kommentare_synchron(repo):
     _kein_coroutine(node.comments.edit(neu.id, "Zweiter"))
     _kein_coroutine(node.comments.delete(neu.id))
     assert NID in repr(node.comments)
+
+
+def test_people_synchron(repo):
+    """Der ganze people-Zugang ist neu und asynchron -- ohne Durchgriff liefert
+    jede Methode eine Coroutine."""
+    leute = repo.people
+    assert _kein_coroutine(leute.memberships()) == []
+    assert "Sync" in repr(leute)
+    _kein_coroutine(leute.group("GROUP_x"))
+    _kein_coroutine(leute.members("GROUP_x"))
+    _kein_coroutine(leute.create_group("GROUP_neu"))
+    _kein_coroutine(leute.add_member("GROUP_x", "alice"))
+    _kein_coroutine(leute.remove_member("GROUP_x", "alice"))
+    _kein_coroutine(leute.delete_group("GROUP_neu"))

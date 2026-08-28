@@ -344,6 +344,39 @@ node.comments.delete(c.id)
 > `POST` on the comment; a `PUT` there creates a comment *on the comment* and
 > answers 500.
 
+### Groups — who may moderate
+
+```python
+for group in repo.people.memberships():
+    print(group.name, group.display_name, group.type)   # GROUP_ORG_… · AI-Compliance · EDITORIAL
+
+repo.people.group("GROUP_ORG_AI-Skills")
+repo.people.members("GROUP_ORG_AI-Skills")   # [Member('alice'), Member('GROUP_x', Gruppe)]
+```
+
+`Member.is_group` matters: a group can contain groups, and treating a nested
+one as a person answers "who may moderate" wrongly.
+
+> **Reading members needs management rights, not membership.** Measured:
+> for a group one merely belongs to, the endpoint answers `500
+> AccessDeniedException`. The library translates that to `PermissionDeniedError`
+> — as a server error the transport would retry it three times.
+>
+> The endpoint also defaults `maxItems` to **10**, so a group of fifty would
+> come back as a group of ten without saying so. The library asks for a hundred.
+
+```python
+repo.people.create_group("GROUP_projekt", display_name="Projekt")
+repo.people.add_member("GROUP_projekt", "alice")
+repo.people.remove_member("GROUP_projekt", "alice")
+repo.people.delete_group("GROUP_projekt")
+```
+
+> **These four are not verified against a live instance.** The test account
+> answers 403 on `POST /iam/v1/groups/…`, so only the request shape is proven —
+> method, path, body, against the OpenAPI model. That a repository accepts them
+> is unproven, and the docstrings repeat it.
+
 ### Where a node sits — and who curated it
 
 Two questions that look alike and are not. A collection holds a *reference*: the

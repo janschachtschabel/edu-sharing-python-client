@@ -384,6 +384,41 @@ node.comments.delete(c.id)
 > `POST` am Kommentar; ein `PUT` dort legt einen Kommentar *am Kommentar* an
 > und antwortet 500.
 
+### Gruppen — wer moderieren darf
+
+```python
+for gruppe in repo.people.memberships():
+    print(gruppe.name, gruppe.display_name, gruppe.type)   # GROUP_ORG_… · AI-Compliance · EDITORIAL
+
+repo.people.group("GROUP_ORG_AI-Skills")
+repo.people.members("GROUP_ORG_AI-Skills")   # [Member('alice'), Member('GROUP_x', Gruppe)]
+```
+
+`Member.is_group` ist wichtig: eine Gruppe kann Gruppen enthalten, und eine
+verschachtelte als Person zu behandeln beantwortet „wer darf moderieren" falsch.
+
+> **Mitglieder zu lesen braucht Verwaltungsrechte, nicht Mitgliedschaft.**
+> Gemessen: für eine Gruppe, in der man nur Mitglied ist, antwortet der
+> Endpunkt `500 AccessDeniedException`. Die Bibliothek übersetzt das zu
+> `PermissionDeniedError` — als Serverfehler würde der Transport es dreimal
+> wiederholen.
+>
+> Außerdem steht `maxItems` dort still auf **10**: eine Gruppe mit fünfzig
+> Mitgliedern käme als Gruppe mit zehn zurück. Die Bibliothek fragt hundert an.
+
+```python
+repo.people.create_group("GROUP_projekt", display_name="Projekt")
+repo.people.add_member("GROUP_projekt", "alice")
+repo.people.remove_member("GROUP_projekt", "alice")
+repo.people.delete_group("GROUP_projekt")
+```
+
+> **Diese vier sind nicht gegen eine laufende Instanz verifiziert.** Das
+> Testkonto antwortet auf `POST /iam/v1/groups/…` mit 403 — belegt ist damit
+> nur die Anfrageform: Methode, Pfad, Body, gegen das OpenAPI-Modell. Dass ein
+> Repositorium sie annimmt, ist unbelegt, und die Docstrings sagen es noch
+> einmal.
+
 ### Wo ein Knoten liegt — und wer ihn kuratiert hat
 
 Zwei Fragen, die sich ähneln und es nicht sind. Eine Sammlung hält eine

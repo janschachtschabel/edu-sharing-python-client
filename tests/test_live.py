@@ -228,3 +228,35 @@ async def test_sammlungstreffer_tragen_id_und_url():
     assert e.hits
     for treffer in e.hits:
         assert treffer.id and treffer.url.endswith(treffer.id)
+
+
+@pytest.mark.live
+async def test_eigene_mitgliedschaften(repo):
+    """Nur lesend. Die schreibenden Gruppen-Operationen sind mit diesem Konto
+    nicht pruefbar -- POST /iam/v1/groups/... antwortet 403."""
+    gruppen = await repo.people.memberships()
+    assert gruppen, "das angemeldete Konto ist in keiner Gruppe"
+    for g in gruppen:
+        assert g.name.startswith("GROUP_"), g.name
+        assert g.display_name, "eine Gruppe ohne Anzeigenamen"
+        assert g.short_name == g.name.removeprefix("GROUP_")
+
+
+@pytest.mark.live
+async def test_eine_gruppe_einzeln_lesen(repo):
+    """Der Endpunkt antwortet mit {"group": {...}} -- die Huelle muss weg."""
+    gruppen = await repo.people.memberships()
+    einzeln = await repo.people.group(gruppen[0].name)
+    assert einzeln.name == gruppen[0].name
+
+
+@pytest.mark.live
+async def test_mitglieder_brauchen_verwaltungsrechte(repo):
+    """Gemessen am 28.08.2026: fuer eine Gruppe, in der man nur Mitglied ist,
+    antwortet der Endpunkt 500 AccessDeniedException. Uebersetzt ist das ein
+    Rechteproblem -- sonst wiederholte der Transport es dreimal."""
+    from edusharing.errors import PermissionDeniedError
+
+    gruppen = await repo.people.memberships()
+    with pytest.raises(PermissionDeniedError):
+        await repo.people.members(gruppen[0].name)

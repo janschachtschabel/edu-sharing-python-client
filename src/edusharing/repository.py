@@ -22,6 +22,7 @@ from ._sync import (
     LoopThread,
     SyncFlows,
     SyncNode,
+    SyncPeople,
     SyncRelations,
     SyncTransport,
 )
@@ -31,6 +32,7 @@ from .errors import EduSharingError
 from .flows import Flows
 from .info import About, Identity, MetadataSet
 from .nodes import Node, Nodes
+from .people import People
 from .relations import Relations
 from .search import Search, SearchResult
 from .transport import (
@@ -121,6 +123,7 @@ class AsyncRepository:
         self._collections = Collections(self._transport, metadataset=metadataset)
         self._nodes = Nodes(self._transport)
         self._relations = Relations(self._transport)
+        self._people = People(self._transport)
         self._flows = Flows(self)
 
     @classmethod
@@ -187,6 +190,14 @@ class AsyncRepository:
     def collections(self) -> Collections:
         """The collection search, for access to its settings."""
         return self._collections
+
+    @property
+    def people(self) -> People:
+        """Groups and who belongs to them -- the "who may moderate" question.
+
+        ``await repo.people.memberships()``
+        """
+        return self._people
 
     # --- Searching --------------------------------------------------------
 
@@ -332,6 +343,14 @@ class Repository:
         ``repo.relations.of(node_id)``
         """
         return SyncRelations(self._async.relations, self._loop)
+
+    @property
+    def people(self) -> SyncPeople:
+        """Groups and who belongs to them, blocking.
+
+        ``repo.people.memberships()``
+        """
+        return SyncPeople(self._async.people, self._loop)
 
     @property
     def flows(self) -> SyncFlows:
