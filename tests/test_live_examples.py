@@ -16,8 +16,8 @@ durchlaeuft, haengt an der Bibliothek.
 **Wenn die Zeitgrenze zuschlaegt**, wird der Unterprozess abgeschossen, und sein
 ``finally`` laeuft dann nicht mehr. Ein schreibendes Beispiel laesst in dem Fall
 seinen Wegwerf-Ordner auf der Instanz stehen -- selbst angelegt, aber eben
-liegengeblieben. Deshalb ist die Grenze grosszuegig: das langsamste Beispiel
-misst rund 20 Sekunden.
+liegengeblieben. Deshalb ist ``ZEITGRENZE`` grosszuegig gesetzt; die Messung
+dahinter steht dort.
 """
 
 import os
@@ -55,8 +55,16 @@ SCHREIBEND = frozenset({
     "16_editorial.py",
 })
 
-#: Grosszuegig: ein langsames Netz darf kein Fehlschlag sein. Gemessen liegt
-#: das langsamste Beispiel weit darunter.
+#: Grosszuegig, damit ein langsames Netz kein Fehlschlag ist -- ein Zuschlagen
+#: der Grenze kostet einen liegengebliebenen Wegwerf-Ordner (siehe oben).
+#: Gemessen am 28.08.2026 gegen die Staging, alle sechzehn in 2:19::
+#:
+#:     15_full_text     20,4 s   <- das langsamste
+#:     04_agent_blocks  17,1 s
+#:     11_publish       14,5 s
+#:     01_connect        1,4 s   <- das schnellste
+#:
+#: Die Grenze liegt damit rund zwoelfmal ueber dem teuersten Einzelfall.
 ZEITGRENZE = 240.0
 
 _URL = bool(os.environ.get("EDU_SHARING_URL"))

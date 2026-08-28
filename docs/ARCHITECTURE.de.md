@@ -1,7 +1,8 @@
 # edu-sharing Python-Client — Architektur und Entwurf
 
 Stand: 28.08.2026 · Status: **acht Etappen abgeschlossen, Audit-Befunde
-behoben** — 962 Tests offline, 68 live lesend, 68 live schreibend
+behoben** — 966 Tests offline, 77 live lesend, 75 live schreibend (die
+Live-Zahlen enthalten die 16 Beispiele, die als Testfälle laufen)
 
 Eine Python-Bibliothek, die die REST-API eines edu-sharing-Repositoriums und
 der Dienste daneben (b-api) mit wenig Code zugänglich macht — **ohne** die

@@ -2,7 +2,7 @@
 
 Deutsche Fassung: [`ARCHITECTURE.de.md`](ARCHITECTURE.de.md)
 
-Last updated: 2026-08-28 · Status: **eight stages complete, audit findings closed** — 962 tests offline, 68 live reading, 68 live writing
+Last updated: 2026-08-28 · Status: **eight stages complete, audit findings closed** — 966 tests offline, 77 live reading, 75 live writing (the live counts include the 16 examples, which run as test cases)
 
 A Python library that makes the REST API of an edu-sharing repository and the
 surrounding services (b-api) accessible with little code — **without**
