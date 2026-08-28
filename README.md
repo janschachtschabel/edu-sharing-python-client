@@ -804,8 +804,8 @@ reasoning is in the script's docstring.
 
 ## Logging
 
-The library is silent by default, as a library should be. A service switches it
-on where it needs it:
+At `INFO` and `DEBUG` the library is silent by default, as a library should be.
+A service switches those on where it needs them:
 
 ```python
 import logging
@@ -817,6 +817,14 @@ logging.getLogger("edusharing").setLevel(logging.DEBUG)  # every request as well
 `INFO` reports what you would otherwise puzzle over after the fact: a retry, and
 which b-api model answered after an earlier candidate declined. `DEBUG` adds
 method and URL of every request.
+
+`WARNING` is the exception to the silence, in four places, and deliberately so:
+Python prints those to stderr even with no logging configured. Three are the
+extraction service refusing a host — a private address, one that would not
+resolve, one that resolved into a private range. The fourth is a child object
+that could be created but then neither filled nor removed; it stays behind
+empty, and the error the caller gets is about the upload and does not know it
+exists. Each names something a caller would otherwise never learn.
 
 Headers are never logged. That is where the credentials live, and a log line is
 aggregated, searched and kept.

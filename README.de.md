@@ -827,8 +827,8 @@ Begründung steht im Docstring des Scripts.
 
 ## Protokoll
 
-Die Bibliothek schweigt standardmäßig, wie eine Bibliothek es soll. Ein Dienst
-schaltet sie ein, wo er sie braucht:
+Bei `INFO` und `DEBUG` schweigt die Bibliothek standardmäßig, wie eine
+Bibliothek es soll. Ein Dienst schaltet sie ein, wo er sie braucht:
 
 ```python
 import logging
@@ -840,6 +840,15 @@ logging.getLogger("edusharing").setLevel(logging.DEBUG)  # zusätzlich jede Anfr
 `INFO` meldet, worüber man sonst im Nachhinein rätselt: eine Wiederholung, und
 welches b-api-Modell geantwortet hat, nachdem ein früherer Kandidat abgelehnt
 hatte. `DEBUG` ergänzt Methode und URL jeder Anfrage.
+
+`WARNING` ist die Ausnahme vom Schweigen, an vier Stellen, und das mit Absicht:
+Python gibt sie auch ohne konfiguriertes Protokoll auf stderr aus. Drei sind der
+Extraktionsdienst, der einen Host verweigert — eine private Adresse, eine, die
+sich nicht auflösen ließ, eine, die in einen privaten Bereich auflöste. Die
+vierte ist ein Kindknoten, der angelegt, dann aber weder gefüllt noch entfernt
+werden konnte; er bleibt leer stehen, und der Fehler, den der Aufrufer bekommt,
+handelt vom Hochladen und weiß nichts von ihm. Jede benennt etwas, das ein
+Aufrufer sonst nie erführe.
 
 Header werden nie protokolliert. Dort stehen die Zugangsdaten, und eine
 Protokollzeile wird aggregiert, durchsucht und aufbewahrt.

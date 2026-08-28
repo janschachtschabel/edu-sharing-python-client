@@ -23,6 +23,7 @@ comes from the Ideendatenbank, which uses it in production for attachments.
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 from .errors import EduSharingError, ValidationError
@@ -32,6 +33,10 @@ if TYPE_CHECKING:  # pragma: no cover
     from .nodes import Node, Nodes
 
 __all__ = ["CHILD_ASPECT", "ORDER_PROPERTY", "ChildObjects"]
+
+#: See ``edusharing.transport.logger``. Used for one thing only: a child node
+#: that was created, could not be filled, and could not be removed either.
+logger = logging.getLogger(__name__)
 
 #: The aspect that marks a child node as one of these. Other children exist
 #: under a node -- versions, for instance -- and filtering on this is what tells
@@ -147,8 +152,15 @@ class ChildObjects:
             # not replace it.
             try:
                 await child.delete(recycle=False)
-            except EduSharingError:
-                pass
+            except EduSharingError as cleanup_failed:
+                # Swallowed, but not unsaid: the caller gets the upload error,
+                # and that one does not know the child. Without this line an
+                # empty node stays behind that nobody can attribute afterwards.
+                logger.warning(
+                    "child object %s could not be filled and could not be "
+                    "removed either; it stays behind empty (%s)",
+                    child.id, cleanup_failed,
+                )
             raise
 
     def __repr__(self) -> str:

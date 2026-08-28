@@ -17,6 +17,7 @@ erste Anlauf. Der Weg stammt aus der Ideendatenbank, die ihn produktiv nutzt.
 """
 
 import json
+import logging
 
 import httpx
 import pytest
@@ -79,6 +80,16 @@ class Instanz:
                         if (k.get("ref") or {}).get("id") == knoten_id), None)
         return httpx.Response(200, json={"node": passend or _kind(HAUPT, "haupt.txt",
                                                                   None, serie=False)})
+
+
+class OhneLoeschen(Instanz):
+    """Wie ``Instanz``, verweigert aber auch das Aufraeumen."""
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        if request.method == "DELETE":
+            self.anfragen.append(request)
+            return httpx.Response(403, json={"error": "auch das nicht"})
+        return super().__call__(request)
 
 
 def _repo(instanz) -> AsyncRepository:
@@ -198,13 +209,6 @@ async def test_ein_fehlschlagendes_aufraeumen_verdeckt_nicht_den_grund():
     """Wenn schon der Upload scheitert und danach auch das Aufraeumen, ist die
     Upload-Meldung die, die der Aufrufer braucht. Der Rumpf bleibt dann stehen
     -- unschoen, aber besser als eine Fehlermeldung ueber das Aufraeumen."""
-    class OhneLoeschen(Instanz):
-        def __call__(self, request):
-            if request.method == "DELETE":
-                self.anfragen.append(request)
-                return httpx.Response(403, json={"error": "auch das nicht"})
-            return super().__call__(request)
-
     instanz = OhneLoeschen(upload_fehler=True)
     async with _repo(instanz) as repo:
         node = await repo.node(HAUPT)
@@ -213,6 +217,28 @@ async def test_ein_fehlschlagendes_aufraeumen_verdeckt_nicht_den_grund():
     assert "403" in str(fehler.value)
     assert any(r.method == "DELETE" for r in instanz.anfragen), (
         "das Aufraeumen wurde gar nicht erst versucht")
+
+
+async def test_ein_stehengebliebener_rumpf_wird_gemeldet(caplog):
+    """Bleibt der Rumpf stehen, muss wenigstens seine ID im Log stehen.
+
+    Der Aufrufer bekommt die Upload-Meldung, und die kennt den Kindknoten
+    nicht. Ohne Logzeile liegt also Datenmuell im Repositorium, den niemand mehr
+    zuordnen kann -- die Ausnahme zu schlucken ist richtig, sie zu verschweigen
+    nicht. Andere Module der Bibliothek melden solche Faelle ebenso
+    (``transport``, ``extraction``).
+    """
+    instanz = OhneLoeschen(upload_fehler=True)
+    with caplog.at_level(logging.WARNING, logger="edusharing.childobjects"):
+        async with _repo(instanz) as repo:
+            node = await repo.node(HAUPT)
+            with pytest.raises(EduSharingError):
+                await node.children.add(b"x", filename="a.txt",
+                                        mimetype="text/plain")
+
+    meldungen = [r.getMessage() for r in caplog.records]
+    assert any("kind-0" in m for m in meldungen), (
+        f"die ID des stehengebliebenen Rumpfes fehlt im Log: {meldungen}")
 
 
 async def test_ein_kind_ohne_id_ist_ein_fehler():
