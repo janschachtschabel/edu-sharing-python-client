@@ -26,12 +26,22 @@ from ..results import Facet, SearchHit, SearchResult, UnresolvedFilter
 __all__ = ["hit_as_dict", "result_as_dict"]
 
 
-def hit_as_dict(hit: SearchHit, aliases: dict[str, str]) -> dict[str, Any]:
+def hit_as_dict(
+    hit: SearchHit,
+    aliases: dict[str, str],
+    folded: dict[str, list[str]] | None = None,
+) -> dict[str, Any]:
     """One hit as JSON.
 
     ``id`` and ``url`` are always present, even when empty: they are the two
     details without which nobody gets back to the material, and an absent key
-    is easier to overlook than an empty one.
+    is easier to overlook than an empty one. ``duplicate_ids`` follows the same
+    rule -- always there, usually empty.
+
+    Args:
+        hit: the hit.
+        aliases: short name to property, deciding the keys under ``fields``.
+        folded: ``{kept_id: [dropped_ids]}`` from ``dedupe.deduplicate``.
     """
     fields: dict[str, list[str]] = {}
     for short_name, prop in aliases.items():
@@ -48,6 +58,9 @@ def hit_as_dict(hit: SearchHit, aliases: dict[str, str]) -> dict[str, Any]:
         "mimetype": hit.mimetype,
         "mediatype": hit.mediatype,
         "fields": fields,
+        # The records folded into this one. Empty in the normal case; non-empty
+        # means the repository holds further nodes for the same source address.
+        "duplicate_ids": list((folded or {}).get(hit.id, [])),
     }
 
 
@@ -81,6 +94,7 @@ def result_as_dict(
     *,
     query: dict[str, Any],
     aliases: dict[str, str],
+    folded: dict[str, list[str]] | None = None,
 ) -> dict[str, Any]:
     """A whole search result as JSON.
 
@@ -103,7 +117,10 @@ def result_as_dict(
         # is not one.
         "total_is_lower_bound": result.total_is_lower_bound,
         "returned": len(result.hits),
-        "hits": [hit_as_dict(h, aliases) for h in result.hits],
+        # How many records were folded into another. Not a count of what the
+        # repository holds -- a count of what this answer left out on purpose.
+        "duplicates_removed": sum(len(v) for v in (folded or {}).values()),
+        "hits": [hit_as_dict(h, aliases, folded) for h in result.hits],
         "facets": facets,
         # Non-empty means the result is BROADER than asked for.
         "unresolved": [_unresolved_as_dict(u, by_property) for u in result.unresolved],

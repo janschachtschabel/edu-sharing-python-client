@@ -459,3 +459,43 @@ async def test_serienobjekte_erscheinen_nicht_als_eigenes_material(repo, ordner)
     assert "anhang.txt" not in namen, (
         "das Serienobjekt steht im Ordner -- dann waere es kein Anhang, "
         "sondern eigenes Material")
+
+
+# --- Doppelte Treffer -----------------------------------------------------
+
+
+@pytest.mark.live
+async def test_zusammengefasste_treffer_haben_verschiedene_quellen(repo):
+    """Die Zusage: nach dem Zusammenfassen traegt kein Treffer die Quelladresse
+    eines anderen. Das gilt unabhaengig davon, ob dieser Lauf ueberhaupt
+    Duplikate erwischt -- ein Test, der welche verlangt, haenge am Zustand der
+    Instanz.
+
+    Gemessen am 27.08.2026: bei 50 Treffern zu "Photosynthese" ein Paar mit
+    identischer Quelladresse.
+    """
+    ergebnis = await repo.flows.search("Photosynthese", limit=50)
+    quellen = [h["source_url"] for h in ergebnis["hits"] if h["source_url"]]
+    assert len(quellen) == len(set(quellen)), (
+        "zwei Treffer teilen sich eine Quelladresse -- nicht zusammengefasst")
+
+
+@pytest.mark.live
+async def test_ohne_zusammenfassen_bleiben_alle_treffer(repo):
+    """Gegenprobe, damit der vorige Test nicht auch bei abgeschalteter
+    Zusammenfassung gruen waere."""
+    roh = await repo.flows.search("Photosynthese", limit=50, deduplicate=False)
+    zusammengefasst = await repo.flows.search("Photosynthese", limit=50)
+
+    assert roh["duplicates_removed"] == 0
+    assert zusammengefasst["returned"] <= roh["returned"]
+
+    if zusammengefasst["duplicates_removed"] == 0:
+        pytest.skip("dieser Lauf enthielt keine Duplikate -- sie sind gemessen, "
+                    "aber nicht bei jedem Aufruf da")
+
+    # Wenn welche da waren: der behaltene Treffer nennt sie.
+    mit_doppelten = [h for h in zusammengefasst["hits"] if h["duplicate_ids"]]
+    assert mit_doppelten, "entfernt, aber nirgends genannt -- das waere ein stiller Verlust"
+    assert sum(len(h["duplicate_ids"]) for h in mit_doppelten) == \
+        zusammengefasst["duplicates_removed"]

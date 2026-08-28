@@ -105,6 +105,7 @@ repo.flows.search(
   "total": 115,
   "total_is_lower_bound": false,
   "returned": 3,
+  "duplicates_removed": 1,
   "hits": [
     {
       "id": "1f71f84a-a67d-4b93-b55f-3ba4f39571d8",
@@ -114,7 +115,8 @@ repo.flows.search(
       "source_url": "https://beispiel.org/material",
       "mimetype": "text/html",
       "mediatype": "link",
-      "fields": {"subject": ["Biologie"], "level": ["Sekundarstufe II"]}
+      "fields": {"subject": ["Biologie"], "level": ["Sekundarstufe II"]},
+      "duplicate_ids": []
     }
   ],
   "facets": {"subject": [{"value": "…/discipline/080", "count": 57}]},
@@ -131,6 +133,38 @@ repo.flows.search(
 
 > **`total_is_lower_bound`** bedeutet „mindestens so viele". Wer diese Zahl als
 > Tatsache weitergibt, behauptet etwas, das keine ist.
+
+### Doppelte Treffer werden zusammengefasst
+
+Das Repositorium legt bei jedem erneuten Import derselben Webseite einen eigenen
+Knoten an. Die tragen dieselbe Quelladresse und unterscheiden sich nur im
+technischen Namen — edu-sharing hängt bei Namenskollisionen „ - 2", „ - 3" an.
+Wer die Liste liest, hält zwei Einträge für zwei Materialien.
+
+Gemessen am 27.08.2026: unter 50 Treffern je ein solches Paar bei
+„Photosynthese" und „Bruchrechnung", keines bei „Optik" oder „Wald". Eine
+niedrige Rate — und jedes Mal ein echtes Problem.
+
+`search` fasst sie deshalb zusammen, **standardmäßig an**, und verschweigt
+nichts:
+
+```json
+{
+  "returned": 49,
+  "duplicates_removed": 1,
+  "hits": [{"id": "a", "duplicate_ids": ["b"], "…": "…"}]
+}
+```
+
+Der erste Treffer einer Gruppe gewinnt — bei `rerank` der bestbewertete. Es
+zählt allein die **Quelladresse**: zwei Materialien dürfen denselben Titel
+tragen und trotzdem verschieden sein, und ein Treffer ohne Quelladresse ist nie
+das Duplikat von etwas.
+
+`limit` zählt vor dem Zusammenfassen, es können also weniger als `limit` Treffer
+zurückkommen; `returned` sagt wie viele. `deduplicate=False` liefert die
+Rohsicht.
+
 
 ### `rerank=True` — die natuerlich formulierte Anfrage retten
 

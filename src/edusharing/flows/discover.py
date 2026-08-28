@@ -12,12 +12,14 @@ adds capability; it removes steps.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
 from ..childobjects import ORDER_PROPERTY
 from ..errors import ValidationError
 from ..results import SearchHit
 from ..urls import path_segment
+from . import dedupe
 from .language import GERMAN, LanguageProfile
 from .rerank import DEFAULT_POOL, search_reranked
 from .serialize import hit_as_dict, result_as_dict
@@ -70,6 +72,7 @@ async def search(
     rerank: bool = False,
     pool: int = DEFAULT_POOL,
     language: LanguageProfile = GERMAN,
+    deduplicate: bool = True,
     **aliases: str | list[str],
 ) -> dict[str, Any]:
     """Search for material and return the outcome as JSON.
@@ -91,6 +94,11 @@ async def search(
             ``rerank`` is on.
         language: word lists for reranking. German by default; supply your own
             ``LanguageProfile`` for an instance in another language.
+        deduplicate: fold hits sharing a source address into one. On by
+            default -- the repository holds a separate node per import of the
+            same page, and two entries read as two pieces of material. The kept
+            hit names the folded ones in ``duplicate_ids``; switch this off for
+            the raw view.
         **aliases: configured short names, e.g. ``subject="Biologie"``.
 
     Returns:
@@ -137,7 +145,15 @@ async def search(
             **aliases,
         )
 
-    return result_as_dict(result, query=query, aliases=repo.searcher.field_aliases)
+    folded: dict[str, list[str]] = {}
+    if deduplicate:
+        # After ranking, not before: the order decides which of a group is kept,
+        # and under rerank that is the best-scored one.
+        kept, folded = dedupe.deduplicate(result.hits)
+        result = replace(result, hits=kept)
+
+    return result_as_dict(
+        result, query=query, aliases=repo.searcher.field_aliases, folded=folded)
 
 
 async def vocabulary(

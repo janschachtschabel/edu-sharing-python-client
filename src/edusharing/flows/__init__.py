@@ -54,6 +54,7 @@ class Flows:
         rerank: bool = False,
         pool: int = DEFAULT_POOL,
         language: LanguageProfile = GERMAN,
+        deduplicate: bool = True,
         **aliases: str | list[str],
     ) -> dict[str, Any]:
         """Search for material, return JSON. See ``discover.search``.
@@ -69,7 +70,7 @@ class Flows:
         return await discover.search(
             self._repo, text, filters=filters, facets=facets,
             limit=limit, offset=offset, rerank=rerank, pool=pool,
-            language=language, **aliases,
+            language=language, deduplicate=deduplicate, **aliases,
         )
 
     async def vocabulary(self, field: str, *, locale: str | None = None) -> dict[str, Any]:

@@ -102,6 +102,7 @@ repo.flows.search(
   "total": 115,
   "total_is_lower_bound": false,
   "returned": 3,
+  "duplicates_removed": 1,
   "hits": [
     {
       "id": "1f71f84a-a67d-4b93-b55f-3ba4f39571d8",
@@ -111,7 +112,8 @@ repo.flows.search(
       "source_url": "https://example.org/material",
       "mimetype": "text/html",
       "mediatype": "link",
-      "fields": {"subject": ["Biologie"], "level": ["Sekundarstufe II"]}
+      "fields": {"subject": ["Biologie"], "level": ["Sekundarstufe II"]},
+      "duplicate_ids": []
     }
   ],
   "facets": {"subject": [{"value": "…/discipline/080", "count": 57}]},
@@ -127,6 +129,35 @@ repo.flows.search(
 
 > **`total_is_lower_bound`** being true means "at least this many". Reporting
 > that number as a fact states something that is not one.
+
+### Duplicate hits are folded together
+
+The repository creates a separate node each time the same web page is imported.
+Those nodes share a source address and differ only in the technical name —
+edu-sharing appends " - 2", " - 3" on a name collision. Whoever reads the list
+takes two entries for two pieces of material.
+
+Measured on 2026-08-27: among 50 hits, one such pair for "Photosynthese" and one
+for "Bruchrechnung", none for "Optik" or "Wald". A low rate, and a real problem
+each time it occurs.
+
+`search` therefore folds them, **on by default**, and hides nothing:
+
+```json
+{
+  "returned": 49,
+  "duplicates_removed": 1,
+  "hits": [{"id": "a", "duplicate_ids": ["b"], "…": "…"}]
+}
+```
+
+The first hit of a group wins — under `rerank` that is the best-scored one. Only
+the **source address** counts: two materials may share a title and genuinely
+differ, and a hit without a source address is never a duplicate of anything.
+
+`limit` counts before folding, so fewer than `limit` hits can come back;
+`returned` says how many. `deduplicate=False` gives the raw view.
+
 
 ### `rerank=True` — rescue a naturally phrased query
 
