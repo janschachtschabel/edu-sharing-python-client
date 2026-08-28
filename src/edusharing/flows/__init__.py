@@ -35,7 +35,7 @@ from .rerank import DEFAULT_POOL
 if TYPE_CHECKING:  # pragma: no cover
     from ..repository import AsyncRepository
 
-__all__ = ["Flows", "LanguageProfile"]
+__all__ = ["Flows", "LanguageProfile", "GERMAN"]
 
 
 class Flows:
