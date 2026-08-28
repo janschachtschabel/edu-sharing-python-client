@@ -212,7 +212,7 @@ Two honest limits:
 * **The word lists are German.** They are a parameter, not a constant:
 
 ```python
-from edusharing.flows import LanguageProfile
+from edusharing import LanguageProfile
 
 english = LanguageProfile(stopwords=frozenset({"the", "of", "a"}),
                           framing=frozenset({"worksheet", "video"}),

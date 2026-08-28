@@ -221,7 +221,7 @@ Zwei ehrliche Grenzen:
 * **Die Wortlisten sind deutsch.** Sie sind ein Parameter, keine Konstante:
 
 ```python
-from edusharing.flows import LanguageProfile
+from edusharing import LanguageProfile
 
 englisch = LanguageProfile(stopwords=frozenset({"the", "of", "a"}),
                            framing=frozenset({"worksheet", "video"}),

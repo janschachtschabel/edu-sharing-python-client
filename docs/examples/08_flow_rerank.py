@@ -16,8 +16,7 @@ believes it. This script shows the gap and what `rerank=True` does about it.
 
 import sys
 
-from edusharing import EduSharingError, Repository
-from edusharing.flows import LanguageProfile
+from edusharing import EduSharingError, LanguageProfile, Repository
 
 # The Windows console otherwise emits cp1252 and mangles umlauts.
 if hasattr(sys.stdout, "reconfigure"):

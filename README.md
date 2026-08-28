@@ -54,6 +54,26 @@ Every one of the 389 operations is reachable, even without a method of its own:
 values = await repo.raw.json("GET", "/config/v1/values")
 ```
 
+### Where a name comes from
+
+Almost everything is a single import:
+
+```python
+from edusharing import Repository, Node, SearchResult, NotFoundError
+```
+
+| Import | What lives there |
+|---|---|
+| `from edusharing import …` | the repository, its results, its errors |
+| `edusharing.agent` | building blocks for AI use: safety, sanitising, formatting |
+| `edusharing.bapi` | the LLM gateway — a separate service |
+| `edusharing.extraction` | the text-extraction service — likewise |
+
+The flows need no import of their own: they hang off a connection, as
+`repo.flows.search(...)`. The two neighbouring services get a module of their
+own because they have an address of their own — a connection to a repository
+says nothing about whether they exist.
+
 ### Searching with labels instead of URIs
 
 ```python

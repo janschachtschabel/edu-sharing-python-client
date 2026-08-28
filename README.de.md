@@ -54,6 +54,26 @@ Jeder der 389 Endpunkte ist erreichbar, auch ohne eigene Methode:
 werte = await repo.raw.json("GET", "/config/v1/values")
 ```
 
+### Woher ein Name kommt
+
+Fast alles ist ein einziger Import:
+
+```python
+from edusharing import Repository, Node, SearchResult, NotFoundError
+```
+
+| Import | Was dort liegt |
+|---|---|
+| `from edusharing import …` | das Repositorium, seine Ergebnisse, seine Fehler |
+| `edusharing.agent` | Bausteine für KI-Anwendungen: Sicherheit, Bereinigung, Formatierung |
+| `edusharing.bapi` | das LLM-Gateway — ein eigener Dienst |
+| `edusharing.extraction` | der Extraktionsdienst — ebenso |
+
+Die Flows brauchen keinen eigenen Import: sie hängen an einer Verbindung, als
+`repo.flows.search(...)`. Die beiden Nachbardienste bekommen ein eigenes Modul,
+weil sie eine eigene Adresse haben — eine Verbindung zu einem Repositorium sagt
+nichts darüber, ob es sie gibt.
+
 ### Suchen mit Labels statt URIs
 
 ```python
