@@ -49,6 +49,10 @@ ME = {"person": {"authorityName": "alice", "userName": "alice", "profile": {}}}
 # Recht ausloesen.
 _PROPS: dict[str, list[str]] = {}
 
+# Dasselbe fuer die Rechte: publish() liest zurueck und wuerde bei einer festen
+# Antwort zu Recht einen stillen Verlust melden.
+_ACL: list[dict] = []
+
 
 def _node_response() -> dict:
     node = dict(NODE["node"])
@@ -78,6 +82,23 @@ def _handler(request: httpx.Request) -> httpx.Response:
         else:
             _PROPS[prop] = wert
         return httpx.Response(200, content=b"")
+    if url.endswith("/parents") or "/parents?" in url:
+        return httpx.Response(200, json={
+            "nodes": [_node_response()["node"],
+                      {"ref": {"id": "oben"}, "name": "ordner", "type": "ccm:map",
+                       "properties": {"cclom:title": ["Ordner"]}}],
+            "scope": "MY_FILES"})
+    if "/usage/v1" in url:
+        return httpx.Response(200, json=[{"collection": {
+            "ref": {"id": "s-1"}, "name": "Sammlung", "type": "ccm:map",
+            "properties": {"cclom:title": ["Sammlung"]}}}])
+    if url.endswith("/permissions") or "/permissions?" in url:
+        if method == "GET":
+            return httpx.Response(200, json={"permissions": {
+                "localPermissions": {"inherited": True, "permissions": _ACL},
+                "inheritedPermissions": []}})
+        _ACL[:] = json.loads(request.content)["permissions"]
+        return httpx.Response(200, content=b"")
     if "eduservlet/download" in url:
         return httpx.Response(200, content=b"Dateiinhalt")
     if url.endswith("/textContent") or "/textContent?" in url:
@@ -106,6 +127,7 @@ def _handler(request: httpx.Request) -> httpx.Response:
 @pytest.fixture
 def repo():
     _PROPS.clear()
+    _ACL.clear()
     r = Repository(
         REPO, client=httpx.AsyncClient(transport=httpx.MockTransport(_handler)))
     try:
@@ -302,3 +324,51 @@ def test_serienobjekte_synchron(repo):
     assert not inspect.iscoroutinefunction(kinder.list)
     assert _kein_coroutine(kinder.list()) == []
     assert _kein_coroutine(repo.flows.child_objects(NID))["count"] == 0
+
+
+def test_rechte_geben_ein_synchrones_objekt(repo):
+    """Derselbe Fall wie seinerzeit bei ``content``: eine neue asynchrone
+    Flaeche, und der Durchgriff fehlt. Dann liefert der Aufruf eine Coroutine,
+    tut nichts und meldet nichts -- bei Rechten hiesse das, einen Knoten fuer
+    veroeffentlicht zu halten, der es nicht ist."""
+    node = repo.node(NID)
+    rechte = _kein_coroutine(node.permissions.get())
+    assert rechte.inherits is True
+    assert not rechte.is_public
+
+
+def test_veroeffentlichen_synchron(repo):
+    node = repo.node(NID)
+    assert _kein_coroutine(node.permissions.publish()) is True
+    assert _kein_coroutine(node.permissions.get()).is_public
+    assert _kein_coroutine(node.permissions.unpublish()) is True
+    assert not _kein_coroutine(node.permissions.get()).is_public
+
+
+def test_rechte_geben_und_nehmen_synchron(repo):
+    node = repo.node(NID)
+    assert _kein_coroutine(node.permissions.grant("alice", "Coordinator")) is True
+    assert _kein_coroutine(node.permissions.revoke("alice")) is True
+    assert "node-1" in repr(node.permissions)
+
+
+def test_herkunft_synchron(repo):
+    """Zwei neue asynchrone Methoden am Knoten -- ohne Durchgriff liefern sie
+    eine Coroutine und der Aufrufer sieht eine leere Auskunft, die keine ist."""
+    node = repo.node(NID)
+    eltern = _kein_coroutine(node.parents())
+    assert [n.id for n in eltern] == ["oben"]
+    sammlungen = _kein_coroutine(node.collections())
+    assert [s.id for s in sammlungen] == ["s-1"]
+
+
+def test_placement_synchron(repo):
+    ergebnis = _kein_coroutine(repo.flows.placement(NID))
+    assert ergebnis["path"] == [{"id": "oben", "title": "Ordner", "type": "ccm:map"}]
+    assert ergebnis["scope"] == "MY_FILES"
+
+
+def test_search_all_synchron(repo):
+    ergebnis = _kein_coroutine(repo.flows.search_all("Zelle"))
+    assert "materials" in ergebnis and "collections" in ergebnis
+    assert ergebnis["collections"]["filters_ignored"] == []

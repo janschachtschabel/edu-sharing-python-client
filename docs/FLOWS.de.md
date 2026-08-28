@@ -42,13 +42,15 @@ nur von Hand ausgeschrieben.
 | `search(rerank=True)` | 1 je Variante (≤5), parallel | expandieren → je Variante suchen → im Speicher bewerten und mischen |
 | `vocabulary` | 1 | Kurzname auflösen → Werte holen (zwischengespeichert) |
 | `describe` | 1 | Knoten laden |
+| `search_all` | 3–4 | Materialsuche (+1 zum Auflösen eines Filters) + Sammlungssuche (ihre zwei Wege), parallel |
+| `placement` | 2 | Weg nach oben + Sammlungen mit Referenz, parallel |
 | `relations` | 1 | die Verknüpfungen des Knotens lesen |
 | `child_objects` | 2 | Hauptknoten laden → seine Kinder, gefiltert und sortiert |
 | `find_collections` | 2, parallel | beide Sammlungswege → über die ID zusammenlegen |
 | `collection_contents` | 2, parallel | Materialliste + Untersammlungsliste |
-| `add_material` | 2–4 | whoami (ohne parent) → Vokabular auflösen → anlegen → einlegen (auf Wunsch) |
+| `add_material` | 2–5 | whoami (ohne parent) → Vokabular auflösen → anlegen → einlegen (auf Wunsch) → veröffentlichen (auf Wunsch) |
 | `update_material` | 3–4 | Vokabular auflösen → laden → schreiben → zurücklesen |
-| `build_collection` | 1 + eine je Knoten | anlegen → jeden einlegen, Fehlschläge auffangen |
+| `build_collection` | 1 + eine je Knoten (+2 zum Veröffentlichen) | anlegen → jeden einlegen, Fehlschläge auffangen → veröffentlichen (auf Wunsch) |
 | `delete` | 2 | laden (um ihn zu benennen) → löschen |
 
 Drei davon — `search`, `vocabulary`, `describe` — schicken exakt das, was die
@@ -254,6 +256,64 @@ unauflösbarer Filter gemeldet statt stillschweigend fallengelassen wird.
 
 ---
 
+## `search_all` — Material *und* Sammlungen auf einmal
+
+Wer ein Repositorium nach einem Thema fragt, meint meist beides: die einzelnen
+Materialien und die Sammlungen, in denen jemand schon zusammengestellt hat, was
+dazugehört. Der `wlo-mcp-sc` macht das zu seinem Standardeinstieg, und das ist
+die richtige Vorgabe.
+
+**Eingabe**
+
+```python
+repo.flows.search_all("Zellteilung", subject="Biologie", limit=5)
+```
+
+**Ausgabe**
+
+```json
+{
+  "query": {"text": "Zellteilung", "metadataset": "mds_oeh", "limit": 5},
+  "materials": {
+    "total": 42, "total_is_lower_bound": false, "returned": 5,
+    "duplicates_removed": 0, "hits": [...], "facets": {}, "unresolved": []
+  },
+  "collections": {
+    "total": 7, "total_is_lower_bound": true, "returned": 3,
+    "hits": [...], "filters_ignored": ["subject"]
+  }
+}
+```
+
+Die beiden bleiben in **getrennten Körben**. Sie in eine Rangfolge zu mischen
+hieße, Unvergleichbares zu vergleichen, und ihre Zählungen bedeuten nicht
+dasselbe: die der Sammlungen ist eine Untergrenze (zwei Wege werden
+zusammengeführt), die des Materials nicht. `limit` gilt je Korb, damit keiner
+den anderen verdrängt.
+
+> **`collections.filters_ignored` lesen.** Die Sammlungsabfrage akzeptiert
+> `ngsearchword` und sonst nichts — jedes weitere Kriterium endet in
+> `400 DAOValidationException`. Ein Filter verengt also den Material-Korb und
+> **nicht** den anderen. Ihn auf die eine Seite anzuwenden und stillschweigend
+> nicht auf die andere hieße, eine Einschränkung zu behaupten, die es nie gab —
+> deshalb werden die Namen der nicht angewandten Filter gemeldet.
+
+**Was dahinter läuft** — 3 Anfragen, gemeinsam gesendet (4, wenn ein Filter
+aufgelöst werden muss):
+
+```python
+# was repo.flows.search_all("Zellteilung") tut
+materials, collections = await asyncio.gather(
+    discover.search(repo, "Zellteilung"),            # 1. ngsearch
+    discover.find_collections(repo, "Zellteilung"),  # 2.+3. ihre beiden Wege
+)
+```
+
+Genau das, was zwei getrennte Aufrufe senden — der Ablauf spart die Runde nur
+insofern, als die drei gemeinsam hinausgehen statt nacheinander.
+
+---
+
 ## `vocabulary` — welche Werte ein Feld annimmt
 
 Damit niemand raten muss. Ein Sprachmodell, das nach Fach filtern soll, erfindet
@@ -314,6 +374,7 @@ repo.flows.describe("1f71f84a-a67d-4b93-b55f-3ba4f39571d8")
   "name": "material.pdf",
   "type": "ccm:io",
   "access": ["Read", "Write", "Delete"],
+  "public": true,
   "has_content": true,
   "keywords": ["Photosynthese", "Zelle"],
   "properties": {"ccm:wwwurl": ["…"], "…": "…"}
@@ -459,6 +520,77 @@ Die übrigen fünf (`hasPart`, `isBasisFor`, `isRequiredBy`, `isReplacedBy`,
 davon direkt setzen will, bekommt einen HTTP 400 ohne erkennbaren Grund — die
 Bibliothek lehnt vorher ab und nennt den passenden.
 
+## `placement` — wo ein Knoten liegt, und wer ihn kuratiert hat
+
+Zwei Fragen, die sich ähneln und es nicht sind. **Wo er liegt** ist sein Ordner,
+und dessen Ordner. **Wer ihn kuratiert hat** sind die Sammlungen, die eine
+Referenz halten — und eine Sammlung verweist auf Knoten, deren eigenes
+Elternteil ganz woanders liegt. Ein Knoten in zehn Sammlungen hat trotzdem genau
+eine Elternkette.
+
+**Eingabe**
+
+```python
+repo.flows.placement("1f71f84a-a67d-4b93-b55f-3ba4f39571d8")
+```
+
+**Ausgabe**
+
+```json
+{
+  "id": "1f71f84a-…",
+  "title": "Feuerspuren im Satellitenbild",
+  "path": [
+    {"id": "…", "title": "Fachportale", "type": "ccm:map"},
+    {"id": "…", "title": "Biologie", "type": "ccm:map"}
+  ],
+  "collections": [
+    {"id": "…", "title": "Ökosysteme", "type": "ccm:map"}
+  ],
+  "scope": "COLLECTION"
+}
+```
+
+`path` läuft **von oben nach unten**, fertig zum Anzeigen — anders als
+`node.parents()`, das die Antwort des Endpunkts spiegelt und den nächsten zuerst
+gibt. Live gemessen: `WLO > Biologie > Pflanzen: Form & Funktion`.
+
+> **`scope` lesen.** Es benennt den Baum, in dem der Pfad liegt — gemessene
+> Werte sind `COLLECTION` für den kuratierten Baum und `MY_FILES` für die
+> eigenen Ordner — und damit auch, wo der Pfad endet: an der Grenze dessen, was
+> das Konto lesen darf. Gemessen am 28.08.2026: den vollständigen Pfad
+> zu verlangen (`fullPath=true`) endet für ein gewöhnliches Konto mit **HTTP
+> 403**, weil er durch Bereiche führt, auf die es keinen Zugriff hat. Die
+> Bibliothek verlangt ihn deshalb nicht und meldet stattdessen, wie weit die
+> Antwort reicht — statt einen abgeschnittenen Pfad als vollständigen
+> durchgehen zu lassen.
+
+**Was dahinter läuft** — 2 Anfragen, gemeinsam gesendet:
+
+```python
+# was repo.flows.placement("abc") tut
+ancestry, collections = await asyncio.gather(
+    placement.ancestry_of(repo.nodes, "abc"),     # 1. GET …/parents
+    placement.collections_of(repo.nodes, "abc"),  # 2. GET /usage/v1/…/collections
+)
+```
+
+Nicht drei: die parents-Antwort trägt den Knoten selbst als ersten Eintrag, der
+Titel kommt also mit. Die Bibliothek nimmt diesen Eintrag aus `path` heraus — ein
+Knoten ist nicht sein eigener Vorfahre.
+
+Auf der API-Ebene dieselben zwei, als Objekte:
+
+```python
+node = await repo.node("abc")
+for ordner in await node.parents():        # der nächste zuerst
+    print(ordner.title)
+for sammlung in await node.collections():
+    print(sammlung.title, sammlung.is_public)
+```
+
+---
+
 ## `find_collections` — Sammlungen suchen
 
 Sammlungen sind die Art, wie edu-sharing Material für den Unterricht bündelt.
@@ -583,6 +715,7 @@ repo.flows.add_material(
     properties={"ccm:custom": ["…"]},  # rohe Eigenschaften
     subject="Biologie",                # wird beim Schreiben aufgelöst
     level="Sekundarstufe I",
+    publish=False,                     # True → für alle lesbar
 )
 ```
 
@@ -596,11 +729,12 @@ repo.flows.add_material(
   "parent_id": "21b1ca3d-…",
   "name": "Photosynthese einfach erklärt",
   "collection": {"id": "…", "added": true},
+  "public": false,
   "unresolved": []
 }
 ```
 
-Zwei Dinge nimmt der Ablauf ab:
+Drei Dinge nimmt der Ablauf ab:
 
 **Wohin es kommt.** Ohne `parent_id` landet es im Home-Verzeichnis — dessen ID
 vier Ebenen tief in der Antwort von `whoami()` steckt.
@@ -612,6 +746,13 @@ schwerer:
 > **`unresolved` prüfen.** Diese Werte wurden **nicht geschrieben**. Das
 > Material existiert ohne sie und sieht vollständig aus. Deshalb werden sie
 > gemeldet statt fallengelassen.
+
+**Sichtbarkeit.** Was hier entsteht, kann sein Urheber lesen und sonst niemand —
+auch das Einhängen in eine öffentliche Sammlung ändert daran nichts, gemessen.
+
+> **`public` prüfen.** `false` heißt: das Material existiert und nur du siehst
+> es. `publish=True` gibt allen Leserecht. Der Schalter ist aus, weil sich
+> Gelesenes nicht zurücknehmen lässt.
 
 `cm:name` wird aus dem Titel abgeleitet, sofern `name` nichts anderes sagt; bei
 einer Namenskollision wird ein Zähler angehängt statt abzubrechen.
@@ -659,6 +800,7 @@ repo.flows.build_collection(
     parent_id=None,          # None → Ihre Sammlungswurzel
     node_ids=["abc-…", "def-…"],
     scope="MY",              # MY (Vorgabe) | ORGANIZATION | PUBLIC
+    publish=False,           # True → für alle lesbar
 )
 ```
 
@@ -670,9 +812,14 @@ repo.flows.build_collection(
   "title": "Meine Sammlung",
   "url": "https://…/components/render/c32b0498-…",
   "added": ["abc-…", "def-…"],
-  "failed": [{"id": "ghi-…", "reason": "HTTP 404 … Node does not exist"}]
+  "failed": [{"id": "ghi-…", "reason": "HTTP 404 … Node does not exist"}],
+  "public": false
 }
 ```
+
+> **`scope="PUBLIC"` ist kein Leserecht.** Gemessen: der Scope entscheidet,
+> wo die Sammlung gelistet wird, nicht wer sie öffnen darf — so angelegt kommt
+> sie für andere trotzdem unlesbar zurück. `publish=True` erteilt das Recht.
 
 > **Die Sammlung existiert auch dann, wenn `failed` nicht leer ist.** Material
 > einzulegen ist ein Aufruf je Knoten, und jeder kann für sich scheitern. Ein

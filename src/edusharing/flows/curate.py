@@ -39,6 +39,7 @@ async def add_material(
     keywords: list[str] | None = None,
     collection_id: str | None = None,
     properties: dict[str, Any] | None = None,
+    publish: bool = False,
     **aliases: Any,
 ) -> dict[str, Any]:
     """Create material -- with vocabulary, and optionally straight into a
@@ -106,6 +107,11 @@ async def add_material(
         added = await repo.collections.add(collection_id, node.id)
         collection = {"id": collection_id, "added": added}
 
+    public = node.is_public
+    if publish and not public:
+        await node.permissions.publish()
+        public = True
+
     return {
         "id": node.id,
         "title": node.title or title,
@@ -113,6 +119,7 @@ async def add_material(
         "parent_id": parent_id,
         "name": node.name,
         "collection": collection,
+        "public": public,
         "unresolved": unresolved,
     }
 
@@ -192,6 +199,7 @@ async def build_collection(
     parent_id: str | None = None,
     node_ids: list[str] | None = None,
     scope: str | None = None,
+    publish: bool = False,
 ) -> dict[str, Any]:
     """Create a collection and fill it in one call.
 
@@ -236,12 +244,18 @@ async def build_collection(
             continue
         added.append(node_id)
 
+    public = collection.is_public
+    if publish and not public:
+        await collection.permissions.publish()
+        public = True
+
     return {
         "id": collection.id,
         "title": collection.title or title,
         "url": collection.url,
         "added": added,
         "failed": failed,
+        "public": public,
     }
 
 

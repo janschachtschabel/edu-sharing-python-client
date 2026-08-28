@@ -73,6 +73,15 @@ class Flows:
             language=language, deduplicate=deduplicate, **aliases,
         )
 
+    async def search_all(self, text: str, **kwargs: Any) -> dict[str, Any]:
+        """Material **and** collections in one call. See ``discover.search_all``.
+
+        **Read ``collections.filters_ignored``**: the collection search takes a
+        search word and nothing else, so a filter narrows the material bucket
+        and not the other one.
+        """
+        return await discover.search_all(self._repo, text, **kwargs)
+
     async def vocabulary(self, field: str, *, locale: str | None = None) -> dict[str, Any]:
         """The values a field accepts. See ``discover.vocabulary``."""
         return await discover.vocabulary(self._repo, field, locale=locale)
@@ -92,6 +101,16 @@ class Flows:
         nobody confirmed is a suggestion, not a fact.
         """
         return await discover.relations(self._repo, node_id)
+
+    async def placement(self, node_id: str) -> dict[str, Any]:
+        """Where a node sits and who has curated it. See ``discover.placement``.
+
+        **``path`` runs top down** here, ready to print -- ``node.parents()``
+        mirrors the endpoint and gives the nearest first. And **read
+        ``scope``**: the path stops at the boundary of what the account may
+        read.
+        """
+        return await discover.placement(self._repo, node_id)
 
     async def find_collections(self, text: str, *, limit: int = 10) -> dict[str, Any]:
         """Search collections. See ``discover.find_collections``.
@@ -121,16 +140,23 @@ class Flows:
         keywords: list[str] | None = None,
         collection_id: str | None = None,
         properties: dict[str, Any] | None = None,
+        publish: bool = False,
         **aliases: Any,
     ) -> dict[str, Any]:
         """Create material, with vocabulary. See ``curate.add_material``.
 
         **Check ``unresolved`` in the answer**: those values were not written.
+
+        **Check ``public``**: what is created here is readable by its creator
+        and by nobody else. Filing it into a public collection does not change
+        that -- measured. ``publish=True`` makes it world-readable, and is off
+        by default because reading cannot be taken back.
         """
         return await curate.add_material(
             self._repo, title, url=url, parent_id=parent_id, name=name,
             description=description, keywords=keywords,
-            collection_id=collection_id, properties=properties, **aliases,
+            collection_id=collection_id, properties=properties,
+            publish=publish, **aliases,
         )
 
     async def update_material(
@@ -161,15 +187,20 @@ class Flows:
         parent_id: str | None = None,
         node_ids: list[str] | None = None,
         scope: str | None = None,
+        publish: bool = False,
     ) -> dict[str, Any]:
         """Create a collection and fill it. See ``curate.build_collection``.
 
         **Check ``failed``**: the collection exists even when placing material
         did not fully work.
+
+        **Check ``public``**: ``scope="PUBLIC"`` decides where the collection is
+        listed, not who may open it -- measured, it comes back unreadable to
+        others all the same. ``publish=True`` grants the read access.
         """
         return await curate.build_collection(
             self._repo, title, description=description, parent_id=parent_id,
-            node_ids=node_ids, scope=scope,
+            node_ids=node_ids, scope=scope, publish=publish,
         )
 
     async def delete(self, node_id: str, *, recycle: bool = True) -> dict[str, Any]:

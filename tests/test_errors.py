@@ -99,6 +99,44 @@ def test_500_not_allowed_for_guest_ist_authentifizierungsfehler():
     assert isinstance(exc, AuthenticationError)
 
 
+def test_500_node_does_not_exist_ist_ein_verstecktes_404():
+    """Gemessen am 28.08.2026: /usage/v1/usages/node/{id}/collections antwortet
+    fuer einen Knoten, den es nicht gibt, mit **500** -- waehrend der
+    Knotenendpunkt fuer dieselbe ID ordentlich 404 sagt.
+
+    Der Unterschied ist teuer: als Serverfehler wiederholt der Transport die
+    Anfrage dreimal, und der Aufrufer, der NotFoundError abfaengt, sieht sie
+    nicht. Der Suchindex haelt auf Staging Knoten, die es nicht mehr gibt --
+    gemessen 4 von 25 -- also ist das kein Randfall."""
+    fehler = error_from_response(
+        500, URL, _body("org.edu_sharing.restservices.DAOException",
+                        "org.edu_sharing.service.usage.UsageException: Node does "
+                        "not exist: workspace://SpacesStore/1f71f84a"))
+    assert isinstance(fehler, NotFoundError)
+
+
+def test_ein_500_mit_anderem_daoexception_bleibt_serverfehler():
+    """Die Gegenprobe: nicht jede DAOException ist ein fehlender Knoten."""
+    fehler = error_from_response(
+        500, URL, _body("org.edu_sharing.restservices.DAOException",
+                        "java.lang.UnsupportedOperationException: Can not find "
+                        "Quatschrecht"))
+    assert isinstance(fehler, ServerError)
+
+
+def test_500_access_is_denied_ist_ein_rechteproblem():
+    """Gemessen am 28.08.2026: /node/v1/nodes/-home-/{id}/parents antwortet fuer
+    fremdes Material mit **500 AccessDeniedException**, waehrend derselbe
+    Endpunkt am eigenen Knoten ordentlich 403 sagt.
+
+    Dieselbe teure Verwechslung wie beim Gastzugang: als Serverfehler wiederholt
+    der Transport die Anfrage dreimal, obwohl sie nie gelingen kann."""
+    fehler = error_from_response(
+        500, URL, _body("org.alfresco.repo.security.permissions.AccessDeniedException",
+                        "Access is denied."))
+    assert isinstance(fehler, PermissionDeniedError)
+
+
 def test_500_not_an_admin_ist_rechteproblem():
     """Gemessen (Skill wlo-edu-sharing-api): /rating/v1/ratings/.../history
     antwortet 500 NotAnAdminException. Auch das ist kein Serverfehler."""

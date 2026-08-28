@@ -41,13 +41,15 @@ out by hand.
 | `search(rerank=True)` | 1 per variant (≤5), parallel | expand → query each → score and merge in memory |
 | `vocabulary` | 1 | resolve short name → fetch values (cached) |
 | `describe` | 1 | load node |
+| `search_all` | 3–4 | material search (+1 to resolve a filter) + collection search (its two routes), in parallel |
+| `placement` | 2 | way up + collections holding a reference, in parallel |
 | `relations` | 1 | read the node's links |
 | `child_objects` | 2 | load parent → its children, filtered and sorted |
 | `find_collections` | 2, parallel | both collection routes → merge on id |
 | `collection_contents` | 2, parallel | material listing + sub-collection listing |
-| `add_material` | 2–4 | whoami (if no parent) → resolve vocabulary → create → add to collection (if asked) |
+| `add_material` | 2–5 | whoami (if no parent) → resolve vocabulary → create → add to collection (if asked) → publish (if asked) |
 | `update_material` | 3–4 | resolve vocabulary → load → write → read back |
-| `build_collection` | 1 + one per node | create → add each, catching failures |
+| `build_collection` | 1 + one per node (+2 to publish) | create → add each, catching failures → publish (if asked) |
 | `delete` | 2 | load (to name it) → delete |
 
 Three of them — `search`, `vocabulary`, `describe` — send exactly what the API
@@ -245,6 +247,62 @@ unresolvable filter is reported rather than silently dropped.
 
 ---
 
+## `search_all` — material *and* collections at once
+
+Asking a repository about a topic usually means both questions: the individual
+resources, and the collections in which somebody has already put together what
+belongs to it. `wlo-mcp-sc` makes this its default entry point, and it is the
+right default.
+
+**Input**
+
+```python
+repo.flows.search_all("Zellteilung", subject="Biologie", limit=5)
+```
+
+**Output**
+
+```json
+{
+  "query": {"text": "Zellteilung", "metadataset": "mds_oeh", "limit": 5},
+  "materials": {
+    "total": 42, "total_is_lower_bound": false, "returned": 5,
+    "duplicates_removed": 0, "hits": [...], "facets": {}, "unresolved": []
+  },
+  "collections": {
+    "total": 7, "total_is_lower_bound": true, "returned": 3,
+    "hits": [...], "filters_ignored": ["subject"]
+  }
+}
+```
+
+The two stay in **separate buckets**. Merging them into one ranking would
+compare things that do not compare, and their counts do not mean the same thing:
+the collection figure is a lower bound (two routes are merged), the material one
+is not. `limit` applies per bucket, so neither crowds out the other.
+
+> **Read `collections.filters_ignored`.** The collection query accepts
+> `ngsearchword` and nothing else — any further criterion ends in
+> `400 DAOValidationException`. So a filter narrows the material bucket and
+> **not** the other one. Applying it to one side and silently not to the other
+> would claim a narrowing that never happened, which is why the names of the
+> dropped filters are reported.
+
+**Behind it** — 3 requests, sent together (4 when a filter has to be resolved):
+
+```python
+# what repo.flows.search_all("Zellteilung") does
+materials, collections = await asyncio.gather(
+    discover.search(repo, "Zellteilung"),            # 1. ngsearch
+    discover.find_collections(repo, "Zellteilung"),  # 2.+3. its two routes
+)
+```
+
+Exactly what two separate calls would send — the flow saves the round trip only
+in the sense that the three go out at once instead of in sequence.
+
+---
+
 ## `vocabulary` — what values a field accepts
 
 So that nothing has to guess. A language model asked to filter by subject will
@@ -305,6 +363,7 @@ repo.flows.describe("1f71f84a-a67d-4b93-b55f-3ba4f39571d8")
   "name": "material.pdf",
   "type": "ccm:io",
   "access": ["Read", "Write", "Delete"],
+  "public": true,
   "has_content": true,
   "keywords": ["Photosynthese", "Zelle"],
   "properties": {"ccm:wwwurl": ["…"], "…": "…"}
@@ -448,6 +507,75 @@ The other five (`hasPart`, `isBasisFor`, `isRequiredBy`, `isReplacedBy`,
 directly answers HTTP 400 with nothing that says why, so the library rejects it
 first with a message naming the one to use instead.
 
+## `placement` — where a node sits, and who curated it
+
+Two questions that look alike and are not. **Where it lives** is its folder, and
+that folder's folder. **Who curated it** is which collections hold a reference —
+and a collection references nodes whose own parent is somewhere else entirely. A
+node in ten collections still has exactly one parent chain.
+
+**Input**
+
+```python
+repo.flows.placement("1f71f84a-a67d-4b93-b55f-3ba4f39571d8")
+```
+
+**Output**
+
+```json
+{
+  "id": "1f71f84a-…",
+  "title": "Feuerspuren im Satellitenbild",
+  "path": [
+    {"id": "…", "title": "Fachportale", "type": "ccm:map"},
+    {"id": "…", "title": "Biologie", "type": "ccm:map"}
+  ],
+  "collections": [
+    {"id": "…", "title": "Ökosysteme", "type": "ccm:map"}
+  ],
+  "scope": "COLLECTION"
+}
+```
+
+`path` runs **top down**, ready to print as a breadcrumb — unlike
+`node.parents()`, which mirrors the endpoint and gives the nearest first.
+Measured live: `WLO > Biologie > Pflanzen: Form & Funktion`.
+
+> **Read `scope`.** It names the tree the path lives in — measured values are
+> `COLLECTION` for the curated tree and `MY_FILES` for your own folders — and
+> with it, where the path stops: at the boundary of what the account may read.
+> Measured on 2026-08-28: asking for the complete
+> path (`fullPath=true`) answers **HTTP 403** for an ordinary account, because
+> it runs up through areas the account has no access to. The library therefore
+> does not ask for it, and reports how far the answer reaches instead of
+> letting a truncated path pass as a complete one.
+
+**Behind it** — 2 requests, sent together:
+
+```python
+# what repo.flows.placement("abc") does
+ancestry, collections = await asyncio.gather(
+    placement.ancestry_of(repo.nodes, "abc"),   # 1. GET …/parents
+    placement.collections_of(repo.nodes, "abc"),  # 2. GET /usage/v1/…/collections
+)
+```
+
+Not three: the parents answer carries the node itself as its first entry, so the
+title comes with it. The library drops that entry from `path` — a node is not
+its own ancestor.
+
+At the API level the same two, as objects:
+
+```python
+node = await repo.node("abc")
+for folder in await node.parents():        # nearest first
+    print(folder.title)
+for collection in await node.collections():
+    print(collection.title, collection.is_public)
+```
+
+---
+
 ## `find_collections` — search collections
 
 Collections are how edu-sharing groups material for teaching, so finding them is
@@ -569,6 +697,7 @@ repo.flows.add_material(
     properties={"ccm:custom": ["…"]},  # raw properties
     subject="Biologie",                # resolved while writing
     level="Sekundarstufe I",
+    publish=False,                     # True → readable by everyone
 )
 ```
 
@@ -582,11 +711,12 @@ repo.flows.add_material(
   "parent_id": "21b1ca3d-…",
   "name": "Photosynthese einfach erklärt",
   "collection": {"id": "…", "added": true},
+  "public": false,
   "unresolved": []
 }
 ```
 
-Two things the flow takes off your hands:
+Three things the flow takes off your hands:
 
 **Where it goes.** Omit `parent_id` and it lands in your home folder — an id
 that sits four levels deep in the `whoami()` response.
@@ -597,6 +727,13 @@ own; writing, the URI had to be known. This is where a missing value hurts more:
 > **Check `unresolved`.** Those values were **not written**. The material exists
 > without them and looks complete. That is why they are reported rather than
 > dropped.
+
+**Visibility.** What is created here is readable by its creator and by nobody
+else, and filing it into a public collection does not change that — measured.
+
+> **Check `public`.** `false` means the material exists and only you can see it.
+> `publish=True` grants everyone read access. It is off by default because
+> reading cannot be taken back.
 
 `cm:name` is derived from the title unless `name` says otherwise; a collision
 appends a counter rather than failing.
@@ -644,6 +781,7 @@ repo.flows.build_collection(
     parent_id=None,          # None → your collection root
     node_ids=["abc-…", "def-…"],
     scope="MY",              # MY (default) | ORGANIZATION | PUBLIC
+    publish=False,           # True → readable by everyone
 )
 ```
 
@@ -655,9 +793,14 @@ repo.flows.build_collection(
   "title": "Meine Sammlung",
   "url": "https://…/components/render/c32b0498-…",
   "added": ["abc-…", "def-…"],
-  "failed": [{"id": "ghi-…", "reason": "HTTP 404 … Node does not exist"}]
+  "failed": [{"id": "ghi-…", "reason": "HTTP 404 … Node does not exist"}],
+  "public": false
 }
 ```
+
+> **`scope="PUBLIC"` is not read access.** Measured: it decides where the
+> collection is listed, not who may open it — a collection created that way
+> still comes back unreadable to others. `publish=True` is what grants it.
 
 > **The collection exists even when `failed` is non-empty.** Placing material is
 > one call per node and each can fail on its own. Aborting halfway would leave a

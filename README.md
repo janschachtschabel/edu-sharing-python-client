@@ -190,7 +190,8 @@ if created["unresolved"]:             # values that did NOT stick
     ...
 ```
 
-Eleven flows: `search`, `vocabulary`, `describe`, `relations`, `child_objects`,
+Thirteen flows: `search`, `search_all`, `vocabulary`, `describe`, `placement`,
+`relations`, `child_objects`,
 `find_collections`,
 `collection_contents`, `add_material`, `update_material`,
 `build_collection`, `delete`. Full input and output for each in
@@ -237,6 +238,50 @@ than documented:
   hash, which also tells a 0-byte file from *no* file.
 - **Keywords are a shared list.** `add_keywords` extends; setting
   `cclom:general_keyword` directly deletes other people's entries.
+- **Nothing an application creates is visible to anyone else.** Not after filing
+  it into a public collection, not with `scope="PUBLIC"` — see below.
+- **Setting one permission would delete the rest.** The repository's `POST`
+  replaces the whole local access list; `grant()` merges into it.
+
+### Publishing — the step edu-sharing does not take
+
+Material an application creates is readable by its creator and by **nobody
+else**. Filing it into a public collection does not change that, and neither
+does `scope="PUBLIC"` on the collection — both measured on 2026-08-28, both
+answering `200` along the way.
+
+```python
+node = repo.create_node(folder.id, name="material.txt", title="Photosynthese")
+node.is_public                       # False — free, the response carries it
+node.permissions.publish()           # True: published now
+node.permissions.publish()           # False: it already was
+```
+
+`publish()` merges. The repository's own `POST` **replaces** the whole local
+access list, so publishing without merging would quietly take away everyone
+else's permissions — with a `200` in front of it.
+
+```python
+node.permissions.grant("GROUP_teachers", "Coordinator")
+node.permissions.revoke("GROUP_teachers")
+rights = node.permissions.get()
+rights.is_public                     # inherited access counts too
+rights.allows("alice", "Consumer")
+```
+
+A node in a public folder is public without an entry of its own. `unpublish()`
+says so rather than reporting a privacy the node does not have:
+
+```python
+node.permissions.unpublish()         # ConflictError: public through its parent
+```
+
+The flows carry the same question. `public` is in every answer, and the switch
+is off by default because reading cannot be taken back:
+
+```python
+repo.flows.add_material("Photosynthese", publish=True)["public"]   # True
+```
 
 ### When a write half-succeeds
 
@@ -253,6 +298,40 @@ Three measured causes:
 | A rule of the node type | `cm:title` on a new `cm:folder` | set it afterwards with `update()` |
 
 `create(verify=False)` switches the check off for a field you know is derived.
+
+And three errors that arrive wearing the wrong status, so that `except
+NotFoundError` actually catches them — and so the transport does not retry
+three times what can never succeed:
+
+| Sent as | Really | Where |
+|---|---|---|
+| `500 Not allowed for guest user` | not signed in | any protected endpoint |
+| `500 UsageException: Node does not exist` | `404` | `/usage/v1/…/collections` |
+| `500 AccessDeniedException` | `403` | `…/parents` on foreign material |
+
+### Where a node sits — and who curated it
+
+Two questions that look alike and are not. A collection holds a *reference*: the
+node it points at has its own parent somewhere else entirely. A node in ten
+collections still has exactly one parent chain.
+
+```python
+node = repo.node("abc-123")
+[f.title for f in node.parents()]      # nearest first — where it lives
+[c.title for c in node.collections()]  # who curated it
+```
+
+Or both in one call, with the path turned around for printing:
+
+```python
+repo.flows.placement("abc-123")
+# {"title": "…", "path": [top, …, nearest], "collections": [...], "scope": "MY_FILES"}
+```
+
+`scope` says how far the path reaches. It stops at the boundary of what the
+account may read — asking for the complete path answers **403** for an ordinary
+account, measured — so a truncated path is reported as such instead of passing
+for a complete one.
 
 ### Child objects — documents that belong to one material
 
@@ -356,6 +435,7 @@ them:
 | [`02_search.py`](docs/examples/02_search.py) | search with filters and facets, resolve vocabulary |
 | [`03_write.py`](docs/examples/03_write.py) | create, change, verify — and what a silent drop looks like |
 | [`04_agent_blocks.py`](docs/examples/04_agent_blocks.py) | the building blocks for AI use: safety, sanitising, formatting |
+| [`11_publish.py`](docs/examples/11_publish.py) | make material visible to others — the step nothing does for you |
 
 **Working through flows** — a `dict` comes back, ready to hand on:
 
@@ -366,6 +446,7 @@ them:
 | [`07_flow_collection.py`](docs/examples/07_flow_collection.py) | build a collection, fill it, watch a partial success |
 | [`08_flow_rerank.py`](docs/examples/08_flow_rerank.py) | what a framing word costs, and what `rerank=True` recovers |
 | [`09_flow_browse.py`](docs/examples/09_flow_browse.py) | find collections, open one, change what is inside |
+| [`12_flow_place.py`](docs/examples/12_flow_place.py) | one query for material and collections, then where a hit sits |
 
 **Both levels side by side:**
 

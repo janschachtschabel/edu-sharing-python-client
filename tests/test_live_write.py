@@ -333,3 +333,155 @@ async def test_abgeleitetes_feld_wird_beim_anlegen_gemeldet(repo, ordner):
             ordner.id, name="abgeleitet.txt",
             properties={"ccm:oeh_lrt_aggregated": [aggregiert]})
     assert "ccm:oeh_lrt_aggregated" in fehler.value.dropped
+
+
+# --- Rechte und Veroeffentlichen ------------------------------------------
+#
+# Alles hier arbeitet ausschliesslich an selbst angelegten Knoten im eigenen
+# Wegwerf-Ordner. Kein Test fasst fremde Rechte an.
+
+async def test_frischer_knoten_ist_nicht_oeffentlich(knoten):
+    """Die Vorbedingung fuer alles Weitere -- und der Grund, warum es diesen
+    Teil gibt: was eine Anwendung anlegt, sieht zunaechst nur sie selbst."""
+    assert not (await knoten.permissions.get()).is_public
+
+
+async def test_veroeffentlichen_und_wieder_zuruecknehmen(knoten):
+    assert await knoten.permissions.publish() is True
+    assert (await knoten.permissions.get()).is_public
+
+    assert await knoten.permissions.unpublish() is True
+    assert not (await knoten.permissions.get()).is_public
+
+
+async def test_veroeffentlichen_ist_wiederholbar(knoten):
+    """Zweimal veroeffentlichen darf nicht zweimal schreiben -- ein zweiter
+    Aufruf soll ein wiederholter Lauf sein duerfen, kein Fehler."""
+    await knoten.permissions.publish()
+    assert await knoten.permissions.publish() is False
+
+
+async def test_zuruecknehmen_ist_wiederholbar(knoten):
+    assert await knoten.permissions.unpublish() is False
+
+
+async def test_veroeffentlichen_laesst_fremde_eintraege_stehen(repo, knoten):
+    """Der POST ersetzt die lokale ACL. Wer nicht zusammenfuehrt, entzieht beim
+    Veroeffentlichen anderen ihre Rechte -- unbemerkt, mit HTTP 200."""
+    wer = await repo.whoami()
+    await knoten.permissions.grant(wer.authority, "Coordinator")
+    await knoten.permissions.publish()
+
+    rechte = await knoten.permissions.get()
+    assert rechte.allows(wer.authority, "Coordinator"), "eigener Eintrag verloren"
+    assert rechte.is_public
+
+
+async def test_recht_entziehen_laesst_die_uebrigen_stehen(repo, knoten):
+    wer = await repo.whoami()
+    await knoten.permissions.grant(wer.authority, "Coordinator")
+    await knoten.permissions.publish()
+
+    await knoten.permissions.revoke(wer.authority, "Coordinator")
+    rechte = await knoten.permissions.get()
+    assert not rechte.allows(wer.authority, "Coordinator")
+    assert rechte.is_public, "das Veroeffentlichen ist mit weggeflogen"
+
+
+async def test_unbekannte_gruppe_wird_still_verworfen(knoten):
+    """Gemessen am 28.08.2026: HTTP 200, und danach steht nichts da. Dieselbe
+    Klasse von Verlust wie bei den Properties, an einer anderen Stelle."""
+    with pytest.raises(SilentDropError) as fehler:
+        await knoten.permissions.grant("GROUP_gibtesnicht_xyz_9f3a", "Consumer")
+    assert "GROUP_gibtesnicht_xyz_9f3a" in fehler.value.dropped
+
+
+async def test_unbekannter_benutzer_wird_dagegen_gespeichert(knoten):
+    """Die Kehrseite, und der Grund, warum der vorige Test eine Gruppe nimmt:
+    Benutzernamen prueft das Repositorium nicht. Der Eintrag wird abgelegt und
+    berechtigt niemanden -- die Rueckleseprobe kann einen Tippfehler im
+    Benutzernamen also nicht auffangen. Das gehoert gesagt, statt es fuer
+    abgedeckt zu halten."""
+    assert await knoten.permissions.grant("gibtesnicht-xyz-9f3a", "Consumer") is True
+    rechte = await knoten.permissions.get()
+    assert rechte.allows("gibtesnicht-xyz-9f3a", "Consumer")
+
+
+async def test_unbekanntes_recht_ist_dagegen_laut(repo, knoten):
+    """Der Gegenbeweis zum vorigen Test: nicht alles an diesem Endpunkt ist
+    still. Ein erfundener Rechtename kommt als 500 zurueck."""
+    from edusharing.errors import ServerError
+    wer = await repo.whoami()
+    with pytest.raises(ServerError):
+        await knoten.permissions.grant(wer.authority, "Quatschrecht")
+
+
+# --- Vererbung -------------------------------------------------------------
+
+async def test_kind_eines_oeffentlichen_ordners_ist_oeffentlich(repo, ordner):
+    """Ohne eigenen Eintrag. Wer nur die lokale ACL liest, haelt einen fuer
+    alle lesbaren Knoten fuer privat."""
+    kind = await repo.create_node(ordner.id, name="geerbt.txt", title="Geerbt")
+    await ordner.permissions.publish()
+
+    rechte = await kind.permissions.get()
+    assert rechte.own == (), "das Kind hat keinen eigenen Eintrag"
+    assert rechte.is_public
+
+
+async def test_zuruecknehmen_meldet_die_vererbung(repo, ordner):
+    """Lokal gibt es nichts zu entfernen, und der Knoten bleibt oeffentlich.
+    ``False`` zurueckzugeben hiesse behaupten, er sei jetzt privat."""
+    from edusharing.errors import ConflictError
+    kind = await repo.create_node(ordner.id, name="geerbt2.txt", title="Geerbt")
+    await ordner.permissions.publish()
+
+    with pytest.raises(ConflictError):
+        await kind.permissions.unpublish()
+
+
+# --- Wo ein Knoten liegt, und wer ihn kuratiert hat ------------------------
+
+async def test_der_weg_nach_oben(repo, ordner):
+    """Der Endpunkt liefert den Knoten selbst als ersten Eintrag -- gemessen.
+    Die Bibliothek zieht ihn ab, sonst waere er sein eigener Vorfahre."""
+    unter = await repo.create_node(ordner.id, name="unterordner", type="cm:folder")
+    knoten = await repo.create_node(unter.id, name="tief.txt", title="Tief")
+
+    eltern = await knoten.parents()
+    assert [n.id for n in eltern] == [unter.id, ordner.id], "naechster zuerst"
+    assert knoten.id not in [n.id for n in eltern]
+
+
+async def test_die_vorfahren_tragen_ihre_namen(repo, ordner):
+    """Ohne propertyFilter kommen sie mit leeren properties zurueck. Ein Pfad
+    ohne Beschriftung ist als Brotkrume wertlos."""
+    knoten = await repo.create_node(ordner.id, name="k.txt", title="K")
+    eltern = await knoten.parents()
+    assert eltern and eltern[0].name == ordner.name
+
+
+async def test_sammlungen_eines_knotens(repo, ordner, sammlung):
+    """Die andere Frage: nicht wo der Knoten liegt, sondern wer ihn eingelegt
+    hat. Eine Sammlung haelt eine Referenz -- das Original bleibt, wo es ist."""
+    knoten = await repo.create_node(ordner.id, name="kuratiert.txt", title="K")
+    assert await knoten.collections() == []
+
+    await repo.add_to_collection(sammlung.id, knoten.id)
+    drin = await knoten.collections()
+    assert [s.id for s in drin] == [sammlung.id]
+    assert drin[0].title == sammlung.title, "der Eintrag traegt den ganzen Knoten"
+
+    # Und das Elternteil ist davon unberuehrt.
+    assert [n.id for n in await knoten.parents()] == [ordner.id]
+
+
+async def test_placement_beantwortet_beides(repo, ordner, sammlung):
+    knoten = await repo.create_node(ordner.id, name="verortet.txt", title="Verortet")
+    await repo.add_to_collection(sammlung.id, knoten.id)
+
+    ergebnis = await repo.flows.placement(knoten.id)
+    assert ergebnis["title"] == "Verortet"
+    assert [s["id"] for s in ergebnis["collections"]] == [sammlung.id]
+    assert ergebnis["path"][-1]["id"] == ordner.id, "von oben nach unten"
+    assert ergebnis["scope"], "der Endpunkt nennt, wie weit er reicht"

@@ -245,6 +245,62 @@ on its own -- every throwaway folder in this repository's tests had been passing
 a title that never arrived.
 
 
+**A node an application creates is visible to its creator and nobody else** --
+and neither of the two things that look like they would change that does.
+Measured on 2026-08-28 in a throwaway folder:
+
+* Referencing the node into a collection does not publish the original. The
+  Ideendatenbank found this in production; it reproduces here.
+* ``scope="PUBLIC"`` on the collection does not either -- the collection comes
+  back with ``isPublic=False`` and no entry for everyone. The scope decides
+  where a collection is listed, not who may open it.
+
+Publishing means one entry in the access control list: ``GROUP_EVERYONE`` with
+``Consumer``. Four things about that endpoint shape ``permissions.py``:
+
+* ``POST`` **replaces** the local list rather than merging into it. Publishing
+  without merging would silently take away everyone else's permissions.
+* A ``GROUP_`` name with no group behind it is dropped with a ``200`` -- the
+  same silent loss as with properties, which is why this write reads back too.
+  A **user** name is not checked at all and is stored either way, so the check
+  cannot catch a mistyped one. That limit is stated rather than papered over.
+* A node inherits its parent's public access without an entry of its own.
+  Anything reading only the local list calls a world-readable node private.
+* The response body is empty, so the read-back is the only evidence there is.
+
+The one piece of good news is free: every node response carries ``isPublic``,
+and measured it agrees with the access control list in both directions,
+inheritance included. ``Node.is_public`` and the ``public`` field in the flows
+therefore cost no request.
+
+**A path upwards stops where the account's rights do, and says so.**
+``GET .../parents`` with ``fullPath=true`` answers **403** for an ordinary
+account -- the complete path runs through areas it may not read. Without the
+parameter the answer reaches as far as it is allowed and names that boundary in
+``scope``. ``placement`` passes the boundary on rather than letting a truncated
+path pass for a complete one.
+
+Two more measurements shape that module. Without ``propertyFilter=-all-`` the
+ancestors arrive with empty properties -- names but no titles, which makes a
+breadcrumb useless. And the answer's first entry is the node **itself**, so
+anything that does not drop it lists a node as its own ancestor.
+
+**Two more errors arrive in disguise**, both measured on 2026-08-28 while
+walking the way up from ordinary search hits:
+
+* ``/usage/v1/usages/node/{id}/collections`` answers **500** for an id the node
+  endpoint answers 404 for.
+* ``/node/v1/nodes/.../parents`` answers **500 AccessDeniedException** for
+  foreign material, while the very same endpoint says a proper 403 for a node of
+  one's own.
+
+Both join the guest-user case in ``error_from_response``, and for the same
+reason: as a ``ServerError`` the transport retries three times a request that
+can never succeed, and the caller who catches ``NotFoundError`` or
+``PermissionDeniedError`` never sees it. That the search index holds nodes the
+repository no longer has -- 4 of 25 hits, measured -- makes the first of these
+an everyday case rather than a curiosity.
+
 ## 8. Stages
 
 | # | Content | Done when |

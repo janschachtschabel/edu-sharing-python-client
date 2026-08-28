@@ -110,6 +110,11 @@ class SyncNode:
         """The binary content, blocking."""
         return SyncNodeContent(self._node.content, self._loop)
 
+    @property
+    def permissions(self) -> SyncNodePermissions:
+        """Who may do what with this node, blocking."""
+        return SyncNodePermissions(self._node.permissions, self._loop)
+
     def update(self, **kwargs: Any) -> SyncNode:
         """Like ``Node.update``, blocking."""
         return SyncNode(self._loop.run(self._node.update(**kwargs)), self._loop)
@@ -128,12 +133,59 @@ class SyncNode:
         """Like ``Node.remove_keywords``, blocking."""
         return SyncNode(self._loop.run(self._node.remove_keywords(*keywords)), self._loop)
 
+    def parents(self) -> list[SyncNode]:
+        """Like ``Node.parents``, blocking."""
+        return [SyncNode(n, self._loop) for n in self._loop.run(self._node.parents())]
+
+    def collections(self) -> list[SyncNode]:
+        """Like ``Node.collections``, blocking."""
+        return [SyncNode(n, self._loop)
+                for n in self._loop.run(self._node.collections())]
+
     def delete(self, **kwargs: Any) -> None:
         """Like ``Node.delete``, blocking."""
         self._loop.run(self._node.delete(**kwargs))
 
     def __repr__(self) -> str:
         return f"SyncNode(id={self._node.id!r}, title={self._node.title!r})"
+
+
+class SyncNodePermissions:
+    """A node's permissions for the synchronous surface.
+
+    Here for the same reason as ``SyncNodeContent``: without it
+    ``SyncNode.permissions`` would hand back an object whose methods return
+    coroutines. A forgotten ``await`` on ``publish()`` does nothing, reports
+    nothing, and leaves material every caller believes to be public.
+    """
+
+    def __init__(self, permissions: Any, loop: LoopThread) -> None:
+        self._permissions = permissions
+        self._loop = loop
+
+    def get(self) -> Any:
+        """Like ``NodePermissions.get``, blocking."""
+        return self._loop.run(self._permissions.get())
+
+    def grant(self, authority: str, *permissions: str, **kwargs: Any) -> bool:
+        """Like ``NodePermissions.grant``, blocking."""
+        return self._loop.run(
+            self._permissions.grant(authority, *permissions, **kwargs))
+
+    def revoke(self, authority: str, *permissions: str) -> bool:
+        """Like ``NodePermissions.revoke``, blocking."""
+        return self._loop.run(self._permissions.revoke(authority, *permissions))
+
+    def publish(self) -> bool:
+        """Like ``NodePermissions.publish``, blocking."""
+        return self._loop.run(self._permissions.publish())
+
+    def unpublish(self) -> bool:
+        """Like ``NodePermissions.unpublish``, blocking."""
+        return self._loop.run(self._permissions.unpublish())
+
+    def __repr__(self) -> str:
+        return f"Sync{self._permissions!r}"
 
 
 class SyncNodeContent:
@@ -183,6 +235,10 @@ class SyncFlows:
         """Like ``Flows.search``, blocking."""
         return self._loop.run(self._flows.search(text, **kwargs))
 
+    def search_all(self, text: str, **kwargs: Any) -> dict[str, Any]:
+        """Like ``Flows.search_all``, blocking."""
+        return self._loop.run(self._flows.search_all(text, **kwargs))
+
     def vocabulary(self, field: str, **kwargs: Any) -> dict[str, Any]:
         """Like ``Flows.vocabulary``, blocking."""
         return self._loop.run(self._flows.vocabulary(field, **kwargs))
@@ -206,6 +262,10 @@ class SyncFlows:
     def collection_contents(self, collection_id: str, **kwargs: Any) -> dict[str, Any]:
         """Like ``Flows.collection_contents``, blocking."""
         return self._loop.run(self._flows.collection_contents(collection_id, **kwargs))
+
+    def placement(self, node_id: str) -> dict[str, Any]:
+        """Like ``Flows.placement``, blocking."""
+        return self._loop.run(self._flows.placement(node_id))
 
     def update_material(self, node_id: str, **kwargs: Any) -> dict[str, Any]:
         """Like ``Flows.update_material``, blocking."""

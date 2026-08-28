@@ -189,8 +189,14 @@ class Collections:
         Args:
             title: the collection's title.
             parent: parent collection. Defaults to the account's collection root.
-            scope: ``MY`` (private, default), ``ORGANIZATION`` or ``PUBLIC``.
-                The default is deliberately the narrowest.
+            scope: ``MY`` (default), ``ORGANIZATION`` or ``PUBLIC``. The
+                default is deliberately the narrowest.
+
+                **This is not read access.** Measured on 2026-08-28, a
+                collection created with ``PUBLIC`` comes back with
+                ``isPublic=False`` and no entry for everyone -- the scope says
+                where the collection is listed, not who may open it. Use
+                ``node.permissions.publish()`` for that.
             description: the collection's description.
 
         The description belongs **inside** the ``collection`` object. Measured

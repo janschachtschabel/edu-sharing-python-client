@@ -499,3 +499,35 @@ async def test_ohne_zusammenfassen_bleiben_alle_treffer(repo):
     assert mit_doppelten, "entfernt, aber nirgends genannt -- das waere ein stiller Verlust"
     assert sum(len(h["duplicate_ids"]) for h in mit_doppelten) == \
         zusammengefasst["duplicates_removed"]
+
+
+@pytest.mark.live
+async def test_search_all_liefert_beide_koerbe(repo):
+    """Der Standardeinstieg: Material und Sammlungen zu einem Thema, ein
+    Aufruf. Getrennt gehalten, weil ihre Zaehlungen nicht dasselbe bedeuten."""
+    ergebnis = await repo.flows.search_all("Biologie", limit=5)
+    json.dumps(ergebnis)
+
+    assert ergebnis["materials"]["hits"], "kein Material zu einem breiten Thema"
+    assert ergebnis["collections"]["hits"], "keine Sammlung zu einem breiten Thema"
+    assert ergebnis["materials"]["total_is_lower_bound"] is False
+    assert ergebnis["collections"]["total_is_lower_bound"] is True
+
+
+@pytest.mark.live
+async def test_search_all_meldet_die_nicht_angewandten_filter(repo):
+    """Die Sammlungsabfrage nimmt nur ngsearchword. Der Filter wirkt also auf
+    das Material und nicht auf die Sammlungen -- und der Ablauf sagt es, statt
+    eine Einschraenkung zu behaupten, die es nicht gibt."""
+    ergebnis = await repo.flows.search_all("Zelle", subject="Biologie", limit=5)
+    assert ergebnis["collections"]["filters_ignored"] == ["subject"]
+    assert ergebnis["materials"]["unresolved"] == [], "der Filter griff beim Material"
+
+
+@pytest.mark.live
+async def test_search_all_kostet_nicht_mehr_als_die_einzelnen(repo):
+    """Drei Anfragen: eine fuer das Material, zwei fuer die Sammlungssuche mit
+    ihren beiden Wegen -- dasselbe, was zwei getrennte Aufrufe senden."""
+    ergebnis = await repo.flows.search_all("Photosynthese", limit=3)
+    assert len(ergebnis["materials"]["hits"]) <= 3
+    assert len(ergebnis["collections"]["hits"]) <= 3

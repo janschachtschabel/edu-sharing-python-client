@@ -15,6 +15,7 @@ import asyncio
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
+from .. import placement as placement_api
 from ..childobjects import ORDER_PROPERTY
 from ..errors import ValidationError
 from ..results import SearchHit
@@ -34,8 +35,10 @@ __all__ = [
     "describe",
     "field_property",
     "find_collections",
+    "placement",
     "relations",
     "search",
+    "search_all",
     "vocabulary",
 ]
 
@@ -202,7 +205,9 @@ async def describe(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
 
     Returns:
         ``{id, title, url, description, source_url, mimetype, mediatype, fields,
-        name, type, access, has_content, keywords, properties}``.
+        name, type, access, public, has_content, keywords, properties}``.
+        ``public`` says whether anyone may read the node -- inherited access
+        included, and free, because the node response carries it.
         ``properties`` holds the raw edu-sharing properties for anything the
         short names do not cover.
 
@@ -217,11 +222,57 @@ async def describe(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
         "name": node.name,
         "type": node.type,
         "access": list(node.access),
+        "public": node.is_public,
         "has_content": node.content.has_content,
         "keywords": list(node.keywords),
         "properties": node.properties,
     })
     return data
+
+
+async def placement(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
+    """Where a node sits and who has curated it, as JSON.
+
+    Two requests, sent together: the way up, and the collections holding a
+    reference. They answer different questions -- a node in ten collections
+    still has one parent chain -- and asking both is the usual way to explain
+    to a person, or to a model, what a hit actually is.
+
+    Args:
+        repo: the connection.
+        node_id: the node's id.
+
+    Returns:
+        ``{id, title, path, collections, scope}``.
+
+        ``path`` runs **top down**, ready to print as a breadcrumb -- unlike
+        ``node.parents()``, which mirrors the endpoint and gives the nearest
+        first. ``scope`` says how far the path reaches: it stops at the
+        boundary of what the account may read, and saying so keeps a truncated
+        path from passing as a complete one.
+
+    Raises:
+        NotFoundError: when no node carries this id.
+        PermissionDeniedError: when the way up is refused.
+    """
+    ancestry, collections = await asyncio.gather(
+        placement_api.ancestry_of(repo.nodes, node_id),
+        placement_api.collections_of(repo.nodes, node_id),
+    )
+    return {
+        "id": node_id,
+        # From the parents answer, where the node is the first entry -- so the
+        # title costs no request of its own.
+        "title": ancestry.node.title if ancestry.node else None,
+        "path": [_step(n) for n in reversed(ancestry.parents)],
+        "collections": [_step(n) for n in collections],
+        "scope": ancestry.scope,
+    }
+
+
+def _step(node: Node) -> dict[str, Any]:
+    """One station of a path or one collection -- what a breadcrumb needs."""
+    return {"id": node.id, "title": node.title or node.name, "type": node.type}
 
 
 async def find_collections(
@@ -254,6 +305,72 @@ async def find_collections(
         "kind": "collections",
     }
     return result_as_dict(result, query=query, aliases=repo.searcher.field_aliases)
+
+
+async def search_all(
+    repo: AsyncRepository,
+    text: str,
+    *,
+    filters: dict[str, str | list[str]] | None = None,
+    facets: list[str] | None = None,
+    limit: int = 10,
+    rerank: bool = False,
+    pool: int = DEFAULT_POOL,
+    language: LanguageProfile = GERMAN,
+    deduplicate: bool = True,
+    **aliases: str | list[str],
+) -> dict[str, Any]:
+    """Material **and** collections for one query, in a single call.
+
+    Asking a repository about a topic usually means both questions at once: the
+    individual resources, and the collections in which somebody has already put
+    together what belongs to it. They are different endpoints with different
+    answer shapes, so the two stay in separate buckets rather than being merged
+    into one ranking that would compare things that do not compare.
+
+    Args:
+        repo: the connection.
+        text: what to search for. Required here -- a filter-only search has no
+            counterpart on the collection side.
+        filters, facets, limit, rerank, pool, language, deduplicate, aliases:
+            as in ``search``. ``limit`` applies **per bucket**, so neither
+            crowds out the other.
+
+    Returns:
+        ``{query, materials, collections}``. Each bucket is exactly what
+        ``search`` and ``find_collections`` return on their own, including
+        their own ``total`` -- the collection figure is a lower bound, the
+        material one is not, and a joint sum would blur that.
+
+        ``collections.filters_ignored`` names the filters that could **not** be
+        applied to the collections. Measured: that query accepts
+        ``ngsearchword`` and nothing else; any further criterion ends in
+        ``400 DAOValidationException``. Applying a filter to one bucket and
+        silently not to the other would claim a narrowing that did not happen.
+
+    Raises:
+        ValidationError: on an empty query, or an unknown short name.
+        EduSharingError: for anything the repository refuses.
+    """
+    if not text or not text.strip():
+        raise ValidationError(
+            "search_all needs a query -- the collection search takes a search "
+            "word and nothing else, so there is no filter-only variant here. "
+            "Use search() for that."
+        )
+
+    materials, collections = await asyncio.gather(
+        search(repo, text, filters=filters, facets=facets, limit=limit,
+               rerank=rerank, pool=pool, language=language,
+               deduplicate=deduplicate, **aliases),
+        find_collections(repo, text, limit=limit),
+    )
+    collections["filters_ignored"] = [*(filters or {}), *aliases]
+    return {
+        "query": {"text": text, "metadataset": repo.metadataset, "limit": limit},
+        "materials": materials,
+        "collections": collections,
+    }
 
 
 async def collection_contents(

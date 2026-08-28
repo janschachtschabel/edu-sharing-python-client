@@ -194,7 +194,8 @@ if angelegt["unresolved"]:            # Werte, die NICHT ankamen
     ...
 ```
 
-Elf Abläufe: `search`, `vocabulary`, `describe`, `relations`, `child_objects`,
+Dreizehn Abläufe: `search`, `search_all`, `vocabulary`, `describe`, `placement`,
+`relations`, `child_objects`,
 `find_collections`,
 `collection_contents`, `add_material`, `update_material`,
 `build_collection`, `delete`. Ein- und Ausgabe im Einzelnen in
@@ -242,6 +243,11 @@ eincodiert statt dokumentiert:
   prüft den Hash, der auch eine 0-Byte-Datei von *gar keiner* Datei unterscheidet.
 - **Schlagworte sind eine geteilte Liste.** `add_keywords` ergänzt; wer
   `cclom:general_keyword` direkt setzt, löscht fremde Einträge.
+- **Was eine Anwendung anlegt, sieht sonst niemand.** Auch nicht nach dem
+  Einhängen in eine öffentliche Sammlung, auch nicht mit `scope="PUBLIC"` —
+  siehe unten.
+- **Ein Recht zu setzen würde die übrigen löschen.** Der `POST` des
+  Repositoriums ersetzt die ganze lokale Rechteliste; `grant()` führt zusammen.
 
 ## Protokoll
 
@@ -274,6 +280,46 @@ Läuft offline und deterministisch. Tests gegen eine echte Instanz sind separat:
 EDU_SHARING_URL=https://repository.staging.openeduhub.net uv run pytest -m live
 ```
 
+### Veröffentlichen — der Schritt, den edu-sharing nicht tut
+
+Material, das eine Anwendung anlegt, kann ihr Urheber lesen und **sonst
+niemand**. Es in eine öffentliche Sammlung zu hängen ändert daran nichts, und
+`scope="PUBLIC"` an der Sammlung auch nicht — beides am 28.08.2026 gemessen,
+beides mit `200` auf dem Weg.
+
+```python
+node = repo.create_node(ordner.id, name="material.txt", title="Photosynthese")
+node.is_public                       # False — kostenlos, die Antwort trägt es
+node.permissions.publish()           # True: jetzt veröffentlicht
+node.permissions.publish()           # False: war es schon
+```
+
+`publish()` führt zusammen. Der `POST` des Repositoriums **ersetzt** die ganze
+lokale Rechteliste — wer ohne Zusammenführen veröffentlicht, nimmt allen
+anderen unbemerkt ihre Rechte, mit einem `200` davor.
+
+```python
+node.permissions.grant("GROUP_lehrer", "Coordinator")
+node.permissions.revoke("GROUP_lehrer")
+rechte = node.permissions.get()
+rechte.is_public                     # geerbter Zugriff zählt mit
+rechte.allows("alice", "Consumer")
+```
+
+Ein Knoten in einem öffentlichen Ordner ist ohne eigenen Eintrag öffentlich.
+`unpublish()` sagt das, statt eine Vertraulichkeit zu melden, die es nicht gibt:
+
+```python
+node.permissions.unpublish()         # ConflictError: über das Elternteil öffentlich
+```
+
+In den Abläufen steht dieselbe Frage. `public` steht in jeder Antwort, und der
+Schalter ist aus, weil Gelesenes sich nicht zurücknehmen lässt:
+
+```python
+repo.flows.add_material("Photosynthese", publish=True)["public"]   # True
+```
+
 ### Wenn ein Schreibvorgang halb glückt
 
 edu-sharing antwortet mit HTTP 200 auch auf Schreibvorgänge, die es nicht
@@ -291,6 +337,40 @@ Drei gemessene Ursachen:
 
 `create(verify=False)` schaltet die Prüfung ab, wenn ein abgeleitetes Feld
 bewusst mitgeschickt wird.
+
+Dazu drei Fehler, die mit dem falschen Status ankommen — damit `except
+NotFoundError` sie wirklich fängt, und damit der Transport nicht dreimal
+wiederholt, was nie gelingen kann:
+
+| Kommt als | Ist wirklich | Wo |
+|---|---|---|
+| `500 Not allowed for guest user` | nicht angemeldet | jeder geschützte Endpunkt |
+| `500 UsageException: Node does not exist` | `404` | `/usage/v1/…/collections` |
+| `500 AccessDeniedException` | `403` | `…/parents` an fremdem Material |
+
+### Wo ein Knoten liegt — und wer ihn kuratiert hat
+
+Zwei Fragen, die sich ähneln und es nicht sind. Eine Sammlung hält eine
+*Referenz*: der Knoten, auf den sie zeigt, hat sein Elternteil ganz woanders.
+Ein Knoten in zehn Sammlungen hat trotzdem genau eine Elternkette.
+
+```python
+node = repo.node("abc-123")
+[o.title for o in node.parents()]      # der nächste zuerst — wo er liegt
+[s.title for s in node.collections()]  # wer ihn kuratiert hat
+```
+
+Oder beides in einem Aufruf, mit dem Pfad zum Anzeigen umgedreht:
+
+```python
+repo.flows.placement("abc-123")
+# {"title": "…", "path": [oben, …, nächster], "collections": [...], "scope": "MY_FILES"}
+```
+
+`scope` sagt, wie weit der Pfad reicht. Er endet an der Grenze dessen, was das
+Konto lesen darf — den vollständigen Pfad zu verlangen endet für ein
+gewöhnliches Konto mit **403**, gemessen. Ein abgeschnittener Pfad wird also als
+solcher gemeldet, statt als vollständiger durchzugehen.
 
 ### Serienobjekte — Dokumente, die zu einem Material gehören
 
@@ -394,6 +474,7 @@ wird:
 | [`02_search.py`](docs/examples/02_search.py) | suchen mit Filtern und Facetten, Vokabular auflösen |
 | [`03_write.py`](docs/examples/03_write.py) | anlegen, ändern, prüfen — und wie ein stiller Verlust aussieht |
 | [`04_agent_blocks.py`](docs/examples/04_agent_blocks.py) | die Bausteine für KI-Nutzung: Sicherheit, Bereinigung, Formatierung |
+| [`11_publish.py`](docs/examples/11_publish.py) | Material für andere sichtbar machen — der Schritt, den nichts von allein tut |
 
 **Über Abläufe** — es kommt ein `dict` zurück, fertig zum Weiterreichen:
 
@@ -404,6 +485,7 @@ wird:
 | [`07_flow_collection.py`](docs/examples/07_flow_collection.py) | Sammlung anlegen, füllen, Teilerfolg beobachten |
 | [`08_flow_rerank.py`](docs/examples/08_flow_rerank.py) | was ein Rahmenwort kostet und was `rerank=True` zurückholt |
 | [`09_flow_browse.py`](docs/examples/09_flow_browse.py) | Sammlungen finden, öffnen, Inhalt ändern |
+| [`12_flow_place.py`](docs/examples/12_flow_place.py) | eine Anfrage für Material und Sammlungen, dann wo ein Treffer liegt |
 
 **Beide Ebenen nebeneinander:**
 

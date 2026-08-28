@@ -146,9 +146,18 @@ class ServerError(EduSharingError):
 # succeed, because only the sign-in is missing.
 _GUEST_HINT = "not allowed for guest"
 
-# The same disguise for permissions: /rating/v1/ratings/.../history answers with
-# 500 NotAnAdminException.
-_ADMIN_HINT = "notanadmin"
+# The same disguise for permissions, twice over: /rating/v1/ratings/.../history
+# answers 500 NotAnAdminException, and /node/v1/nodes/.../parents answers 500
+# AccessDeniedException for foreign material -- while the very same endpoint
+# says a proper 403 for a node of one's own. Measured 2026-08-28.
+_PERMISSION_HINTS = ("notanadmin", "accessdenied")
+
+# And a missing node: /usage/v1/usages/node/{id}/collections answers 500 for an
+# id the node endpoint answers 404 for. Measured 2026-08-28. It matters because
+# the search index holds nodes that no longer exist -- 4 of 25 hits, measured on
+# staging -- so anything chaining search to a usage lookup meets this, gets it
+# retried three times, and never sees the NotFoundError it catches for.
+_MISSING_HINT = "node does not exist"
 
 
 def _parse_body(body: str) -> tuple[str | None, str, str | None]:
@@ -190,7 +199,9 @@ def error_from_response(status: int, url: str, body: str) -> EduSharingError:
         lowered = message.lower()
         if _GUEST_HINT in lowered:
             cls: type[EduSharingError] = AuthenticationError
-        elif _ADMIN_HINT in (error_class or "").lower():
+        elif _MISSING_HINT in lowered:
+            cls = NotFoundError
+        elif any(h in (error_class or "").lower() for h in _PERMISSION_HINTS):
             cls = PermissionDeniedError
         else:
             cls = ServerError

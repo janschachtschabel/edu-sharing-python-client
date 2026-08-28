@@ -31,9 +31,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from . import placement
 from .childobjects import ChildObjects
 from .content import NodeContent
 from .errors import SilentDropError, ValidationError
+from .permissions import NodePermissions
 from .transport import Transport
 from .urls import path_segment
 
@@ -119,6 +121,21 @@ class Node:
         return "Write" in self.access
 
     @property
+    def is_public(self) -> bool:
+        """Whether anyone may read this node -- inherited access included.
+
+        Free: the repository puts ``isPublic`` into every node response, and
+        measured on 2026-08-28 it agrees with the access control list in both
+        directions, inheritance included.
+
+        edu-sharing does **not** set this when material is referenced into a
+        public collection. Something an application creates and files is
+        therefore readable by its creator alone until ``permissions.publish()``
+        says otherwise.
+        """
+        return bool(self.raw.get("isPublic"))
+
+    @property
     def properties(self) -> dict[str, Any]:
         return self._data.get("properties") or {}
 
@@ -149,6 +166,31 @@ class Node:
     def content(self) -> NodeContent:
         """The binary content: upload, download, full text."""
         return NodeContent(self)
+
+    async def parents(self) -> list[Node]:
+        """The folders this node sits in, nearest first.
+
+        See ``placement.parents_of``. Not the collections it was curated into
+        -- those are ``collections()``, and a node in ten collections still has
+        one parent chain.
+        """
+        ancestry = await placement.ancestry_of(self._nodes, self.id)
+        return list(ancestry.parents)
+
+    async def collections(self) -> list[Node]:
+        """The collections holding a reference to this node.
+
+        See ``placement.collections_of``.
+        """
+        return await placement.collections_of(self._nodes, self.id)
+
+    @property
+    def permissions(self) -> NodePermissions:
+        """Who may do what with this node -- and whether anyone may read it.
+
+        ``await node.permissions.publish()``
+        """
+        return NodePermissions(self)
 
     # --- Writing ----------------------------------------------------------
 

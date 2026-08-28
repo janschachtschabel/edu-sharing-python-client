@@ -266,3 +266,103 @@ async def test_sammlungsparameter_kommen_richtig_an():
     assert body["collection"]["scope"] == "PUBLIC"
     assert body["collection"]["description"] == "Text"
     assert post.url.path.endswith("/-home-/eltern-1/children")
+
+
+# --- Sichtbarkeit ---------------------------------------------------------
+#
+# Gemessen am 28.08.2026 gegen Staging: edu-sharing veroeffentlicht ein
+# Original NICHT, wenn es als Referenz in eine Sammlung gehaengt wird -- und
+# ``scope="PUBLIC"`` an der Sammlung tut es auch nicht (isPublic blieb False).
+# Was eine Anwendung anlegt, sieht also zunaechst nur sie selbst. Deshalb sagt
+# die Antwort es, und deshalb gibt es einen Schalter.
+
+class Sichtbar:
+    """Eine Instanz, die isPublic aus der geschriebenen ACL ableitet."""
+
+    def __init__(self) -> None:
+        self.acl: list[dict] = []
+        self.pfade: list[str] = []
+        self.eigenschaften: dict[str, list[str]] = {}
+
+    @property
+    def oeffentlich(self) -> bool:
+        return any((a.get("authority") or {}).get("authorityName") == "GROUP_EVERYONE"
+                   for a in self.acl)
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        pfad, methode = request.url.path, request.method
+        self.pfade.append(f"{methode} {pfad}")
+        if pfad.endswith("/permissions"):
+            if methode == "GET":
+                return httpx.Response(200, json={"permissions": {
+                    "localPermissions": {"inherited": True, "permissions": self.acl},
+                    "inheritedPermissions": []}})
+            self.acl = json.loads(request.content)["permissions"]
+            return httpx.Response(200, content=b"")
+        if "/values" in pfad:
+            return httpx.Response(200, json={"values": []})
+        if "/references/" in pfad:
+            return httpx.Response(200, content=b"")
+        # Wie die Instanz: die Antwort traegt zurueck, was geschickt wurde --
+        # eine feste Antwort wuerde die Rueckleseprobe zu Recht ausloesen.
+        if methode in ("POST", "PUT") and request.content:
+            self.eigenschaften.update(json.loads(request.content))
+        eigen = {"cclom:title": ["Titel"], "cm:title": ["Titel"],
+                 **self.eigenschaften}
+        knoten = {"ref": {"id": "neu-1"}, "type": "ccm:io",
+                  "name": (eigen.get("cm:name") or ["titel.txt"])[0],
+                  "isPublic": self.oeffentlich, "properties": eigen}
+        if "/collection" in pfad:
+            return httpx.Response(200, json={"collection": knoten})
+        return httpx.Response(200, json={"node": knoten})
+
+    def repo(self) -> AsyncRepository:
+        return AsyncRepository(
+            "https://repo.test/edu-sharing", metadataset="mds_oeh", backoff_base=0.0,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(self.handler)))
+
+
+async def test_angelegtes_material_meldet_seine_sichtbarkeit():
+    """Ohne diese Auskunft haelt der Aufrufer fuer veroeffentlicht, was nur er
+    selbst sieht. Sie kostet nichts: die Antwort des Anlegens traegt isPublic."""
+    instanz = Sichtbar()
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.add_material("Titel", parent_id="p1")
+    assert ergebnis["public"] is False
+
+
+async def test_material_laesst_sich_beim_anlegen_veroeffentlichen():
+    instanz = Sichtbar()
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.add_material(
+            "Titel", parent_id="p1", publish=True)
+    assert ergebnis["public"] is True
+    assert instanz.oeffentlich
+
+
+async def test_veroeffentlichen_ist_nicht_die_vorgabe():
+    """Etwas oeffentlich zu machen ist schwer rueckgaengig zu machen -- gelesen
+    ist gelesen. Das gehoert ausgesprochen, nicht angenommen."""
+    instanz = Sichtbar()
+    async with instanz.repo() as repo:
+        await repo.flows.add_material("Titel", parent_id="p1")
+    assert not any(p.startswith("POST") and p.endswith("/permissions")
+                   for p in instanz.pfade)
+
+
+async def test_sammlung_meldet_und_veroeffentlicht_ebenso():
+    """scope='PUBLIC' macht eine Sammlung nicht lesbar -- gemessen. Sie braucht
+    denselben Schritt wie das Material."""
+    instanz = Sichtbar()
+    async with instanz.repo() as repo:
+        ohne = await repo.flows.build_collection("Sammlung")
+        assert ohne["public"] is False
+        mit = await repo.flows.build_collection("Sammlung", publish=True)
+    assert mit["public"] is True
+
+
+async def test_describe_nennt_die_sichtbarkeit():
+    instanz = Sichtbar()
+    async with instanz.repo() as repo:
+        beschreibung = await repo.flows.describe("neu-1")
+    assert beschreibung["public"] is False
