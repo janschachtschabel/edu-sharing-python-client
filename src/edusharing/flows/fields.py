@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any
 
-from .discover import field_property
+from .find import field_property
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..repository import AsyncRepository

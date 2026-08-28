@@ -300,8 +300,8 @@ is not. `limit` applies per bucket, so neither crowds out the other.
 ```python
 # what repo.flows.search_all("Zellteilung") does
 materials, collections = await asyncio.gather(
-    discover.search(repo, "Zellteilung"),            # 1. ngsearch
-    discover.find_collections(repo, "Zellteilung"),  # 2.+3. its two routes
+    find.search(repo, "Zellteilung"),            # 1. ngsearch
+    find.find_collections(repo, "Zellteilung"),  # 2.+3. its two routes
 )
 ```
 
@@ -753,8 +753,8 @@ the instance's metadata set.
 
 ```python
 # what repo.flows.related("abc") does
-seed = await discover.describe(repo, "abc")           # 1. load it
-found = await discover.search(repo, None, **based_on) # 2. its fields as filters
+seed = await describe.describe(repo, "abc")           # 1. load it
+found = await find.search(repo, None, **based_on)     # 2. its fields as filters
 hits = [h for h in found["hits"] if h["id"] != "abc"] # drop the seed
 ```
 

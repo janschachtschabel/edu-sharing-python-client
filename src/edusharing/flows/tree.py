@@ -24,7 +24,7 @@ import asyncio
 from typing import TYPE_CHECKING, Any
 
 from ..urls import path_segment
-from .discover import collection_contents
+from .contents import collection_contents
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..repository import AsyncRepository

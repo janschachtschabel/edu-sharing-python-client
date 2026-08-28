@@ -17,17 +17,18 @@ at an object. Everything they do can be done at the API level -- with more code.
     hits = await repo.flows.search("Photosynthese", subject="Biologie")
     json.dumps(hits)   # works, that is the point
 
-The facade below repeats the signatures of the functions in ``discover`` and
-``curate`` rather than forwarding ``*args, **kwargs``. That is duplication, and
-it is deliberate: the signature is half the documentation, and ``repo.flows.``
-should complete properly in an editor.
+The facade below repeats the signatures of the functions in ``find``,
+``describe``, ``contents`` and ``curate`` rather than forwarding
+``*args, **kwargs``. That is duplication, and it is deliberate: the signature is
+half the documentation, and ``repo.flows.`` should complete properly in an
+editor.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from . import curate, discover, pages, tree
+from . import contents, curate, describe, find, pages, tree
 from .language import GERMAN, LanguageProfile
 from .rerank import DEFAULT_POOL
 
@@ -57,7 +58,7 @@ class Flows:
         deduplicate: bool = True,
         **aliases: str | list[str],
     ) -> dict[str, Any]:
-        """Search for material, return JSON. See ``discover.search``.
+        """Search for material, return JSON. See ``find.search``.
 
         **Check ``unresolved`` in the answer**: non-empty means a filter was
         dropped and the result is broader than requested.
@@ -67,68 +68,68 @@ class Flows:
         phrased query -- measured: "Ich suche ein Arbeitsblatt zur
         Bruchrechnung" finds 0 records, "Bruchrechnung" finds 1591.
         """
-        return await discover.search(
+        return await find.search(
             self._repo, text, filters=filters, facets=facets,
             limit=limit, offset=offset, rerank=rerank, pool=pool,
             language=language, deduplicate=deduplicate, **aliases,
         )
 
     async def search_all(self, text: str, **kwargs: Any) -> dict[str, Any]:
-        """Material **and** collections in one call. See ``discover.search_all``.
+        """Material **and** collections in one call. See ``find.search_all``.
 
         **Read ``collections.filters_ignored``**: the collection search takes a
         search word and nothing else, so a filter narrows the material bucket
         and not the other one.
         """
-        return await discover.search_all(self._repo, text, **kwargs)
+        return await find.search_all(self._repo, text, **kwargs)
 
     async def vocabulary(self, field: str, *, locale: str | None = None) -> dict[str, Any]:
-        """The values a field accepts. See ``discover.vocabulary``."""
-        return await discover.vocabulary(self._repo, field, locale=locale)
+        """The values a field accepts. See ``find.vocabulary``."""
+        return await find.vocabulary(self._repo, field, locale=locale)
 
     async def describe(self, node_id: str) -> dict[str, Any]:
-        """Everything about one node in a single call. See ``discover.describe``."""
-        return await discover.describe(self._repo, node_id)
+        """Everything about one node in a single call. See ``describe.describe``."""
+        return await describe.describe(self._repo, node_id)
 
     async def describe_many(self, node_ids: Any) -> dict[str, Any]:
-        """Describe several nodes at once. See ``discover.describe_many``.
+        """Describe several nodes at once. See ``describe.describe_many``.
 
         **Check ``failed``**: a node the search index still knows but the
         repository no longer has is reported there, not raised.
         """
-        return await discover.describe_many(self._repo, node_ids)
+        return await describe.describe_many(self._repo, node_ids)
 
     async def related(self, node_id: str, **kwargs: Any) -> dict[str, Any]:
-        """More material like this one. See ``discover.related``.
+        """More material like this one. See ``find.related``.
 
         **Not a relation** -- ``flows.relations`` gives the links somebody
         asserted; this gives a resemblance computed from the node's own fields.
         **Read ``based_on``** to judge it, and **``unresolved``** for the
         values that did not narrow the search after all.
         """
-        return await discover.related(self._repo, node_id, **kwargs)
+        return await find.related(self._repo, node_id, **kwargs)
 
     async def child_objects(self, node_id: str) -> dict[str, Any]:
-        """Further documents belonging to one node. See ``discover.child_objects``."""
-        return await discover.child_objects(self._repo, node_id)
+        """Further documents belonging to one node. See ``contents.child_objects``."""
+        return await contents.child_objects(self._repo, node_id)
 
     async def relations(self, node_id: str) -> dict[str, Any]:
-        """What this node is linked to. See ``discover.relations``.
+        """What this node is linked to. See ``contents.relations``.
 
         **Read ``ai_generated`` and ``approved``**: a machine-proposed link that
         nobody confirmed is a suggestion, not a fact.
         """
-        return await discover.relations(self._repo, node_id)
+        return await contents.relations(self._repo, node_id)
 
     async def placement(self, node_id: str) -> dict[str, Any]:
-        """Where a node sits and who has curated it. See ``discover.placement``.
+        """Where a node sits and who has curated it. See ``describe.placement``.
 
         **``path`` runs top down** here, ready to print -- ``node.parents()``
         mirrors the endpoint and gives the nearest first. And **read
         ``scope``**: the path stops at the boundary of what the account may
         read.
         """
-        return await discover.placement(self._repo, node_id)
+        return await describe.placement(self._repo, node_id)
 
     async def page(self, collection_id: str, **kwargs: Any) -> dict[str, Any]:
         """The curated page a collection renders. See ``flows.pages.page``."""
@@ -169,18 +170,18 @@ class Flows:
         return await tree.collection_stats(self._repo, collection_id, **kwargs)
 
     async def find_collections(self, text: str, *, limit: int = 10) -> dict[str, Any]:
-        """Search collections. See ``discover.find_collections``.
+        """Search collections. See ``find.find_collections``.
 
         ``total_is_lower_bound`` is always true here -- two routes are merged.
         """
-        return await discover.find_collections(self._repo, text, limit=limit)
+        return await find.find_collections(self._repo, text, limit=limit)
 
     async def collection_contents(
         self, collection_id: str, *, limit: int = 20, offset: int = 0
     ) -> dict[str, Any]:
         """Material and sub-collections of one collection.
-        See ``discover.collection_contents``."""
-        return await discover.collection_contents(
+        See ``contents.collection_contents``."""
+        return await contents.collection_contents(
             self._repo, collection_id, limit=limit, offset=offset)
 
     # --- writing ----------------------------------------------------------

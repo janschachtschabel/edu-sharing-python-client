@@ -311,8 +311,8 @@ aufgelöst werden muss):
 ```python
 # was repo.flows.search_all("Zellteilung") tut
 materials, collections = await asyncio.gather(
-    discover.search(repo, "Zellteilung"),            # 1. ngsearch
-    discover.find_collections(repo, "Zellteilung"),  # 2.+3. ihre beiden Wege
+    find.search(repo, "Zellteilung"),            # 1. ngsearch
+    find.find_collections(repo, "Zellteilung"),  # 2.+3. ihre beiden Wege
 )
 ```
 
@@ -773,8 +773,8 @@ entscheidet der Metadatensatz der Instanz.
 
 ```python
 # was repo.flows.related("abc") tut
-seed = await discover.describe(repo, "abc")           # 1. laden
-found = await discover.search(repo, None, **based_on) # 2. seine Felder als Filter
+seed = await describe.describe(repo, "abc")           # 1. laden
+found = await find.search(repo, None, **based_on)     # 2. seine Felder als Filter
 hits = [h for h in found["hits"] if h["id"] != "abc"] # den Ausgang herausnehmen
 ```
 
