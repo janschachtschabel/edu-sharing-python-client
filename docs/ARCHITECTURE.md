@@ -1,5 +1,7 @@
 # edu-sharing Python client — architecture & plan
 
+Deutsche Fassung: [`ARCHITECTURE.de.md`](ARCHITECTURE.de.md)
+
 Last updated: 2026-08-28 · Status: **eight stages complete** — 894 tests offline, 68 live reading, 68 live writing
 
 A Python library that makes the REST API of an edu-sharing repository and the
@@ -190,8 +192,11 @@ built are. Derived from `wlo-mcp-sc`:
 That is layer 3 (`edusharing.agent`). It is **framework-neutral** — no MCP, no
 LangChain import. The MCP server is then a thin adapter project.
 
-Deliberately **not** built: a reranker. Without a concrete use case it would be
-guesswork, and the two collection legs are already merged on the node id.
+Deliberately **not** built in stage 4: a reranker. Without a concrete use case
+it would have been guesswork, and the two collection legs are already merged on
+the node id. The use case did turn up — a naturally phrased question finds
+nothing, because edu-sharing ANDs every word. Stage 5 added it, opt-in and with
+its word lists as a parameter (E10).
 
 ## 7. Measured foundations the design rests on
 

@@ -8,7 +8,8 @@ Python client for [edu-sharing](https://edu-sharing.com) repositories and the
 
 > **Status: work in progress.** Reading, searching and writing are in place and
 > verified against edu-sharing 11.0 — including writes, against a live instance.
-> The roadmap is in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+> The roadmap is in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+> ([German](docs/ARCHITECTURE.de.md)).
 
 ## Why
 

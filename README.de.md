@@ -7,9 +7,9 @@ Python-Bibliothek für [edu-sharing](https://edu-sharing.com)-Repositorien und d
 
 > **Status: in Arbeit.** Lesen, Suchen und Schreiben stehen und sind gegen
 > edu-sharing 11.0 geprüft — auch schreibend, gegen eine echte Instanz. Der
-> Fahrplan steht in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — als
-> Entwurfsprotokoll nur auf Englisch. Was unten mit ⏳ markiert ist, beschreibt
-> das Ziel, nicht den Ist-Stand.
+> Fahrplan steht in [`docs/ARCHITECTURE.de.md`](docs/ARCHITECTURE.de.md)
+> ([englisch](docs/ARCHITECTURE.md)). Was unten mit ⏳ markiert ist,
+> beschreibt das Ziel, nicht den Ist-Stand.
 
 ## Warum
 
