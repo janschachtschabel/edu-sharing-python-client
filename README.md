@@ -171,6 +171,55 @@ for Qwen3 — but not for Mistral) live in `bapi.policy`.
 
 Try it: `python docs/examples/04_agent_blocks.py`
 
+### The extraction service — text the repository does not have
+
+A repository stores the full text of the files it hosts. For material that only
+*links* somewhere (`ccm:wwwurl`) it has nothing, because the page is not its
+file. An edu-sharing installation normally runs a second service for that.
+
+```python
+from edusharing.extraction import TextExtraction
+
+async with TextExtraction.from_env() as service:   # EDU_SHARING_TEXT_EXTRACTION_URL
+    result = await service.text_of("https://example.org/article")
+    print(result.lang, result.char_count, result.text[:200])
+```
+
+Full text of a node, from wherever it is available:
+
+```python
+node = await repo.node(node_id)
+text = await node.content.text()                  # what the repository stored
+if not text and node.get("ccm:wwwurl"):
+    got = await service.text_of(node.get("ccm:wwwurl"), max_chars=20_000)
+    text = got.text                                # got.reason says why, if empty
+```
+
+**No text is a normal outcome, not an error.** `reason` names the cause:
+`not_http`, `private_host`, `dns_failed` or `no_text` — kept apart so "we would
+not fetch that" never reads as "the page had no text".
+
+Measured 2026-08-28 against the openeduhub service (FastAPI, `c766f2e5`):
+
+* **An edu-sharing download URL gives 424.** The service cannot read what the
+  repository itself hosts — `node.content.text()` stays responsible for that.
+  Without knowing this you look for the fault in your own code.
+* **`status` is the target page's**, not the service's: a 200 from the service
+  can carry a 404 from the page.
+* **`method="browser"` is not simply better.** On one page `simple` returned the
+  article and `browser` returned the cookie banner. They are two attempts, not a
+  ranking; if one yields nothing, try the other.
+
+**There is no default address**, and that is deliberate: each installation runs
+its own service, and a default pointing at a staging one used to send production
+material URLs into a foreign environment. Unset means no client.
+
+**The URL is yours, the fetching is someone else's.** Every check runs *before*
+anything is sent: scheme, then the host as a literal address, then what it
+resolves to — private, loopback and link-local ranges are refused, the cloud
+metadata endpoint among them. One gap stays open and is named in the module: a
+redirect happens inside the service's process, where this library cannot see it.
+
 ### Flows — a use case in one call
 
 Everything above is close to edu-sharing and returns objects. That is right for
@@ -546,10 +595,11 @@ Details in [docs/FLOWS.md](docs/FLOWS.md#page--the-curated-page-a-collection-ren
 
 ### What this library does not do
 
-* **Fetch arbitrary URLs, or summarise Wikipedia.** Neither is edu-sharing. An
-  edu-sharing client that fetches any URL you hand it is an SSRF surface in a
-  package where nobody goes looking for one. `httpx` is already a dependency
-  here — use it directly and own that decision.
+* **Summarise Wikipedia.** Not edu-sharing. Its full article text is reachable
+  through the extraction service like any other page; a Wikipedia-shaped API
+  client is somebody else's package.
+* **Fetch a URL itself.** The extraction service does the fetching, in its own
+  process. This library sends it an address and checks that address first.
 * **Parse repository-specific document conventions.** Finding a document is
   generic and is shown under *Fields and files* below; what its Markdown means
   is the convention of the people who wrote it.

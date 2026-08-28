@@ -175,6 +175,59 @@ in `bapi.policy`.
 
 Zum Ausprobieren: `python docs/examples/04_agent_blocks.py`
 
+### Der Extraktionsdienst — Text, den das Repositorium nicht hat
+
+Ein Repositorium speichert den Volltext der Dateien, die es hält. Für Material,
+das nur irgendwohin *verlinkt* (`ccm:wwwurl`), hat es nichts — die Seite ist
+nicht seine Datei. Dafür betreibt eine edu-sharing-Installation üblicherweise
+einen zweiten Dienst.
+
+```python
+from edusharing.extraction import TextExtraction
+
+async with TextExtraction.from_env() as dienst:   # EDU_SHARING_TEXT_EXTRACTION_URL
+    ergebnis = await dienst.text_of("https://example.org/artikel")
+    print(ergebnis.lang, ergebnis.char_count, ergebnis.text[:200])
+```
+
+Der Volltext eines Knotens, aus welcher Quelle auch immer:
+
+```python
+knoten = await repo.node(node_id)
+text = await knoten.content.text()                # was das Repositorium hat
+if not text and knoten.get("ccm:wwwurl"):
+    geholt = await dienst.text_of(knoten.get("ccm:wwwurl"), max_chars=20_000)
+    text = geholt.text                            # geholt.reason sagt warum, falls leer
+```
+
+**Kein Text ist ein normales Ergebnis, kein Fehler.** `reason` nennt die
+Ursache: `not_http`, `private_host`, `dns_failed` oder `no_text` —
+auseinandergehalten, damit „das würden wir nicht abrufen“ nie wie „die Seite
+hatte keinen Text“ aussieht.
+
+Am 28.08.2026 gegen den openeduhub-Dienst gemessen (FastAPI, `c766f2e5`):
+
+* **Eine edu-sharing-Download-URL ergibt 424.** Der Dienst kann nicht lesen, was
+  das Repositorium selbst hostet — dafür bleibt `node.content.text()`
+  zuständig. Wer das nicht weiß, sucht den Fehler bei sich.
+* **`status` ist der der Zielseite**, nicht der des Dienstes: eine 200 vom
+  Dienst kann eine 404 der Seite tragen.
+* **`method="browser"` ist nicht einfach besser.** Auf einer Seite lieferte
+  `simple` den Artikel und `browser` den Cookie-Banner. Zwei Versuche, keine
+  Rangfolge; liefert der eine nichts, ist der andere dran.
+
+**Es gibt keine Vorgabe-Adresse**, und das mit Absicht: jede Installation
+betreibt ihren eigenen Dienst, und eine Vorgabe auf einen Staging-Dienst hat
+schon Produktions-Material-URLs in eine fremde Umgebung geschickt. Nicht gesetzt
+heißt: kein Client.
+
+**Die Adresse wählst du, abgerufen wird sie von einem anderen.** Jede Prüfung
+läuft, *bevor* etwas gesendet wird: Schema, dann der Host als
+IP-Literal-Adresse, dann das, worauf er auflöst — private, Loopback- und
+Link-Local-Bereiche werden verweigert, der Wolken-Metadatenendpunkt darunter.
+Eine Lücke bleibt und steht im Modul: eine Umleitung passiert im Prozess des
+Dienstes, wo diese Bibliothek nicht hinsieht.
+
 ### Abläufe — ein Anwendungsfall, ein Aufruf
 
 Alles bisher Gezeigte ist nah an edu-sharing und liefert Objekte. Das ist
@@ -592,11 +645,12 @@ Im Einzelnen in
 
 ### Was diese Bibliothek nicht tut
 
-* **Beliebige URLs abrufen oder Wikipedia zusammenfassen.** Beides ist kein
-  edu-sharing. Ein edu-sharing-Client, der jede übergebene URL abruft, ist eine
-  SSRF-Oberfläche in einem Paket, in dem niemand danach sucht. `httpx` ist hier
-  ohnehin schon Abhängigkeit — nimm es direkt und triff die Entscheidung
-  selbst.
+* **Wikipedia zusammenfassen.** Kein edu-sharing. Der volle Artikeltext ist
+  über den Extraktionsdienst erreichbar wie jede andere Seite; ein Client für
+  die Wikipedia-API ist das Paket von jemand anderem.
+* **Eine URL selbst abrufen.** Das Abrufen macht der Extraktionsdienst, in
+  seinem eigenen Prozess. Diese Bibliothek schickt ihm eine Adresse — und
+  prüft sie vorher.
 * **Dokumentkonventionen einzelner Repositorien parsen.** Ein Dokument zu
   finden ist generisch und steht unten unter *Felder und Dateien*; was sein
   Markdown bedeutet, ist die Konvention derer, die es geschrieben haben.

@@ -399,8 +399,9 @@ does not go into the README.
 | `transport.py` | httpx, timeout, retry, concurrency, credential boundary |
 | `_sync.py` | Event loop in a background thread for the synchronous surface |
 | `repository.py` | `AsyncRepository` / `Repository`, `about()`, `whoami()`, `raw` |
+| `extraction.py` | The text-extraction service beside the repository, and the guards before it |
 
-Three decisions made while building, each justified in the code:
+Four decisions made while building, each justified in the code:
 
 1. **Retries follow the error *type*, not the status code.** Otherwise a "Not
    allowed for guest user" would be retried three times — the same request that
@@ -408,7 +409,17 @@ Three decisions made while building, each justified in the code:
 2. **The synchronous surface runs its own loop in its own thread** rather than
    `asyncio.run()`. Otherwise it fails inside Jupyter — precisely the audience
    it exists for.
-3. **Credentials go only to the configured repository URL**, checked with prefix
+3. **A second service is built on its own, not attached to the repository.**
+   The b-api and the text-extraction service both live beside edu-sharing, not
+   inside it, and a connection to a repository says nothing about whether
+   either exists. So neither hangs off `Repository`: they have their own
+   address, their own environment variable and their own client. They differ in
+   one point, deliberately: the b-api carries a default address, the extraction
+   service carries none. The b-api is one gateway many installations share; an
+   extraction service belongs to one repository, and the MCP measured what a
+   default costs there — pointing at staging, it sent production material URLs
+   into another environment.
+4. **Credentials go only to the configured repository URL**, checked with prefix
    *and* boundary. A plain `startswith` would let
    `https://repo.example.test.attacker.test` through.
 
