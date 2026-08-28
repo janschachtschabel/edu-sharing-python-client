@@ -711,7 +711,10 @@ them.
 ## Examples
 
 Every one of them runs against a real instance; the writing ones create a
-throwaway folder of their own and remove it afterwards.
+throwaway folder of their own and remove it afterwards. Each is also a test
+case — `pytest -m live` runs the reading ones, `pytest -m write` the rest — so
+a change that breaks an example is caught by the suite rather than by the next
+person to try one.
 
 **Working directly against the API** — objects come back, you keep working with
 them:

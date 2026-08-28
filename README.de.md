@@ -734,7 +734,10 @@ nichts verloren.
 ## Beispiele
 
 Jedes läuft gegen eine echte Instanz; die schreibenden legen einen eigenen
-Wegwerf-Ordner an und räumen ihn wieder ab.
+Wegwerf-Ordner an und räumen ihn wieder ab. Jedes ist zugleich ein Testfall —
+`pytest -m live` führt die lesenden aus, `pytest -m write` die übrigen — damit
+eine Änderung, die ein Beispiel bricht, in der Suite auffällt und nicht erst
+beim Nächsten, der es ausprobiert.
 
 **Direkt gegen die API** — es kommen Objekte zurück, mit denen weitergearbeitet
 wird:
