@@ -24,7 +24,8 @@ import httpx
 import pytest
 
 from edusharing import Repository
-from edusharing.errors import ConflictError
+from edusharing._sync import LoopThread
+from edusharing.errors import ConflictError, ValidationError
 
 REPO = "https://repo.test/edu-sharing"
 NID = "node-1"
@@ -123,6 +124,16 @@ def _handler(request: httpx.Request) -> httpx.Response:
         neuer = json.loads(request.content)["title"]
         _PROPS["cclom:title"] = [neuer]
         _PROPS["cm:title"] = [neuer]
+        return httpx.Response(200, content=b"")
+    if "/relation/v1" in url:
+        if method == "GET":
+            return httpx.Response(200, json={"relations": [{
+                "type": "isPartOf",
+                "fromNode": {"ref": {"id": NID}, "title": "Teil"},
+                "toNode": {"ref": {"id": "reihe-1"}, "title": "Die Reihe"},
+                "isAiGenerated": True,
+                "evaluation": {"isApproved": False},
+            }]})
         return httpx.Response(200, content=b"")
     if "/suggestions/v1" in url:
         if method == "GET":
@@ -362,6 +373,25 @@ def test_mehrfaches_schliessen_ist_erlaubt(repo):
     repo.close()
 
 
+def test_der_schleifenfaden_darf_doppelt_geschlossen_werden():
+    """``Repository.close()`` faengt den zweiten Aufruf selbst ab und erreicht
+    die Sicherung im Faden nie -- die Zusage im Docstring von
+    ``LoopThread.close`` war damit unbelegt. Ohne sie wirft der zweite Aufruf,
+    weil die Schleife schon zu ist.
+    """
+    faden = LoopThread()
+    faden.close()
+    faden.close()          # genau das, was ohne die Sicherung wirft
+
+
+def test_repr_der_durchgereichten_schichten(repo):
+    """Ein ``__repr__`` ist die einzige Methode, die beim Debuggen aufgerufen
+    wird, wenn sowieso etwas schiefsteht. Fuer Knoten und Repository wird das
+    hier schon geprueft; Transport und Ablaeufe fehlten."""
+    assert REPO in repr(repo.raw)
+    assert "Flows" in repr(repo.flows)
+
+
 def test_json_durchgriff_sendet_korrekt(repo):
     """Gegenprobe, dass der Durchgriff nicht nur nicht abstuerzt, sondern die
     Anfrage wirklich absetzt."""
@@ -420,9 +450,58 @@ def test_serienobjekte_synchron(repo):
     """Fuenftes Mal dieselbe Falle: neue asynchrone Flaeche am Node, Durchgriff
     vergessen, Aufruf liefert stumm eine Coroutine."""
     kinder = repo.node(NID).children
+    assert "ChildObjects" in repr(kinder)
     assert not inspect.iscoroutinefunction(kinder.list)
     assert _kein_coroutine(kinder.list()) == []
     assert _kein_coroutine(repo.flows.child_objects(NID))["count"] == 0
+
+    # add() macht zwei Anfragen und gibt einen Knoten zurueck -- ohne
+    # Durchgriff bekaeme der Aufrufer eine Coroutine statt des Kindes, und der
+    # Anhang entstuende nie.
+    kind = _kein_coroutine(
+        kinder.add(b"Anhang", filename="anhang.txt", mimetype="text/plain"))
+    assert kind.id == NID, "der Mock gibt denselben Knoten zurueck"
+    # Der zurueckgegebene Knoten muss selbst synchron sein, sonst verschiebt
+    # sich die Falle nur eine Ebene tiefer.
+    assert not inspect.iscoroutinefunction(kind.delete)
+
+
+def test_beziehungen_synchron(repo):
+    """``repo.relations`` war die einzige durchgereichte Schicht ohne Test --
+    gemessen, nicht vermutet: vor diesem Test war ``SyncRelations`` in der
+    Abdeckung von ``_sync.py`` zu 100 % unbelegt, jede der vier Methoden.
+    """
+    beziehungen = repo.relations
+    assert "Relations" in repr(beziehungen)
+
+    gefunden = _kein_coroutine(beziehungen.of(NID))
+    assert [(b.type, b.to_id) for b in gefunden] == [("isPartOf", "reihe-1")]
+    # Die zwei Flaggen, die aus einem Vorschlag noch keine Tatsache machen.
+    assert gefunden[0].ai_generated and not gefunden[0].approved
+
+    # create/delete/approve geben None -- ein vergessener Durchgriff gaebe
+    # stattdessen eine Coroutine zurueck, und die Beziehung entstuende nie.
+    for aufruf in (
+        lambda: beziehungen.create(NID, "isPartOf", "reihe-1", ai_generated=True),
+        lambda: beziehungen.approve(NID, "isPartOf", "reihe-1"),
+        lambda: beziehungen.delete(NID, "isPartOf", "reihe-1"),
+    ):
+        assert _kein_coroutine(aufruf()) is None
+
+    # Und der Ablauf darueber, der dieselbe Antwort auf die Sicht des
+    # gefragten Knotens umrechnet.
+    ablauf = _kein_coroutine(repo.flows.relations(NID))
+    assert ablauf["count"] == 1
+    assert ablauf["relations"][0]["id"] == "reihe-1"
+
+
+def test_beziehungen_pruefen_vor_dem_senden(repo):
+    """Die Pruefung sitzt in ``Relations``; der Durchgriff darf sie nicht
+    verschlucken -- sonst schlaegt erst die Instanz mit einem nackten 400 zu."""
+    with pytest.raises(ValidationError):
+        repo.relations.create(NID, "hasPart", "reihe-1")   # nur lesbarer Typ
+    with pytest.raises(ValidationError):
+        repo.relations.create(NID, "isPartOf", NID)        # auf sich selbst
 
 
 def test_seite_gibt_ein_synchrones_objekt(repo):
