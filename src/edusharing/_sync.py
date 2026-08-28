@@ -115,6 +115,19 @@ class SyncNode:
         """Who may do what with this node, blocking."""
         return SyncNodePermissions(self._node.permissions, self._loop)
 
+    @property
+    def comments(self) -> SyncComments:
+        """What people wrote about this node, blocking."""
+        return SyncComments(self._node.comments, self._loop)
+
+    def rate(self, value: float, text: str = "") -> Any:
+        """Like ``Node.rate``, blocking."""
+        return self._loop.run(self._node.rate(value, text))
+
+    def unrate(self) -> Any:
+        """Like ``Node.unrate``, blocking."""
+        return self._loop.run(self._node.unrate())
+
     def update(self, **kwargs: Any) -> SyncNode:
         """Like ``Node.update``, blocking."""
         return SyncNode(self._loop.run(self._node.update(**kwargs)), self._loop)
@@ -186,6 +199,37 @@ class SyncNodePermissions:
 
     def __repr__(self) -> str:
         return f"Sync{self._permissions!r}"
+
+
+class SyncComments:
+    """A node's comments for the synchronous surface.
+
+    Here for the same reason as ``SyncNodeContent``: without it the methods
+    would hand back coroutines that do nothing and report nothing.
+    """
+
+    def __init__(self, comments: Any, loop: LoopThread) -> None:
+        self._comments = comments
+        self._loop = loop
+
+    def list(self) -> list[Any]:
+        """Like ``Comments.list``, blocking."""
+        return self._loop.run(self._comments.list())
+
+    def add(self, text: str, **kwargs: Any) -> Any:
+        """Like ``Comments.add``, blocking."""
+        return self._loop.run(self._comments.add(text, **kwargs))
+
+    def edit(self, comment_id: str, text: str) -> Any:
+        """Like ``Comments.edit``, blocking."""
+        return self._loop.run(self._comments.edit(comment_id, text))
+
+    def delete(self, comment_id: str) -> None:
+        """Like ``Comments.delete``, blocking."""
+        self._loop.run(self._comments.delete(comment_id))
+
+    def __repr__(self) -> str:
+        return f"Sync{self._comments!r}"
 
 
 class SyncNodeContent:

@@ -301,6 +301,26 @@ can never succeed, and the caller who catches ``NotFoundError`` or
 repository no longer has -- 4 of 25 hits, measured -- makes the first of these
 an everyday case rather than a curiosity.
 
+**Two endpoints answer with an empty body and store the truth elsewhere.**
+Rating and commenting both report 200 and hand back nothing, so both read the
+node again -- the same reason ``permissions.py`` does. Two measurements from
+2026-08-28 shape those modules:
+
+* **A rating of ``0`` is a vote, not a reset.** Afterwards the node shows
+  ``count: 1, rating: 0.0``. The Ideendatenbank documents zero as a way to
+  clear a rating; on staging it lowers the average instead, so ``rate()``
+  refuses it and points at ``unrate()``. ``DELETE`` is the reset, and it
+  answers 200 even when there was nothing to remove.
+* **A comment body is stored byte for byte.** No JSON parsing happens, while
+  the content type must still be ``application/json`` (anything else is 415).
+  Sending the text through ``json=`` would store the quotation marks with it.
+  Editing is ``POST`` on the comment; a ``PUT`` there creates a comment on the
+  comment and answers 500.
+
+The good news repeats itself: the node response carries ``rating`` -- average,
+count and this account's own vote -- so reading one costs no request, exactly
+as with ``isPublic``.
+
 ## 8. Stages
 
 | # | Content | Done when |

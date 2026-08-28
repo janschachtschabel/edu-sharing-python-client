@@ -242,6 +242,10 @@ than documented:
   it into a public collection, not with `scope="PUBLIC"` — see below.
 - **Setting one permission would delete the rest.** The repository's `POST`
   replaces the whole local access list; `grant()` merges into it.
+- **A rating of `0` is a vote, not a reset.** It lowers the average; `unrate()`
+  is what removes a vote.
+- **A comment body is stored byte for byte.** Sending it as JSON stores the
+  quotation marks with it.
 
 ### Publishing — the step edu-sharing does not take
 
@@ -308,6 +312,37 @@ three times what can never succeed:
 | `500 Not allowed for guest user` | not signed in | any protected endpoint |
 | `500 UsageException: Node does not exist` | `404` | `/usage/v1/…/collections` |
 | `500 AccessDeniedException` | `403` | `…/parents` on foreign material |
+
+### Ratings and comments
+
+What a community leaves on a node. Reading a rating costs nothing — the node
+response carries the summary, like `isPublic` does:
+
+```python
+node = repo.node("abc-123")
+node.rating                          # Rating(4.0 aus 3) or None
+node.rate(4, "Sehr brauchbar")       # writes, then reads the new average back
+node.unrate()                        # takes this account's vote back
+```
+
+> **A rating of `0` is refused.** Measured on 2026-08-28: it does *not* take a
+> rating back — the node then shows `count: 1, rating: 0.0`, so the zero counts
+> as a vote and drags the average down. `unrate()` is what takes it back.
+
+```python
+node.comments.list()                 # [Comment('alice': 'Sehr brauchbar')]
+c = node.comments.add("Erster")
+node.comments.add("Antwort", reply_to=c.id)
+node.comments.edit(c.id, "Nachgebessert")
+node.comments.delete(c.id)
+```
+
+> **The comment body is stored verbatim.** edu-sharing does no JSON parsing
+> here, so sending the text through `json=` would store `"Erster"` — quotation
+> marks and all. The library sends raw UTF-8 bytes with an
+> `application/json` content type, which is what the endpoint wants. Editing is
+> `POST` on the comment; a `PUT` there creates a comment *on the comment* and
+> answers 500.
 
 ### Where a node sits — and who curated it
 

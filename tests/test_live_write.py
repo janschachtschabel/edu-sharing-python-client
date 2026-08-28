@@ -485,3 +485,67 @@ async def test_placement_beantwortet_beides(repo, ordner, sammlung):
     assert [s["id"] for s in ergebnis["collections"]] == [sammlung.id]
     assert ergebnis["path"][-1]["id"] == ordner.id, "von oben nach unten"
     assert ergebnis["scope"], "der Endpunkt nennt, wie weit er reicht"
+
+
+# --- Bewertungen und Kommentare -------------------------------------------
+#
+# Wieder nur an selbst angelegten Knoten im eigenen Wegwerf-Ordner.
+
+async def test_frischer_knoten_ist_unbewertet(knoten):
+    assert knoten.rating is None
+
+
+async def test_bewerten_und_zuruecknehmen(knoten):
+    bewertet = await knoten.rate(4, "Sehr brauchbar")
+    assert bewertet is not None
+    assert bewertet.average == 4.0
+    assert bewertet.count == 1
+    assert bewertet.own == 4.0
+
+    assert await knoten.unrate() is None
+
+
+async def test_die_null_wird_nicht_geschrieben(repo, knoten):
+    """Gemessen: rating=0 zaehlt als abgegebene Null und zieht den Schnitt
+    herunter, statt zurueckzunehmen. Die Bibliothek laesst sie nicht durch."""
+    with pytest.raises(ValueError, match="unrate"):
+        await knoten.rate(0)
+    assert (await repo.node(knoten.id)).rating is None
+
+
+async def test_bewerten_ist_wiederholbar(knoten):
+    await knoten.rate(3)
+    zweite = await knoten.rate(5)
+    assert zweite.count == 1, "dieselbe Stimme, nicht eine zweite"
+    assert zweite.own == 5.0
+
+
+async def test_kommentar_schreiben_lesen_aendern_loeschen(knoten):
+    assert await knoten.comments.list() == []
+
+    neu = await knoten.comments.add("Ein Kommentar mit Umlauten: Groesse, Ubung")
+    assert neu.text == "Ein Kommentar mit Umlauten: Groesse, Ubung"
+    assert neu.author
+
+    geaendert = await knoten.comments.edit(neu.id, "Nachgebessert")
+    assert geaendert.text == "Nachgebessert"
+
+    await knoten.comments.delete(neu.id)
+    assert await knoten.comments.list() == []
+
+
+async def test_der_text_kommt_ohne_anfuehrungszeichen_zurueck(knoten):
+    """Der Kernfall: edu-sharing speichert den Body 1:1. Mit ``json=`` staende
+    hier '"Erster"' statt 'Erster'."""
+    neu = await knoten.comments.add("Erster")
+    assert neu.text == "Erster"
+    assert '"' not in neu.text
+
+
+async def test_auf_einen_kommentar_antworten(knoten):
+    frage = await knoten.comments.add("Eine Frage")
+    antwort = await knoten.comments.add("Eine Antwort", reply_to=frage.id)
+    assert antwort.reply_to == frage.id
+
+    alle = await knoten.comments.list()
+    assert {k.id for k in alle} == {frage.id, antwort.id}

@@ -53,6 +53,9 @@ _PROPS: dict[str, list[str]] = {}
 # Antwort zu Recht einen stillen Verlust melden.
 _ACL: list[dict] = []
 
+# Und fuer die Kommentare, deren Anlegen ebenfalls zurueckliest.
+_COMMENTS: list[dict] = []
+
 
 def _node_response() -> dict:
     node = dict(NODE["node"])
@@ -81,6 +84,26 @@ def _handler(request: httpx.Request) -> httpx.Response:
             _PROPS.pop(prop, None)
         else:
             _PROPS[prop] = wert
+        return httpx.Response(200, content=b"")
+    if "/comment/v1" in url:
+        if method == "GET":
+            return httpx.Response(200, json={"comments": _COMMENTS})
+        if method == "PUT":
+            _COMMENTS.append({
+                "ref": {"id": f"c-{len(_COMMENTS) + 1}"},
+                "comment": request.content.decode("utf-8"),
+                "created": 1787912255934,
+                "creator": {"authorityName": "alice"}, "replyTo": None})
+        elif method == "POST":
+            cid = request.url.path.rsplit("/", 1)[-1]
+            for c in _COMMENTS:
+                if c["ref"]["id"] == cid:
+                    c["comment"] = request.content.decode("utf-8")
+        elif method == "DELETE":
+            cid = request.url.path.rsplit("/", 1)[-1]
+            _COMMENTS[:] = [c for c in _COMMENTS if c["ref"]["id"] != cid]
+        return httpx.Response(200, content=b"")
+    if "/rating/v1" in url:
         return httpx.Response(200, content=b"")
     if url.endswith("/parents") or "/parents?" in url:
         return httpx.Response(200, json={
@@ -128,6 +151,7 @@ def _handler(request: httpx.Request) -> httpx.Response:
 def repo():
     _PROPS.clear()
     _ACL.clear()
+    _COMMENTS.clear()
     r = Repository(
         REPO, client=httpx.AsyncClient(transport=httpx.MockTransport(_handler)))
     try:
@@ -372,3 +396,21 @@ def test_search_all_synchron(repo):
     ergebnis = _kein_coroutine(repo.flows.search_all("Zelle"))
     assert "materials" in ergebnis and "collections" in ergebnis
     assert ergebnis["collections"]["filters_ignored"] == []
+
+
+def test_bewertung_synchron(repo):
+    """rating ist eine reine Eigenschaft und geht durch __getattr__; rate und
+    unrate sind asynchron und brauchen den Durchgriff."""
+    node = repo.node(NID)
+    assert node.rating is None
+    _kein_coroutine(node.rate(4, "gut"))
+    _kein_coroutine(node.unrate())
+
+
+def test_kommentare_synchron(repo):
+    node = repo.node(NID)
+    assert _kein_coroutine(node.comments.list()) == []
+    neu = _kein_coroutine(node.comments.add("Erster"))
+    _kein_coroutine(node.comments.edit(neu.id, "Zweiter"))
+    _kein_coroutine(node.comments.delete(neu.id))
+    assert NID in repr(node.comments)

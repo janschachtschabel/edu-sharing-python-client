@@ -248,6 +248,10 @@ eincodiert statt dokumentiert:
   siehe unten.
 - **Ein Recht zu setzen würde die übrigen löschen.** Der `POST` des
   Repositoriums ersetzt die ganze lokale Rechteliste; `grant()` führt zusammen.
+- **Eine Bewertung von `0` ist eine Stimme, kein Zurücksetzen.** Sie senkt den
+  Schnitt; entfernt wird mit `unrate()`.
+- **Ein Kommentartext wird Byte für Byte abgelegt.** Als JSON gesendet landen
+  die Anführungszeichen mit im Text.
 
 ## Protokoll
 
@@ -347,6 +351,38 @@ wiederholt, was nie gelingen kann:
 | `500 Not allowed for guest user` | nicht angemeldet | jeder geschützte Endpunkt |
 | `500 UsageException: Node does not exist` | `404` | `/usage/v1/…/collections` |
 | `500 AccessDeniedException` | `403` | `…/parents` an fremdem Material |
+
+### Bewertungen und Kommentare
+
+Was eine Gemeinschaft an einem Knoten hinterlässt. Eine Bewertung zu lesen
+kostet nichts — die Knotenantwort trägt die Zusammenfassung mit, wie `isPublic`:
+
+```python
+node = repo.node("abc-123")
+node.rating                          # Rating(4.0 aus 3) oder None
+node.rate(4, "Sehr brauchbar")       # schreibt, liest den neuen Schnitt zurück
+node.unrate()                        # nimmt die eigene Stimme zurück
+```
+
+> **Eine Bewertung von `0` wird abgelehnt.** Gemessen am 28.08.2026: sie nimmt
+> *nichts* zurück — danach steht am Knoten `count: 1, rating: 0.0`, die Null
+> zählt also als abgegebene Stimme und zieht den Schnitt herunter.
+> Zurückgenommen wird mit `unrate()`.
+
+```python
+node.comments.list()                 # [Comment('alice': 'Sehr brauchbar')]
+c = node.comments.add("Erster")
+node.comments.add("Antwort", reply_to=c.id)
+node.comments.edit(c.id, "Nachgebessert")
+node.comments.delete(c.id)
+```
+
+> **Der Kommentartext wird 1:1 gespeichert.** edu-sharing wertet den Body hier
+> nicht als JSON aus — über `json=` gesendet stünde `"Erster"` im Text, mit
+> Anführungszeichen. Die Bibliothek schickt rohe UTF-8-Bytes mit dem
+> Content-Type `application/json`, den der Endpunkt verlangt. Geändert wird per
+> `POST` am Kommentar; ein `PUT` dort legt einen Kommentar *am Kommentar* an
+> und antwortet 500.
 
 ### Wo ein Knoten liegt — und wer ihn kuratiert hat
 

@@ -31,11 +31,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from . import placement
+from . import placement, ratings
 from .childobjects import ChildObjects
+from .comments import Comments
 from .content import NodeContent
 from .errors import SilentDropError, ValidationError
 from .permissions import NodePermissions
+from .ratings import Rating
 from .transport import Transport
 from .urls import path_segment
 
@@ -183,6 +185,34 @@ class Node:
         See ``placement.collections_of``.
         """
         return await placement.collections_of(self._nodes, self.id)
+
+    @property
+    def comments(self) -> Comments:
+        """What people wrote about this node.
+
+        ``await node.comments.add("Sehr brauchbar")``
+        """
+        return Comments(self)
+
+    @property
+    def rating(self) -> Rating | None:
+        """How this node was rated -- ``None`` when nobody has.
+
+        Free: the response carries the summary. See ``ratings.rating_of``.
+        """
+        return ratings.rating_of(self)
+
+    async def rate(self, value: float, text: str = "") -> Rating | None:
+        """Rate this node and read the new summary back.
+
+        See ``ratings.rate``. A vote of zero is refused -- it does not take a
+        rating back, it lowers the average.
+        """
+        return await ratings.rate(self, value, text)
+
+    async def unrate(self) -> Rating | None:
+        """Take this account's vote back. See ``ratings.unrate``."""
+        return await ratings.unrate(self)
 
     @property
     def permissions(self) -> NodePermissions:
