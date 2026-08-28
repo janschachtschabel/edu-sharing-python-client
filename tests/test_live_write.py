@@ -54,7 +54,6 @@ async def ordner(repo):
         home,
         name=f"pytest-edusharing-{uuid.uuid4().hex[:8]}",
         type="cm:folder",
-        title="Wegwerf-Ordner der Testsuite",
     )
     assert neu.id, "Ordner nicht angelegt"
     try:
@@ -284,3 +283,53 @@ async def test_volltext_gibt_es_nicht_fuer_jeden_dateityp(repo, ordner):
             assert not volltext, (
                 f"{name}: liefert jetzt Volltext -- die Instanz hat sich "
                 "geaendert, der Docstring von NodeContent.text stimmt nicht mehr")
+
+
+# --- Rueckleseprobe beim Anlegen ------------------------------------------
+
+
+async def test_ordner_uebernimmt_beim_anlegen_keinen_eigenen_titel(repo, ordner):
+    """Gemessen am 28.08.2026: legt man einen cm:folder mit cm:title an, setzt
+    edu-sharing cm:title auf cm:name -- der mitgegebene Titel ist weg.
+
+    Bei einem ccm:io kommt derselbe Titel an. Es ist also keine allgemeine
+    Regel, sondern eine des Ordnertyps, und ohne die Rueckleseprobe beim
+    Anlegen faellt sie niemandem auf.
+
+    Nachtraeglich laesst sich der Titel sehr wohl setzen -- auch das hier
+    geprueft, damit die Doku nicht mehr behauptet als gemessen ist.
+    """
+    with pytest.raises(SilentDropError) as fehler:
+        await repo.create_node(
+            ordner.id, name="mit-titel", type="cm:folder",
+            properties={"cm:title": ["Ein eigener Titel"]})
+    assert "cm:title" in fehler.value.dropped
+
+    # Ohne Pruefung entsteht der Ordner, und der Titel ist der Name.
+    unter = await repo.create_node(
+        ordner.id, name="ohne-pruefung", type="cm:folder", verify=False,
+        properties={"cm:title": ["Ein eigener Titel"]})
+    frisch = await repo.node(unter.id)
+    assert frisch.get("cm:title") == "ohne-pruefung"
+
+    # Nachtraeglich geht es.
+    geaendert = await frisch.update(properties={"cm:title": ["Nachgereicht"]})
+    assert geaendert.get("cm:title") == "Nachgereicht"
+
+
+async def test_abgeleitetes_feld_wird_beim_anlegen_gemeldet(repo, ordner):
+    """ccm:oeh_lrt_aggregated leitet das Repositorium aus ccm:oeh_lrt ab und
+    nimmt es nicht entgegen. Gemessen am 28.08.2026: die POST-Antwort zeigt das
+    Feld gar nicht, waehrend ccm:taxonid im selben Aufruf ankommt.
+
+    Ein halb geglueckter Schreibvorgang, der wie ein ganzer aussieht -- genau
+    der Fall, fuer den es die Probe gibt.
+    """
+    aggregiert = await repo.vocab.resolve("ccm:oeh_lrt_aggregated", "Video")
+    assert aggregiert, "Vorbedingung: der Wert laesst sich aufloesen"
+
+    with pytest.raises(SilentDropError) as fehler:
+        await repo.create_node(
+            ordner.id, name="abgeleitet.txt",
+            properties={"ccm:oeh_lrt_aggregated": [aggregiert]})
+    assert "ccm:oeh_lrt_aggregated" in fehler.value.dropped

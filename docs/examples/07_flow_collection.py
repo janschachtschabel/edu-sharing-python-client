@@ -41,7 +41,6 @@ def main() -> int:
             who.home_folder,
             name=f"example-coll-{uuid.uuid4().hex[:8]}",
             type="cm:folder",
-            title="Throwaway folder of this example",
         )
         collection_id = None
 

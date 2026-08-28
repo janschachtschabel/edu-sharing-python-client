@@ -48,7 +48,6 @@ async def ordner(repo):
         wer.home_folder,
         name=f"pytest-flows-{uuid.uuid4().hex[:8]}",
         type="cm:folder",
-        title="Wegwerf-Ordner der Ablauf-Tests",
     )
     try:
         yield neu

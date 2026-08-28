@@ -61,7 +61,6 @@ def edit(repo) -> None:
         who.home_folder,
         name=f"example-browse-{uuid.uuid4().hex[:8]}",
         type="cm:folder",
-        title="Throwaway folder of this example",
     )
     try:
         created = repo.flows.add_material(

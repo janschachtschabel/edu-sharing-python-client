@@ -10,6 +10,8 @@ dem Bezeichner muss stehen bleiben. Wer ihn verlaesst, erreicht einen anderen
 Endpunkt -- mit den Zugangsdaten des Dienstes.
 """
 
+import json
+
 import httpx
 import pytest
 
@@ -45,6 +47,12 @@ def _repo_mit_protokoll(antwort_id: str = "x") -> tuple[AsyncRepository, list[ht
 
     def handler(request: httpx.Request) -> httpx.Response:
         gesehen.append(request.url)
+        if request.method == "POST" and request.url.path.endswith("/children"):
+            # Wie die Instanz: die Antwort des Anlegens traegt, was gespeichert
+            # wurde. Eine feste Antwort loeste die Rueckleseprobe zu Recht aus.
+            angelegt = dict(NODE["node"])
+            angelegt["properties"] = json.loads(request.content)
+            return httpx.Response(200, json={"node": angelegt})
         if "/values" in request.url.path:
             return httpx.Response(200, json={"values": []})
         if "queries" in request.url.path:

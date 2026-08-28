@@ -59,6 +59,14 @@ def _node_response() -> dict:
 
 def _handler(request: httpx.Request) -> httpx.Response:
     url, method = str(request.url), request.method
+    ist_anlegen = (method == "POST" and request.url.path.endswith("/children")
+                   and "/collection" not in request.url.path)
+    if ist_anlegen:
+        # Wie die Instanz: die Antwort des Anlegens traegt den gespeicherten
+        # Stand. Ein Mock mit fester Antwort loest die Rueckleseprobe zu Recht
+        # aus.
+        _PROPS.update(json.loads(request.content))
+        return httpx.Response(200, json=_node_response())
     if method == "PUT" and url.endswith("/metadata"):
         _PROPS.update(json.loads(request.content))
         return httpx.Response(200, json=_node_response())

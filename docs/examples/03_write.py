@@ -33,9 +33,12 @@ def main() -> int:
         print(f"Signed in as {who.display_name} ({who.authority})")
         print()
 
+        # No title= on a folder: measured 2026-08-28, edu-sharing overwrites
+        # cm:title with cm:name while creating one, so the value would be lost.
+        # The read-back check would rightly complain. Set it afterwards with
+        # update() if a folder needs a title of its own.
         folder = repo.create_node(
-            who.home_folder, name=f"example-{uuid.uuid4().hex[:8]}", type="cm:folder",
-            title="Throwaway folder of this example")
+            who.home_folder, name=f"example-{uuid.uuid4().hex[:8]}", type="cm:folder")
         print(f"Throwaway folder created: {folder.name}")
 
         try:

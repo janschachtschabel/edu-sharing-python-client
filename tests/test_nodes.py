@@ -39,9 +39,9 @@ def _node_antwort(properties: dict) -> dict:
 class Server:
     """Ein Knoten im Speicher, der sich verhaelt wie edu-sharing.
 
-    ``stumm`` nennt die Properties, die bei ``PUT /metadata`` verworfen werden
-    -- so wie das Repositorium alles verwirft, was der Metadatensatz nicht
-    kennt.
+    ``stumm`` nennt die Properties, die verworfen werden -- beim Aendern wie
+    beim Anlegen, so wie das Repositorium alles verwirft, was der Metadatensatz
+    nicht kennt oder selbst ableitet.
     """
 
     def __init__(self, properties: dict | None = None, stumm: tuple[str, ...] = ()):
@@ -72,8 +72,12 @@ class Server:
             return httpx.Response(200, content=b"")
 
         if methode == "POST" and pfad.endswith("/children"):
-            self.props.update(json.loads(request.content))
-            return httpx.Response(200, json=_node_antwort(self.props))
+            gesendet = json.loads(request.content)
+            behalten = {k: v for k, v in gesendet.items() if k not in self.stumm}
+            self.props.update(behalten)
+            # Ein neuer Knoten traegt nur, was angekommen ist -- gemessen zeigt
+            # die POST-Antwort den Verlust bereits.
+            return httpx.Response(200, json=_node_antwort(behalten))
 
         if methode == "DELETE":
             return httpx.Response(200, content=b"")
@@ -462,3 +466,40 @@ async def test_textinhalt_wird_ausgepackt():
 
     node = await _nodes(MitText()).get(NID)
     assert await node.content.text() == "Der extrahierte Text"
+
+
+# --- Rueckleseprobe beim Anlegen ------------------------------------------
+
+async def test_anlegen_meldet_ein_verschlucktes_feld():
+    """Bis zum 28.08.2026 prueste nur update() und set_property() nach, nicht
+    create(). Damit war ausgerechnet der erste Schreibvorgang der einzige ohne
+    Schutz vor stillem Verlust.
+
+    Gemessen gegen Staging: ein Anlegen mit ccm:oeh_lrt_aggregated meldet HTTP
+    200, und das Feld fehlt in der Antwort -- das Repositorium leitet es aus
+    ccm:oeh_lrt ab und nimmt es nicht entgegen. Die Antwort zeigt den Verlust
+    also bereits; die Pruefung kostet keine zusaetzliche Anfrage.
+    """
+    server = Server(stumm=("ccm:oeh_lrt_aggregated",))
+    with pytest.raises(SilentDropError) as fehler:
+        await _nodes(server).create(
+            "eltern", name="x.txt",
+            properties={"ccm:oeh_lrt_aggregated": ["http://x/video"]})
+    assert "ccm:oeh_lrt_aggregated" in str(fehler.value)
+
+
+async def test_anlegen_ohne_pruefung_bleibt_moeglich():
+    """Wer weiss, dass ein Feld abgeleitet wird, soll es mitschicken duerfen."""
+    server = Server(stumm=("ccm:oeh_lrt_aggregated",))
+    node = await _nodes(server).create(
+        "eltern", name="x.txt", verify=False,
+        properties={"ccm:oeh_lrt_aggregated": ["http://x/video"]})
+    assert node.id == NID
+
+
+async def test_anlegen_prueft_ohne_zusaetzliche_anfrage():
+    """Die POST-Antwort traegt den angelegten Knoten -- ein zweiter Zugriff
+    waere Verschwendung."""
+    server = Server()
+    await _nodes(server).create("eltern", name="x.txt", title="T")
+    assert len(server.aufrufe) == 1, f"{len(server.aufrufe)} Anfragen statt einer"

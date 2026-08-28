@@ -330,12 +330,20 @@ class Node:
         if not lost:
             return
 
-        way_out = (
-            "node.set_property(...) bypasses the metadata set's filtering."
-            if route == "update"
-            else "Check node.can_write -- without write permission this route is "
-                 "just as ineffective."
-        )
+        if route == "update":
+            way_out = "node.set_property(...) bypasses the metadata set's filtering."
+        elif route == "create":
+            way_out = (
+                "A derived property is one more cause here: the repository "
+                "computes it from another field and refuses it as input "
+                "(measured: ccm:oeh_lrt_aggregated comes from ccm:oeh_lrt). "
+                "Write the source field instead, or pass verify=False."
+            )
+        else:
+            way_out = (
+                "Check node.can_write -- without write permission this route is "
+                "just as ineffective."
+            )
         raise SilentDropError(
             f"Not stored: {', '.join(lost)} (HTTP 200, absent or different after "
             f"reading back). Two usual causes: the property is not provided for "
@@ -376,6 +384,7 @@ class Nodes:
         type: str = DEFAULT_NODE_TYPE,
         properties: dict[str, Any] | None = None,
         rename_if_exists: bool = True,
+        verify: bool = True,
         **aliases: Any,
     ) -> Node:
         """Create a node under ``parent_id``.
@@ -387,10 +396,19 @@ class Nodes:
             type: node type, ``ccm:io`` for material, ``cm:folder`` for folders.
             rename_if_exists: appends a counter on a name collision instead of
                 failing with 409.
+            verify: check the response against what was sent. Costs nothing --
+                the response carries the created node -- and catches the case
+                where the repository answers 200 and stores less than it was
+                given. Switch it off only for a field you know is derived.
             **aliases: short names from ``WRITE_FIELD_ALIASES``.
 
         Raises:
             ValidationError: when ``name`` is empty.
+            SilentDropError: when the repository accepted the call and did not
+                store everything. Measured 2026-08-28:
+                ``ccm:oeh_lrt_aggregated`` is derived from ``ccm:oeh_lrt`` and
+                comes back absent, while ``ccm:taxonid`` in the same call
+                arrives -- so a write can half-succeed and look complete.
         """
         if not name or not name.strip():
             raise ValidationError(
@@ -410,7 +428,13 @@ class Nodes:
             },
             json=fields,
         )
-        return Node(response.get("node") or {}, self)
+        node = Node(response.get("node") or {}, self)
+        if verify:
+            # Against the response, not a fresh read: measured, the response
+            # already shows what was dropped, and a second request would only
+            # cost a round trip.
+            node._check(fields, route="create")
+        return node
 
     def __repr__(self) -> str:
         return f"Nodes({self.repository_url!r})"

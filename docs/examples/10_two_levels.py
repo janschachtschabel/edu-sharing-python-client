@@ -104,7 +104,7 @@ def main() -> int:
 
         folder = repo.create_node(
             who.home_folder, name=f"example-two-levels-{uuid.uuid4().hex[:8]}",
-            type="cm:folder", title="Throwaway folder of this example")
+            type="cm:folder",)
         REQUESTS.clear()
 
         try:
