@@ -45,7 +45,6 @@ network and its deployment, not a guarantee to build on.
 from __future__ import annotations
 
 import asyncio
-import ipaddress
 import logging
 import os
 import socket
@@ -57,6 +56,7 @@ from urllib.parse import urlsplit
 import httpx
 
 from .errors import EduSharingError, at_least
+from .urls import is_unroutable_host
 
 __all__ = ["ExtractedText", "TextExtraction", "METHODS"]
 
@@ -327,17 +327,19 @@ def _check_base(value: str) -> str:
 
 
 def _is_private(host: str) -> bool:
-    """True for anything that is not a routable public address.
+    """True for anything that must not be fetched, judged on the literal alone.
 
-    Only literals are judged here; a name that is not an address is left to the
-    resolver. ``169.254.169.254`` -- the cloud metadata endpoint and the classic
-    prize of an SSRF -- is link-local and therefore covered.
+    A thin name over ``agent.safety.is_unroutable_host``, which owns this
+    decision for the whole library. It used to be a second implementation here,
+    and the two disagreed (audit A6): this one caught CGNAT and let NAT64
+    through, the other the reverse.
+
+    ``_check_shape`` covers what ``ipaddress`` refuses to read at all -- a
+    decimal or hexadecimal spelling of the same address (audit A7). A name that
+    is neither is left to the resolver, and ``_judge`` re-checks what comes
+    back.
     """
-    try:
-        address = ipaddress.ip_address(host.strip("[]"))
-    except ValueError:
-        return False
-    return not address.is_global
+    return is_unroutable_host(host)
 
 
 def _miss(url: str, reason: str) -> ExtractedText:

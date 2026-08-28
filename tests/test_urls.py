@@ -8,7 +8,12 @@ Formen, in denen Betreibende ihre Repository-Adresse tatsaechlich weitergeben
 import pytest
 
 from edusharing.errors import EduSharingError
-from edusharing.urls import normalize_repository_url, path_segment, rest_base
+from edusharing.urls import (
+    is_unroutable_host,
+    normalize_repository_url,
+    path_segment,
+    rest_base,
+)
 
 HOST = "https://repository.staging.openeduhub.net"
 FULL = f"{HOST}/edu-sharing"
@@ -110,3 +115,40 @@ def test_pfadsegment_lehnt_leeres_ab():
     voellig anderen Pfad."""
     with pytest.raises(EduSharingError):
         path_segment("")
+
+
+# --- is_unroutable_host ---------------------------------------------------
+# Die eine Stelle, an der entschieden wird, ob eine Adresse abgerufen werden
+# darf. Sie stand bis zum 28.08.2026 doppelt in der Bibliothek, und die zwei
+# Fassungen antworteten verschieden (Audit A6).
+
+@pytest.mark.parametrize("host", [
+    "93.184.216.34", "8.8.8.8", "1.1.1.1", "2606:4700:4700::1111",
+])
+def test_oeffentliche_adressen_sind_routbar(host):
+    """Die Gegenprobe, die beim Zusammenlegen gefehlt hat: die Formpruefung
+    fuer ungewoehnliche Schreibweisen trifft auf **jede** punktierte IPv4 zu --
+    ihr letztes Label besteht immer aus Ziffern. Unbedingt aufgerufen sperrte
+    sie den gesamten oeffentlichen IPv4-Raum aus. Sie darf deshalb nur laufen,
+    wenn ``ipaddress`` den Host gar nicht lesen konnte.
+    """
+    assert is_unroutable_host(host) is False
+
+
+@pytest.mark.parametrize("host", [
+    "127.0.0.1", "10.0.0.5", "192.168.1.1", "169.254.169.254",
+    "::1", "[::1]", "fc00::1",
+    "100.64.0.1",     # CGNAT -- nur `not is_global` faengt das
+    "64:ff9b::1",     # NAT64 -- nur die Aufzaehlung faengt das
+    "2130706433", "0x7f000001", "127.1",   # andere Schreibweisen (A7)
+])
+def test_nicht_routbare_adressen_werden_erkannt(host):
+    assert is_unroutable_host(host) is True
+
+
+@pytest.mark.parametrize("host", ["example.com", "sub.example.org", "localhost"])
+def test_namen_werden_hier_nicht_beurteilt(host):
+    """Was ein Name aufloest, entscheidet der Resolver -- und muss danach noch
+    einmal geprueft werden. ``localhost`` sperrt ``agent.safety`` ueber seine
+    Namensliste, nicht hier."""
+    assert is_unroutable_host(host) is False

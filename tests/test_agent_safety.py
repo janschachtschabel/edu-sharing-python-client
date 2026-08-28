@@ -78,6 +78,51 @@ def test_interne_namensraeume_sind_gesperrt(name):
     assert is_safe_url(name) is False
 
 
+# --- Bereiche, die die Aufzaehlung uebersah (Audit A6) --------------------
+
+@pytest.mark.parametrize("url", [
+    "http://100.64.0.1/",        # CGNAT, RFC 6598
+    "http://100.127.255.254/",   # oberes Ende desselben Blocks
+    "http://[64:ff9b::1]/",      # NAT64, RFC 6052
+])
+def test_weitere_nicht_routbare_bereiche_sind_gesperrt(url):
+    """Zwei Pruefungen lagen in dieser Bibliothek nebeneinander und antworteten
+    verschieden. Die Aufzaehlung hier liess **CGNAT** durch -- Adressen, die in
+    Provider- und Firmennetzen alltaeglich sind. ``not is_global`` in
+    ``extraction`` fing die, liess dafuer **NAT64** durch. Jede hatte ein Loch,
+    das die andere nicht hatte; jetzt gelten beide Regelsaetze.
+    """
+    assert is_safe_url(url) is False
+
+
+@pytest.mark.parametrize("url", [
+    "http://2130706433/",        # 127.0.0.1 als Dezimalzahl
+    "http://0177.0.0.1/",        # oktal
+    "http://0x7f000001/",        # hexadezimal
+    "http://127.1/",             # verkuerzt
+])
+def test_andere_schreibweisen_einer_ip_sind_gesperrt(url):
+    """Audit A7. ``ipaddress.ip_address`` kennt nur die punktierte Form; jede
+    andere Schreibweise fiel als "das ist ein Name" durch und wurde
+    durchgelassen. Ob sie beim Abruf wirklich auf 127.0.0.1 landet, haengt am
+    Resolver -- auf Windows nicht, auf anderen Plattformen ungeprueft. Die
+    Sperre kostet nichts: ein Hostname, dessen letztes Label nur aus Ziffern
+    besteht, ist nach RFC 1123 keiner.
+    """
+    assert is_safe_url(url) is False
+
+
+@pytest.mark.parametrize("url", [
+    "https://example.com/",
+    "https://sub.domain.example.org/pfad",
+    "https://xn--bcher-kva.example/",   # Punycode
+    "https://host123.example.net/",     # Ziffern im Namen, aber nicht im Label
+])
+def test_gewoehnliche_namen_bleiben_erlaubt(url):
+    """Gegenprobe zu A7: die Sperre darf keinen echten Hostnamen treffen."""
+    assert is_safe_url(url) is True
+
+
 # --- Grenzfaelle -----------------------------------------------------------
 
 @pytest.mark.parametrize("url", ["", "   ", "kein-url", "https://", "http:///pfad"])

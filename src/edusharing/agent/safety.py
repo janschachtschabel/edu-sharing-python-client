@@ -24,6 +24,7 @@ import ipaddress
 from urllib.parse import urlsplit
 
 from ..errors import EduSharingError
+from ..urls import is_unroutable_host
 
 __all__ = ["UnsafeUrlError", "is_safe_url", "check_url"]
 
@@ -38,6 +39,30 @@ BLOCKED_SUFFIXES = (".local", ".internal", ".localhost", ".home.arpa")
 
 class UnsafeUrlError(EduSharingError):
     """The URL must not be fetched."""
+
+
+def _address_reason(host: str) -> str | None:
+    """Why this literal must not be fetched -- as precisely as it allows.
+
+    ``is_unroutable_host`` owns the decision; this only names it. "Not
+    routable" is true for every case below but tells a caller far less than
+    "loopback" does.
+    """
+    if not is_unroutable_host(host):
+        return None
+    try:
+        address = ipaddress.ip_address(host.strip("[]"))
+    except ValueError:
+        return f"{host!r} is neither a valid hostname nor a dotted-quad address"
+    if address.is_loopback:
+        return f"{host} is a local (loopback) address"
+    if address.is_link_local:
+        # 169.254.169.254 is the metadata service of most cloud providers, and
+        # therefore the single most rewarding target of an SSRF attack.
+        return f"{host} is a link-local address"
+    if address.is_private or address.is_reserved or address.is_multicast:
+        return f"{host} is a private or reserved address"
+    return f"{host} is not a globally routable address"
 
 
 def _reason(url: str) -> str | None:
@@ -69,21 +94,9 @@ def _reason(url: str) -> str | None:
     if host in BLOCKED_NAMES or host.endswith(BLOCKED_SUFFIXES):
         return f"{host!r} is a local name"
 
-    try:
-        address = ipaddress.ip_address(host)
-    except ValueError:
-        # Not an IP literal but a name -- see the module docstring.
-        return None
-
-    if address.is_loopback:
-        return f"{host} is a local (loopback) address"
-    if address.is_link_local:
-        # 169.254.169.254 is the metadata service of most cloud providers, and
-        # therefore the single most rewarding target of an SSRF attack.
-        return f"{host} is a link-local address"
-    if address.is_private or address.is_reserved or address.is_multicast:
-        return f"{host} is a private or reserved address"
-    return None
+    # A literal, in any spelling. A name falls through -- see the module
+    # docstring on what is deliberately not checked here.
+    return _address_reason(host)
 
 
 def is_safe_url(url: str) -> bool:

@@ -86,6 +86,13 @@ def _kaputt(_host: str) -> list[str]:
     ("http://192.168.0.7/", "private_host"),
     ("http://169.254.169.254/latest/meta-data/", "private_host"),
     ("http://[::1]/", "private_host"),
+    # Audit A6: NAT64 kam durch, weil `not is_global` es fuer oeffentlich
+    # haelt -- die Aufzaehlung in agent/safety.py fing es. Seit beide
+    # Regelsaetze gelten, faengt es auch dieser Weg.
+    ("http://[64:ff9b::1]/", "private_host"),
+    # Audit A7: andere Schreibweisen derselben Adresse.
+    ("http://2130706433/", "private_host"),
+    ("http://0x7f000001/", "private_host"),
 ])
 async def test_schutz_verweigert_ohne_zu_senden(url, grund):
     """Der Wolkendienst-Metadatenendpunkt (169.254.169.254) steht mit in der
