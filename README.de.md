@@ -747,6 +747,7 @@ wird:
 | [`04_agent_blocks.py`](docs/examples/04_agent_blocks.py) | die Bausteine für KI-Nutzung: Sicherheit, Bereinigung, Formatierung |
 | [`11_publish.py`](docs/examples/11_publish.py) | Material für andere sichtbar machen — der Schritt, den nichts von allein tut |
 | [`15_full_text.py`](docs/examples/15_full_text.py) | der Volltext eines Materials, aus dem Repositorium oder vom Extraktionsdienst |
+| [`16_editorial.py`](docs/examples/16_editorial.py) | kommentieren, bewerten, vorschlagen, zur Prüfung geben — die Flächen ohne Ablauf |
 
 **Über Abläufe** — es kommt ein `dict` zurück, fertig zum Weiterreichen:
 

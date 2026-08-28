@@ -723,6 +723,7 @@ them:
 | [`04_agent_blocks.py`](docs/examples/04_agent_blocks.py) | the building blocks for AI use: safety, sanitising, formatting |
 | [`11_publish.py`](docs/examples/11_publish.py) | make material visible to others — the step nothing does for you |
 | [`15_full_text.py`](docs/examples/15_full_text.py) | the full text of a material, from the repository or the extraction service |
+| [`16_editorial.py`](docs/examples/16_editorial.py) | comment, rate, propose, hand over for review — the surfaces with no flow |
 
 **Working through flows** — a `dict` comes back, ready to hand on:
 
