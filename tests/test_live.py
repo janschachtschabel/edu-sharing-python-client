@@ -260,6 +260,35 @@ async def test_kuratierte_seiten_sind_am_treffer_erkennbar():
         assert ref.startswith("workspace://"), f"kein Store-Ref: {ref!r}"
 
 
+async def test_bestehende_seite_laesst_sich_lesen(repo):
+    """Gegen eine Seite, die jemand anderes gebaut hat -- der Fall, den ein
+    selbst gebauter Aufbau nicht abdeckt.
+
+    Uebersprungen, wenn die Instanz keine kuratierte Seite fuehrt: der Page
+    Builder ist eine Moeglichkeit von edu-sharing, keine Pflicht.
+    """
+    treffer = await repo.find_collections("Deutsch", limit=25)
+    traeger = [h for h in treffer.hits if h.properties().get("ccm:page_config_ref")]
+    if not traeger:
+        pytest.skip("diese Instanz fuehrt keine kuratierte Seite unter diesem Suchwort")
+
+    knoten = await repo.node(traeger[0].id)
+    seite = await knoten.page.get()
+    assert seite is not None
+    assert seite.folder_id and seite.folder_id != knoten.id, (
+        "die Seite haengt an einem eigenen Ordner, nicht an der Sammlung")
+    assert seite.variants, "ein Konfigurationsordner ohne Varianten rendert nichts"
+    for variante in seite.variants:
+        assert variante.readable, f"Dokument von {variante.id} nicht lesbar"
+    gerendert = seite.rendered
+    assert gerendert is not None
+    # Gemessen: die Seite der Sammlung Deutsch traegt neun Schwimmlinien, und
+    # eines von zehn Grid-Elementen kommt ohne Knoten aus.
+    assert gerendert.swimlanes, "die gerenderte Variante hat keine Schwimmlinien"
+    assert all(ln.items for ln in gerendert.swimlanes), "leere Schwimmlinie"
+    assert gerendert.node_ids, "keine eingebetteten Knoten gefunden"
+
+
 @pytest.mark.live
 async def test_eigene_mitgliedschaften(repo):
     """Nur lesend. Die schreibenden Gruppen-Operationen sind mit diesem Konto

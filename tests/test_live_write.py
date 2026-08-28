@@ -14,6 +14,7 @@ fremde Bestaende beschaedigt:
 * Kein Test fasst einen Knoten an, dessen ID er nicht selbst erzeugt hat.
 """
 
+import json
 import os
 import uuid
 
@@ -679,3 +680,87 @@ async def test_nur_die_beschreibung_aendern(repo, sammlung):
     geaendert = await repo.collections.update(sammlung.id, description="Nur das")
     assert geaendert.title == vorher
     assert geaendert.get("cm:description") == "Nur das"
+
+
+# --- Kuratierte Seiten -----------------------------------------------------
+#
+# Gebaut wird eine EIGENE Seite, nie eine bestehende angefasst: der Testzugang
+# hat auf den Konfigurationsordner einer fremden Themenseite ohnehin kein
+# Schreibrecht (gemessen 28.08.2026, ``can_write`` False), und die Umstellung
+# waere sofort oeffentlich sichtbar.
+
+def _variantendokument(ueberschrift: str) -> str:
+    return json.dumps({
+        "structure": {"swimlanes": [{
+            "heading": ueberschrift, "type": "container",
+            "grid": [{"cols": "6", "rows": "1", "item": "wlo-content-teaser"}],
+        }]},
+        "variables": {"virtual:profiling_widget_intention": "teach"},
+    })
+
+
+@pytest.fixture
+async def eigene_seite(repo):
+    """Sammlung, Konfigurationsordner und zwei Varianten -- alles selbst gebaut.
+
+    Der Aufbau belegt nebenbei, dass die drei Eigenschaften des Page Builders
+    ueber die Property-Route schreibbar sind: ``set_property`` liest jede
+    zurueck und wuerde einen stillen Verlust melden.
+    """
+    marke = f"pytest-page-{uuid.uuid4().hex[:8]}"
+    angelegt = []
+    try:
+        besitzer = await repo.create_collection(f"{marke}-seite")
+        angelegt.append(besitzer)
+        ordner = await repo.create_collection(f"PAGE_{marke}", parent=besitzer.id)
+        angelegt.append(ordner)
+        erste = await repo.create_collection(f"{marke}-A", parent=ordner.id)
+        zweite = await repo.create_collection(f"{marke}-B", parent=ordner.id)
+        angelegt += [erste, zweite]
+
+        await erste.set_property("ccm:page_variant_config", _variantendokument("Lane A"))
+        await zweite.set_property("ccm:page_variant_config", _variantendokument("Lane B"))
+        await ordner.set_property("ccm:page_config", json.dumps({"variants": [
+            f"workspace://SpacesStore/{erste.id}",
+            f"workspace://SpacesStore/{zweite.id}"]}))
+        await besitzer.set_property(
+            "ccm:page_config_ref", f"workspace://SpacesStore/{ordner.id}")
+
+        yield await repo.nodes.get(besitzer.id), erste.id, zweite.id
+    finally:
+        for knoten in reversed(angelegt):
+            await knoten.delete()
+
+
+async def test_seite_wird_gelesen(eigene_seite):
+    besitzer, erste, zweite = eigene_seite
+    seite = await besitzer.page.get()
+    assert seite is not None, "die eigene Seite wurde nicht gefunden"
+    assert {v.id for v in seite.variants} == {erste, zweite}
+    assert seite.by_position is True, "ohne default rendert die erste der Liste"
+    assert seite.rendered.id == erste
+    assert [ln.heading for ln in seite.rendered.swimlanes] == ["Lane A"]
+    assert seite.rendered.intention == "teach"
+
+
+async def test_variante_umstellen_und_zurueck(eigene_seite):
+    besitzer, erste, zweite = eigene_seite
+    umgestellt = await besitzer.page.render(zweite)
+    assert umgestellt.rendered_id == zweite
+    assert umgestellt.by_position is False
+    assert umgestellt.rendered.swimlanes[0].heading == "Lane B"
+
+    zurueck = await besitzer.page.render(erste)
+    assert zurueck.rendered_id == erste
+
+
+async def test_fremde_variante_wird_verweigert(eigene_seite):
+    """Ein default ausserhalb von variants[] rendert nichts -- und die Instanz
+    nimmt ihn gemessen ohne Widerspruch an."""
+    besitzer, _, _ = eigene_seite
+    with pytest.raises(ValueError):
+        await besitzer.page.render("00000000-0000-0000-0000-000000000000")
+
+
+async def test_sammlung_ohne_seite_meldet_das(sammlung):
+    assert await sammlung.page.get() is None

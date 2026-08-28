@@ -37,6 +37,7 @@ from .childobjects import ChildObjects
 from .comments import Comments
 from .content import NodeContent
 from .errors import SilentDropError, ValidationError
+from .pages import NodePage
 from .permissions import NodePermissions
 from .ratings import Rating
 from .suggestions import Suggestions
@@ -247,6 +248,16 @@ class Node:
     async def unrate(self) -> Rating | None:
         """Take this account's vote back. See ``ratings.unrate``."""
         return await ratings.unrate(self)
+
+    @property
+    def page(self) -> NodePage:
+        """The curated page this node renders -- edu-sharing's page builder.
+
+        ``await node.page.get()`` answers ``None`` for a node that carries
+        none, which is most of them: a page is an extra a collection may have,
+        not something every collection has.
+        """
+        return NodePage(self)
 
     @property
     def permissions(self) -> NodePermissions:

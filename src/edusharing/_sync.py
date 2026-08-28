@@ -116,6 +116,11 @@ class SyncNode:
         return SyncNodePermissions(self._node.permissions, self._loop)
 
     @property
+    def page(self) -> SyncNodePage:
+        """The curated page this node renders, blocking."""
+        return SyncNodePage(self._node.page, self._loop)
+
+    @property
     def comments(self) -> SyncComments:
         """What people wrote about this node, blocking."""
         return SyncComments(self._node.comments, self._loop)
@@ -171,6 +176,30 @@ class SyncNode:
 
     def __repr__(self) -> str:
         return f"SyncNode(id={self._node.id!r}, title={self._node.title!r})"
+
+
+class SyncNodePage:
+    """A node's curated page for the synchronous surface.
+
+    ``render`` is the reason this wrapper exists rather than handing the
+    accessor through: an un-awaited coroutine there changes what every visitor
+    of a public page sees -- or rather, does not change it, silently.
+    """
+
+    def __init__(self, page: Any, loop: LoopThread) -> None:
+        self._page = page
+        self._loop = loop
+
+    def get(self) -> Any:
+        """Like ``NodePage.get``, blocking. The page it returns is inert."""
+        return self._loop.run(self._page.get())
+
+    def render(self, variant_id: str) -> Any:
+        """Like ``NodePage.render``, blocking."""
+        return self._loop.run(self._page.render(variant_id))
+
+    def __repr__(self) -> str:
+        return f"SyncNodePage({self._page!r})"
 
 
 class SyncNodePermissions:

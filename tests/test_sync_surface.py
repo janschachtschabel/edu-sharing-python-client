@@ -24,6 +24,7 @@ import httpx
 import pytest
 
 from edusharing import Repository
+from edusharing.errors import ConflictError
 
 REPO = "https://repo.test/edu-sharing"
 NID = "node-1"
@@ -414,6 +415,19 @@ def test_serienobjekte_synchron(repo):
     assert not inspect.iscoroutinefunction(kinder.list)
     assert _kein_coroutine(kinder.list()) == []
     assert _kein_coroutine(repo.flows.child_objects(NID))["count"] == 0
+
+
+def test_seite_gibt_ein_synchrones_objekt(repo):
+    """Ohne Durchgriff waere ``node.page.render(...)`` eine nicht abgewartete
+    Coroutine -- und die aendert, was jeder Besucher einer oeffentlichen Seite
+    sieht: naemlich nichts, still."""
+    node = repo.node(NID)
+    assert not inspect.iscoroutinefunction(node.page.get)
+    assert not inspect.iscoroutinefunction(node.page.render)
+    # Der gemockte Knoten traegt kein ccm:page_config_ref -- der Normalfall.
+    assert _kein_coroutine(node.page.get()) is None
+    with pytest.raises(ConflictError):
+        node.page.render("egal")
 
 
 def test_rechte_geben_ein_synchrones_objekt(repo):

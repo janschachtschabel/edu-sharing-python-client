@@ -445,6 +445,26 @@ Keine.
 - **Prüfen:** `uv run --env-file .env python docs/examples/14_flow_page.py`
 - **Commit:** `feat(flows): kuratierte Seiten finden und ausgeben`
 
+## Abweichungen vom Entwurf (waehrend der Umsetzung)
+
+1. **`render` sitzt am Zugriffsobjekt, nicht am Wertobjekt.** Geplant war
+   `CuratedPage.render()`. Beim Bauen der synchronen Huelle fiel auf, dass
+   `CuratedPage` damit das erste Wertobjekt dieser Bibliothek mit einer
+   asynchronen Methode gewesen waere — und `SyncNodePage.get()` haette ein
+   Objekt zurueckgegeben, dessen `render()` eine nicht abgewartete Coroutine
+   ist. Genau die Falle, gegen die es die synchrone Flaeche gibt. `render` sitzt
+   jetzt an `NodePage`, `CuratedPage` ist trage. Nebeneffekt: das Fenster
+   zwischen Lesen und Schreiben ist auf einen Aufruf verkuerzt, weil eine
+   gehaltene Seite gar nicht mehr schreiben kann.
+2. **Keine Ausfuhr in `__init__.py`.** Der Entwurf sah die vier Wertobjekte im
+   Paket-Namensraum vor. `Permissions`, `Ace`, `Rating` und `Comment` stehen
+   dort auch nicht — sie kommen aus ihrem Modul. Symmetrie waere hier ein Bruch
+   der bestehenden Konvention gewesen.
+3. **`CuratedPage.document`** kam dazu: das rohe Dokument, wie gespeichert. Die
+   Bibliothek modelliert zwei seiner Schluessel; die uebrigen gehoeren dem Page
+   Builder, und ein Schreibvorgang muss sie durchreichen. Es offenzulegen
+   kostet nichts und erspart dem Aufrufer eine zweite Anfrage.
+
 ## Verifikationsplan
 
 | Kriterium | Befehl | Erfolg |
