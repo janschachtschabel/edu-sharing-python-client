@@ -104,7 +104,9 @@ def place_all(repo: Repository, result: dict) -> list[dict]:
     print()
     print("-" * 62)
     hits = result["materials"]["hits"][:3] + result["collections"]["hits"][:3]
-    return [where for hit in hits if (where := place_one(repo, hit))]
+    # ``is not None``, not truthiness: ``place_one`` says "nothing readable"
+    # with None, and an answer that happened to be empty is still an answer.
+    return [w for hit in hits if (w := place_one(repo, hit)) is not None]
 
 
 def compare_at_api_level(repo: Repository, placed: list[dict]) -> None:

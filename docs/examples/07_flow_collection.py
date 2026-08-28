@@ -43,14 +43,14 @@ def create_material(repo: Repository, folder: Node) -> list[str]:
 def build_collection(repo: Repository, node_ids: list[str]) -> str:
     """Collection, created and filled in one call.
 
-    A deliberately broken id goes in as well, to show what a partial success
-    looks like.
+    A deliberately broken id goes in *between* the good ones, to show that the
+    ones after it are still placed.
     """
-    first, second = node_ids
+    mixed = [*node_ids[:1], "definitely-not-a-node-id", *node_ids[1:]]
     collection = repo.flows.build_collection(
         f"Example collection {uuid.uuid4().hex[:6]}",
         description="Created by the library documentation",
-        node_ids=[first, "definitely-not-a-node-id", second],
+        node_ids=mixed,
     )
     print("Collection:")
     print(json.dumps(collection, ensure_ascii=False, indent=2)[:600])

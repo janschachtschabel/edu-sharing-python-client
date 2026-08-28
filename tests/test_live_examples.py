@@ -12,6 +12,12 @@ Ausprobieren von Hand -- die Suite hatte dazu nichts zu sagen.
 Geprueft wird der **Exitcode**, nicht die Ausgabe. Was ein Beispiel druckt,
 haengt am Bestand der Instanz und aendert sich taeglich; dass es ueberhaupt
 durchlaeuft, haengt an der Bibliothek.
+
+**Wenn die Zeitgrenze zuschlaegt**, wird der Unterprozess abgeschossen, und sein
+``finally`` laeuft dann nicht mehr. Ein schreibendes Beispiel laesst in dem Fall
+seinen Wegwerf-Ordner auf der Instanz stehen -- selbst angelegt, aber eben
+liegengeblieben. Deshalb ist die Grenze grosszuegig: das langsamste Beispiel
+misst rund 20 Sekunden.
 """
 
 import os

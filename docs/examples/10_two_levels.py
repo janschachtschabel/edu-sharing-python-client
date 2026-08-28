@@ -68,14 +68,17 @@ def compare_search(repo: Repository) -> None:
     result = repo.search("Photosynthese", subject="Biologie", limit=3)
     api_titles = [h.title for h in result.hits]
     # Readable values need the _DISPLAYNAME convention, which you have to know:
-    api_subjects = result.hits[0].labels("ccm:taxonid")
+    # ``hits`` can be empty -- the index is measurably unstable, so a run that
+    # finds nothing is possible and must not end in an IndexError.
+    api_subjects = result.hits[0].labels("ccm:taxonid") if result.hits else []
     show("API level  repo.search(...)")
 
     # Flow level — a dict comes back, ready to hand on.
     fresh(repo)
     flow = repo.flows.search("Photosynthese", subject="Biologie", limit=3)
     flow_titles = [h["title"] for h in flow["hits"]]
-    flow_subjects = flow["hits"][0]["fields"].get("subject", [])
+    flow_subjects = (flow["hits"][0]["fields"].get("subject", [])
+                     if flow["hits"] else [])
     show("Flow level repo.flows.search(...)")
 
     print(f"  subject via API : {api_subjects}  (you had to know _DISPLAYNAME)")
