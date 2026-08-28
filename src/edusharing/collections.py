@@ -143,7 +143,20 @@ class Collections:
         return fresh
 
     async def _mds_leg(self, text: str, limit: int) -> tuple[list[dict], int]:
-        """Leg A -- returns nodes and a real total."""
+        """Leg A -- returns nodes and a real total.
+
+        ``propertyFilter`` is not optional here. Without it the endpoint answers
+        with an EMPTY properties object on every hit -- measured 2026-08-28,
+        0 properties on all 25 hits for "Deutsch", against 33 to 57 with it. A
+        caller reading ``hit.properties()`` therefore saw ``{}`` and concluded
+        the repository stores nothing, which is a different claim from "this
+        projection carries nothing".
+
+        Leg B has a FIXED projection and ignores the parameter, so hits that
+        only that leg found stay property-less. The asymmetry is the endpoint's,
+        not ours; ``flows.find_pages`` reports how many hits it could actually
+        judge for exactly this reason.
+        """
         response = await self._transport.json(
             "POST",
             f"/search/v1/queries/-home-/{path_segment(self.metadataset)}/{COLLECTION_QUERY}",
@@ -151,6 +164,7 @@ class Collections:
                 "contentType": "COLLECTIONS",
                 "maxItems": limit,
                 "skipCount": 0,
+                "propertyFilter": "-all-",
             },
             # This query accepts ngsearchword only; any other criterion ends in
             # 400 DAOValidationException.

@@ -68,6 +68,36 @@ def _collections(handler, **kwargs):
     return Collections(transport, metadataset="mds_oeh", **kwargs)
 
 
+# --- Projektion -----------------------------------------------------------
+
+async def test_weg_a_fordert_alle_eigenschaften_an():
+    """Ohne propertyFilter liefert Weg A Treffer voellig ohne Eigenschaften.
+
+    Gemessen (Staging, 28.08.2026): 0 Eigenschaften auf allen 25 Treffern zu
+    "Deutsch". Mit ``-all-`` sind es 33 bis 57 -- und erst dann ist zu sehen,
+    dass 2 der 25 Sammlungen eine kuratierte Seite tragen.
+    """
+    aufrufe = []
+    await _collections(_router(aufrufe=aufrufe)).find("Optik")
+    weg_a = [u for u in aufrufe if "/search/v1/queries/" in u]
+    assert weg_a, "Weg A wurde gar nicht aufgerufen"
+    assert "propertyFilter=-all-" in weg_a[0]
+
+
+async def test_eigenschaften_erreichen_den_treffer():
+    a = {
+        "nodes": [{
+            "ref": {"id": "aaa-1"},
+            "title": "Wellenoptik",
+            "properties": {"ccm:page_config_ref": ["workspace://SpacesStore/f2-0"]},
+        }],
+        "pagination": {"total": 1, "from": 0, "count": 1},
+    }
+    ergebnis = await _collections(_router(a=a, b={"collections": []})).find("Optik")
+    treffer = next(h for h in ergebnis.hits if h.id == "aaa-1")
+    assert treffer.properties()["ccm:page_config_ref"] == ["workspace://SpacesStore/f2-0"]
+
+
 # --- Zusammenfuehrung -----------------------------------------------------
 
 async def test_beide_wege_werden_abgefragt():

@@ -230,6 +230,36 @@ async def test_sammlungstreffer_tragen_id_und_url():
         assert treffer.id and treffer.url.endswith(treffer.id)
 
 
+async def test_sammlungstreffer_tragen_eigenschaften():
+    """Weg A muss Eigenschaften mitliefern -- sonst ist jede Aussage ueber eine
+    Sammlung eine zweite Anfrage wert.
+
+    Gemessen am 28.08.2026: ohne ``propertyFilter`` kamen 0 Eigenschaften je
+    Treffer zurueck, mit ``-all-`` 33 bis 57.
+    """
+    async with AsyncRepository(os.environ["EDU_SHARING_URL"], metadataset="mds_oeh") as r:
+        e = await r.find_collections("Deutsch", limit=25)
+    assert e.hits
+    mit = [h for h in e.hits if h.properties()]
+    assert mit, "kein einziger Sammlungstreffer trug Eigenschaften"
+
+
+async def test_kuratierte_seiten_sind_am_treffer_erkennbar():
+    """Eine Sammlung mit kuratierter Seite traegt ``ccm:page_config_ref``.
+
+    Uebersprungen statt rot, wenn die Instanz keine hat: die Bibliothek ist
+    instanzunabhaengig, und "kein Page Builder im Einsatz" ist kein Fehler.
+    """
+    async with AsyncRepository(os.environ["EDU_SHARING_URL"], metadataset="mds_oeh") as r:
+        e = await r.find_collections("Deutsch", limit=25)
+    seiten = [h for h in e.hits if h.properties().get("ccm:page_config_ref")]
+    if not seiten:
+        pytest.skip("diese Instanz fuehrt keine kuratierten Seiten unter diesem Suchwort")
+    for treffer in seiten:
+        ref = treffer.properties()["ccm:page_config_ref"][0]
+        assert ref.startswith("workspace://"), f"kein Store-Ref: {ref!r}"
+
+
 @pytest.mark.live
 async def test_eigene_mitgliedschaften(repo):
     """Nur lesend. Die schreibenden Gruppen-Operationen sind mit diesem Konto
