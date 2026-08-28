@@ -100,8 +100,18 @@ class Collections:
         ``warnings``. Only when **both** fail is the error propagated: half a
         result is usable, a faked empty one is not.
 
+        Args:
+            text: what to search for.
+            limit: how many hits to return. Each route is asked for this many
+                and the merged list is taken round-robin before it is cut, so
+                both routes get through the cap. Without the cut the answer was
+                the sum of both routes -- measured 2026-08-28, ``limit=10`` for
+                "Biologie" returned 19 hits.
+
         Returns:
-            A ``SearchResult`` with ``total_is_lower_bound=True``.
+            A ``SearchResult`` with at most ``limit`` hits and
+            ``total_is_lower_bound=True``. ``total`` counts the merge before the
+            cut: the cap says how much comes back, not how much there is.
         """
         leg_a, leg_b = await asyncio.gather(
             self._mds_leg(text, limit),
@@ -140,8 +150,8 @@ class Collections:
         merged = _interleave(from_a, from_b)
         return SearchResult(
             hits=merged[:limit],
-            # Aus der ungedeckelten Zahl: der Deckel sagt, wie viel
-            # zurueckkommt, nicht wie viel es gibt.
+            # From the uncapped count: the cap says how much comes back,
+            # not how much there is.
             total=max(total, len(merged)),
             total_is_lower_bound=True,
             warnings=warnings,
