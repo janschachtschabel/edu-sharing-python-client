@@ -1,6 +1,6 @@
 # edu-sharing Python client — architecture & plan
 
-Last updated: 2026-08-27 · Status: **all four stages complete**
+Last updated: 2026-08-28 · Status: **eight stages complete** — 894 tests offline, 68 live reading, 68 live writing
 
 A Python library that makes the REST API of an edu-sharing repository and the
 surrounding services (b-api) accessible with little code — **without**
@@ -389,6 +389,10 @@ exactly the trap the synchronous surface exists to prevent.
 | **2** | ~~Vocabulary cache, label↔URI, search with facets, both collection legs~~ | ✅ **done** — 160 offline, 21 live (§8.2) |
 | **3** | ~~Nodes, properties (both routes), read-back verify, keyword merge, collections, files~~ | ✅ **done** — 206 offline, 19 live reading, 18 live **writing** (§8.3) |
 | **4** | ~~`edusharing.agent` (§6) + b-api client with policy~~ | ✅ **done** — 342 offline, 25 live (§8.4) |
+| **5** | ~~Flows: one use case, one call, a dict back~~ | ✅ **done** — see FLOWS.md and E9 |
+| **6** | ~~The endpoints the comparison with `wlo-mcp-sc` and the Ideendatenbank showed missing~~ | ✅ **done** — relations, child objects, publishing, provenance, ratings, comments, groups, suggestions, workflow |
+| **7** | ~~Curated pages (the page builder)~~ | ✅ **done** — `pages.py`, `flows/pages.py` |
+| **8** | ~~The text-extraction service beside the repository~~ | ✅ **done** — `extraction.py` |
 
 Documentation runs alongside, not afterwards: **every example under
 `docs/examples/` is an executable test against staging.** What does not run there
@@ -599,6 +603,57 @@ query. The test now checks what the library guarantees (both legs queried, resul
 deduplicated on the node id, total marked as a lower bound). The measurement of
 the overlap remains in the documentation, where it belongs.
 
+### 8.6 Stages 5–8 — what came out of them
+
+| Module | Responsibility |
+|---|---|
+| `flows/` | The second level (E9): `find`, `describe`, `contents`, `curate`, `tree`, `pages`, plus `rerank`/`ranking`/`language` for E10 |
+| `relations.py` | Links between nodes that stand side by side |
+| `childobjects.py` | Further documents belonging to one main document |
+| `permissions.py` | Publishing, and the access control list behind it |
+| `placement.py` | Where a node sits and who has taken it up |
+| `ratings.py`, `comments.py` | The two endpoints that answer with an empty body |
+| `people.py` | Groups and memberships |
+| `suggestions.py`, `workflow.py` | Proposals and editorial handover |
+| `pages.py`, `flows/pages.py` | Curated pages — reading, and setting the rendered variant |
+| `extraction.py` | The text-extraction service beside the repository |
+
+The measurements these modules are built on are in §7; they were recorded there
+as they were taken. Three decisions are worth naming separately:
+
+1. **Flows are a second level, not a replacement.** Every flow can be done at
+   the API level with more code, and each flow's chapter in FLOWS.md shows
+   exactly that code. Keeping both visible is the point: an application that
+   outgrows a flow should be able to see what it is stepping into, not
+   rediscover it.
+2. **Not every surface gets a flow.** Ratings, comments, suggestions, workflow
+   and groups stay API-level only. A flow earns its place by composing several
+   endpoints; these each stay with one family, and wrapping them would add a
+   name without removing a step. The flow chapter says so, because otherwise a
+   reader searches FLOWS.md for a rating flow.
+3. **The extraction service carries no default address.** The b-api does, and
+   the difference is deliberate — see §8.1, decision 3.
+
+**One refactor.** `flows/discover.py` reached 671 lines, 2.2× the threshold and
+2.3× the next largest module in its package. It had three reasons to change, and
+nobody guesses `relations` or `child_objects` behind the name "discover". Split
+into `find` (which nodes), `describe` (what this node is) and `contents` (what
+hangs off it). The cuts came from the AST with a proof that the parts sum to the
+original character for character, and the public surface of `Flows` — 20 methods
+with every signature and default — was compared before and after and is
+identical.
+
+`related` is the one that would not sit still: it starts from an id like the
+flows in `describe`, but what it answers is a search question, so it lives with
+`find`. That is the only cross-module call left, `find` → `describe`, in one
+direction. The module docstring says so rather than claiming a boundary that
+does not hold.
+
+**A test gap of the same family as §8.3's two.** `SyncRelations` was constructed
+and never tested: measured, all four of its methods were uncovered. That is the
+third instance of decision E3's maintenance cost, and the reason
+`test_sync_surface.py` exists at all. `_sync.py` is now covered completely.
+
 ## 9. Open points
 
 1. **Second test instance** — still open. `stable.demo.edu-sharing.net`
@@ -611,4 +666,7 @@ the overlap remains in the documentation, where it belongs.
    project, are not shipped, and have no external audience; translating them
    would be an opportunity to blur a measured finding. A deliberate exception to
    E7.
-3. **`nodes.py` (409 lines)** remains above the size threshold.
+3. **`nodes.py` (629 lines)** remains above the size threshold. It grew
+   with each new node-level surface; every one of them is a pass-through to
+   its own module, so no second responsibility has appeared to cut along.
+   `flows/discover.py` did grow one and was split (§8.6).
