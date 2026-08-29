@@ -45,6 +45,12 @@ and in [`docs/audits/`](docs/audits/).
 - **`docs/examples/17_flow_belonging.py`** — the three kinds of belonging side
   by side: collection, child object, relation. `child_objects` and `relations`
   were the only two flows without a runnable example.
+- **A skill for coding agents**, `.claude/skills/edu-sharing-python/`. A routing
+  table from task to call across both levels, the neighbouring services and the
+  measured traps, pointing at `wlo-edu-sharing-api` for the raw REST API and at
+  `wlo-environments` for addresses rather than repeating either. Three tests
+  keep it honest: it must name all 20 flows, invent no call, and use no
+  environment variable the code does not read.
 - **A dependency CVE step in CI** (`pip-audit --skip-editable`).
 - **A type check in CI** (`mypy`, configured in `pyproject.toml`). It found two
   places that were correct only by accident: a `json.loads` on a value that
@@ -91,6 +97,9 @@ and in [`docs/audits/`](docs/audits/).
   names the setting (`security.logging.displayLevel`). Without it the same
   library returns different error types against two instances for no visible
   reason.
+- `TextExtraction.from_env()` reads `EDU_SHARING_TEXT_EXTRACTION_URL`; the
+  reference named it `TEXT_EXTRACTION_URL`, and `Repository`'s credential
+  argument is `auth=`, not `login=`. Both are now checked by a test.
 - The `search` flow's docstring omitted `duplicates_removed` from its return
   shape — a key it has always returned.
 - `metadata_agent.content_types()` remembers its answer per `(context,

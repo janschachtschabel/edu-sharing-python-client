@@ -38,7 +38,7 @@ Ereignisschleife in einem Thread für Sie.
 
 | Aufruf | Ergebnis |
 |---|---|
-| `Repository(url, login=(user, password))` | die Verbindung |
+| `Repository(url, auth=(user, password))` | die Verbindung |
 | `Repository.from_env()` | liest `EDU_SHARING_URL`, `EDU_SHARING_USER`, `EDU_SHARING_PASSWORD` |
 | `AsyncRepository(url, ...)` | dasselbe, `async` |
 | `repo.url` | `str` — die Instanz, normalisiert |
@@ -818,7 +818,7 @@ Modellwahl, wenn Sie keines übergeben:
 | Aufruf | Ergebnis |
 |---|---|
 | `TextExtraction(base_url=…)` | der Client |
-| `TextExtraction.from_env()` | braucht `TEXT_EXTRACTION_URL` |
+| `TextExtraction.from_env()` | braucht `EDU_SHARING_TEXT_EXTRACTION_URL` |
 | `service.ping()` | `dict` — die Gesundheitsantwort des Dienstes |
 | `service.text_of(url, method=…, output_format=…, lang=…, max_chars=…)` | `ExtractedText` — `text`, `lang`, `status`, `char_count`, `truncated`, `reason` |
 | `METHODS` | `("simple", "browser")` |

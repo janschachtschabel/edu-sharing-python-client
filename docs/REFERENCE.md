@@ -35,7 +35,7 @@ returns; the sync one runs a loop in a thread for you.
 
 | Call | Result |
 |---|---|
-| `Repository(url, login=(user, password))` | the connection |
+| `Repository(url, auth=(user, password))` | the connection |
 | `Repository.from_env()` | reads `EDU_SHARING_URL`, `EDU_SHARING_USER`, `EDU_SHARING_PASSWORD` |
 | `AsyncRepository(url, ...)` | the same, `async` |
 | `repo.url` | `str` — the instance, normalised |
@@ -805,7 +805,7 @@ Model choice, when you do not pass one:
 | Call | Result |
 |---|---|
 | `TextExtraction(base_url=…)` | the client |
-| `TextExtraction.from_env()` | needs `TEXT_EXTRACTION_URL` |
+| `TextExtraction.from_env()` | needs `EDU_SHARING_TEXT_EXTRACTION_URL` |
 | `service.ping()` | `dict` — the service's own health answer |
 | `service.text_of(url, method=…, output_format=…, lang=…, max_chars=…)` | `ExtractedText` — `text`, `lang`, `status`, `char_count`, `truncated`, `reason` |
 | `METHODS` | `("simple", "browser")` |

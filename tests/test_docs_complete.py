@@ -194,3 +194,90 @@ def test_jedes_genannte_feld_gibt_es_wirklich():
                     falsch.append(f"{datei}: {name}.{feld} gibt es nicht")
 
     assert not falsch, "\n  " + "\n  ".join(falsch)
+
+
+# --- Und stimmen die Variablennamen? --------------------------------------
+#
+# ``TEXT_EXTRACTION_URL`` stand in der Referenz und im Skill; die Variable
+# heisst ``EDU_SHARING_TEXT_EXTRACTION_URL``. Wer den falschen Namen setzt,
+# bekommt kein Fehlverhalten, sondern eine Verweigerung ohne erkennbaren
+# Grund -- ``from_env()`` sagt nur, dass die Variable fehlt.
+
+#: Alles, was nach Konfiguration aussieht. Eng gefasst, damit ``CONSUMER``,
+#: ``GROUP_lehrer`` oder ``TO_BE_CHECKED`` nicht mitgezaehlt werden.
+_UMGEBUNG = re.compile(
+    r"`((?:EDU_SHARING|B_API|METADATA_AGENT)_[A-Z0-9_]+"
+    r"|[A-Z][A-Z0-9_]*_(?:URL|KEY|TOKEN|PASSWORD))`")
+
+#: Jede Datei, die Namen behauptet. Der Skill gehoert dazu: er nennt sie in
+#: einer Tabelle, und ein Skill mit falschen Namen ist schlimmer als keiner.
+BEHAUPTEND = [
+    "README.md", "README.de.md",
+    "docs/REFERENCE.md", "docs/REFERENCE.de.md",
+    "docs/FLOWS.md", "docs/FLOWS.de.md",
+    "docs/ARCHITECTURE.md", "docs/ARCHITECTURE.de.md",
+    ".claude/skills/edu-sharing-python/SKILL.md",
+]
+
+
+def test_jeder_genannte_variablenname_kommt_im_code_vor():
+    """Ein Name, den niemand liest, ist eine Anleitung ins Leere.
+
+    Als Beleg zaehlt ein Vorkommen in ``src/`` oder in einem Beispiel -- die
+    Beispiele lesen eigene Variablen (``EDU_SHARING_MDS``), die die Bibliothek
+    selbst nicht kennt.
+    """
+    belegt = "\n".join(
+        p.read_text(encoding="utf-8")
+        for ordner in (QUELLE, WURZEL / "docs" / "examples")
+        for p in sorted(ordner.rglob("*.py"))
+        if "_generated" not in p.parts
+    )
+    erfunden: list[str] = []
+    for datei in BEHAUPTEND:
+        pfad = WURZEL / datei
+        if not pfad.exists():
+            continue
+        for name in sorted(set(_UMGEBUNG.findall(pfad.read_text(encoding="utf-8")))):
+            if f'"{name}"' not in belegt and f"'{name}'" not in belegt:
+                erfunden.append(f"{datei}: {name}")
+
+    assert not erfunden, "\n  " + "\n  ".join(erfunden)
+
+
+# --- Der Skill ------------------------------------------------------------
+#
+# ``.claude/skills/edu-sharing-python/SKILL.md`` ist eine Wegweisertabelle fuer
+# ein Modell: "diese Aufgabe -> dieser Aufruf". Ein Wegweiser, der auf einen
+# Aufruf zeigt, den es nicht gibt, ist schlimmer als keiner -- das Modell
+# schreibt den Code trotzdem. Und ein Wegweiser, der einen Ablauf auslaesst,
+# laesst das Modell ihn von Hand nachbauen.
+
+SKILL = WURZEL / ".claude" / "skills" / "edu-sharing-python" / "SKILL.md"
+
+
+def test_der_skill_kennt_jeden_ablauf_und_erfindet_keinen():
+    """Alle Ablaeufe, und nur echte."""
+    from edusharing.flows import Flows
+
+    text = SKILL.read_text(encoding="utf-8")
+    genannt = set(re.findall(r"repo\.flows\.([a-z_]+)", text))
+    echte = {n for n in dir(Flows) if not n.startswith("_")}
+
+    erfunden = sorted(genannt - echte)
+    assert not erfunden, f"der Skill nennt Ablaeufe, die es nicht gibt: {erfunden}"
+
+    fehlend = sorted(echte - genannt)
+    assert not fehlend, (
+        f"{len(fehlend)} von {len(echte)} Ablaeufen fehlen im Skill: {fehlend}")
+
+
+def test_der_skill_erfindet_keine_aufrufe_am_knoten():
+    """``node.<zubehoer>`` und ``node.<methode>()`` muss es geben."""
+    from edusharing.nodes import Node
+
+    text = SKILL.read_text(encoding="utf-8")
+    genannt = (set(re.findall(r"node\.([a-z_]+)\.[a-z_]+", text))
+               | set(re.findall(r"\bnode\.([a-z_]+)\(", text)))
+    erfunden = sorted(n for n in genannt if not hasattr(Node, n))
+    assert not erfunden, f"der Skill nennt am Knoten: {erfunden}"

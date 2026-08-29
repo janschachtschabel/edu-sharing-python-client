@@ -250,6 +250,20 @@ if plan.has_changes:
     node = await plan.apply()
 ```
 
+**Ein Skill für Coding-Agenten liegt der Bibliothek bei.**
+[`.claude/skills/edu-sharing-python/`](.claude/skills/edu-sharing-python/SKILL.md)
+ist eine Wegweisertabelle — *diese Aufgabe, dieser Aufruf* — über alle 20
+Abläufe, die API-Ebene, die Nachbardienste und die gemessenen Fallen. Er ist
+für jeden Agenten aktiv, der in diesem Repositorium arbeitet. Damit er überall
+verfügbar ist:
+
+```bash
+cp -r .claude/skills/edu-sharing-python ~/.claude/skills/
+```
+
+Drei Tests halten ihn ehrlich: er muss jeden Ablauf nennen, keinen erfinden und
+keine Umgebungsvariable verwenden, die der Code nicht liest.
+
 ### Das LLM-Gateway
 
 ```python

@@ -248,6 +248,19 @@ if plan.has_changes:
     node = await plan.apply()
 ```
 
+**A skill for coding agents ships with the library.**
+[`.claude/skills/edu-sharing-python/`](.claude/skills/edu-sharing-python/SKILL.md)
+is a routing table — *this task, that call* — covering all 20 flows, the API
+level, the neighbouring services and the measured traps. It is active for any
+agent working in this repository. To make it available everywhere:
+
+```bash
+cp -r .claude/skills/edu-sharing-python ~/.claude/skills/
+```
+
+Three tests keep it honest: it must name every flow, invent none, and use no
+environment variable the code does not read.
+
 ### The LLM gateway
 
 ```python
