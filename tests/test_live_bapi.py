@@ -76,3 +76,36 @@ async def test_fremder_provider_wird_abgelehnt(llm):
     """Gemessen: 400 'Provider ... not found'. Es gibt genau zwei."""
     with pytest.raises(EduSharingError):
         await llm.models(provider="gwdg")
+
+
+# --- Die durchgereichten OpenAI-Routen -------------------------------------
+
+async def test_einbettungen_kommen_vom_anbieter(llm):
+    """Gemessen am 28.08.2026: academiccloud fuehrt kein Einbettungsmodell,
+    openai schon. Deshalb hier ausdruecklich der Anbieter -- geraten wird
+    nichts."""
+    vektoren = await llm.embeddings(
+        ["Photosynthese", "Zellatmung"],
+        model="text-embedding-3-small", provider="openai")
+    assert len(vektoren) == 2, f"zwei Texte, {len(vektoren)} Vektoren"
+    assert all(len(v) > 100 for v in vektoren), "verdaechtig kurze Vektoren"
+    assert vektoren[0] != vektoren[1], "zwei Texte, derselbe Vektor"
+
+
+async def test_moderation_urteilt(llm):
+    urteil = await llm.moderate(
+        "Ein voellig harmloser Satz ueber Blumen.",
+        model="omni-moderation-latest", provider="openai")
+    assert urteil.flagged is False, f"harmloser Satz geflaggt: {urteil.categories}"
+    assert urteil.scores, "keine Punktwerte zurueckbekommen"
+
+
+async def test_rerank_wird_nicht_durchgereicht(llm):
+    """Die eine Route, die das Gateway ablehnt -- gemessen mit derselben
+    Antwort wie fuer eine frei erfundene Route. Faellt das weg, ist die
+    Positivliste gewachsen und passthrough.__doc__ veraltet."""
+    from edusharing.errors import EduSharingError
+
+    with pytest.raises(EduSharingError) as fehler:
+        await llm.call("rerank", {"model": "x"}, provider="openai")
+    assert "403" in str(fehler.value), str(fehler.value)[:120]

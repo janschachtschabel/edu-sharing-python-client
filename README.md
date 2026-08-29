@@ -262,6 +262,30 @@ next one if needed: `status: ready` does not mean a model answers. The quirks of
 the model families (`max_completion_tokens` for GPT-5/o, thinking switched off
 for Qwen3 — but not for Mistral) live in `bapi.policy`.
 
+**The gateway forwards the OpenAI surface**, not only chat:
+
+```python
+vectors = await llm.embeddings(["Photosynthese", "Zellatmung"],
+                               model="text-embedding-3-small", provider="openai")
+verdict = await llm.moderate(text, model="omni-moderation-latest",
+                             provider="openai")   # .flagged, .categories, .scores
+pictures = await llm.images("ein Baum", model="dall-e-3")   # .url or .b64
+await llm.call("audio/speech", {...})             # anything else, as repo.raw
+```
+
+No model is guessed here — `chat()` may do that because a measured policy backs
+it, and there is none for these. **The provider decides what is possible:**
+measured 2026-08-28, `academiccloud` lists 16 models and none of them embed or
+moderate, while `openai` lists 132 including both.
+
+The endpoint list was measured, not read: `/v3/api-docs` describes only the
+hand-written controllers and knows neither `/embeddings` nor `/chat/completions`.
+Posting an empty body to each candidate separates them — `403` means the gateway
+does not forward the route at all, anything else means it does. On that list:
+`chat/completions`, `completions`, `embeddings`, `moderations`, `responses`,
+`images/generations`, `images/edits`, `audio/*`, `files`, `batches`,
+`fine_tuning/jobs`, `vector_stores`. **Not** on it: `rerank`.
+
 Try it: `python docs/examples/04_agent_blocks.py`
 
 ### The extraction service — text the repository does not have

@@ -9,8 +9,12 @@ Measured against staging:
 * **No quota headers and no ``retry-after``.** A client cannot see its
   remaining allowance and notices a limit only when it fails; exponential
   backoff is all that is possible.
-* **No OpenAPI document.** ``/openapi.json``, ``/docs`` and ``/health`` all
-  serve the Angular frontend. You have to know the endpoints.
+* **The OpenAPI document is at ``/v3/api-docs``, and it is incomplete.**
+  ``/openapi.json``, ``/docs`` and ``/health`` serve the Angular frontend;
+  ``/v3/api-docs`` answers with 68 kB of Springdoc output. It describes the
+  hand-written controllers only and knows neither ``/api/v1/llm/{provider}/models``
+  nor ``/chat/completions`` -- the two routes this client has always used.
+  Measured 2026-08-28; see ``passthrough`` for how the real list was found.
 
 A separate HTTP path rather than the edu-sharing ``Transport``: that one's
 credential boundary and error mapping are cut for a repository (basic auth,
@@ -31,6 +35,7 @@ import httpx
 
 from ..errors import EduSharingError, at_least, error_from_response
 from ..urls import path_segment
+from . import passthrough
 from .policy import Model, build_body, pick_model, rank_models, read_answer
 
 __all__ = ["BildungsAPI"]
@@ -42,10 +47,13 @@ logger = logging.getLogger(__name__)
 ENV_KEY = "B_API_KEY"
 ENV_BASE_URL = "B_API_BASE_URL"
 
-# Kein Vorgabewert fuer die Adresse. Bis zum 28.08.2026 stand hier die
-# Staging-Instanz, und wer nur B_API_KEY setzte, schickte seinen Schluessel
-# an ein Gateway, das er nicht gewaehlt hatte. ``extraction`` verweigert das
-# seit jeher mit derselben Begruendung.
+# There is deliberately no default address. Until 2026-08-28 the staging
+# gateway stood here, so setting only B_API_KEY sent the key to a host nobody
+# had chosen; ``extraction`` has always refused exactly that.
+#
+# The provider does have one. It decides which models exist -- measured
+# 2026-08-28, ``academiccloud`` lists 16, none for embedding or moderation,
+# while ``openai`` lists 132 including both.
 DEFAULT_PROVIDER = "academiccloud"
 
 #: Measured 2026-08-21: up to 26 concurrent requests without error, occasional
@@ -253,6 +261,50 @@ class BildungsAPI:
         raise EduSharingError(
             "None of the models tried answered. " + " | ".join(failures)
         )
+
+    # --- The forwarded OpenAI routes --------------------------------------
+    #
+    # Thin on purpose: these carry no policy, so they belong beside ``chat``
+    # rather than inside it. The measurements behind them are in
+    # ``passthrough``.
+
+    async def embeddings(
+        self, texts: str | list[str], *, model: str,
+        provider: str | None = None, **extra: Any,
+    ) -> list[list[float]]:
+        """Vectors for one or more texts. See ``passthrough.embeddings``."""
+        return await passthrough.embeddings(
+            self, texts, model=model, provider=provider, **extra)
+
+    async def moderate(
+        self, text: str, *, model: str, provider: str | None = None,
+        **extra: Any,
+    ) -> passthrough.Moderation:
+        """Whether a text trips the content policy. See ``passthrough.moderate``.
+
+        **An empty answer raises** rather than reading as "not flagged" -- that
+        reading would let everything through during an outage.
+        """
+        return await passthrough.moderate(
+            self, text, model=model, provider=provider, **extra)
+
+    async def images(
+        self, prompt: str, *, model: str, provider: str | None = None,
+        **extra: Any,
+    ) -> list[passthrough.GeneratedImage]:
+        """Generate images from a prompt. See ``passthrough.images``."""
+        return await passthrough.images(
+            self, prompt, model=model, provider=provider, **extra)
+
+    async def call(
+        self, route: str, body: dict[str, Any], *, provider: str | None = None,
+    ) -> dict[str, Any]:
+        """Any other forwarded route. See ``passthrough.call``.
+
+        The escape hatch, as ``repo.raw`` is on the edu-sharing side:
+        ``await llm.call("audio/speech", {...})``.
+        """
+        return await passthrough.call(self, route, body, provider=provider)
 
     async def _pick(self, provider: str) -> Model:
         return pick_model(await self.models(provider))

@@ -265,6 +265,30 @@ Modell antwortet. Die Eigenheiten der Modellfamilien (`max_completion_tokens`
 für GPT-5/o, abgeschaltetes Denken bei Qwen3 — aber nicht bei Mistral) stecken
 in `bapi.policy`.
 
+**Das Gateway reicht die OpenAI-Oberfläche durch**, nicht nur Chat:
+
+```python
+vektoren = await llm.embeddings(["Photosynthese", "Zellatmung"],
+                                model="text-embedding-3-small", provider="openai")
+urteil = await llm.moderate(text, model="omni-moderation-latest",
+                            provider="openai")    # .flagged, .categories, .scores
+bilder = await llm.images("ein Baum", model="dall-e-3")     # .url oder .b64
+await llm.call("audio/speech", {...})             # alles Übrige, wie repo.raw
+```
+
+Hier wird kein Modell geraten — `chat()` darf das, weil eine gemessene Politik
+dahintersteht, und für diese gibt es keine. **Der Anbieter entscheidet, was
+möglich ist:** gemessen am 28.08.2026 führt `academiccloud` 16 Modelle, keines
+davon für Einbettung oder Moderation, `openai` dagegen 132 einschließlich beider.
+
+Die Endpunktliste ist gemessen, nicht gelesen: `/v3/api-docs` beschreibt nur die
+handgeschriebenen Controller und kennt weder `/embeddings` noch
+`/chat/completions`. Ein leerer Rumpf an jede Kandidatenroute trennt sie — `403`
+heißt, das Gateway reicht die Route gar nicht durch, alles andere heißt doch.
+Auf der Liste: `chat/completions`, `completions`, `embeddings`, `moderations`,
+`responses`, `images/generations`, `images/edits`, `audio/*`, `files`,
+`batches`, `fine_tuning/jobs`, `vector_stores`. **Nicht** darauf: `rerank`.
+
 Zum Ausprobieren: `python docs/examples/04_agent_blocks.py`
 
 ### Der Extraktionsdienst — Text, den das Repositorium nicht hat
