@@ -27,7 +27,28 @@ from edusharing.bapi import BildungsAPI
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-REPO = "https://repository.staging.openeduhub.net"
+# --- Configuration ---------------------------------------------------
+# Point these at your own repository. The values below are the staging
+# instance, filled in so this example runs as it stands; anything set in the
+# environment wins over them. Configured once, here -- no call below takes an
+# address of its own.
+REPOSITORY = os.environ.get(
+    "EDU_SHARING_URL", "https://repository.staging.openeduhub.net")
+METADATA_SET = os.environ.get("EDU_SHARING_MDS", "mds_oeh")
+
+# Left empty on purpose: without them the example runs anonymously, which is
+# enough for reading. Writing needs both -- fill them in, or set
+# EDU_SHARING_USER and EDU_SHARING_PASSWORD in the environment.
+USER = os.environ.get("EDU_SHARING_USER", "")
+PASSWORD = os.environ.get("EDU_SHARING_PASSWORD", "")
+LOGIN = (USER, PASSWORD) if USER else None
+
+# The LLM gateway is a service of its own, with an address of its own. The
+# library carries no default for it -- a wrong one would send your API key
+# to a host you did not choose. Staging is filled in here, as an example.
+B_API = os.environ.get("B_API_BASE_URL", "https://b-api.staging.openeduhub.net")
+B_API_KEY = os.environ.get("B_API_KEY", "")
+
 
 
 async def search_as_tool_result(repo: AsyncRepository, topic: str) -> ToolResult:
@@ -73,13 +94,13 @@ def as_model_context(hits: SearchResult) -> str:
 
 async def ask_model(material: str) -> None:
     """The last step, and the only one that needs a key."""
-    if not os.environ.get("B_API_KEY"):
+    if not B_API_KEY:
         print()
         print("(B_API_KEY not set -- the model call is skipped.)")
         print(f"The prompt would be {len(material)} characters long.")
         return
 
-    async with BildungsAPI.from_env() as llm:
+    async with BildungsAPI(B_API_KEY, base_url=B_API) as llm:
         answer = await llm.chat(
             f"Summarise in one sentence what these materials are about:"
             f"\n\n{material}",
@@ -92,7 +113,7 @@ async def ask_model(material: str) -> None:
 
 
 async def main(topic: str = "Photosynthese") -> int:
-    async with AsyncRepository(REPO, metadataset="mds_oeh") as repo:
+    async with AsyncRepository(REPOSITORY, metadataset=METADATA_SET, auth=LOGIN) as repo:
         result = await search_as_tool_result(repo, topic)
         if not result:
             print(f"Search failed ({result.error_type}): {result.error}")

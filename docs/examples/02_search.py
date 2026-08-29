@@ -7,6 +7,7 @@ Shows the point of this library: the same three lines run against any metadata
 set, because filter values are resolved at runtime against *this* instance.
 """
 
+import os
 import sys
 
 from edusharing import EduSharingError, Repository, SearchResult
@@ -15,7 +16,22 @@ from edusharing import EduSharingError, Repository, SearchResult
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-DEFAULT = "https://repository.staging.openeduhub.net"
+# --- Configuration ---------------------------------------------------
+# Point these at your own repository. The values below are the staging
+# instance, filled in so this example runs as it stands; anything set in the
+# environment wins over them. Configured once, here -- no call below takes an
+# address of its own.
+REPOSITORY = os.environ.get(
+    "EDU_SHARING_URL", "https://repository.staging.openeduhub.net")
+METADATA_SET = os.environ.get("EDU_SHARING_MDS", "mds_oeh")
+
+# Left empty on purpose: without them the example runs anonymously, which is
+# enough for reading. Writing needs both -- fill them in, or set
+# EDU_SHARING_USER and EDU_SHARING_PASSWORD in the environment.
+USER = os.environ.get("EDU_SHARING_USER", "")
+PASSWORD = os.environ.get("EDU_SHARING_PASSWORD", "")
+LOGIN = (USER, PASSWORD) if USER else None
+
 
 
 def show_metadatasets(repo: Repository) -> None:
@@ -80,7 +96,7 @@ def show_collections(repo: Repository, topic: str) -> None:
 
 
 def main(topic: str = "Photosynthese") -> int:
-    with Repository(DEFAULT, metadataset="mds_oeh") as repo:
+    with Repository(REPOSITORY, metadataset=METADATA_SET, auth=LOGIN) as repo:
         show_metadatasets(repo)
         print()
         result = show_material(repo, topic)

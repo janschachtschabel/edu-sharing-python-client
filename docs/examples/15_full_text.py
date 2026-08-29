@@ -24,14 +24,44 @@ import os
 import sys
 from typing import NamedTuple
 
-from edusharing import AsyncRepository, EduSharingError, NotFoundError
+from edusharing import (
+    AsyncRepository,
+    EduSharingError,
+    NotFoundError,
+    PermissionDeniedError,
+)
 from edusharing.extraction import TextExtraction
 
 # The Windows console otherwise emits cp1252 and mangles umlauts.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-REPO = "https://repository.staging.openeduhub.net"
+# --- Configuration ---------------------------------------------------
+# Point these at your own repository. The values below are the staging
+# instance, filled in so this example runs as it stands; anything set in the
+# environment wins over them. Configured once, here -- no call below takes an
+# address of its own.
+STAGING = "https://repository.staging.openeduhub.net"
+REPOSITORY = os.environ.get("EDU_SHARING_URL", STAGING)
+METADATA_SET = os.environ.get("EDU_SHARING_MDS", "mds_oeh")
+
+# Left empty on purpose: without them the example runs anonymously, which is
+# enough for reading. Writing needs both -- fill them in, or set
+# EDU_SHARING_USER and EDU_SHARING_PASSWORD in the environment.
+USER = os.environ.get("EDU_SHARING_USER", "")
+PASSWORD = os.environ.get("EDU_SHARING_PASSWORD", "")
+LOGIN = (USER, PASSWORD) if USER else None
+
+# The extraction service is a service of its own, with an address of its
+# own. Staging's is filled in -- but ONLY while the repository above is
+# staging too. Pairing your own repository with somebody else's extraction
+# service would send your material URLs to a host you did not choose, and
+# that is exactly why the library carries no default for it.
+EXTRACTION = os.environ.get(
+    "EDU_SHARING_TEXT_EXTRACTION_URL",
+    "https://text-extraction.staging.openeduhub.net"
+    if REPOSITORY == STAGING else "")
+
 LIMIT = 8
 
 
@@ -69,9 +99,20 @@ async def report_rows(
             print(f"{hit.title[:32]:34s} {'gone':>10s}")
             continue
 
-        stored = await node.content.text()
+        try:
+            stored = await node.content.text()
+        except PermissionDeniedError:
+            # Measured 2026-08-28 against redaktion.openeduhub.net: an
+            # anonymous caller may *find* material whose content it may not
+            # *read*. Treated like "no stored text" -- the metadata came back,
+            # so the linked address is there and the service can still answer.
+            # Letting it raise would end the run over one refused row.
+            stored, refused = None, True
+        else:
+            refused = False
+
         linked = node.get("ccm:wwwurl")
-        column = f"{len(stored or ''):>10d}"
+        column = f"{'refused':>10s}" if refused else f"{len(stored or ''):>10d}"
         linked_seen = linked_seen or (linked or "")
 
         if stored or not linked:
@@ -128,17 +169,17 @@ def closing_note(service: TextExtraction | None, gaps: int) -> None:
 
 
 async def main(topic: str = "Photosynthese") -> int:
-    configured = bool(os.environ.get(TextExtraction.ENV_BASE_URL))
+    configured = bool(EXTRACTION)
     if not configured:
         announce_missing_service()
 
-    async with AsyncRepository(REPO, metadataset="mds_oeh") as repo:
+    async with AsyncRepository(REPOSITORY, metadataset=METADATA_SET, auth=LOGIN) as repo:
         result = await repo.search(topic, limit=LIMIT)
         if not result.hits:
             print(f"No material for {topic!r}.", file=sys.stderr)
             return 0
 
-        service = TextExtraction.from_env() if configured else None
+        service = TextExtraction(EXTRACTION) if configured else None
         try:
             tally = await report_rows(repo, result.hits, service)
             print()

@@ -7,9 +7,10 @@ Runs without credentials. With ``EDU_SHARING_USER`` and ``EDU_SHARING_PASSWORD``
 in the environment the example signs in and shows the difference.
 """
 
+import os
 import sys
 
-from edusharing import BasicCredential, EduSharingError, Repository
+from edusharing import EduSharingError, Repository
 
 # The Windows console otherwise emits cp1252 and mangles umlauts. This affects
 # only this example's output -- the library works in UTF-8 throughout and does
@@ -17,7 +18,22 @@ from edusharing import BasicCredential, EduSharingError, Repository
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-DEFAULT = "https://repository.staging.openeduhub.net"
+# --- Configuration ---------------------------------------------------
+# Point these at your own repository. The values below are the staging
+# instance, filled in so this example runs as it stands; anything set in the
+# environment wins over them. Configured once, here -- no call below takes an
+# address of its own.
+REPOSITORY = os.environ.get(
+    "EDU_SHARING_URL", "https://repository.staging.openeduhub.net")
+METADATA_SET = os.environ.get("EDU_SHARING_MDS", "mds_oeh")
+
+# Left empty on purpose: without them the example runs anonymously, which is
+# enough for reading. Writing needs both -- fill them in, or set
+# EDU_SHARING_USER and EDU_SHARING_PASSWORD in the environment.
+USER = os.environ.get("EDU_SHARING_USER", "")
+PASSWORD = os.environ.get("EDU_SHARING_PASSWORD", "")
+LOGIN = (USER, PASSWORD) if USER else None
+
 
 
 def show_instance(repo: Repository) -> None:
@@ -49,8 +65,11 @@ def show_identity(repo: Repository) -> None:
         print(f"  Signed in as: {who.display_name} ({who.authority})")
 
 
-def main(url: str = DEFAULT) -> int:
-    with Repository(url, auth=BasicCredential.from_env()) as repo:
+def main(url: str = REPOSITORY) -> int:
+    # Die Adresse laesst sich hier zusaetzlich als Argument uebergeben --
+    # dieses Beispiel zeigt gerade, dass die Bibliothek an keiner Instanz
+    # haengt. Ohne Argument gilt der Block oben.
+    with Repository(url, metadataset=METADATA_SET, auth=LOGIN) as repo:
         print(f"Repository: {repo.url}")
         print()
         show_instance(repo)

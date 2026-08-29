@@ -11,6 +11,7 @@ measured, both are why these flows walk and compare locally, and both are why
 every answer says what it left out.
 """
 
+import os
 import sys
 
 from edusharing import EduSharingError, Repository
@@ -18,6 +19,22 @@ from edusharing import EduSharingError, Repository
 # The Windows console otherwise emits cp1252 and mangles umlauts.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+# --- Configuration ---------------------------------------------------
+# Point these at your own repository. The values below are the staging
+# instance, filled in so this example runs as it stands; anything set in the
+# environment wins over them. Configured once, here -- no call below takes an
+# address of its own.
+REPOSITORY = os.environ.get(
+    "EDU_SHARING_URL", "https://repository.staging.openeduhub.net")
+METADATA_SET = os.environ.get("EDU_SHARING_MDS", "mds_oeh")
+
+# Left empty on purpose: without them the example runs anonymously, which is
+# enough for reading. Writing needs both -- fill them in, or set
+# EDU_SHARING_USER and EDU_SHARING_PASSWORD in the environment.
+USER = os.environ.get("EDU_SHARING_USER", "")
+PASSWORD = os.environ.get("EDU_SHARING_PASSWORD", "")
+LOGIN = (USER, PASSWORD) if USER else None
 
 TOPIC = "Biologie"
 TERM = "zelle"
@@ -97,7 +114,7 @@ def describe_all_at_once(repo: Repository, materials: list[dict]) -> None:
 
 
 def main() -> int:
-    with Repository.from_env(metadataset="mds_oeh") as repo:
+    with Repository(REPOSITORY, metadataset=METADATA_SET, auth=LOGIN) as repo:
         found = repo.flows.find_collections(TOPIC, limit=3)
         if not found["hits"]:
             print(f"No collection for {TOPIC!r}.", file=sys.stderr)

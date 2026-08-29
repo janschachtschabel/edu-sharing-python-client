@@ -14,6 +14,7 @@ material found" about a subject with fifteen hundred records, and a person
 believes it. This script shows the gap and what `rerank=True` does about it.
 """
 
+import os
 import sys
 
 from edusharing import EduSharingError, LanguageProfile, Repository
@@ -21,6 +22,22 @@ from edusharing import EduSharingError, LanguageProfile, Repository
 # The Windows console otherwise emits cp1252 and mangles umlauts.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+# --- Configuration ---------------------------------------------------
+# Point these at your own repository. The values below are the staging
+# instance, filled in so this example runs as it stands; anything set in the
+# environment wins over them. Configured once, here -- no call below takes an
+# address of its own.
+REPOSITORY = os.environ.get(
+    "EDU_SHARING_URL", "https://repository.staging.openeduhub.net")
+METADATA_SET = os.environ.get("EDU_SHARING_MDS", "mds_oeh")
+
+# Left empty on purpose: without them the example runs anonymously, which is
+# enough for reading. Writing needs both -- fill them in, or set
+# EDU_SHARING_USER and EDU_SHARING_PASSWORD in the environment.
+USER = os.environ.get("EDU_SHARING_USER", "")
+PASSWORD = os.environ.get("EDU_SHARING_PASSWORD", "")
+LOGIN = (USER, PASSWORD) if USER else None
 
 # Left: how a person asks. Right: the bare subject.
 PAIRS = [
@@ -107,7 +124,7 @@ def show_other_language(repo: Repository) -> None:
 
 
 def main() -> int:
-    with Repository.from_env(metadataset="mds_oeh") as repo:
+    with Repository(REPOSITORY, metadataset=METADATA_SET, auth=LOGIN) as repo:
         show_cost_of_framing(repo)
         print()
         show_rerank(repo)

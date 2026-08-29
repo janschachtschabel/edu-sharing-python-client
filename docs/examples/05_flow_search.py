@@ -24,6 +24,22 @@ from edusharing import EduSharingError, NotFoundError, Repository
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
+# --- Configuration ---------------------------------------------------
+# Point these at your own repository. The values below are the staging
+# instance, filled in so this example runs as it stands; anything set in the
+# environment wins over them. Configured once, here -- no call below takes an
+# address of its own.
+REPOSITORY = os.environ.get(
+    "EDU_SHARING_URL", "https://repository.staging.openeduhub.net")
+METADATA_SET = os.environ.get("EDU_SHARING_MDS", "mds_oeh")
+
+# Left empty on purpose: without them the example runs anonymously, which is
+# enough for reading. Writing needs both -- fill them in, or set
+# EDU_SHARING_USER and EDU_SHARING_PASSWORD in the environment.
+USER = os.environ.get("EDU_SHARING_USER", "")
+PASSWORD = os.environ.get("EDU_SHARING_PASSWORD", "")
+LOGIN = (USER, PASSWORD) if USER else None
+
 METADATA_SET = os.environ.get("EDU_SHARING_MDS", "mds_oeh")
 
 
@@ -94,7 +110,7 @@ def dump_json(result: dict) -> None:
 
 
 def main() -> int:
-    with Repository.from_env(metadataset=METADATA_SET) as repo:
+    with Repository(REPOSITORY, metadataset=METADATA_SET, auth=LOGIN) as repo:
         show_vocabulary(repo)
         print()
         result = run_search(repo)

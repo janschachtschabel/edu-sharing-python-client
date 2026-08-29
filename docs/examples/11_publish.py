@@ -11,6 +11,7 @@ creator and by **nobody else**, and neither filing it into a collection nor
 answers 200.
 """
 
+import os
 import sys
 import uuid
 
@@ -19,6 +20,22 @@ from edusharing import ConflictError, EduSharingError, Identity, Node, Repositor
 # The Windows console otherwise emits cp1252 and mangles umlauts.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+# --- Configuration ---------------------------------------------------
+# Point these at your own repository. The values below are the staging
+# instance, filled in so this example runs as it stands; anything set in the
+# environment wins over them. Configured once, here -- no call below takes an
+# address of its own.
+REPOSITORY = os.environ.get(
+    "EDU_SHARING_URL", "https://repository.staging.openeduhub.net")
+METADATA_SET = os.environ.get("EDU_SHARING_MDS", "mds_oeh")
+
+# Left empty on purpose: without them the example runs anonymously, which is
+# enough for reading. Writing needs both -- fill them in, or set
+# EDU_SHARING_USER and EDU_SHARING_PASSWORD in the environment.
+USER = os.environ.get("EDU_SHARING_USER", "")
+PASSWORD = os.environ.get("EDU_SHARING_PASSWORD", "")
+LOGIN = (USER, PASSWORD) if USER else None
 
 
 def create_invisible(repo: Repository, folder: Node) -> Node:
@@ -96,7 +113,7 @@ def publish_at_flow_level(repo: Repository, folder: Node) -> None:
 
 
 def main() -> int:
-    with Repository.from_env(metadataset="mds_oeh") as repo:
+    with Repository(REPOSITORY, metadataset=METADATA_SET, auth=LOGIN) as repo:
         who = repo.whoami()
         if who.is_anonymous:
             print("Nothing can be published without signing in. Please set "
