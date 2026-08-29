@@ -128,9 +128,9 @@ from edusharing import Repository, Node, SearchResult, NotFoundError
 | `edusharing.metadata_agent` | the metadata agent — likewise |
 
 The flows need no import of their own: they hang off a connection, as
-`repo.flows.search(...)`. The two neighbouring services get a module of their
-own because they have an address of their own — a connection to a repository
-says nothing about whether they exist.
+`repo.flows.search(...)`. The three neighbouring services get a module of
+their own because they have an address of their own — a connection to a
+repository says nothing about whether they exist.
 
 ### Searching with labels instead of URIs
 
@@ -990,10 +990,11 @@ EDU_SHARING_URL=https://repository.staging.openeduhub.net uv run pytest -m live
 Write tests (`-m write`) need credentials and operate exclusively inside a
 throwaway folder they create themselves.
 
-The suites against the two neighbouring services skip themselves silently
-without their own variable — `B_API_KEY` for the LLM gateway,
-`EDU_SHARING_TEXT_EXTRACTION_URL` for the extraction service. A skip there means
-"not configured", not "not covered".
+The suites against the three neighbouring services skip themselves silently
+without their own variables — `B_API_KEY` **and** `B_API_BASE_URL` for the LLM
+gateway, `EDU_SHARING_TEXT_EXTRACTION_URL` for the extraction service,
+`METADATA_AGENT_URL` for the metadata agent. A skip there means "not
+configured", not "not covered".
 
 ## Licence
 

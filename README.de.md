@@ -127,7 +127,7 @@ from edusharing import Repository, Node, SearchResult, NotFoundError
 | `edusharing.metadata_agent` | der Metadata Agent — ebenso |
 
 Die Flows brauchen keinen eigenen Import: sie hängen an einer Verbindung, als
-`repo.flows.search(...)`. Die beiden Nachbardienste bekommen ein eigenes Modul,
+`repo.flows.search(...)`. Die drei Nachbardienste bekommen ein eigenes Modul,
 weil sie eine eigene Adresse haben — eine Verbindung zu einem Repositorium sagt
 nichts darüber, ob es sie gibt.
 
@@ -1015,10 +1015,11 @@ EDU_SHARING_URL=https://repository.staging.openeduhub.net uv run pytest -m live
 Schreibtests (`-m write`) brauchen Zugangsdaten und arbeiten ausschließlich in
 einem Wegwerf-Ordner, den sie selbst anlegen.
 
-Die Suiten gegen die beiden Nachbardienste überspringen sich still ohne ihre
-eigene Variable — `B_API_KEY` für das LLM-Gateway,
-`EDU_SHARING_TEXT_EXTRACTION_URL` für den Extraktionsdienst. Ein Übersprungen
-heißt dort „nicht konfiguriert“, nicht „nicht abgedeckt“.
+Die Suiten gegen die drei Nachbardienste überspringen sich still ohne ihre
+eigenen Variablen — `B_API_KEY` **und** `B_API_BASE_URL` für das LLM-Gateway,
+`EDU_SHARING_TEXT_EXTRACTION_URL` für den Extraktionsdienst,
+`METADATA_AGENT_URL` für den Metadata Agent. Ein Übersprungen heißt dort
+„nicht konfiguriert“, nicht „nicht abgedeckt“.
 
 ## Lizenz
 

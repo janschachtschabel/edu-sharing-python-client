@@ -24,12 +24,13 @@ conventions of any particular instance.
 ``edusharing.agent``             building blocks for AI use
 ``edusharing.bapi``              the LLM gateway -- a separate service
 ``edusharing.extraction``        the text-extraction service -- likewise
+``edusharing.metadata_agent``    the metadata agent -- likewise
 ===============================  ========================================
 
 The flows need no import of their own: they hang off a connection as
-``repo.flows.search(...)``. The two neighbouring services get a module of their
-own because they have an address of their own, and a connection to a repository
-says nothing about whether they exist.
+``repo.flows.search(...)``. The three neighbouring services get a module of
+their own because they have an address of their own, and a connection to a
+repository says nothing about whether they exist.
 """
 
 from .auth import ANONYMOUS, AnonymousCredential, BasicCredential, Credential
