@@ -37,6 +37,13 @@ jobs:
       - name: Lint
         run: uv run ruff check .
 
+      # --skip-editable leaves out the project itself: it is installed editable
+      # and is not on PyPI, which pip-audit reports as an error rather than a
+      # clean run. Everything it depends on is still audited -- verified by
+      # pinning a known-vulnerable jinja2, which produced 5 findings.
+      - name: Audit dependencies
+        run: uv run --with pip-audit pip-audit --skip-editable
+
       # Offline only. The live and write suites need credentials and write into
       # a real repository -- they are deselected by addopts in pyproject.toml
       # and stay a deliberate, local act.
