@@ -947,12 +947,13 @@ save a round trip.
 | Transport | httpx, auth, retry, concurrency, read-back check |
 | `_generated` | All 389 operations, generated from `openapi.json` |
 
-Beside it, not inside it — two services with their own address, built on their
-own because a connection to a repository says nothing about whether they exist:
+Beside it, not inside it — three services with their own address, built on
+their own because a connection to a repository says nothing about whether they
+exist:
 
 | Module | Service |
 |---|---|
-| `edusharing.bapi` | The LLM gateway (`B_API_KEY`) |
+| `edusharing.bapi` | The LLM gateway (`B_API_BASE_URL` + `B_API_KEY`) |
 | `edusharing.extraction` | The text-extraction service (`EDU_SHARING_TEXT_EXTRACTION_URL`) |
 | `edusharing.metadata_agent` | The metadata agent: which fields a content type carries (`METADATA_AGENT_URL`) |
 

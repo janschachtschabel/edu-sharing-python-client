@@ -2,7 +2,7 @@
 
 Deutsche Fassung: [`ARCHITECTURE.de.md`](ARCHITECTURE.de.md)
 
-Last updated: 2026-08-29 · Status: **nine stages complete, audit findings closed** — 1020 tests offline, 87 live reading, 75 live writing (the live counts include the 16 examples, which run as test cases)
+Last updated: 2026-08-29 · Status: **nine stages complete, audit findings closed** — 1034 tests offline, 87 live reading, 76 live writing (the live counts include the 17 examples, which run as test cases). Every public name is in [`REFERENCE.md`](REFERENCE.md) / [`REFERENCE.de.md`](REFERENCE.de.md), kept complete by `tests/test_docs_complete.py`.
 
 A Python library that makes the REST API of an edu-sharing repository and the
 surrounding services (b-api) accessible with little code — **without**
@@ -720,12 +720,20 @@ moved down to ``urls.py`` so both callers share it.
 
 ## 9. Open points
 
-1. **Second test instance** — still open. `stable.demo.edu-sharing.net`
-   (edu-sharing 9.0) is reachable but permits **nothing** anonymously beyond
-   `/_about` and `/config/v1/values`; without credentials it is no good for
-   verification. Production is deliberately deferred until the library runs
-   stably. Until then, genericity is evidenced only against two metadata sets of
-   one instance (§8.2).
+1. **Second test instance** — partly closed. Reading was verified against
+   production (`redaktion.openeduhub.net`) on 2026-08-29, and it produced two
+   findings a single instance could never show: an instance that withholds its
+   error details turns a disguised 401 into what looks like a server fault (now
+   retried **once**, not `max_retries` times — 4 requests where staging needs
+   1), and the reading examples run against another repository by setting
+   `EDU_SHARING_URL` alone.
+
+   What remains open: **writing** against a second instance, and an instance
+   operated by somebody other than this project.
+   `stable.demo.edu-sharing.net` (edu-sharing 9.0) is reachable but permits
+   **nothing** anonymously beyond `/_about` and `/config/v1/values`; without
+   credentials it is no good for verification. Production is read-only here by
+   decision, not by limitation.
 2. **Test docstrings are still German.** They are the measurement record of this
    project, are not shipped, and have no external audience; translating them
    would be an opportunity to blur a measured finding. A deliberate exception to

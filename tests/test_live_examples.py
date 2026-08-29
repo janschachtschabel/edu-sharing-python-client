@@ -58,14 +58,22 @@ SCHREIBEND = frozenset({
 
 #: Grosszuegig, damit ein langsames Netz kein Fehlschlag ist -- ein Zuschlagen
 #: der Grenze kostet einen liegengebliebenen Wegwerf-Ordner (siehe oben).
-#: Gemessen am 28.08.2026 gegen die Staging, alle sechzehn in 2:19::
+#: Zweimal gemessen gegen die Staging, und die zweite Messung ist der Grund,
+#: warum die Zahl hier steht statt geraten zu werden::
 #:
-#:     15_full_text     20,4 s   <- das langsamste
-#:     04_agent_blocks  17,1 s
-#:     11_publish       14,5 s
-#:     01_connect        1,4 s   <- das schnellste
+#:                      28.08.   29.08.
+#:     04_agent_blocks   17,1 s   76,1 s   <- jetzt das langsamste
+#:     15_full_text      20,4 s   40,9 s
+#:     11_publish        14,5 s   19,4 s
+#:     17_flow_belonging      -   10,7 s   <- neu
+#:     01_connect         1,4 s    2,2 s
+#:     ---------------------------------
+#:     alle zusammen      2:19     4:07
 #:
-#: Die Grenze liegt damit rund zwoelfmal ueber dem teuersten Einzelfall.
+#: Der teuerste Einzelfall hat sich mehr als vervierfacht, ohne dass sich an
+#: den Beispielen etwas geaendert haette -- die Staging antwortet an manchen
+#: Tagen langsamer. Die Grenze liegt damit noch rund dreimal darueber statt
+#: zwoelfmal. Sie bleibt, wo sie ist; wer sie senken will, misst vorher.
 ZEITGRENZE = 240.0
 
 _URL = bool(os.environ.get("EDU_SHARING_URL"))

@@ -973,12 +973,12 @@ Arbeit — und wo ein Ablauf wirklich einen Umlauf spart.
 | Transport | httpx, Auth, Retry, Concurrency, Rückleseprobe |
 | `_generated` | alle 389 Operationen, aus `openapi.json` erzeugt |
 
-Daneben, nicht darin — zwei Dienste mit eigener Adresse, eigenständig gebaut,
+Daneben, nicht darin — drei Dienste mit eigener Adresse, eigenständig gebaut,
 weil eine Verbindung zum Repositorium nichts darüber sagt, ob es sie gibt:
 
 | Modul | Dienst |
 |---|---|
-| `edusharing.bapi` | das LLM-Gateway (`B_API_KEY`) |
+| `edusharing.bapi` | das LLM-Gateway (`B_API_BASE_URL` + `B_API_KEY`) |
 | `edusharing.extraction` | der Volltextdienst (`EDU_SHARING_TEXT_EXTRACTION_URL`) |
 | `edusharing.metadata_agent` | der Metadata Agent: welche Felder eine Inhaltsart trägt (`METADATA_AGENT_URL`) |
 

@@ -1,8 +1,11 @@
 # edu-sharing Python-Client — Architektur und Entwurf
 
 Stand: 29.08.2026 · Status: **neun Etappen abgeschlossen, Audit-Befunde
-behoben** — 1020 Tests offline, 87 live lesend, 75 live schreibend (die
-Live-Zahlen enthalten die 16 Beispiele, die als Testfälle laufen)
+behoben** — 1034 Tests offline, 87 live lesend, 76 live schreibend (die
+Live-Zahlen enthalten die 17 Beispiele, die als Testfälle laufen). Jeder
+öffentliche Name steht in [`REFERENCE.de.md`](REFERENCE.de.md) /
+[`REFERENCE.md`](REFERENCE.md), vollständig gehalten durch
+`tests/test_docs_complete.py`.
 
 Eine Python-Bibliothek, die die REST-API eines edu-sharing-Repositoriums und
 der Dienste daneben (b-api) mit wenig Code zugänglich macht — **ohne** die
@@ -777,12 +780,21 @@ damit beide Aufrufer sie teilen.
 
 ## 9. Offene Punkte
 
-1. **Zweite Testinstanz** — weiterhin offen. `stable.demo.edu-sharing.net`
-   (edu-sharing 9.0) ist erreichbar, erlaubt anonym aber **nichts** über
-   `/_about` und `/config/v1/values` hinaus; ohne Zugangsdaten taugt sie nicht
-   zur Prüfung. Die Produktivinstanz ist bewusst zurückgestellt, bis die
-   Bibliothek stabil läuft. Bis dahin ist die Allgemeingültigkeit nur gegen
-   zwei Metadatensätze einer Instanz belegt (§8.2).
+1. **Zweite Testinstanz** — teilweise geschlossen. Lesend gegen die
+   Produktivinstanz (`redaktion.openeduhub.net`) am 29.08.2026 geprüft, und das
+   ergab zwei Befunde, die eine einzelne Instanz nie gezeigt hätte: eine
+   Instanz, die ihre Fehlerdetails zurückhält, lässt ein verkapptes 401 wie
+   einen Serverfehler aussehen (jetzt **einmal** wiederholt statt
+   `max_retries`-mal — 4 Anfragen, wo die Staging 1 braucht), und die lesenden
+   Beispiele laufen gegen ein anderes Repositorium, indem allein
+   `EDU_SHARING_URL` gesetzt wird.
+
+   Offen bleibt: **schreibend** gegen eine zweite Instanz, und eine Instanz
+   unter fremdem Betrieb. `stable.demo.edu-sharing.net` (edu-sharing 9.0) ist
+   erreichbar, erlaubt anonym aber **nichts** über `/_about` und
+   `/config/v1/values` hinaus; ohne Zugangsdaten taugt sie nicht zur Prüfung.
+   Auf der Produktivinstanz wird hier aus Entscheidung nur gelesen, nicht aus
+   Beschränkung.
 2. **Die Docstrings der Tests sind weiterhin deutsch.** Sie sind das
    Messprotokoll dieses Projekts, werden nicht ausgeliefert und haben kein
    außenstehendes Publikum; sie zu übersetzen wäre eine Gelegenheit, einen

@@ -86,6 +86,9 @@ The complete list with input and output shapes is
 [`docs/REFERENCE.de.md`](../../../docs/REFERENCE.de.md). This is the routing
 table.
 
+*(File links here are relative to the library's checkout. Copied into
+`~/.claude/skills/` they name paths in that repository, not on disk.)*
+
 ### Finding things
 
 | The task | The call |

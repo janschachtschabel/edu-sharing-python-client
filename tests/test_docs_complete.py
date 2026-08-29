@@ -281,3 +281,32 @@ def test_der_skill_erfindet_keine_aufrufe_am_knoten():
                | set(re.findall(r"\bnode\.([a-z_]+)\(", text)))
     erfunden = sorted(n for n in genannt if not hasattr(Node, n))
     assert not erfunden, f"der Skill nennt am Knoten: {erfunden}"
+
+
+# --- Und zeigen die Verweise irgendwohin? ---------------------------------
+
+#: Jede Datei mit Verweisen, die stimmen muessen. Die Audits stehen nicht
+#: dabei: sie sind Momentaufnahmen und werden nicht mitgepflegt.
+VERWEISEND = [*BEHAUPTEND, "CHANGELOG.md"]
+
+_LINK = re.compile(r"]\(([^)#][^)]*)\)")
+
+
+def test_jeder_verweis_zeigt_auf_eine_datei_die_es_gibt():
+    """Ein toter Verweis ist die stillste Form von veralteter Doku.
+
+    Umbenennen oder verschieben faellt sonst erst auf, wenn jemand klickt --
+    und in einer Referenz mit 85 Verweisen klickt niemand alle durch.
+    """
+    kaputt: list[str] = []
+    for datei in VERWEISEND:
+        pfad = WURZEL / datei
+        if not pfad.exists():
+            continue
+        for ziel in _LINK.findall(pfad.read_text(encoding="utf-8")):
+            if ziel.startswith(("http://", "https://", "mailto:")):
+                continue
+            if not (pfad.parent / ziel.split("#")[0]).resolve().exists():
+                kaputt.append(f"{datei} -> {ziel}")
+
+    assert not kaputt, "\n  " + "\n  ".join(kaputt)
