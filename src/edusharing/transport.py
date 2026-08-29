@@ -257,8 +257,9 @@ class Transport:
 
         # ``max_retries >= 0`` is checked in the constructor, so the loop runs at
         # least once and has set ``last`` on every branch that does not itself
-        # return or raise.
-        raise last
+        # return or raise. A checker cannot see that; an assert would vanish
+        # under ``python -O`` and turn this into ``raise None``.
+        raise last  # type: ignore[misc]
 
     async def json(self, method: str, path: str, **kwargs: Any) -> Any:
         """Like ``request``, but returns the parsed JSON body."""

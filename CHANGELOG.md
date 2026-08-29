@@ -35,6 +35,10 @@ and in [`docs/audits/`](docs/audits/).
 - **The 16 examples run as test cases** (`pytest -m live` / `-m write`). An
   example is executable documentation, and documentation nobody executes rots.
 - **A dependency CVE step in CI** (`pip-audit --skip-editable`).
+- **A type check in CI** (`mypy`, configured in `pyproject.toml`). It found two
+  places that were correct only by accident: a `json.loads` on a value that
+  could be `None`, and an `int()` that relied on catching the resulting
+  `TypeError`. Both guards are now written so a reader sees them too.
 
 ### Changed
 

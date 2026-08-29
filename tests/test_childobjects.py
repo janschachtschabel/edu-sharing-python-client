@@ -285,3 +285,20 @@ async def test_flow_liefert_die_serienobjekte_als_json():
     assert ergebnis["children"][0]["name"] == "loesung.pdf"
     assert ergebnis["children"][0]["order"] == 0
     json.dumps(ergebnis)
+
+
+async def test_flow_meldet_none_wenn_ein_kind_keine_position_traegt():
+    """Ein Kind ohne Position bekommt ``None``, nicht 0.
+
+    0 ist eine gueltige Position -- die erste. Wer sie fuer "hat keine"
+    haelt, sortiert ein unpositioniertes Kind vor alle anderen. Ebenso
+    ``"zwei"``: eine Position, die keine Zahl ist, ist keine.
+    """
+    instanz = Instanz(kinder=[
+        _kind("ohne", "ohne.pdf", None),
+        _kind("krumm", "krumm.pdf", "zwei"),
+    ])
+    async with _repo(instanz) as repo:
+        ergebnis = await repo.flows.child_objects(HAUPT)
+    assert [k["order"] for k in ergebnis["children"]] == [None, None]
+    json.dumps(ergebnis)

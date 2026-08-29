@@ -37,6 +37,13 @@ jobs:
       - name: Lint
         run: uv run ruff check .
 
+      # Ruff reads style, mypy reads types -- different questions. It found a
+      # json.loads on a value that could be None and an int() that relied on
+      # catching TypeError; both were correct by accident of a guard written
+      # so the checker could not see it (audit F5).
+      - name: Type check
+        run: uv run mypy
+
       # --skip-editable leaves out the project itself: it is installed editable
       # and is not on PyPI, which pip-audit reports as an error rather than a
       # clean run. Everything it depends on is still audited -- verified by

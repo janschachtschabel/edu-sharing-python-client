@@ -340,7 +340,7 @@ class BildungsAPI:
         # at least once and has set ``last`` on every branch that does not
         # itself return or raise. An assert here would vanish under ``python -O``
         # and turn into ``raise None`` -- a TypeError instead of the real cause.
-        raise last
+        raise last  # type: ignore[misc]
 
     def _error(self, response: httpx.Response, url: str) -> EduSharingError:
         """Build an error from the b-api response.

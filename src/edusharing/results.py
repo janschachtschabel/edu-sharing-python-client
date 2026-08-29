@@ -76,7 +76,11 @@ class Facet:
     #: Hits that fell into none of the returned values.
     other_count: int = 0
 
-    @property
+    # ``property: str`` above shadows the builtin inside this class body.
+    # An annotation without a value binds nothing, so the decorator still
+    # resolves to the builtin at runtime -- but a checker reads the
+    # annotation. Renaming the field would break the public surface.
+    @property  # type: ignore[operator]
     def truncated(self) -> bool:
         """Whether the value list has been cut short.
 
@@ -92,7 +96,9 @@ class UnresolvedFilter:
 
     field: str
     value: str
-    suggestions: list[str] = field(default_factory=list)
+    # Same shadowing as ``Facet.property``: ``field: str`` above hides
+    # ``dataclasses.field`` for the checker, not for the interpreter.
+    suggestions: list[str] = field(default_factory=list)  # type: ignore[operator]
 
     def __str__(self) -> str:
         text = f"{self.field}={self.value!r} is unknown"

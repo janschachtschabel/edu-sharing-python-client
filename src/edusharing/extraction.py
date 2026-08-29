@@ -282,7 +282,7 @@ class TextExtraction:
         infos = await asyncio.get_running_loop().getaddrinfo(
             host, None, type=socket.SOCK_STREAM
         )
-        return [info[4][0] for info in infos]
+        return [str(info[4][0]) for info in infos]
 
     async def _request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
         last: EduSharingError | None = None

@@ -398,8 +398,12 @@ class Repository:
     def children(self, node_id: str, **kwargs: Any) -> Any:
         """Like ``Nodes.children``, blocking. One page of a node's children."""
         seite = self._loop.run(self._async.nodes.children(node_id, **kwargs))
+        # The page keeps its shape and swaps every node for its blocking
+        # wrapper. ``Page`` is not generic over its node type, so the checker
+        # reads this as the wrong item type; the whole sync facade does it.
         return replace(seite, nodes=tuple(
-            SyncNode(n, self._loop) for n in seite.nodes))
+            SyncNode(n, self._loop)  # type: ignore[misc]
+            for n in seite.nodes))
 
     def update_collection(self, collection_id: str, **kwargs: Any) -> SyncNode:
         """Like ``Collections.update``, blocking."""

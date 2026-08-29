@@ -107,6 +107,10 @@ async def search(
         EduSharingError: for anything the repository refuses.
     """
     facet_properties = [field_property(repo, f) for f in (facets or [])]
+    # Which short names exist is configured per instance -- ``subject``,
+    # ``level``, whatever this metadata set carries. No signature can list
+    # them, so the wider type says that instead of pretending otherwise.
+    forwarded: dict[str, Any] = dict(aliases)
     query: dict[str, Any] = {
         "text": text,
         "filters": {**(filters or {}), **aliases},
@@ -121,7 +125,7 @@ async def search(
         result, variants = await search_reranked(
             repo, text,
             filters=filters, facets=facet_properties or None,
-            limit=limit, pool=pool, language=language, **aliases,
+            limit=limit, pool=pool, language=language, **forwarded,
         )
         query["reranked"] = True
         query["variants"] = variants
@@ -135,7 +139,7 @@ async def search(
             facets=facet_properties or None,
             limit=limit,
             offset=offset,
-            **aliases,
+            **forwarded,
         )
 
     folded: dict[str, list[str]] = {}
@@ -264,19 +268,32 @@ async def search_all(
             "Use search() for that."
         )
 
-    materials, collections = await asyncio.gather(
+    # As in ``search()``: the short names are configured, not declarable.
+    forwarded: dict[str, Any] = dict(aliases)
+    # Two names per bucket: what the gather handed back, which may be an
+    # exception, and the usable value. Overwriting the first with the second
+    # hid from the reader that they are different things.
+    # ``return_exceptions=True`` means each slot is a result OR the exception
+    # that ended it; the annotation says so, because a checker cannot read it
+    # out of ``gather``.
+    material_outcome: dict[str, Any] | BaseException
+    collection_outcome: dict[str, Any] | BaseException
+    material_outcome, collection_outcome = await asyncio.gather(
         search(repo, text, filters=filters, facets=facets, limit=limit,
                rerank=rerank, pool=pool, language=language,
-               deduplicate=deduplicate, **aliases),
+               deduplicate=deduplicate, **forwarded),
         find_collections(repo, text, limit=limit),
         return_exceptions=True,
     )
-    if isinstance(materials, BaseException):
+    if isinstance(material_outcome, BaseException):
         # The material bucket is the main question. Handing it back empty would
         # claim there is nothing, which is a different statement from "the
         # search failed".
-        raise materials
-    if isinstance(collections, BaseException):
+        raise material_outcome
+    materials: dict[str, Any] = material_outcome
+
+    collections: dict[str, Any]
+    if isinstance(collection_outcome, BaseException):
         # ``collections.find`` already says one level down that half a result
         # is usable and a faked empty one is not. It applies that between its
         # two routes; between the two buckets it did not, so a collection
@@ -284,7 +301,7 @@ async def search_all(
         #
         # Built through ``result_as_dict`` rather than written out, so the
         # empty bucket cannot drift away from the filled one.
-        failure = f"{type(collections).__name__}: {collections}"
+        failure = f"{type(collection_outcome).__name__}: {collection_outcome}"
         collections = result_as_dict(
             SearchResult(total_is_lower_bound=True, warnings=[failure]),
             query={"text": text, "metadataset": repo.metadataset,
@@ -292,6 +309,8 @@ async def search_all(
             aliases=repo.searcher.field_aliases,
         )
         collections["error"] = failure
+    else:
+        collections = collection_outcome
     collections.setdefault("error", "")
     collections["filters_ignored"] = [*(filters or {}), *aliases]
     return {
@@ -352,7 +371,7 @@ async def related(
         )
 
     seed = await describe(repo, node_id)
-    based_on = {
+    based_on: dict[str, Any] = {
         name: list(seed["fields"][name])
         for name in on
         if seed["fields"].get(name)

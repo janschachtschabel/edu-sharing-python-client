@@ -76,8 +76,17 @@ dev = [
     "pytest-asyncio>=0.24",
     "pytest-cov>=7.1.0",
     "ruff>=0.6",
+    "mypy>=1.11",
     "openapi-python-client>=0.29",
 ]
+
+[tool.mypy]
+# The settings live here so CI and a local run check the same thing.
+files = ["src/edusharing"]
+# Machine output: it is regenerated, never edited, and carries its own style.
+exclude = ["src/edusharing/_generated/"]
+# httpx ships types; the generated client's helpers do not.
+ignore_missing_imports = true
 
 [tool.coverage.run]
 source = ["src/edusharing"]

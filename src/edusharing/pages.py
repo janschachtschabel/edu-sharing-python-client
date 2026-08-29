@@ -425,7 +425,7 @@ def _with_default(raw: str | None, variant_id: str) -> str:
     Refuses rather than repairing. Every guarantee has to be made here,
     including the one the repository would never make.
     """
-    if not (raw or "").strip():
+    if raw is None or not raw.strip():
         raise ConflictError(
             f"This page has no {PAGE_CONFIG} document. One is not created here "
             "-- the page builder owns its shape."

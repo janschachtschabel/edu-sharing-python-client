@@ -194,7 +194,9 @@ async def child_objects(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
 def _order_of(child: Node) -> int | None:
     """The display position, or ``None`` when the child carries none."""
     raw = child.get(ORDER_PROPERTY)
+    if raw is None:
+        return None
     try:
         return int(raw)
-    except (TypeError, ValueError):
+    except ValueError:
         return None
