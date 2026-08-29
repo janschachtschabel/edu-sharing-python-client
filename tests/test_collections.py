@@ -24,7 +24,7 @@ from edusharing.collections import Collections
 from edusharing.errors import EduSharingError
 from edusharing.transport import Transport
 
-REPO = "https://repository.staging.openeduhub.net/edu-sharing"
+REPO = "https://repositorium.example.test/edu-sharing"
 
 # Leg A: POST /search/v1/queries/-home-/{mds}/collections -> nodes, mit pagination
 LEG_A = {

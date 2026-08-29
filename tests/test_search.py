@@ -15,7 +15,7 @@ from edusharing.search import Search
 from edusharing.transport import Transport
 from edusharing.vocab import Vocabulary
 
-REPO = "https://repository.staging.openeduhub.net/edu-sharing"
+REPO = "https://repositorium.example.test/edu-sharing"
 
 FAECHER = {"values": [
     {"key": "http://w3id.org/openeduhub/vocabs/discipline/080", "displayString": "Biologie"},

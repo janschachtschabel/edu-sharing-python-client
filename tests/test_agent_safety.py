@@ -14,7 +14,9 @@ from edusharing.agent.safety import UnsafeUrlError, check_url, is_safe_url
 @pytest.mark.parametrize("url", [
     "https://beispiel.test/material",
     "http://beispiel.test/material",
-    "https://repository.staging.openeduhub.net/edu-sharing/components/render/abc",
+    # Die Form einer echten Render-Adresse; die Instanz darin ist frei
+    # erfunden, geprueft wird Schema und Host.
+    "https://repositorium.example.test/edu-sharing/components/render/abc",
     "https://xn--bcher-kva.example/seite",          # Punycode
 ])
 def test_oeffentliche_adressen_sind_erlaubt(url):

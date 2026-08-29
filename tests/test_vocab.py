@@ -17,7 +17,7 @@ from edusharing.errors import EduSharingError
 from edusharing.transport import Transport
 from edusharing.vocab import Vocabulary
 
-REPO = "https://repository.staging.openeduhub.net/edu-sharing"
+REPO = "https://repositorium.example.test/edu-sharing"
 
 # Gemessene Antwort von POST /mds/v1/metadatasets/-home-/mds_oeh/values
 FAECHER = {"values": [

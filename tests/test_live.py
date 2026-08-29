@@ -12,7 +12,12 @@ import os
 import pytest
 
 from edusharing import AsyncRepository
-from edusharing.errors import AuthenticationError, NotFoundError, ValidationError
+from edusharing.errors import (
+    AuthenticationError,
+    EduSharingError,
+    NotFoundError,
+    ValidationError,
+)
 
 pytestmark = [
     pytest.mark.live,
@@ -58,11 +63,24 @@ async def test_geschuetzter_endpunkt_ergibt_authenticationerror(repo):
     **HTTP 500** und "Not allowed for guest user". Die Bibliothek muss daraus
     einen Authentifizierungsfehler machen -- und darf die Anfrage nicht
     wiederholen.
+
+    **Nur wo die Instanz die Meldung ausliefert.** redaktion.openeduhub.net
+    setzt ``security.logging.displayLevel`` so, dass sie es nicht tut; die
+    Erkennung liest den Text und kann dort nicht greifen. Gemessen am
+    28.08.2026: Staging 1 Anfrage und AuthenticationError, Produktiv 4
+    Anfragen und ServerError. Das ist keine Regression, sondern eine Grenze --
+    ``errors._HIDDEN_NOTE`` benennt sie dem Aufrufer gegenueber, und
+    ``test_errors.test_verborgene_details_werden_benannt`` haelt sie fest.
     """
     if not repo.credential.is_anonymous:
         pytest.skip("nur als Gast aussagekraeftig")
-    with pytest.raises(AuthenticationError):
+    with pytest.raises(EduSharingError) as info:
         await repo.raw.json("GET", "/iam/v1/people/-home-/-me-/preferences")
+    if "security.logging.displayLevel" in str(info.value):
+        pytest.skip("diese Instanz verbirgt Fehlermeldungen -- die "
+                    "Gast-Erkennung kann hier nicht greifen")
+    assert isinstance(info.value, AuthenticationError), (
+        f"Meldung war lesbar, aber falsch eingeordnet: {info.value!r}")
 
 
 async def test_falsche_zugangsdaten_ergeben_authenticationerror():
@@ -131,10 +149,18 @@ async def test_filter_grenzt_die_treffermenge_ein():
 
 
 async def test_nicht_filterbare_property_wird_live_erklaert():
-    """Gegenprobe: dieselbe Property im Default-Metadatensatz."""
+    """Gegenprobe: dieselbe Property im Default-Metadatensatz.
+
+    Die Erklaerung stammt vom Server. Eine Instanz, die Meldungen verbirgt,
+    liefert sie nicht -- der Fehlertyp stimmt dort weiterhin, nur der Text
+    fehlt. Gemessen am 28.08.2026 gegen redaktion.openeduhub.net.
+    """
     async with AsyncRepository(os.environ["EDU_SHARING_URL"]) as r:
         with pytest.raises(ValidationError) as info:
             await r.search("Wasser", limit=1, filters={"ccm:taxonid": "Biologie"})
+    if "security.logging.displayLevel" in str(info.value):
+        pytest.skip("diese Instanz verbirgt Fehlermeldungen -- der Typ stimmt, "
+                    "der erklaerende Text kommt nicht mit")
     assert "metadata set" in str(info.value)
 
 
@@ -266,35 +292,65 @@ async def test_bestehende_seite_laesst_sich_lesen(repo):
 
     Uebersprungen, wenn die Instanz keine kuratierte Seite fuehrt: der Page
     Builder ist eine Moeglichkeit von edu-sharing, keine Pflicht.
+
+    **Es wird nach einer rendernden Seite gesucht, nicht die erste genommen.**
+    Bis zum 28.08.2026 stand hier ``traeger[0]``, und darauf folgten
+    ``assert gerendert.swimlanes`` und ``assert variante.readable``. Beides
+    behauptet das Gegenteil dessen, was diese Bibliothek anderswo als gemessenen
+    Zustand fuehrt: eine Seite mit null Schwimmlinien und eine nicht lesbare
+    Variante gibt es wirklich -- ``14_flow_page.py`` zeigt beide. Zusammen mit
+    einer Suche, die messbar unstet ist (dieselbe Anfrage lieferte dreimal
+    verschiedene Trefferlisten), war der Test flatterhaft: einmal gesehen
+    fallen, danach zweimal gruen.
     """
     treffer = await repo.find_collections("Deutsch", limit=25)
     traeger = [h for h in treffer.hits if h.properties().get("ccm:page_config_ref")]
     if not traeger:
         pytest.skip("diese Instanz fuehrt keine kuratierte Seite unter diesem Suchwort")
 
-    knoten = await repo.node(traeger[0].id)
-    seite = await knoten.page.get()
-    assert seite is not None
-    assert seite.folder_id and seite.folder_id != knoten.id, (
-        "die Seite haengt an einem eigenen Ordner, nicht an der Sammlung")
-    assert seite.variants, "ein Konfigurationsordner ohne Varianten rendert nichts"
-    for variante in seite.variants:
-        assert variante.readable, f"Dokument von {variante.id} nicht lesbar"
+    # Gedeckelt: jeder Kandidat kostet zwei Anfragen, und der Test braucht einen,
+    # nicht alle.
+    for kandidat in traeger[:5]:
+        knoten = await repo.node(kandidat.id)
+        seite = await knoten.page.get()
+        # Das gilt fuer JEDE Seite und wird deshalb an jedem Kandidaten geprueft:
+        # sie haengt an einem eigenen Ordner, nicht an der Sammlung.
+        if seite is not None:
+            assert seite.folder_id and seite.folder_id != knoten.id, (
+                f"Seite von {kandidat.id} haengt an der Sammlung selbst")
+        if seite and seite.rendered and seite.rendered.swimlanes:
+            break
+    else:
+        pytest.skip("keine der gefundenen Seiten rendert Schwimmlinien -- ein "
+                    "gemessener Zustand, kein Fehler")
+
     gerendert = seite.rendered
-    assert gerendert is not None
-    # Gemessen: die Seite der Sammlung Deutsch traegt neun Schwimmlinien, und
-    # eines von zehn Grid-Elementen kommt ohne Knoten aus.
-    assert gerendert.swimlanes, "die gerenderte Variante hat keine Schwimmlinien"
     assert all(ln.items for ln in gerendert.swimlanes), "leere Schwimmlinie"
     assert gerendert.node_ids, "keine eingebetteten Knoten gefunden"
+
+
+async def _mitgliedschaften(repo):
+    """Die Gruppen des angemeldeten Kontos, oder ein Uebersprungen.
+
+    Gemessen am 28.08.2026 gegen redaktion.openeduhub.net: anonym liefert
+    ``memberships()`` eine leere Liste, und drei Tests starben daraufhin an
+    ``gruppen[0]`` mit einem IndexError. Das ist kein Testergebnis, sondern
+    eine fehlende Voraussetzung -- die Tests trugen nur den live-Marker und
+    ueberspruengen ohne Anmeldung nicht.
+    """
+    if repo.credential.is_anonymous:
+        pytest.skip("Gruppen brauchen ein angemeldetes Konto")
+    gruppen = await repo.people.memberships()
+    if not gruppen:
+        pytest.skip("das angemeldete Konto ist in keiner Gruppe")
+    return gruppen
 
 
 @pytest.mark.live
 async def test_eigene_mitgliedschaften(repo):
     """Nur lesend. Die schreibenden Gruppen-Operationen sind mit diesem Konto
     nicht pruefbar -- POST /iam/v1/groups/... antwortet 403."""
-    gruppen = await repo.people.memberships()
-    assert gruppen, "das angemeldete Konto ist in keiner Gruppe"
+    gruppen = await _mitgliedschaften(repo)
     for g in gruppen:
         assert g.name.startswith("GROUP_"), g.name
         assert g.display_name, "eine Gruppe ohne Anzeigenamen"
@@ -304,7 +360,7 @@ async def test_eigene_mitgliedschaften(repo):
 @pytest.mark.live
 async def test_eine_gruppe_einzeln_lesen(repo):
     """Der Endpunkt antwortet mit {"group": {...}} -- die Huelle muss weg."""
-    gruppen = await repo.people.memberships()
+    gruppen = await _mitgliedschaften(repo)
     einzeln = await repo.people.group(gruppen[0].name)
     assert einzeln.name == gruppen[0].name
 
@@ -316,6 +372,6 @@ async def test_mitglieder_brauchen_verwaltungsrechte(repo):
     Rechteproblem -- sonst wiederholte der Transport es dreimal."""
     from edusharing.errors import PermissionDeniedError
 
-    gruppen = await repo.people.memberships()
+    gruppen = await _mitgliedschaften(repo)
     with pytest.raises(PermissionDeniedError):
         await repo.people.members(gruppen[0].name)

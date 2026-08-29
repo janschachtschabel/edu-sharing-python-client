@@ -15,7 +15,7 @@ from edusharing.urls import (
     rest_base,
 )
 
-HOST = "https://repository.staging.openeduhub.net"
+HOST = "https://repositorium.example.test"
 FULL = f"{HOST}/edu-sharing"
 
 
@@ -28,7 +28,7 @@ FULL = f"{HOST}/edu-sharing"
     f"{FULL}/rest",                         # aus der REST-Doku kopiert
     f"{FULL}/rest/",
     f"  {FULL}  ",                          # aus der Zwischenablage
-    "repository.staging.openeduhub.net",    # ohne Protokoll
+    "repositorium.example.test",            # ohne Protokoll
 ])
 def test_alle_schreibweisen_ergeben_dieselbe_basis(eingabe):
     assert normalize_repository_url(eingabe) == FULL

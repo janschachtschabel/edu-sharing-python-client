@@ -21,7 +21,7 @@ from edusharing.errors import SilentDropError
 from edusharing.nodes import Node, Nodes
 from edusharing.transport import Transport
 
-REPO = "https://repository.staging.openeduhub.net/edu-sharing"
+REPO = "https://repositorium.example.test/edu-sharing"
 NID = "c2eac649-8e3d-4ed2-aac6-498e3d7ed2d9"
 
 

@@ -12,7 +12,7 @@ import pytest
 from edusharing import AsyncRepository, Repository
 from edusharing.errors import EduSharingError
 
-REPO = "https://repository.staging.openeduhub.net/edu-sharing"
+REPO = "https://repositorium.example.test/edu-sharing"
 
 # Gemessene Antwort von GET /_about, auf das Wesentliche gekuerzt.
 ABOUT = {
@@ -105,7 +105,9 @@ async def test_whoami_ohne_profil_faellt_auf_die_authority_zurueck():
 # --- Konfiguration --------------------------------------------------------
 
 async def test_url_wird_normalisiert():
-    async with AsyncRepository("repository.staging.openeduhub.net") as repo:
+    # Ohne Protokoll und ohne /edu-sharing -- beides ergaenzt die
+    # Normalisierung.
+    async with AsyncRepository("repositorium.example.test") as repo:
         assert repo.url == REPO
 
 
