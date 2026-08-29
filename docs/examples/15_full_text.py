@@ -124,8 +124,18 @@ async def report_rows(
             print(f"{node.title[:32]:34s} {column} {'(needs service)':>18s}")
             continue
 
-        got = await service.text_of(linked, max_chars=20_000)
         used_service = True
+        try:
+            got = await service.text_of(linked, max_chars=20_000)
+        except EduSharingError as exc:
+            # No text is one thing, a broken service another: `text_of` answers
+            # the first with a `reason` and raises for the second. Measured
+            # 2026-08-28, the service returned HTTP 500 for one address among
+            # eight. One bad row must not end the table.
+            print(f"{node.title[:32]:34s} {column} {'service failed':>18s}")
+            print(f"    {type(exc).__name__}: {str(exc)[:56]}")
+            continue
+
         # No text is a normal outcome, not an error -- `reason` says which.
         answer = f"{got.char_count} chars" if got.text else f"none: {got.reason}"
         print(f"{node.title[:32]:34s} {column} {answer:>18s}")
@@ -144,7 +154,12 @@ async def demonstrate_service(service: TextExtraction, url: str) -> None:
     """
     print("No material here needed the fallback, so the service ran on a")
     print("linked address of one of them anyway — to make its answer visible:")
-    shown = await service.text_of(url, max_chars=20_000)
+    try:
+        shown = await service.text_of(url, max_chars=20_000)
+    except EduSharingError as exc:
+        print(f"    {url[:60]}")
+        print(f"    the service failed: {type(exc).__name__}")
+        return
     print(f"    {url[:60]}")
     if shown.text:
         print(f"    {shown.lang}  {shown.char_count} chars  "
