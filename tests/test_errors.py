@@ -193,3 +193,41 @@ def test_attribute_sind_gesetzt():
 def test_alles_erbt_von_edusharingerror(status):
     """Ein Aufrufer kann pauschal EduSharingError fangen."""
     assert isinstance(error_from_response(status, URL, ""), EduSharingError)
+
+
+def test_verborgene_details_werden_benannt():
+    """Gemessen am 28.08.2026 gegen die Produktivinstanz redaktion.openeduhub.net.
+
+    Sie setzt ``security.logging.displayLevel`` so, dass Fehlermeldungen nicht
+    ausgeliefert werden::
+
+        {"error": "java.lang.Exception",
+         "message": "Details hidden: You can configure the output via
+                     security.logging.displayLevel"}
+
+    Damit greifen zwei der drei 5xx-Heuristiken nicht mehr: _GUEST_HINT und
+    _MISSING_HINT lesen den Meldungstext, und der ist weg. Gemessen kostet das
+    an derselben Adresse **4 Anfragen statt 1**, weil der Transport den
+    ServerError dreimal wiederholt -- genau der Schaden, den die
+    Gast-Erkennung verhindern soll.
+
+    Einordnen laesst sich das nicht: was der Server verschweigt, kann die
+    Bibliothek nicht erraten. Sagen laesst es sich aber -- sonst raetselt ein
+    Entwickler, warum dieselbe Bibliothek gegen zwei Instanzen verschiedene
+    Fehlertypen liefert.
+    """
+    exc = error_from_response(
+        500, URL, _body("java.lang.Exception",
+                        "Details hidden: You can configure the output via "
+                        "security.logging.displayLevel"))
+    text = str(exc)
+    assert "security.logging.displayLevel" in text
+    assert "could not tell" in text, (
+        f"die Meldung sagt nicht, dass die Einordnung darunter leidet: {text}")
+
+
+def test_sichtbare_details_bekommen_keinen_zusatz():
+    """Der Hinweis darf nur erscheinen, wo er zutrifft."""
+    exc = error_from_response(
+        500, URL, _body("java.lang.Exception", "Something genuinely broke"))
+    assert "could not tell" not in str(exc)

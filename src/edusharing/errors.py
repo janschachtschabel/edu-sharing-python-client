@@ -20,6 +20,7 @@ import json
 
 __all__ = [
     "at_least",
+    "details_withheld",
     "EduSharingError",
     "TransportError",
     "AuthenticationError",
@@ -159,6 +160,26 @@ _PERMISSION_HINTS = ("notanadmin", "accessdenied")
 # retried three times, and never sees the NotFoundError it catches for.
 _MISSING_HINT = "node does not exist"
 
+# An instance can withhold the message that the two hints above read. Measured
+# 2026-08-28 against redaktion.openeduhub.net, which answers the guest case with
+#   {"error": "java.lang.Exception", "message": "Details hidden: ..."}
+# where staging answers "Not allowed for guest user". The disguise is then
+# undetectable, the error stays a ServerError, and the transport retries it --
+# measured 4 requests against production where staging needs 1.
+#
+# Guessing is not an option: what the server withholds cannot be inferred. What
+# can be done is to say so, so nobody puzzles over the same library returning
+# different error types against two instances.
+_HIDDEN_HINT = "details hidden"
+
+_HIDDEN_NOTE = (
+    " -- this instance withholds error messages "
+    "(security.logging.displayLevel), so this library could not tell an "
+    "authentication or permission problem from a genuine server fault, and "
+    "retried accordingly. Raise that setting on the instance, or read the "
+    "server's own log."
+)
+
 
 def _parse_body(body: str) -> tuple[str | None, str, str | None]:
     """Split the response body into (error_class, message, stacktrace).
@@ -220,6 +241,8 @@ def error_from_response(status: int, url: str, body: str) -> EduSharingError:
     text = " ".join(parts)
     if message:
         text = f"{text}: {message}"
+    if status >= 500 and _HIDDEN_HINT in message.lower():
+        text += _HIDDEN_NOTE
 
     return cls(
         text,
@@ -228,6 +251,18 @@ def error_from_response(status: int, url: str, body: str) -> EduSharingError:
         error_class=error_class,
         stacktrace=stacktrace,
     )
+
+
+def details_withheld(error: EduSharingError) -> bool:
+    """Whether the instance withheld the message this error needed.
+
+    The 5xx classification reads the server's message. An instance that hides
+    it (``security.logging.displayLevel``) leaves every disguised authentication
+    or permission failure looking like a genuine server fault -- and the
+    transport then retries what can never succeed. It reads its own note rather
+    than the server's phrasing, which may differ between versions.
+    """
+    return _HIDDEN_NOTE in str(error)
 
 
 def at_least(name: str, value: float, limit: float) -> None:

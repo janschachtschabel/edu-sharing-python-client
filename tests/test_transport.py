@@ -21,7 +21,7 @@ from edusharing.errors import (
 )
 from edusharing.transport import DEFAULT_TIMEOUT, Transport
 
-REPO = "https://repository.staging.openeduhub.net/edu-sharing"
+REPO = "https://repositorium.example.test/edu-sharing"
 CRED = BasicCredential("alice", "geheim")
 
 
@@ -437,3 +437,52 @@ def test_timeout_none_heisst_vorgabe():
     "nimm die Vorgabe", nicht ein unbrauchbarer Wert."""
     t = Transport(REPO, timeout=None)
     assert t._client.timeout.read == DEFAULT_TIMEOUT
+
+
+async def test_verborgene_details_werden_nur_einmal_wiederholt():
+    """Gemessen am 28.08.2026 gegen redaktion.openeduhub.net.
+
+    Eine Instanz kann ihre Fehlermeldungen zurueckhalten
+    (``security.logging.displayLevel``). Die 5xx-Einordnung liest genau diesen
+    Text, also bleibt ein verkleidetes "nicht angemeldet" ein ServerError --
+    und der wird wiederholt. Gemessen an derselben Adresse: **4 Anfragen gegen
+    Produktiv, 1 gegen Staging**.
+
+    Einordnen laesst sich das nicht; was der Server verschweigt, kann die
+    Bibliothek nicht erraten. Die Wiederholung deckeln schon, und zwar nach dem
+    Muster, das dieser Transport fuer den 401 unter Nebenlaeufigkeit bereits
+    gewaehlt hat: einmal, nicht ``max_retries``-mal. Eine zusaetzliche Anfrage
+    ist ein fairer Preis fuer einen moeglicherweise voruebergehenden Fehler;
+    drei sind eine Strafe dafuer, dass die Instanz schweigt.
+    """
+    versuche = []
+
+    def handler(_request):
+        versuche.append(1)
+        return httpx.Response(500, json={
+            "error": "java.lang.Exception",
+            "message": "Details hidden: You can configure the output via "
+                       "security.logging.displayLevel",
+        })
+
+    async with _transport(handler, max_retries=3) as t:
+        with pytest.raises(ServerError):
+            await t.request("GET", "/_about")
+    assert len(versuche) == 2, (
+        f"erwartet ein Versuch plus eine Wiederholung, waren {len(versuche)}")
+
+
+async def test_ein_gewoehnlicher_500_wird_weiter_voll_wiederholt():
+    """Der Deckel gilt nur dort, wo die Meldung fehlt -- sonst waere er eine
+    stille Verschlechterung der Fehlertoleranz fuer alle anderen."""
+    versuche = []
+
+    def handler(_request):
+        versuche.append(1)
+        return httpx.Response(500, json={"error": "java.lang.Exception",
+                                         "message": "Something genuinely broke"})
+
+    async with _transport(handler, max_retries=3) as t:
+        with pytest.raises(ServerError):
+            await t.request("GET", "/_about")
+    assert len(versuche) == 4

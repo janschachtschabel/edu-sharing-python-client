@@ -30,6 +30,7 @@ from .errors import (
     ServerError,
     TransportError,
     at_least,
+    details_withheld,
     error_from_response,
 )
 from .urls import normalize_repository_url, rest_base
@@ -193,6 +194,11 @@ class Transport:
         last: EduSharingError | None = None
         # Spent at most once per request -- see the note at ``_retry_401``.
         may_retry_401 = not cred.is_anonymous
+        # Likewise once, and for the same reason: an instance that withholds its
+        # error messages leaves a disguised "not signed in" looking like a
+        # server fault. Measured 2026-08-28 -- 4 requests against production
+        # where staging needs 1, to an address that can never answer.
+        may_retry_withheld = True
         for attempt in range(self.max_retries + 1):
             if attempt:
                 logger.info(
@@ -244,6 +250,10 @@ class Transport:
             # as AuthenticationError and no longer counts as a ServerError here.
             if not isinstance(last, ServerError):
                 raise last
+            if details_withheld(last):
+                if not may_retry_withheld:
+                    raise last
+                may_retry_withheld = False
 
         # ``max_retries >= 0`` is checked in the constructor, so the loop runs at
         # least once and has set ``last`` on every branch that does not itself
