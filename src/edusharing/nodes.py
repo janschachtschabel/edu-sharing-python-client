@@ -164,6 +164,17 @@ class Node:
     def raw(self) -> dict[str, Any]:
         return self._data
 
+    def labels(self, prop: str) -> list[str]:
+        """The readable values of a vocabulary property.
+
+        edu-sharing ships a ``<prop>_DISPLAYNAME`` alongside every vocabulary
+        field. ``SearchHit`` has carried this since the start; a node did not,
+        so the same question answered differently depending on whether you held
+        a hit or had fetched the node -- URI here, label there. Empty for a
+        property that leads no vocabulary, which is not an error.
+        """
+        return list(self.properties.get(f"{prop}_DISPLAYNAME") or [])
+
     def get(self, prop: str) -> str | None:
         """The first value of a property, or ``None``."""
         values = self.properties.get(prop)

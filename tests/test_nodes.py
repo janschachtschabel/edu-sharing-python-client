@@ -503,3 +503,25 @@ async def test_anlegen_prueft_ohne_zusaetzliche_anfrage():
     server = Server()
     await _nodes(server).create("eltern", name="x.txt", title="T")
     assert len(server.aufrufe) == 1, f"{len(server.aufrufe)} Anfragen statt einer"
+
+
+def test_node_liefert_lesbare_vokabularwerte():
+    """``labels`` gab es nur an SearchHit, nicht an Node.
+
+    Wer einen Treffer in der Hand hielt, bekam 'Biologie'; wer denselben Knoten
+    ueber ``repo.node(id)`` holte, bekam die URI und musste die
+    _DISPLAYNAME-Konvention kennen. Dieselbe Frage, zwei Antworten -- aufgefallen
+    beim Durchtesten von ccm:oeh_extendedType am 28.08.2026, wo genau dieser
+    Weg gebraucht wurde.
+    """
+    node = Node({"ref": {"id": "n1"}, "properties": {
+        "ccm:taxonid": ["http://w3id.org/openeduhub/vocabs/discipline/080"],
+        "ccm:taxonid_DISPLAYNAME": ["Biologie"],
+    }}, None)
+    assert node.labels("ccm:taxonid") == ["Biologie"]
+
+
+def test_node_ohne_lesbare_werte_gibt_eine_leere_liste():
+    """Nicht jede Property fuehrt ein Vokabular -- das ist kein Fehler."""
+    node = Node({"ref": {"id": "n1"}, "properties": {"cclom:title": ["Titel"]}}, None)
+    assert node.labels("cclom:title") == []
