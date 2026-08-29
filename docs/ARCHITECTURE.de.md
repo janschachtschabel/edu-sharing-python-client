@@ -1,7 +1,7 @@
 # edu-sharing Python-Client — Architektur und Entwurf
 
-Stand: 28.08.2026 · Status: **acht Etappen abgeschlossen, Audit-Befunde
-behoben** — 966 Tests offline, 77 live lesend, 75 live schreibend (die
+Stand: 29.08.2026 · Status: **neun Etappen abgeschlossen, Audit-Befunde
+behoben** — 1020 Tests offline, 87 live lesend, 75 live schreibend (die
 Live-Zahlen enthalten die 16 Beispiele, die als Testfälle laufen)
 
 Eine Python-Bibliothek, die die REST-API eines edu-sharing-Repositoriums und
@@ -68,8 +68,9 @@ eine Bequemlichkeitsschicht, keine Voraussetzung.
 └─ _generated ────────── 389 Operationen · 378 Modelle, aus openapi.json
 
    daneben, nicht darin:
-   edusharing.bapi ─────── das LLM-Gateway
-   edusharing.extraction ─ der Textextraktionsdienst
+   edusharing.bapi ─────────── das LLM-Gateway
+   edusharing.extraction ───── der Textextraktionsdienst
+   edusharing.metadata_agent ─ die Schemata hinter ccm:oeh_extendedData
 ```
 
 Schicht 1 beantwortet auch die Frage, die Dritte nicht beantworten können:
@@ -472,6 +473,7 @@ die die synchrone Fläche existiert.
 | **6** | ~~Die Endpunkte, die der Abgleich mit `wlo-mcp-sc` und der Ideendatenbank als Lücke auswies~~ | ✅ **fertig** — Beziehungen, Serienobjekte, Veröffentlichen, Herkunft, Bewertungen, Kommentare, Gruppen, Vorschläge, Workflow |
 | **7** | ~~Kuratierte Seiten (der Page Builder)~~ | ✅ **fertig** — `pages.py`, `flows/pages.py` |
 | **8** | ~~Der Textextraktionsdienst neben dem Repositorium~~ | ✅ **fertig** — `extraction.py` |
+| **9** | ~~Der Metadata Agent und die durchgereichten OpenAI-Routen der b-api~~ | ✅ **fertig** — `metadata_agent.py`, `bapi/passthrough.py`; gemessen gegen Staging **und** Produktiv |
 
 Die Dokumentation läuft mit, nicht hinterher: **jedes Beispiel unter
 `docs/examples/` ist ein ausführbarer Test gegen Staging.** Was dort nicht
@@ -631,6 +633,7 @@ Bestand wurde nach jedem Lauf gegen seinen Ausgangszustand verglichen.
 | `agent/confirm.py` | Zeigen, was geschähe, und es dann tun |
 | `bapi/policy.py` | Modellwahl und Anfrageform — reine Funktionen |
 | `bapi/client.py` | HTTP zur b-api, Wiederholung, Nebenläufigkeit, Cache mit Verfallszeit |
+| `bapi/passthrough.py` | Die OpenAI-Routen, die das Gateway durchreicht — Einbettungen, Moderation, Bilder, und `call` für den Rest |
 
 Drei Entscheidungen, die eine Erklärung brauchen:
 
@@ -707,6 +710,7 @@ entdoppelt, Gesamtzahl als Untergrenze gekennzeichnet). Die Messung der
 | `suggestions.py`, `workflow.py` | Vorschläge und redaktionelle Übergabe |
 | `pages.py`, `flows/pages.py` | Kuratierte Seiten — lesen und die gerenderte Variante setzen |
 | `extraction.py` | Der Textextraktionsdienst neben dem Repositorium |
+| `metadata_agent.py` | Welche Felder eine Inhaltsart trägt — die Schemata hinter `ccm:oeh_extendedData` |
 
 Die Messungen, auf denen diese Module stehen, sind in §7 — dort wurden sie
 festgehalten, als sie gemacht wurden. Drei Entscheidungen verdienen eine eigene

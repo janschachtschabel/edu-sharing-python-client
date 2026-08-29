@@ -2,7 +2,7 @@
 
 Deutsche Fassung: [`ARCHITECTURE.de.md`](ARCHITECTURE.de.md)
 
-Last updated: 2026-08-28 · Status: **eight stages complete, audit findings closed** — 966 tests offline, 77 live reading, 75 live writing (the live counts include the 16 examples, which run as test cases)
+Last updated: 2026-08-29 · Status: **nine stages complete, audit findings closed** — 1020 tests offline, 87 live reading, 75 live writing (the live counts include the 16 examples, which run as test cases)
 
 A Python library that makes the REST API of an edu-sharing repository and the
 surrounding services (b-api) accessible with little code — **without**
@@ -65,8 +65,9 @@ layer, not a prerequisite.
 └─ _generated ────────── 389 operations · 378 models, from openapi.json
 
    beside it, not in it:
-   edusharing.bapi ─────── the LLM gateway
-   edusharing.extraction ─ the text-extraction service
+   edusharing.bapi ─────────── the LLM gateway
+   edusharing.extraction ───── the text-extraction service
+   edusharing.metadata_agent ─ the schemas behind ccm:oeh_extendedData
 ```
 
 Layer 1 also answers the question third parties cannot: **which write route
@@ -432,6 +433,7 @@ exactly the trap the synchronous surface exists to prevent.
 | **6** | ~~The endpoints the comparison with `wlo-mcp-sc` and the Ideendatenbank showed missing~~ | ✅ **done** — relations, child objects, publishing, provenance, ratings, comments, groups, suggestions, workflow |
 | **7** | ~~Curated pages (the page builder)~~ | ✅ **done** — `pages.py`, `flows/pages.py` |
 | **8** | ~~The text-extraction service beside the repository~~ | ✅ **done** — `extraction.py` |
+| **9** | ~~The metadata agent, and the b-api's forwarded OpenAI routes~~ | ✅ **done** — `metadata_agent.py`, `bapi/passthrough.py`; measured against staging **and** production |
 
 Documentation runs alongside, not afterwards: **every example under
 `docs/examples/` is an executable test against staging.** What does not run there
@@ -583,6 +585,7 @@ holdings were compared against their initial state after every run.
 | `agent/confirm.py` | Show what would happen, then do it |
 | `bapi/policy.py` | Model choice and request shape — pure functions |
 | `bapi/client.py` | HTTP to the b-api, retry, concurrency, TTL cache |
+| `bapi/passthrough.py` | The OpenAI routes the gateway forwards — embeddings, moderation, images, and `call` for the rest |
 
 Three decisions that need explaining:
 
@@ -656,6 +659,7 @@ the overlap remains in the documentation, where it belongs.
 | `suggestions.py`, `workflow.py` | Proposals and editorial handover |
 | `pages.py`, `flows/pages.py` | Curated pages — reading, and setting the rendered variant |
 | `extraction.py` | The text-extraction service beside the repository |
+| `metadata_agent.py` | Which fields a content type carries — the schemas behind `ccm:oeh_extendedData` |
 
 The measurements these modules are built on are in §7; they were recorded there
 as they were taken. Three decisions are worth naming separately:
