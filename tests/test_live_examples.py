@@ -53,6 +53,7 @@ SCHREIBEND = frozenset({
     "10_two_levels.py",
     "11_publish.py",
     "16_editorial.py",
+    "17_flow_belonging.py",
 })
 
 #: Grosszuegig, damit ein langsames Netz kein Fehlschlag ist -- ein Zuschlagen

@@ -95,8 +95,8 @@ async def search(
         **aliases: configured short names, e.g. ``subject="Biologie"``.
 
     Returns:
-        ``{query, total, total_is_lower_bound, returned, hits, facets,
-        unresolved, ignored, warnings, suggestions}``.
+        ``{query, total, total_is_lower_bound, returned, duplicates_removed,
+        hits, facets, unresolved, ignored, warnings, suggestions}``.
 
         **Check ``unresolved``.** A non-empty list means a filter could not be
         resolved and was therefore not sent -- the result is broader than

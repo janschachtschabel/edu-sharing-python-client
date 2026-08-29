@@ -10,6 +10,11 @@ Python-Bibliothek für [edu-sharing](https://edu-sharing.com)-Repositorien und d
 > Fahrplan steht in [`docs/ARCHITECTURE.de.md`](docs/ARCHITECTURE.de.md)
 > ([englisch](docs/ARCHITECTURE.md)).
 
+**Suchen Sie einen bestimmten Aufruf?**
+[docs/REFERENCE.de.md](docs/REFERENCE.de.md) listet jeden öffentlichen Namen
+mit Ein- und Ausgabe. Dieses README erklärt das Warum, die Referenz ist die
+Nachschlagetabelle.
+
 ## Installieren
 
 Python 3.11 oder neuer. Noch nicht auf PyPI, also aus einer Arbeitskopie:
@@ -930,6 +935,7 @@ wird:
 | [`12_flow_place.py`](docs/examples/12_flow_place.py) | eine Anfrage für Material und Sammlungen, dann wo ein Treffer liegt |
 | [`13_flow_tree.py`](docs/examples/13_flow_tree.py) | eine Sammlung ablaufen, darin suchen, sie auszählen |
 | [`14_flow_page.py`](docs/examples/14_flow_page.py) | die kuratierte Seite einer Sammlung lesen, samt Widgets — und dieselbe Seite als Objekte |
+| [`17_flow_belonging.py`](docs/examples/17_flow_belonging.py) | die drei Arten von Zugehörigkeit: Sammlung, Serienobjekt, Beziehung |
 
 **Beide Ebenen nebeneinander:**
 

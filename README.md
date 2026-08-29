@@ -35,6 +35,10 @@ Python 3.13.5 and `pip install -e .` on 3.14.7. Both then answered
 
 ## Contents
 
+**Looking for a specific call?** [docs/REFERENCE.md](docs/REFERENCE.md) lists
+every public name with what goes in and what comes out. This README explains
+why; the reference is the lookup table.
+
 - [Installing](#installing)
 - [Why](#why)
 - [What works today](#what-works-today)
@@ -906,6 +910,7 @@ them:
 | [`12_flow_place.py`](docs/examples/12_flow_place.py) | one query for material and collections, then where a hit sits |
 | [`13_flow_tree.py`](docs/examples/13_flow_tree.py) | walk a collection, search inside it, count what is in it |
 | [`14_flow_page.py`](docs/examples/14_flow_page.py) | read the curated page a collection renders, widgets and all — then the same page as objects |
+| [`17_flow_belonging.py`](docs/examples/17_flow_belonging.py) | the three kinds of belonging: collection, child object, relation |
 
 **Both levels side by side:**
 

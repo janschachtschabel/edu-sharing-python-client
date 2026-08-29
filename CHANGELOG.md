@@ -34,6 +34,17 @@ and in [`docs/audits/`](docs/audits/).
   `GERMAN` was bound but never declared in `flows.__all__`.
 - **The 16 examples run as test cases** (`pytest -m live` / `-m write`). An
   example is executable documentation, and documentation nobody executes rots.
+- **`docs/REFERENCE.md` and `docs/REFERENCE.de.md`** — every public name, the
+  call that uses it, and the shape that comes back, with real outputs. 266
+  names; `tests/test_docs_complete.py` fails when one is missing from either
+  language, and a second test checks that the field names claimed in its tables
+  exist on the classes. Writing it found eleven public names documented nowhere
+  (`remove_from_collection`, `remove_keywords`, `collections.remove`,
+  `vocab.suggest`, `models()`, `ping()`, `schemas()`, `ChangePlan`,
+  `format_hit`, `check_url`) and six wrong field names in the first draft.
+- **`docs/examples/17_flow_belonging.py`** — the three kinds of belonging side
+  by side: collection, child object, relation. `child_objects` and `relations`
+  were the only two flows without a runnable example.
 - **A dependency CVE step in CI** (`pip-audit --skip-editable`).
 - **A type check in CI** (`mypy`, configured in `pyproject.toml`). It found two
   places that were correct only by accident: a `json.loads` on a value that
@@ -80,6 +91,8 @@ and in [`docs/audits/`](docs/audits/).
   names the setting (`security.logging.displayLevel`). Without it the same
   library returns different error types against two instances for no visible
   reason.
+- The `search` flow's docstring omitted `duplicates_removed` from its return
+  shape — a key it has always returned.
 - `metadata_agent.content_types()` remembers its answer per `(context,
   version)` instead of refetching a 110 kB `core.json` on every call.
 - `metadata_agent` raises instead of returning an empty list when `core.json`
