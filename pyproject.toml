@@ -59,6 +59,7 @@ select = [
     "PIE",       # redundant constructs
     "PYI",       # type annotations
     "RUF",       # ruff's own rules
+    "C90",       # cyclomatic complexity
 ]
 ignore = [
     # __all__ is grouped and commented by topic in this library (entry point /
@@ -66,6 +67,19 @@ ignore = [
     # reader more than the ordering would.
     "RUF022",
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# The test doubles are fake HTTP servers: one flat dispatch on method and path,
+# read top to bottom. Cutting that into thirty functions to satisfy a
+# complexity limit would hide the shape instead of showing it. The limit is
+# about what a maintainer has to reason about in the library.
+"tests/*" = ["C901"]
+
+[tool.ruff.lint.mccabe]
+# _text_score sat at 15 and read as one wall of scoring rules (audit F6). Ten
+# is the usual line; the whole hand-written layer is under it, so keeping it
+# there costs nothing and says when a function has grown a second job.
+max-complexity = 10
 
 [dependency-groups]
 # One place for dev dependencies (PEP 735). They were split across

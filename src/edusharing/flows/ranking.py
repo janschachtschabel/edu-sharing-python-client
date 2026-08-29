@@ -95,51 +95,80 @@ def _text_of(hit: SearchHit) -> tuple[str, str, list[str]]:
     return hit.title.lower(), (hit.description or "").lower(), keywords
 
 
-def _text_score(hit: SearchHit, query: str, terms: list[str]) -> int:
-    """How well the hit's text answers the query."""
-    title, description, keywords = _text_of(hit)
-    query_lower = query.lower().strip()
-    score = 0
+def _title_score(title: str, query_lower: str, terms: list[str]) -> int:
+    """The title, which is what a reader sees first and weighs heaviest.
 
+    The whole query in the title beats the terms individually, and an exact
+    title beats a title that merely contains it.
+    """
     if term_matches(query_lower, title):
-        score += 30
         if title == query_lower:
-            score += 20
-        elif title.startswith(query_lower):
-            score += 10
-    else:
-        for term in terms:
-            if term_matches(term, title):
-                score += 8
-        if len(terms) > 1 and all(term_matches(t, title) for t in terms):
-            score += 12
+            return 50
+        if title.startswith(query_lower):
+            return 40
+        return 30
 
-    joined_keywords = " ".join(keywords)
-    keyword_hits = 0
+    score = sum(8 for term in terms if term_matches(term, title))
+    if len(terms) > 1 and all(term_matches(t, title) for t in terms):
+        score += 12
+    return score
+
+
+def _keyword_score(keywords: list[str], terms: list[str]) -> int:
+    """The keywords, where a whole-value hit is worth more than a substring.
+
+    A keyword ``bruchrechnung`` answers the term; finding those letters inside
+    ``bruchrechnung-uebungsblatt`` is weaker evidence, so it scores less.
+    """
+    joined = " ".join(keywords)
+    score = 0
+    whole_hits = 0
     for term in terms:
         if term in keywords:
             score += 10
-            keyword_hits += 1
-        elif term_matches(term, joined_keywords):
+            whole_hits += 1
+        elif term_matches(term, joined):
             score += 5
-    if len(terms) > 1 and keyword_hits == len(terms):
+    if len(terms) > 1 and whole_hits == len(terms):
         score += 10
-
-    if term_matches(query_lower, description):
-        score += 8
-    else:
-        for term in terms:
-            if term_matches(term, description):
-                score += 3
-
-    # Without this, a richly tagged record that does not mention the subject at
-    # all outranks a plain one that does.
-    in_title = any(term_matches(t, title) for t in terms)
-    in_keywords = any(term_matches(t, joined_keywords) for t in terms)
-    if not in_title and not in_keywords:
-        score -= 20
-
     return score
+
+
+def _description_score(description: str, query_lower: str, terms: list[str]) -> int:
+    """The description, which supports a hit rather than making it."""
+    if term_matches(query_lower, description):
+        return 8
+    return sum(3 for term in terms if term_matches(term, description))
+
+
+def _off_topic_penalty(title: str, keywords: list[str], terms: list[str]) -> int:
+    """Minus 20 when neither title nor keywords mention the query at all.
+
+    Without this, a richly tagged record that does not mention the subject
+    outranks a plain one that does.
+    """
+    joined = " ".join(keywords)
+    mentioned = any(
+        term_matches(t, title) or term_matches(t, joined) for t in terms
+    )
+    return 0 if mentioned else -20
+
+
+def _text_score(hit: SearchHit, query: str, terms: list[str]) -> int:
+    """How well the hit's text answers the query.
+
+    Four questions, each with its own weight: does the title say it, do the
+    keywords, does the description -- and if none of the first two do, the
+    record is about something else.
+    """
+    title, description, keywords = _text_of(hit)
+    query_lower = query.lower().strip()
+    return (
+        _title_score(title, query_lower, terms)
+        + _keyword_score(keywords, terms)
+        + _description_score(description, query_lower, terms)
+        + _off_topic_penalty(title, keywords, terms)
+    )
 
 
 def _metadata_score(hit: SearchHit, aliases: dict[str, str]) -> int:
