@@ -246,10 +246,16 @@ if plan.has_changes:
 ```python
 from edusharing.bapi import BildungsAPI
 
-async with BildungsAPI.from_env() as llm:        # B_API_KEY, X-API-KEY (no Bearer)
+async with BildungsAPI.from_env() as llm:        # B_API_KEY and B_API_BASE_URL
     answer = await llm.chat("Summarise: …")
     print(llm.last_model)                        # whose answer was that?
 ```
+
+**Both variables, and there is no default address.** Until 2026-08-28 this
+client fell back to a staging gateway, so setting only `B_API_KEY` sent your key
+to a host you had not chosen. `TextExtraction` beside it had always refused
+exactly that; the two services contradicted each other in the same library. The
+key travels as `X-API-KEY`, not as a Bearer token.
 
 Without a fixed model id the least loaded ready text model is chosen — and the
 next one if needed: `status: ready` does not mean a model answers. The quirks of

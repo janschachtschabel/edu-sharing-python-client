@@ -42,7 +42,10 @@ logger = logging.getLogger(__name__)
 ENV_KEY = "B_API_KEY"
 ENV_BASE_URL = "B_API_BASE_URL"
 
-DEFAULT_BASE_URL = "https://b-api.staging.openeduhub.net"
+# Kein Vorgabewert fuer die Adresse. Bis zum 28.08.2026 stand hier die
+# Staging-Instanz, und wer nur B_API_KEY setzte, schickte seinen Schluessel
+# an ein Gateway, das er nicht gewaehlt hatte. ``extraction`` verweigert das
+# seit jeher mit derselben Begruendung.
 DEFAULT_PROVIDER = "academiccloud"
 
 #: Measured 2026-08-21: up to 26 concurrent requests without error, occasional
@@ -86,7 +89,7 @@ class BildungsAPI:
         self,
         api_key: str,
         *,
-        base_url: str = DEFAULT_BASE_URL,
+        base_url: str,
         provider: str = DEFAULT_PROVIDER,
         timeout: float = DEFAULT_TIMEOUT,
         max_retries: int = DEFAULT_MAX_RETRIES,
@@ -122,14 +125,27 @@ class BildungsAPI:
 
     @classmethod
     def from_env(cls, **kwargs: Any) -> BildungsAPI:
-        """Build a client from ``B_API_KEY`` and optionally ``B_API_BASE_URL``."""
+        """Build a client from ``B_API_KEY`` and ``B_API_BASE_URL``.
+
+        Raises:
+            EduSharingError: when either is unset. There is no default
+                address on purpose -- see the note at ``ENV_BASE_URL``.
+        """
         key = os.environ.get(ENV_KEY, "")
         if not key:
             raise EduSharingError(
                 f"{ENV_KEY} is not set. Either set the variable or pass the key: "
                 "BildungsAPI(api_key=...)."
             )
-        kwargs.setdefault("base_url", os.environ.get(ENV_BASE_URL) or DEFAULT_BASE_URL)
+        adresse = os.environ.get(ENV_BASE_URL, "").strip()
+        if not adresse and "base_url" not in kwargs:
+            raise EduSharingError(
+                f"{ENV_BASE_URL} is not set. Point it at the gateway you"
+                " actually use -- there is no default, because a wrong one"
+                " sends your API key to a host you did not choose."
+            )
+        if adresse:
+            kwargs.setdefault("base_url", adresse)
         return cls(key, **kwargs)
 
     # --- Lifecycle --------------------------------------------------------

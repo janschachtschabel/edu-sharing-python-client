@@ -15,6 +15,10 @@ import pytest
 from edusharing.bapi import BildungsAPI
 from edusharing.errors import EduSharingError
 
+#: Frei erfunden. Die Tests antworten ueber MockTransport; eine echte
+#: Adresse hier waere eine Instanz im Code.
+GATEWAY = "https://gateway.example.test"
+
 MODELLE = {"data": [
     {"id": "glm-4.7", "demand": 2, "status": "ready", "input": ["text"], "output": ["text"]},
     {"id": "qwen3.6-35b-a3b", "demand": 0, "status": "ready",
@@ -33,6 +37,7 @@ def _client(handler, aufrufe=None, **kwargs):
         return handler(request)
 
     kwargs.setdefault("api_key", "geheimer-schluessel")
+    kwargs.setdefault("base_url", GATEWAY)
     kwargs.setdefault("backoff_base", 0.0)
     kwargs.setdefault("models_cache_seconds", 0)
     return BildungsAPI(
@@ -64,7 +69,7 @@ async def test_schluessel_steht_nicht_im_repr():
 
 def test_fehlender_schluessel_wird_beim_bauen_gemeldet():
     with pytest.raises(EduSharingError, match="B_API_KEY"):
-        BildungsAPI(api_key="")
+        BildungsAPI(api_key="", base_url=GATEWAY)
 
 
 def test_from_env_ohne_schluessel(monkeypatch):
@@ -288,14 +293,15 @@ def test_unsinnige_parameter_werden_sofort_abgelehnt(kwargs):
     """Frueh und laut statt spaet und raetselhaft -- dieselbe Regel, nach der
     sich der Transport richtet."""
     with pytest.raises(EduSharingError) as fehler:
-        BildungsAPI(api_key="k", **kwargs)
+        BildungsAPI(api_key="k", base_url=GATEWAY, **kwargs)
     # Die Meldung muss den Parameter benennen, sonst hilft sie nicht.
     assert next(iter(kwargs)) in str(fehler.value)
 
 
 def test_gueltige_grenzwerte_bleiben_erlaubt():
     """Gegenprobe: 0 Wiederholungen und 0 Sekunden Cache sind sinnvoll."""
-    api = BildungsAPI(api_key="k", max_retries=0, backoff_base=0,
+    api = BildungsAPI(api_key="k", base_url=GATEWAY, max_retries=0,
+                      backoff_base=0,
                       models_cache_seconds=0, max_concurrency=1)
     assert api.max_retries == 0
 
@@ -323,3 +329,27 @@ async def test_modellwechsel_wird_gemeldet(caplog):
     assert any("qwen3.6-35b-a3b" in m for m in meldungen), meldungen
     # Der Schluessel gehoert niemals hinein.
     assert "geheimer-schluessel" not in "\n".join(meldungen)
+
+
+def test_ohne_adresse_wird_verweigert(monkeypatch):
+    """Kein Vorgabewert fuer das Gateway -- wie beim Extraktionsdienst.
+
+    Bis zum 28.08.2026 stand hier ``https://b-api.staging.openeduhub.net`` als
+    Standard. Wer ``B_API_KEY`` setzte und sonst nichts, schickte seinen
+    Schluessel damit an eine fremde **Staging**-Instanz, ohne sie gewaehlt zu
+    haben. Das Schwestermodul ``extraction`` verweigert genau das seit jeher mit
+    derselben Begruendung; die beiden Dienste widersprachen sich im selben
+    Projekt.
+    """
+    monkeypatch.setenv("B_API_KEY", "irgendein-schluessel")
+    monkeypatch.delenv("B_API_BASE_URL", raising=False)
+    with pytest.raises(EduSharingError) as fehler:
+        BildungsAPI.from_env()
+    assert "B_API_BASE_URL" in str(fehler.value)
+
+
+def test_mit_adresse_aus_der_umgebung_geht_es(monkeypatch):
+    monkeypatch.setenv("B_API_KEY", "irgendein-schluessel")
+    monkeypatch.setenv("B_API_BASE_URL", "https://gateway.example.test")
+    llm = BildungsAPI.from_env()
+    assert llm.base_url == "https://gateway.example.test"

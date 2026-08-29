@@ -15,9 +15,17 @@ import pytest
 from edusharing.bapi import BildungsAPI
 from edusharing.errors import EduSharingError
 
+# Zwei Variablen, seit der Client keine Vorgabe-Adresse mehr hat (28.08.2026).
+# Vorher genuegte B_API_KEY, weil die Adresse auf ein Staging-Gateway
+# zurueckfiel -- genau der Grund, warum sie weg ist. Ohne diese Bedingung
+# scheitert die Fixture mit einem EduSharingError, statt sich zu ueberspringen:
+# gemessen 6 Fehler in einem Lauf, in dem nur der Schluessel gesetzt war.
 pytestmark = [
     pytest.mark.live,
-    pytest.mark.skipif(not os.environ.get("B_API_KEY"), reason="B_API_KEY nicht gesetzt"),
+    pytest.mark.skipif(
+        not (os.environ.get("B_API_KEY") and os.environ.get("B_API_BASE_URL")),
+        reason="B_API_KEY/B_API_BASE_URL nicht gesetzt",
+    ),
 ]
 
 
