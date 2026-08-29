@@ -670,7 +670,13 @@ await repo.flows.relations(reihe_id)      # die Reihe meldet "hasPart"
 
 Die Gegenrichtung wird automatisch geführt. Die API unterscheidet zudem
 maschinell vorgeschlagene von bestätigten Verknüpfungen (`ai_generated`,
-`approve`) — was zählt, wenn ein Modell die Vorschläge macht. Einzelheiten in
+`approve`) — was zählt, wenn ein Modell die Vorschläge macht.
+
+**Das Argument `metadata` überlebt nicht.** edu-sharing 11.0 nimmt es mit
+HTTP 200 an und speichert nichts — gemessen am 28.08.2026 in drei Formen, die
+letzte direkt am Endpunkt, jedes Mal kam `metadata: {}` zurück. `create()` liest
+es deshalb zurück und wirft `SilentDropError`; die Verknüpfung selbst entsteht.
+Die Begründung gehört an die Knoten oder in den eigenen Speicher. Einzelheiten in
 [docs/FLOWS.de.md](docs/FLOWS.de.md#relations--womit-ein-knoten-verknüpft-ist).
 
 ### Kuratierte Seiten — was eine Sammlung rendert
@@ -752,6 +758,27 @@ speichert. Eine Eigenschaft, die der Metadatensatz nicht vorsieht — der
 WLO-Kompendialtext ist eine davon — muss über `set_property()` gehen, das direkt
 schreibt. Gemessen am 27.08.2026: `ccm:oeh_collection_compendium_text` wird von
 `update()` unter `mds_oeh` verworfen und von `set_property()` gespeichert.
+
+**Ein freier JSON-Bereich ist auch nur eine Property.** Manche Instanzen führen
+eine Inhaltsart plus einen offenen Datenbereich — WLO nennt sie
+`ccm:oeh_extendedType` (ein Vokabular: KI-Prompt, Organisation, Person,
+Veranstaltung, …) und `ccm:oeh_extendedData` (Freitext). Nichts in dieser
+Bibliothek kennt sie, und nichts muss das:
+
+```python
+uri = await repo.resolve("ccm:oeh_extendedType", "KI-Prompt")   # URI dieser Instanz
+await node.update(properties={
+    "ccm:oeh_extendedType": [uri],
+    "ccm:oeh_extendedData": [json.dumps({"modell": "gpt-5", "temperatur": 0.2})],
+})
+await repo.search("", filters={"ccm:oeh_extendedType": "KI-Prompt"})  # filterbar
+```
+
+Gemessen am 28.08.2026 gegen die Staging: das Vokabular löst auf, der JSON kommt
+Zeichen für Zeichen zurück, `node.labels()` liefert „KI-Prompt" statt der URI,
+und der Filter grenzt ein, ohne in `unresolved` zu landen. Dass die Bibliothek
+dafür keine Funktion braucht, ist der Sinn der Laufzeit-Auflösung — eine
+Instanz, die etwas anderes modelliert, modelliert es genauso.
 
 **Dateien an einem Knoten:**
 

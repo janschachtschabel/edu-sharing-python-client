@@ -653,7 +653,13 @@ await repo.flows.relations(series_id)     # the series reports "hasPart"
 
 The opposite direction is kept automatically. The API also distinguishes
 machine-proposed links from confirmed ones (`ai_generated`, `approve`), which
-matters when a model does the proposing. Details in
+matters when a model does the proposing.
+
+**The `metadata` argument does not survive.** edu-sharing 11.0 accepts it with
+HTTP 200 and stores nothing — measured 2026-08-28 in three shapes, the last
+straight at the endpoint, every time `metadata: {}` came back. `create()`
+therefore reads it back and raises `SilentDropError`; the link itself is made.
+Keep the reasoning on the nodes, or in your own store. Details in
 [docs/FLOWS.md](docs/FLOWS.md#relations--what-a-node-is-linked-to).
 
 ### Curated pages — what a collection renders
@@ -731,6 +737,27 @@ does not provide for — the WLO compendium text is one — has to go through
 `set_property()`, which writes directly. Measured 2026-08-27:
 `ccm:oeh_collection_compendium_text` is dropped by `update()` on `mds_oeh` and
 stored by `set_property()`.
+
+**A free-form JSON payload is just another property.** Some instances model a
+content type plus an open data area — WLO calls them `ccm:oeh_extendedType`
+(a vocabulary: KI-Prompt, Organisation, Person, Veranstaltung, …) and
+`ccm:oeh_extendedData` (free text). Nothing in this library knows about them,
+and nothing needs to:
+
+```python
+uri = await repo.resolve("ccm:oeh_extendedType", "KI-Prompt")   # this instance's URI
+await node.update(properties={
+    "ccm:oeh_extendedType": [uri],
+    "ccm:oeh_extendedData": [json.dumps({"modell": "gpt-5", "temperatur": 0.2})],
+})
+await repo.search("", filters={"ccm:oeh_extendedType": "KI-Prompt"})  # filterable
+```
+
+Measured 2026-08-28 against staging: the vocabulary resolves, the JSON comes
+back byte for byte, `node.labels()` gives "KI-Prompt" rather than the URI, and
+the filter narrows without landing in `unresolved`. That the library needs no
+feature for this is the point of resolving vocabularies at runtime — an
+instance that models something else models it the same way.
 
 **Files on a node:**
 
