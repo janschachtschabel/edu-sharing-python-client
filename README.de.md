@@ -34,6 +34,7 @@ Python 3.13.5 und `pip install -e .` unter 3.14.7. Beide beantworteten danach
 
 ## Inhalt
 
+- [Installieren](#installieren)
 - [Warum](#warum)
 - [Was heute geht](#was-heute-geht)
   - [Woher ein Name kommt](#woher-ein-name-kommt)
@@ -43,6 +44,7 @@ Python 3.13.5 und `pip install -e .` unter 3.14.7. Beide beantworteten danach
   - [Für KI-Anwendungen](#für-ki-anwendungen)
   - [Das LLM-Gateway](#das-llm-gateway)
   - [Der Extraktionsdienst — Text, den das Repositorium nicht hat](#der-extraktionsdienst--text-den-das-repositorium-nicht-hat)
+  - [Der Metadata Agent — was in den JSON einer Inhaltsart gehört](#der-metadata-agent--was-in-den-json-einer-inhaltsart-gehört)
   - [Abläufe — ein Anwendungsfall, ein Aufruf](#abläufe--ein-anwendungsfall-ein-aufruf)
 - [Wohin es geht](#wohin-es-geht)
 - [Was die Bibliothek für dich weiß](#was-die-bibliothek-für-dich-weiß)
@@ -122,6 +124,7 @@ from edusharing import Repository, Node, SearchResult, NotFoundError
 | `edusharing.agent` | Bausteine für KI-Anwendungen: Sicherheit, Bereinigung, Formatierung |
 | `edusharing.bapi` | das LLM-Gateway — ein eigener Dienst |
 | `edusharing.extraction` | der Extraktionsdienst — ebenso |
+| `edusharing.metadata_agent` | der Metadata Agent — ebenso |
 
 Die Flows brauchen keinen eigenen Import: sie hängen an einer Verbindung, als
 `repo.flows.search(...)`. Die beiden Nachbardienste bekommen ein eigenes Modul,
@@ -343,6 +346,37 @@ IP-Literal-Adresse, dann das, worauf er auflöst — private, Loopback- und
 Link-Local-Bereiche werden verweigert, der Wolken-Metadatenendpunkt darunter.
 Eine Lücke bleibt und steht im Modul: eine Umleitung passiert im Prozess des
 Dienstes, wo diese Bibliothek nicht hinsieht.
+
+### Der Metadata Agent — was in den JSON einer Inhaltsart gehört
+
+`ccm:oeh_extendedType` sagt, *was* eine Ressource ist; `ccm:oeh_extendedData`
+trägt daneben einen freien JSON-Bereich. Welche Felder dort hineingehören, steht
+in keinem Metadatensatz — das Repositorium speichert den Text und prüft nichts.
+Das weiß nur dieser Dienst, und nur zur Laufzeit:
+
+```python
+from edusharing.metadata_agent import MetadataAgent   # METADATA_AGENT_URL
+
+async with MetadataAgent.from_env() as agent:
+    art = await agent.content_type_for(node.get("ccm:oeh_extendedType"))
+    schema = await agent.schema(art.schema_file)      # 45 Felder für eine Organisation
+```
+
+`content_types()` nennt die acht, die er beschreibt, samt der Vokabular-URI, auf
+die jede hört. **Den Dateinamen nicht aus der Inhaltsart ableiten** — gemessen
+am 28.08.2026 heißt `profession` dort `occupation.json` und `didactic_concepts`
+heißt `didactic_planning_tools.json`. Die maßgebliche Zuordnung steht in
+`core.json` selbst, und genau die liest diese Methode.
+
+**Das Repositorium kennt mehr Inhaltsarten als der Agent.** Zehn in `mds_oeh`,
+acht hier: `ai_prompt` und `ai_skill` haben kein Schema, `content_type_for`
+antwortet dafür mit `None` — kein Fehler, nur ein Knoten, zu dem der Agent
+nichts zu sagen hat.
+
+Schemata kommen ungeformt zurück, und das mit Absicht: jedes Feld trägt Label,
+Beschreibung, Beispiele **und einen Extraktions-Prompt**, je zweisprachig. Das
+in eigene Typen zu gießen hieße, die Struktur eines fremden Dienstes in dieser
+Bibliothek einzufrieren.
 
 ### Abläufe — ein Anwendungsfall, ein Aufruf
 
@@ -926,6 +960,7 @@ weil eine Verbindung zum Repositorium nichts darüber sagt, ob es sie gibt:
 |---|---|
 | `edusharing.bapi` | das LLM-Gateway (`B_API_KEY`) |
 | `edusharing.extraction` | der Volltextdienst (`EDU_SHARING_TEXT_EXTRACTION_URL`) |
+| `edusharing.metadata_agent` | der Metadata Agent: welche Felder eine Inhaltsart trägt (`METADATA_AGENT_URL`) |
 
 ## Generierte Schicht neu bauen
 
