@@ -172,3 +172,54 @@ async def test_ein_fehler_der_route_wird_durchgereicht():
     async with _client(_antwortet({"message": "you must provide a model"}, 400)) as api:
         with pytest.raises(EduSharingError, match="model"):
             await api.embeddings("x", model="")
+
+
+# --- Die Route ist eine Vertrauensgrenze -----------------------------------
+
+@pytest.mark.parametrize("route", [
+    "embeddings",
+    "chat/completions",
+    "images/generations",
+    "fine_tuning/jobs",
+    "vector_stores",
+])
+async def test_echte_routen_gehen_durch(route):
+    aufrufe = []
+    async with _client(_antwortet({"ok": True}), aufrufe) as api:
+        await api.call(route, {})
+    assert aufrufe[0].url.path.endswith(f"/api/v1/llm/academiccloud/{route}")
+
+
+@pytest.mark.parametrize("route", [
+    "../../administration/account",   # verlaesst /api/v1/llm/ voellig
+    "..",
+    "a/../../b",
+    "/embeddings",                    # fuehrender Schraegstrich
+    "embeddings/",                    # leeres Segment am Ende
+    "a//b",                           # leeres Segment in der Mitte
+    "embeddings?admin=1",             # eingeschmuggelte Anfrageparameter
+    "embeddings#x",
+    "embeddings account",
+    "",
+])
+async def test_eine_route_darf_ihren_pfad_nicht_verlassen(route):
+    """Gemessen am 28.08.2026, bevor das hier stand:
+
+        call("../../administration/account")
+        -> https://…/api/v1/administration/account
+
+    Die Anfrage verliess /api/v1/llm/{provider}/, erreichte die
+    Administrations-API und nahm den X-API-KEY mit. ``path_segment`` wurde auf
+    den Anbieter angewandt, auf die Route nicht -- in derselben Zeile.
+
+    Das zaehlt hier besonders: diese Bibliothek ist fuer KI-Anwendungen gebaut,
+    und ``call`` ist die Methode, deren Argument ein Modell waehlt. Genau der
+    Fall, den der Docstring von ``path_segment`` als Grund seiner Existenz
+    nennt.
+    """
+    versendet = []
+    async with _client(_antwortet({"ok": True}), versendet) as api:
+        with pytest.raises(ValueError):
+            await api.call(route, {})
+    assert not versendet, (
+        f"{route!r} wurde abgesetzt: {versendet[0].url if versendet else ''}")
