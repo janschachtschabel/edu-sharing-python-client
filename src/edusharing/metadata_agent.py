@@ -113,6 +113,20 @@ class MetadataAgent:
         self.base_url = _check_base(base_url)
         self._client = client or httpx.AsyncClient(timeout=timeout)
         self._owns_client = client is None
+        #: The content-type mapping per (context, version). It lives inside
+        #: ``core.json``, which is 110 kB, and the likeliest caller walks a
+        #: list of nodes -- twenty of them would be twenty downloads of a
+        #: mapping that never changes within a version.
+        self._types: dict[tuple[str, str], list[ContentType]] = {}
+
+    def clear_cache(self) -> None:
+        """Forget the remembered content types.
+
+        Pinned versions are immutable, but ``latest`` is not: a long-running
+        process keeps whatever it first saw. This is the way out, as
+        ``repo.vocab.clear_cache()`` is on the repository side.
+        """
+        self._types.clear()
 
     @classmethod
     def from_env(cls, **kwargs: Any) -> MetadataAgent:
@@ -155,10 +169,20 @@ class MetadataAgent:
 
         Raises:
             EduSharingError: for an unknown context or version -- 404 from the
-                service, passed through rather than retried against ``latest``.
+                service, passed through rather than retried against ``latest``
+                -- and for an answer that is not a list. An empty list would
+                read as "this agent offers no schemas", which is a different
+                statement.
         """
         entries = await self._json(
             f"/info/schemas/{path_segment(context)}/{path_segment(version)}")
+        if not isinstance(entries, list):
+            raise EduSharingError(
+                f"The schema list for {context}/{version} came back as "
+                f"{type(entries).__name__}, not as a list. Returning an empty "
+                "one would read as 'this agent offers no schemas', which is a "
+                "different statement."
+            )
         return [
             SchemaInfo(
                 file=entry.get("file") or "",
@@ -167,7 +191,7 @@ class MetadataAgent:
                 field_count=int(entry.get("field_count") or 0),
                 raw=entry,
             )
-            for entry in (entries if isinstance(entries, list) else [])
+            for entry in entries
         ]
 
     async def schema(
@@ -202,23 +226,44 @@ class MetadataAgent:
         **The repository may know more types than the agent.** Measured
         2026-08-28: ``mds_oeh`` offers ten, the agent describes eight -- no
         schema for ``ai_prompt`` or ``ai_skill``.
+
+        Remembered per ``(context, version)`` after the first call: the mapping
+        sits inside ``core.json``, which is 110 kB, and never changes within a
+        version. ``clear_cache()`` forgets it again.
+
+        Raises:
+            EduSharingError: when ``core.json`` carries no
+                ``ccm:oeh_extendedType`` field. Answering with an empty list
+                would hide a renamed field behind "no content types".
         """
+        gemerkt = self._types.get((context, version))
+        if gemerkt is not None:
+            return gemerkt
+
         core = await self.schema(CORE_SCHEMA, context=context, version=version)
-        for entry in core.get("fields") or []:
-            if entry.get("id") != TYPE_FIELD:
-                continue
-            vocabulary = (entry.get("system") or {}).get("vocabulary") or {}
-            return [
-                ContentType(
-                    uri=concept.get("uri") or "",
-                    schema_file=concept.get("schema_file") or "",
-                    label=(concept.get("label") or {}).get("de") or "",
-                    icon=concept.get("icon") or "",
-                    raw=concept,
-                )
-                for concept in (vocabulary.get("concepts") or [])
-            ]
-        return []
+        feld = next((e for e in core.get("fields") or []
+                     if e.get("id") == TYPE_FIELD), None)
+        if feld is None:
+            raise EduSharingError(
+                f"{CORE_SCHEMA} of {context}/{version} carries no "
+                f"{TYPE_FIELD!r} field, so the mapping content type -> schema "
+                "cannot be read. An empty list would read as 'this agent "
+                "describes no content types', which is a different statement. "
+                "The agent has most likely renamed or moved the field."
+            )
+        vocabulary = (feld.get("system") or {}).get("vocabulary") or {}
+        arten = [
+            ContentType(
+                uri=concept.get("uri") or "",
+                schema_file=concept.get("schema_file") or "",
+                label=(concept.get("label") or {}).get("de") or "",
+                icon=concept.get("icon") or "",
+                raw=concept,
+            )
+            for concept in (vocabulary.get("concepts") or [])
+        ]
+        self._types[(context, version)] = arten
+        return arten
 
     async def content_type_for(
         self, uri: str, *, context: str = DEFAULT_CONTEXT,

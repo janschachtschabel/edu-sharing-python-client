@@ -150,3 +150,99 @@ async def test_eine_unbekannte_uri_ergibt_none():
     Agent Schemata hat -- gemessen 10 gegen 8, ohne ai_prompt und ai_skill."""
     async with _agent(_router) as agent:
         assert await agent.content_type_for("http://beispiel.test/gibtsnicht") is None
+
+
+# --- Die Zuordnung wird nicht bei jedem Aufruf neu geholt -------------------
+
+async def test_die_inhaltsarten_werden_gemerkt():
+    """core.json sind 110 kB. Der wahrscheinlichste Aufruf ist eine Schleife
+    ueber Knoten -- zwanzig Knoten waeren zwanzigmal 110 kB fuer eine
+    Zuordnung, die sich je Version nie aendert."""
+    aufrufe = []
+
+    def merken(request):
+        aufrufe.append(request.url.path)
+        return _router(request)
+
+    async with _agent(merken) as agent:
+        for _ in range(3):
+            await agent.content_type_for(
+                "http://w3id.org/openeduhub/vocabs/contentTypes/person")
+    geholt = [p for p in aufrufe if p.endswith("core.json")]
+    assert len(geholt) == 1, f"core.json {len(geholt)}x geholt: {aufrufe}"
+
+
+async def test_verschiedene_versionen_werden_getrennt_gemerkt():
+    """Sonst bekaeme die zweite Version die Zuordnung der ersten."""
+    aufrufe = []
+
+    def merken(request):
+        aufrufe.append(request.url.path)
+        return httpx.Response(200, json=CORE)
+
+    async with _agent(merken) as agent:
+        await agent.content_types(version="latest")
+        await agent.content_types(version="2.0.0")
+    assert len(aufrufe) == 2, aufrufe
+
+
+async def test_clear_cache_erzwingt_ein_neues_holen():
+    """Ein lang laufender Prozess auf 'latest' behaelt sonst, was er zuerst
+    sah -- wie repo.vocab.clear_cache() gibt es einen Weg heraus."""
+    aufrufe = []
+
+    def merken(request):
+        aufrufe.append(request.url.path)
+        return _router(request)
+
+    async with _agent(merken) as agent:
+        await agent.content_types()
+        agent.clear_cache()
+        await agent.content_types()
+    assert len(aufrufe) == 2, aufrufe
+
+
+# --- Eine strukturelle Ueberraschung bleibt nicht stumm --------------------
+
+async def test_ein_fehlendes_typfeld_ist_ein_fehler():
+    """Frueher kam hier eine leere Liste zurueck -- ununterscheidbar von
+    'dieser Agent fuehrt keine Inhaltsarten'. Benennt der Dienst das Feld um,
+    muss die Bibliothek das sagen, nicht schweigen."""
+    ohne = {"profileId": "core:descriptive", "version": "2.0.0",
+            "fields": [{"id": "cclom:title", "group": "description"}]}
+
+    async with _agent(lambda r: httpx.Response(200, json=ohne)) as agent:
+        with pytest.raises(EduSharingError, match="ccm:oeh_extendedType"):
+            await agent.content_types()
+
+
+async def test_eine_antwort_die_keine_liste_ist_ist_ein_fehler():
+    """Dasselbe fuer die Schemaliste: aus einer unerwarteten Form darf keine
+    leere werden."""
+    async with _agent(lambda r: httpx.Response(200, json={"nanu": 1})) as agent:
+        with pytest.raises(EduSharingError, match="list"):
+            await agent.schemas()
+
+
+# --- Was die Durchsicht als ungetestet ausgewiesen hat ---------------------
+
+def test_from_env_nimmt_die_adresse_aus_der_umgebung(monkeypatch):
+    monkeypatch.setenv("METADATA_AGENT_URL", "https://agent.example.test/")
+    agent = MetadataAgent.from_env()
+    assert agent.base_url == "https://agent.example.test"
+
+
+def test_lesbare_darstellung():
+    """repr taucht in Fehlermeldungen und Protokollen auf."""
+    assert repr(MetadataAgent(AGENT)) == f"MetadataAgent({AGENT!r})"
+
+
+async def test_ein_netzfehler_wird_zu_einem_edusharingerror():
+    """Sonst schlaegt httpx bis zum Aufrufer durch, und der muss zwei
+    Fehlerfamilien kennen."""
+    def kaputt(_request):
+        raise httpx.ConnectError("kein Netz")
+
+    async with _agent(kaputt) as agent:
+        with pytest.raises(EduSharingError, match="ConnectError"):
+            await agent.schemas()
