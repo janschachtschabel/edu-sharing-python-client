@@ -96,8 +96,20 @@ and in [`docs/audits/`](docs/audits/).
   test now uses an invented value and proves the same thing.
   `tests/test_no_secrets.py` fails if any credential set in the environment
   turns up in a tracked file, and reports the variable name only, never the
-  value. **The value remains in two commits of git history** — rotate it or
-  rewrite that history before this repository gains a remote.
+  value.
+
+  **It is out of the history as well.** On 2026-08-30 the repository was
+  rewritten with `git filter-repo`, replacing the value with
+  `PASSWORT-ENTFERNT` in every commit that carried it. Nothing had ever been
+  pushed — there is no remote — so the rewrite cost nothing but new hashes.
+  Verified: `git log --all -S` finds it in no commit, and a scan of *every*
+  object in the repository, reachable or not, returns zero. Only `.env` still
+  holds it, and `.env` is git-ignored.
+
+  Every commit hash from that point on changed. The hashes quoted in
+  `docs/audits/2026-08-29-audit.md` were re-stamped; hashes quoted inside
+  older *commit messages* were not, and now name commits that no longer
+  exist.
 - The account name used for the measurements is no longer an example value in
   the reference or a docstring. Not a secret, but a live account does not
   belong in published examples.
