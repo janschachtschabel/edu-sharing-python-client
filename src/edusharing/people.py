@@ -3,7 +3,8 @@
 The question underneath is always the same: **who may moderate here.** The
 Ideendatenbank answers it through these three endpoints.
 
-Measured against staging on 2026-08-28 with the account ``sc25-14``:
+Measured against staging on 2026-08-28 with an ordinary account -- no
+administrator rights:
 
 * ``GET /iam/v1/people/-home-/-me-/memberships`` → ``{"groups": [...]}``. Each
   group carries ``authorityName`` (``GROUP_ORG_AI-Skills``), ``groupName``

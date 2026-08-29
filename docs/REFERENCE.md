@@ -74,7 +74,7 @@ address exists; a call further down never takes an address of its own.
 ```python
 from edusharing import BasicCredential, ANONYMOUS
 
-BasicCredential("sc25-14", "…").is_anonymous     # False
+BasicCredential("mmustermann", "…").is_anonymous     # False
 ANONYMOUS.is_anonymous                            # True
 ANONYMOUS.headers()                               # {}
 ```
@@ -436,7 +436,7 @@ for group in await repo.people.memberships():
     group.type          # "ORGANIZATION"
 
 members = await repo.people.members("GROUP_lehrer", limit=100)
-members[0].name         # "sc25-14"
+members[0].name         # "mmustermann"
 members[0].is_group     # False
 ```
 
@@ -567,7 +567,7 @@ about.repository_version     # "11.0"
 about.api_version            # "1.1"
 
 who = repo.whoami()
-who.authority                # "sc25-14"
+who.authority                # "mmustermann"
 who.display_name             # "SC25 14"
 who.is_anonymous             # False
 who.home_folder              # "b8f1…"

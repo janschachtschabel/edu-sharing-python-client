@@ -109,14 +109,19 @@ def test_unbekannte_form_wird_abgelehnt():
 
 def test_ein_passwort_im_falschen_slot_steht_nicht_in_der_meldung():
     """Audit A5. Der Schutz galt nur fuer Bearer-Token: die Meldung schnitt am
-    ersten Leerzeichen ab, und ein Passwort hat keins. ``auth="PASSWORT-ENTFERNT"``
+    ersten Leerzeichen ab, und ein Passwort hat keins. ``auth=<Passwort>``
     -- die wahrscheinlichste Art, in diesen Zweig zu geraten -- landete damit
     woertlich in der Ausnahme und von dort in Traceback, Log und Modellkontext.
     ``BasicCredential.__repr__`` verhindert genau das an der Nachbartuer.
+
+    Der Wert hier ist erfunden. Bis zum 29.08.2026 stand an dieser Stelle das
+    echte Staging-Passwort -- in einem Test, der beweist, dass Passwoerter
+    nicht in Meldungen gehoeren.
     """
+    erfunden = "Kennwort-Nicht-Echt-0000"
     with pytest.raises(EduSharingError) as info:
-        credential_from("PASSWORT-ENTFERNT")
-    assert "PASSWORT-ENTFERNT" not in str(info.value)
+        credential_from(erfunden)
+    assert erfunden not in str(info.value)
 
 
 def test_ein_eigenes_credential_wird_angenommen():

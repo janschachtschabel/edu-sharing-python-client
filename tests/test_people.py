@@ -3,7 +3,8 @@
 Die Frage, die dahintersteht, ist immer dieselbe: **wer darf hier moderieren.**
 Die Ideendatenbank beantwortet sie ueber diese drei Endpunkte.
 
-Gemessen gegen Staging am 28.08.2026 mit dem Konto ``sc25-14``:
+Gemessen gegen Staging am 28.08.2026 mit einem gewoehnlichen Konto -- ohne
+Administratorrechte:
 
 * ``GET /iam/v1/people/-home-/-me-/memberships`` → ``{"groups": [...]}``. Je
   Gruppe stehen ``authorityName`` (``GROUP_ORG_AI-Skills``), ``groupName``

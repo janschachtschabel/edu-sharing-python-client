@@ -32,7 +32,7 @@ and in [`docs/audits/`](docs/audits/).
   URI or label depending on what you held.
 - **`LanguageProfile` and `GERMAN`** are importable from `edusharing` directly.
   `GERMAN` was bound but never declared in `flows.__all__`.
-- **The 16 examples run as test cases** (`pytest -m live` / `-m write`). An
+- **The 17 examples run as test cases** (`pytest -m live` / `-m write`). An
   example is executable documentation, and documentation nobody executes rots.
 - **`docs/REFERENCE.md` and `docs/REFERENCE.de.md`** — every public name, the
   call that uses it, and the shape that comes back, with real outputs. 266
@@ -87,6 +87,20 @@ and in [`docs/audits/`](docs/audits/).
   takes an address of its own. Reading examples run against another repository
   by setting `EDU_SHARING_URL` alone — verified against production.
 
+### Security
+
+- **A real staging password was committed** — in `tests/test_auth.py`, in the
+  very test that proves a password does not belong in an error message, and in
+  an audit document quoting that message. It is out of the working tree; the
+  test now uses an invented value and proves the same thing.
+  `tests/test_no_secrets.py` fails if any credential set in the environment
+  turns up in a tracked file, and reports the variable name only, never the
+  value. **The value remains in two commits of git history** — rotate it or
+  rewrite that history before this repository gains a remote.
+- The account name used for the measurements is no longer an example value in
+  the reference or a docstring. Not a secret, but a live account does not
+  belong in published examples.
+
 ### Fixed
 
 - A child object that could be created but then neither filled nor removed is
@@ -113,6 +127,11 @@ and in [`docs/audits/`](docs/audits/).
   `repo.raw` can carry `?ticket=`, so the debug line could keep a secret that
   `TextExtraction` had always withheld. Both now follow one rule: log what the
   library built, never what a caller handed over verbatim.
+- The README described "two services with their own address" beside a table
+  listing three, and named only `B_API_KEY` for the gateway although
+  `B_API_BASE_URL` became mandatory in this release. `ARCHITECTURE` still
+  listed production testing as deferred, three sections after recording that
+  stage 9 was measured against it.
 - Three examples were hard-wired to the staging instance and could not be
   pointed elsewhere — in a library whose headline claim is repository-agnostic.
 - `15_full_text.py` no longer ends its run when the extraction service returns
