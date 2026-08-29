@@ -42,6 +42,10 @@ __all__ = ["Transport"]
 #:
 #: Never logged: headers. That is where the credentials live, and a log line is
 #: aggregated, searched and kept -- see test_logging.py.
+#:
+#: Nor an address as the caller gave it. The rule for both this module and
+#: ``extraction`` is: log what the library built, never what was handed over
+#: verbatim -- see ``Transport._for_log``.
 logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = 30.0
@@ -153,6 +157,23 @@ class Transport:
             return path
         return f"{self.rest_url}{path if path.startswith('/') else '/' + path}"
 
+    def _for_log(self, url: str) -> str:
+        """The address, minus anything a caller could have hidden a secret in.
+
+        A log line is aggregated, searched and kept, and an address is not
+        automatically the library's own: ``_resolve`` passes absolute URLs
+        through, and a path handed to ``repo.raw`` can carry a query.
+
+        So: for this repository's own routes the path is the library's
+        construction and is what makes the line useful -- only query and
+        fragment go. For any other address even the path is the caller's, and
+        a signed link keeps its secret there, so only the host remains. That
+        is the same rule ``extraction`` has always followed.
+        """
+        if self.is_repository_url(url):
+            return url.split("?", 1)[0].split("#", 1)[0]
+        return httpx.URL(url).host or "(unknown host)"
+
     def _headers(
         self, url: str, credential: Credential, extra: dict[str, str] | None
     ) -> dict[str, str]:
@@ -203,11 +224,11 @@ class Transport:
             if attempt:
                 logger.info(
                     "retrying %s %s (attempt %d of %d) after %s",
-                    method, url, attempt + 1, self.max_retries + 1,
+                    method, self._for_log(url), attempt + 1, self.max_retries + 1,
                     type(last).__name__,
                 )
                 await asyncio.sleep(self.backoff_base * (2 ** (attempt - 1)))
-            logger.debug("%s %s", method, url)
+            logger.debug("%s %s", method, self._for_log(url))
             try:
                 async with self._semaphore:
                     response = await self._client.request(

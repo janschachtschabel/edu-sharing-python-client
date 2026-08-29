@@ -62,7 +62,9 @@ __all__ = ["ExtractedText", "TextExtraction", "METHODS"]
 
 #: See ``edusharing.transport.logger``. Never the URL, only the host -- a
 #: caller-chosen URL can carry a token in its query, and a refusal must not be
-#: the thing that logs it.
+#: the thing that logs it. Every address this service is given is the caller's,
+#: so the host is all that is ever left; ``Transport._for_log`` applies the
+#: same rule to a repository that also builds addresses of its own.
 logger = logging.getLogger(__name__)
 
 #: The two the service accepts. Checked here so a typo fails at the call site

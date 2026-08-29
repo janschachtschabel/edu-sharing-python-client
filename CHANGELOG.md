@@ -86,6 +86,11 @@ and in [`docs/audits/`](docs/audits/).
   carries no `ccm:oeh_extendedType` field, or when the schema list is not a
   list. An empty list would read as "this agent describes nothing", which is a
   different statement.
+- A query string is no longer logged, and of a foreign address only the host
+  is. `Transport.request` accepts absolute URLs and a path handed to
+  `repo.raw` can carry `?ticket=`, so the debug line could keep a secret that
+  `TextExtraction` had always withheld. Both now follow one rule: log what the
+  library built, never what a caller handed over verbatim.
 - Three examples were hard-wired to the staging instance and could not be
   pointed elsewhere — in a library whose headline claim is repository-agnostic.
 - `15_full_text.py` no longer ends its run when the extraction service returns

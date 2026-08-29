@@ -79,3 +79,42 @@ async def test_zugangsdaten_stehen_nie_im_protokoll(caplog, stufe):
     kodiert = base64.b64encode(f"{NUTZER}:{PASSWORT}".encode()).decode()
     assert kodiert not in alles
     assert "Authorization" not in alles
+
+
+# --- Was in einer Adresse stecken kann ------------------------------------
+#
+# ``extraction.py`` meldet seit jeher nur den Host, weil eine vom Aufrufer
+# uebergebene Adresse ein Token im Query tragen kann. ``transport`` meldete
+# die Adresse vollstaendig und nahm ueber ``_resolve`` auch absolute URLs an
+# -- dieselbe Luecke, gegen die der Nachbardienst schon schuetzt (Audit F7).
+
+TICKET = "TICKET_ec4f1a90"
+
+
+async def test_ein_query_steht_nie_im_protokoll(caplog):
+    """Der Query gehoert dem Aufrufer, der Pfad der Bibliothek.
+
+    edu-sharing selbst kennt ``?ticket=``; wer es ueber ``repo.raw`` anhaengt,
+    darf es nicht im Protokoll wiederfinden.
+    """
+    caplog.set_level(logging.DEBUG, logger="edusharing")
+    async with _transport(lambda r: httpx.Response(200, json={})) as t:
+        await t.request("GET", f"/_about?ticket={TICKET}")
+    alles = "\n".join(r.getMessage() for r in caplog.records)
+    assert TICKET not in alles, alles
+    assert "/_about" in alles, "der Pfad selbst bleibt -- sonst nuetzt es nichts"
+
+
+async def test_von_einer_fremden_adresse_steht_nur_der_host_im_protokoll(caplog):
+    """Bei einer fremden Adresse gehoert auch der Pfad dem Aufrufer.
+
+    ``request`` nimmt absolute URLs an. Ein signierter Link traegt sein
+    Geheimnis im Pfad, nicht im Query.
+    """
+    caplog.set_level(logging.DEBUG, logger="edusharing")
+    async with _transport(lambda r: httpx.Response(200, json={})) as t:
+        await t.request("GET", f"https://fremd.test/download/{TICKET}/datei.pdf")
+    alles = "\n".join(r.getMessage() for r in caplog.records)
+    assert TICKET not in alles, alles
+    assert "fremd.test" in alles, "der Host bleibt -- sonst ist die Zeile wertlos"
+
