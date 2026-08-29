@@ -162,6 +162,12 @@ async def child_objects(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
         ``{id, count, children}``. Each child carries ``id``, ``name``,
         ``title``, ``url``, ``mimetype``, ``order`` and ``has_content``.
 
+        **Display ``name``, not ``title``.** A child added through
+        ``node.children.add`` carries the filename in ``name`` and an empty
+        ``title`` -- measured 2026-08-28, ``name='anhang.txt'``, ``title=''``.
+        Every other flow uses ``title`` for display, so reaching for it here is
+        the obvious move and shows nothing.
+
     Raises:
         NotFoundError: when no node carries this id.
     """

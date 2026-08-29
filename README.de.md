@@ -8,8 +8,62 @@ Python-Bibliothek für [edu-sharing](https://edu-sharing.com)-Repositorien und d
 > **Status: in Arbeit.** Lesen, Suchen und Schreiben stehen und sind gegen
 > edu-sharing 11.0 geprüft — auch schreibend, gegen eine echte Instanz. Der
 > Fahrplan steht in [`docs/ARCHITECTURE.de.md`](docs/ARCHITECTURE.de.md)
-> ([englisch](docs/ARCHITECTURE.md)). Was unten mit ⏳ markiert ist,
-> beschreibt das Ziel, nicht den Ist-Stand.
+> ([englisch](docs/ARCHITECTURE.md)).
+
+## Installieren
+
+Python 3.11 oder neuer. Noch nicht auf PyPI, also aus einer Arbeitskopie:
+
+```bash
+uv pip install -e .
+```
+
+`pip install -e .` geht genauso, in einer Umgebung, die pip mitbringt. Vier
+Laufzeit-Abhängigkeiten kommen mit: `httpx` für den Transport sowie `attrs`,
+`python-dateutil` und `typing-extensions` für die generierte Schicht.
+
+Für Tests und Beispiele zusätzlich:
+
+```bash
+uv sync
+```
+
+Gemessen am 28.08.2026 in zwei leeren Umgebungen: `uv pip install -e .` unter
+Python 3.13.5 und `pip install -e .` unter 3.14.7. Beide beantworteten danach
+`repo.about().repository_version` mit `11.0` gegen die Staging-Instanz.
+
+## Inhalt
+
+- [Warum](#warum)
+- [Was heute geht](#was-heute-geht)
+  - [Woher ein Name kommt](#woher-ein-name-kommt)
+  - [Suchen mit Labels statt URIs](#suchen-mit-labels-statt-uris)
+  - [Sammlungen](#sammlungen)
+  - [Schreiben — mit Rückleseprobe](#schreiben--mit-rückleseprobe)
+  - [Für KI-Anwendungen](#für-ki-anwendungen)
+  - [Das LLM-Gateway](#das-llm-gateway)
+  - [Der Extraktionsdienst — Text, den das Repositorium nicht hat](#der-extraktionsdienst--text-den-das-repositorium-nicht-hat)
+  - [Abläufe — ein Anwendungsfall, ein Aufruf](#abläufe--ein-anwendungsfall-ein-aufruf)
+- [Wohin es geht](#wohin-es-geht)
+- [Was die Bibliothek für dich weiß](#was-die-bibliothek-für-dich-weiß)
+  - [Veröffentlichen — der Schritt, den edu-sharing nicht tut](#veröffentlichen--der-schritt-den-edu-sharing-nicht-tut)
+  - [Wenn ein Schreibvorgang halb glückt](#wenn-ein-schreibvorgang-halb-glückt)
+  - [Bewertungen und Kommentare](#bewertungen-und-kommentare)
+  - [Vorschlagen statt schreiben, und zur Prüfung weiterreichen](#vorschlagen-statt-schreiben-und-zur-prüfung-weiterreichen)
+  - [Vorschaubilder, Blättern, Sammlung umbenennen](#vorschaubilder-blättern-sammlung-umbenennen)
+  - [Gruppen — wer moderieren darf](#gruppen--wer-moderieren-darf)
+  - [Wo ein Knoten liegt — und wer ihn kuratiert hat](#wo-ein-knoten-liegt--und-wer-ihn-kuratiert-hat)
+  - [Serienobjekte — Dokumente, die zu einem Material gehören](#serienobjekte--dokumente-die-zu-einem-material-gehören)
+  - [Relationen — Knoten, die zusammengehören](#relationen--knoten-die-zusammengehören)
+  - [Kuratierte Seiten — was eine Sammlung rendert](#kuratierte-seiten--was-eine-sammlung-rendert)
+  - [Was diese Bibliothek nicht tut](#was-diese-bibliothek-nicht-tut)
+- [Felder und Dateien, die keine Kurznamen haben](#felder-und-dateien-die-keine-kurznamen-haben)
+- [Beispiele](#beispiele)
+- [Aufbau](#aufbau)
+- [Generierte Schicht neu bauen](#generierte-schicht-neu-bauen)
+- [Protokoll](#protokoll)
+- [Tests](#tests)
+- [Lizenz](#lizenz)
 
 ## Warum
 
@@ -303,7 +357,7 @@ Anwendungsfälle stehen oben, auf der API-Ebene.
 Ausprobieren: `python docs/examples/05_flow_search.py`, `06_flow_create.py`,
 `07_flow_collection.py`, `08_flow_rerank.py`, `09_flow_browse.py`
 
-## ⏳ Wohin es geht
+## Wohin es geht
 
 Ein MCP-Server als dünner Adapter über `edusharing.agent` — die Bausteine dafür
 stehen, der Server selbst ist bewusst nicht Teil der Bibliothek.

@@ -11,6 +11,61 @@ Python client for [edu-sharing](https://edu-sharing.com) repositories and the
 > The roadmap is in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 > ([German](docs/ARCHITECTURE.de.md)).
 
+## Installing
+
+Python 3.11 or newer. Not on PyPI yet, so install from a checkout:
+
+```bash
+uv pip install -e .
+```
+
+`pip install -e .` works the same way in an environment that has pip. Four
+runtime dependencies come with it: `httpx` for the transport, and `attrs`,
+`python-dateutil` and `typing-extensions` for the generated layer.
+
+For the tests and the examples as well:
+
+```bash
+uv sync
+```
+
+Measured on 2026-08-28 into two empty environments: `uv pip install -e .` on
+Python 3.13.5 and `pip install -e .` on 3.14.7. Both then answered
+`repo.about().repository_version` with `11.0` against the staging instance.
+
+## Contents
+
+- [Why](#why)
+- [What works today](#what-works-today)
+  - [Where a name comes from](#where-a-name-comes-from)
+  - [Searching with labels instead of URIs](#searching-with-labels-instead-of-uris)
+  - [Collections](#collections)
+  - [Writing — with a read-back check](#writing--with-a-read-back-check)
+  - [For AI applications](#for-ai-applications)
+  - [The LLM gateway](#the-llm-gateway)
+  - [The extraction service — text the repository does not have](#the-extraction-service--text-the-repository-does-not-have)
+  - [Flows — a use case in one call](#flows--a-use-case-in-one-call)
+- [Where this is going](#where-this-is-going)
+- [What the library knows for you](#what-the-library-knows-for-you)
+  - [Publishing — the step edu-sharing does not take](#publishing--the-step-edu-sharing-does-not-take)
+  - [When a write half-succeeds](#when-a-write-half-succeeds)
+  - [Ratings and comments](#ratings-and-comments)
+  - [Proposing instead of writing, and handing on for review](#proposing-instead-of-writing-and-handing-on-for-review)
+  - [Preview images, paging, renaming a collection](#preview-images-paging-renaming-a-collection)
+  - [Groups — who may moderate](#groups--who-may-moderate)
+  - [Where a node sits — and who curated it](#where-a-node-sits--and-who-curated-it)
+  - [Child objects — documents that belong to one material](#child-objects--documents-that-belong-to-one-material)
+  - [Relations — nodes that belong together](#relations--nodes-that-belong-together)
+  - [Curated pages — what a collection renders](#curated-pages--what-a-collection-renders)
+  - [What this library does not do](#what-this-library-does-not-do)
+- [Fields and files the short names do not cover](#fields-and-files-the-short-names-do-not-cover)
+- [Examples](#examples)
+- [Structure](#structure)
+- [Rebuilding the generated layer](#rebuilding-the-generated-layer)
+- [Logging](#logging)
+- [Tests](#tests)
+- [Licence](#licence)
+
 ## Why
 
 edu-sharing has 318 REST paths and behaviour you cannot guess: which write route
@@ -295,7 +350,7 @@ use cases live at the API level, above.
 Try it: `python docs/examples/05_flow_search.py`, `06_flow_create.py`,
 `07_flow_collection.py`, `08_flow_rerank.py`, `09_flow_browse.py`
 
-## ⏳ Where this is going
+## Where this is going
 
 An MCP server as a thin adapter over `edusharing.agent` — the building blocks
 are in place, the server itself is deliberately not part of the library.
