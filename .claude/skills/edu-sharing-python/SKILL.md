@@ -5,6 +5,8 @@ description: Using the edu-sharing-python-client library (import `edusharing`) �
 
 # edu-sharing for Python — how to use it
 
+*Deutsche Fassung: [SKILL.de.md](SKILL.de.md)*
+
 The library at `github.com/…/edu-sharing-python-bib` (package
 `edu-sharing-python-client`, import `edusharing`). It wraps edu-sharing's REST
 API and three neighbouring services, and its central promise is that **a write
@@ -16,8 +18,10 @@ fields, use `wlo-edu-sharing-api`. For instance addresses and environment
 variable names, use `wlo-environments`. Those are the source of truth for
 *deployment*; this one is the source of truth for *the Python surface*.
 
-Written in English because the library's code and identifiers are English. The
-reference it points to exists in both languages.
+Written in English because the library's code and identifiers are English --
+this is the version a model loads. [`SKILL.de.md`](SKILL.de.md) is the same
+routing table for people who would rather read German; both are held to the
+same tests, so neither can quietly omit a flow or invent a call.
 
 ---
 

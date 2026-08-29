@@ -251,18 +251,21 @@ if plan.has_changes:
 ```
 
 **Ein Skill für Coding-Agenten liegt der Bibliothek bei.**
-[`.claude/skills/edu-sharing-python/`](.claude/skills/edu-sharing-python/SKILL.md)
+[`.claude/skills/edu-sharing-python/`](.claude/skills/edu-sharing-python/SKILL.de.md)
 ist eine Wegweisertabelle — *diese Aufgabe, dieser Aufruf* — über alle 20
 Abläufe, die API-Ebene, die Nachbardienste und die gemessenen Fallen. Er ist
-für jeden Agenten aktiv, der in diesem Repositorium arbeitet. Damit er überall
+für jeden Agenten aktiv, der in diesem Repositorium arbeitet, und liegt auf
+[deutsch](.claude/skills/edu-sharing-python/SKILL.de.md) und
+[englisch](.claude/skills/edu-sharing-python/SKILL.md) vor. Damit er überall
 verfügbar ist:
 
 ```bash
 cp -r .claude/skills/edu-sharing-python ~/.claude/skills/
 ```
 
-Drei Tests halten ihn ehrlich: er muss jeden Ablauf nennen, keinen erfinden und
-keine Umgebungsvariable verwenden, die der Code nicht liest.
+Dieselben Tests halten **beide** Fassungen: jede muss jeden Ablauf nennen,
+keinen Aufruf erfinden, keine Umgebungsvariable verwenden, die der Code nicht
+liest, und nur auf Dateien verweisen, die es gibt.
 
 ### Das LLM-Gateway
 

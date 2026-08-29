@@ -50,7 +50,8 @@ and in [`docs/audits/`](docs/audits/).
   measured traps, pointing at `wlo-edu-sharing-api` for the raw REST API and at
   `wlo-environments` for addresses rather than repeating either. Three tests
   keep it honest: it must name all 20 flows, invent no call, and use no
-  environment variable the code does not read.
+  environment variable the code does not read. In English and German, both held
+  to those same tests — a translation nobody checks is the first thing to rot.
 - **A dependency CVE step in CI** (`pip-audit --skip-editable`).
 - **A type check in CI** (`mypy`, configured in `pyproject.toml`). It found two
   places that were correct only by accident: a `json.loads` on a value that

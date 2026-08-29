@@ -252,14 +252,18 @@ if plan.has_changes:
 [`.claude/skills/edu-sharing-python/`](.claude/skills/edu-sharing-python/SKILL.md)
 is a routing table — *this task, that call* — covering all 20 flows, the API
 level, the neighbouring services and the measured traps. It is active for any
-agent working in this repository. To make it available everywhere:
+agent working in this repository, and comes in
+[English](.claude/skills/edu-sharing-python/SKILL.md) and
+[German](.claude/skills/edu-sharing-python/SKILL.de.md). To make it available
+everywhere:
 
 ```bash
 cp -r .claude/skills/edu-sharing-python ~/.claude/skills/
 ```
 
-Three tests keep it honest: it must name every flow, invent none, and use no
-environment variable the code does not read.
+The same tests hold **both** versions: each must name every flow, invent no
+call, use no environment variable the code does not read, and link only to
+files that exist.
 
 ### The LLM gateway
 

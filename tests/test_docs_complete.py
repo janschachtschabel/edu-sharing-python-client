@@ -20,6 +20,8 @@ import ast
 import re
 from pathlib import Path
 
+import pytest
+
 WURZEL = Path(__file__).resolve().parent.parent
 QUELLE = WURZEL / "src" / "edusharing"
 REFERENZEN = {
@@ -217,6 +219,7 @@ BEHAUPTEND = [
     "docs/FLOWS.md", "docs/FLOWS.de.md",
     "docs/ARCHITECTURE.md", "docs/ARCHITECTURE.de.md",
     ".claude/skills/edu-sharing-python/SKILL.md",
+    ".claude/skills/edu-sharing-python/SKILL.de.md",
 ]
 
 
@@ -253,34 +256,45 @@ def test_jeder_genannte_variablenname_kommt_im_code_vor():
 # schreibt den Code trotzdem. Und ein Wegweiser, der einen Ablauf auslaesst,
 # laesst das Modell ihn von Hand nachbauen.
 
-SKILL = WURZEL / ".claude" / "skills" / "edu-sharing-python" / "SKILL.md"
+#: Beide Sprachfassungen. Die deutsche ist keine Zierde -- sie steht denselben
+#: Lesern gegenueber und wuerde ohne Waechter als erste veralten.
+SKILLS = {
+    name: WURZEL / ".claude" / "skills" / "edu-sharing-python" / name
+    for name in ("SKILL.md", "SKILL.de.md")
+}
 
 
-def test_der_skill_kennt_jeden_ablauf_und_erfindet_keinen():
-    """Alle Ablaeufe, und nur echte."""
+@pytest.mark.parametrize("name", sorted(SKILLS))
+def test_der_skill_kennt_jeden_ablauf_und_erfindet_keinen(name):
+    """Alle Ablaeufe, und nur echte -- in jeder Sprachfassung."""
     from edusharing.flows import Flows
 
-    text = SKILL.read_text(encoding="utf-8")
-    genannt = set(re.findall(r"repo\.flows\.([a-z_]+)", text))
+    pfad = SKILLS[name]
+    assert pfad.exists(), f"{name} fehlt"
+    genannt = set(re.findall(r"repo\.flows\.([a-z_]+)",
+                             pfad.read_text(encoding="utf-8")))
     echte = {n for n in dir(Flows) if not n.startswith("_")}
 
     erfunden = sorted(genannt - echte)
-    assert not erfunden, f"der Skill nennt Ablaeufe, die es nicht gibt: {erfunden}"
+    assert not erfunden, f"{name} nennt Ablaeufe, die es nicht gibt: {erfunden}"
 
     fehlend = sorted(echte - genannt)
     assert not fehlend, (
-        f"{len(fehlend)} von {len(echte)} Ablaeufen fehlen im Skill: {fehlend}")
+        f"{name}: {len(fehlend)} von {len(echte)} Ablaeufen fehlen: {fehlend}")
 
 
-def test_der_skill_erfindet_keine_aufrufe_am_knoten():
+@pytest.mark.parametrize("name", sorted(SKILLS))
+def test_der_skill_erfindet_keine_aufrufe_am_knoten(name):
     """``node.<zubehoer>`` und ``node.<methode>()`` muss es geben."""
     from edusharing.nodes import Node
 
-    text = SKILL.read_text(encoding="utf-8")
+    pfad = SKILLS[name]
+    assert pfad.exists(), f"{name} fehlt"
+    text = pfad.read_text(encoding="utf-8")
     genannt = (set(re.findall(r"node\.([a-z_]+)\.[a-z_]+", text))
                | set(re.findall(r"\bnode\.([a-z_]+)\(", text)))
     erfunden = sorted(n for n in genannt if not hasattr(Node, n))
-    assert not erfunden, f"der Skill nennt am Knoten: {erfunden}"
+    assert not erfunden, f"{name} nennt am Knoten: {erfunden}"
 
 
 # --- Und zeigen die Verweise irgendwohin? ---------------------------------
