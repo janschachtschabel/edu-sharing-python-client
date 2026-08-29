@@ -20,7 +20,7 @@ import httpx
 import pytest
 
 from edusharing import AsyncRepository
-from edusharing.errors import ValidationError
+from edusharing.errors import SilentDropError, ValidationError
 from edusharing.relations import RELATION_TYPES, Relation
 
 REPO = "https://repo.test/edu-sharing"
@@ -168,8 +168,16 @@ async def test_fehlende_ids_werden_abgelehnt(von, nach):
 
 
 async def test_metadaten_werden_mitgeschickt():
-    """Freitext an der Verknuepfung -- etwa, welches Modell sie vorschlug."""
-    instanz = Instanz()
+    """Freitext an der Verknuepfung -- etwa, welches Modell sie vorschlug.
+
+    Die Instanz hier speichert es; auf einer, die es verwirft, wirft
+    ``create`` seit dem 28.08.2026 einen SilentDropError -- siehe
+    ``test_verworfene_metadaten_werden_gemeldet``.
+    """
+    gespeichert = [dict(ANTWORT[0], fromNode=_knoten("a", "A"),
+                        toNode=_knoten("b", "B"), type="references",
+                        metadata={"modell": "opus", "score": 0.9})]
+    instanz = Instanz(antwort=gespeichert)
     async with _repo(instanz) as repo:
         await repo.relations.create("a", "references", "b",
                                     metadata={"modell": "opus", "score": 0.9})
@@ -267,3 +275,50 @@ async def test_flow_meldet_maschinelle_und_bestaetigte_verknuepfungen():
         ergebnis = await repo.flows.relations("teil-1")
     vorschlag = next(r for r in ergebnis["relations"] if r["ai_generated"])
     assert vorschlag["approved"] is True
+
+
+async def test_verworfene_metadaten_werden_gemeldet():
+    """edu-sharing 11.0 nimmt metadata an und speichert es nicht.
+
+    Gemessen am 28.08.2026 gegen die Staging, dreimal und zuletzt direkt am
+    Endpunkt an der Bibliothek vorbei -- nur Strings, mit isEvaluated, und
+    verschachtelt. Jedes Mal HTTP 200, jedes Mal ``metadata: {}`` zurueck.
+    Die Spezifikation gibt fuer CreateRelationRequest.metadata ein freies
+    Objekt vor, die Bibliothek schickt also das Richtige.
+
+    Genau der Fall, fuer den es SilentDropError gibt: ein Aufrufer, der eine
+    Begruendung an die Verknuepfung haengt, muss erfahren, dass sie nicht
+    ankam. Die Probe kostet eine zusaetzliche Anfrage und faellt nur an, wenn
+    ueberhaupt metadata mitgegeben wurde -- dieselbe Abwaegung wie bei
+    ``Node.update``.
+    """
+    verworfen = [dict(ANTWORT[0], fromNode=_knoten("a", "A"),
+                      toNode=_knoten("b", "B"), type="references",
+                      metadata={})]
+    instanz = Instanz(antwort=verworfen)
+    async with _repo(instanz) as repo:
+        with pytest.raises(SilentDropError) as fehler:
+            await repo.relations.create("a", "references", "b",
+                                        metadata={"grund": "Probe"})
+    assert "metadata" in str(fehler.value)
+
+
+async def test_angekommene_metadaten_sind_kein_fehler():
+    """Auf einer Instanz, die sie speichert, darf nichts geworfen werden --
+    die Probe liest zurueck und urteilt danach, nicht nach der Version."""
+    behalten = [dict(ANTWORT[0], fromNode=_knoten("a", "A"),
+                     toNode=_knoten("b", "B"), type="references",
+                     metadata={"grund": "Probe"})]
+    async with _repo(Instanz(antwort=behalten)) as repo:
+        await repo.relations.create("a", "references", "b",
+                                    metadata={"grund": "Probe"})
+
+
+async def test_ohne_metadaten_wird_nicht_zurueckgelesen():
+    """Kein Aufwand, wo nichts zu pruefen ist."""
+    instanz = Instanz()
+    async with _repo(instanz) as repo:
+        await repo.relations.create("a", "references", "b")
+    gelesen = [r for r in instanz.anfragen
+               if r.method == "GET" and "/relation/" in r.url.path]
+    assert not gelesen, f"unnoetige Rueckleseprobe: {[r.url.path for r in gelesen]}"

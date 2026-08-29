@@ -23,7 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from .errors import ValidationError
+from .errors import SilentDropError, ValidationError
 from .transport import Transport
 from .urls import path_segment
 
@@ -177,11 +177,22 @@ class Relations:
             ai_generated: mark this as proposed by a machine. Set it when a
                 model chose the link -- whoever reviews later needs to tell
                 suggestions apart from curated data.
-            metadata: free-form data stored with the relation.
+            metadata: free-form data to store with the relation. **Read back
+                when given** -- edu-sharing 11.0 accepts it with HTTP 200 and
+                stores nothing (measured 2026-08-28 against staging, three
+                shapes, last of them straight at the endpoint: every time
+                ``metadata: {}`` came back). The specification prescribes a
+                free object for it, so this is the server's doing, not the
+                request's. A caller who attaches a reason to a link has to
+                learn that it did not arrive.
 
         Raises:
             ValidationError: for an unsettable type, a missing id, or a link
                 from a node to itself.
+            SilentDropError: when ``metadata`` was given and is absent
+                afterwards. The check costs one extra request and only happens
+                when there is something to check -- the same trade as
+                ``Node.update``.
         """
         _check(from_node, relation_type, to_node)
         body: dict[str, Any] = {
@@ -193,6 +204,29 @@ class Relations:
         if metadata:
             body["metadata"] = metadata
         await self._transport.request("POST", "/relation/v1/-home-", json=body)
+        if metadata:
+            await self._verify_metadata(from_node, relation_type, to_node, metadata)
+
+    async def _verify_metadata(
+        self, from_node: str, relation_type: str, to_node: str,
+        wanted: dict[str, Any],
+    ) -> None:
+        """Read the relation back and complain about what did not arrive."""
+        stored: dict[str, Any] = {}
+        for relation in await self.of(from_node):
+            if relation.type == relation_type and relation.to_id == to_node:
+                stored = relation.metadata
+                break
+        missing = [key for key in wanted if key not in stored]
+        if missing:
+            raise SilentDropError(
+                f"The relation was created, but its metadata was not stored: "
+                f"{', '.join(missing)} (HTTP 200, absent after reading back). "
+                "edu-sharing 11.0 discards it -- measured. The link itself "
+                "exists; keep the reasoning on the nodes instead, or in your "
+                "own store.",
+                dropped=missing,
+            )
 
     async def delete(self, from_node: str, relation_type: str, to_node: str) -> None:
         """Remove one relation. The nodes themselves are untouched.
