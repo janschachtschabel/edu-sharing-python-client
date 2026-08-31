@@ -38,17 +38,14 @@ import httpx
 from ..errors import EduSharingError, at_least, error_from_response
 from ..urls import path_segment
 from . import passthrough
-from .policy import (
-    UNSET,
+from .body import UNSET, ReasoningParam, build_body, read_answer
+from .models import (
     LoadReport,
     Model,
-    ReasoningParam,
-    build_body,
     load_report,
     pick_model,
     rank_among,
     rank_models,
-    read_answer,
 )
 
 __all__ = ["BildungsAPI"]
@@ -315,7 +312,7 @@ class BildungsAPI:
                 the order you wrote it in, which makes it a fallback chain.
             system: system message; effective only when ``prompt`` is a string.
             thinking: allow Qwen3 to think. Defaults to ``False`` -- see
-                ``policy``.
+                ``body``.
 
         Returns:
             The answer text. If the budget went into thinking, the text comes
@@ -395,7 +392,7 @@ class BildungsAPI:
 
     # --- The forwarded OpenAI routes --------------------------------------
     #
-    # Thin on purpose: these carry no policy, so they belong beside ``chat``
+    # Thin on purpose: these carry no model policy, so they belong beside
     # rather than inside it. The measurements behind them are in
     # ``passthrough``.
 

@@ -634,7 +634,8 @@ Bestand wurde nach jedem Lauf gegen seinen Ausgangszustand verglichen.
 | `agent/format.py` | Treffer, kompakt, budgetiert, ohne die Belegstelle zu verlieren |
 | `agent/result.py` | Fehler als Ergebnisse statt als Ausnahmen |
 | `agent/confirm.py` | Zeigen, was geschähe, und es dann tun |
-| `bapi/policy.py` | Modellwahl und Anfrageform — reine Funktionen |
+| `bapi/models.py` | Welches Modell: Wahl, Auslastung, Abkündigung — reine Funktionen |
+| `bapi/body.py` | Wie der Anfragerumpf aussehen muss — reine Funktionen |
 | `bapi/client.py` | HTTP zur b-api, Wiederholung, Nebenläufigkeit, Cache mit Verfallszeit |
 | `bapi/passthrough.py` | Die OpenAI-Routen, die das Gateway durchreicht — Einbettungen, Moderation, Bilder, und `call` für den Rest |
 

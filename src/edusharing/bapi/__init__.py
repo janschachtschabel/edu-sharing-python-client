@@ -8,7 +8,8 @@
 Without a fixed model id the least loaded ready text model is chosen. The
 quirks of the model families -- which body layout, where thinking must be
 switched off, where the very same flag is rejected with 400 -- live in
-``policy`` and are measured against the API there.
+``body``, the choice in ``models``, and both are measured against the API
+there.
 
 The gateway forwards more than chat. ``embeddings``, ``moderate`` and ``images``
 have methods of their own, and ``call`` reaches the rest -- ``responses``,
@@ -20,18 +21,17 @@ cannot answer that question.
                                    provider="openai")
 """
 
+from .body import build_body, read_answer
 from .client import CACHE_FOREVER, BildungsAPI
-from .passthrough import Answer, GeneratedImage, Moderation
-from .policy import (
+from .models import (
     LoadReport,
     Model,
-    build_body,
     load_report,
     pick_model,
     rank_among,
     rank_models,
-    read_answer,
 )
+from .passthrough import Answer, GeneratedImage, Moderation
 
 __all__ = ["BildungsAPI", "Model", "pick_model", "rank_models",
            "build_body", "read_answer",

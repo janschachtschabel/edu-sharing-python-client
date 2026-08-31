@@ -288,7 +288,7 @@ Ohne feste Modell-ID wird das am wenigsten ausgelastete bereite Textmodell
 gewählt — und bei Bedarf das nächste: `status: ready` heißt nicht, dass ein
 Modell antwortet. Die Eigenheiten der Modellfamilien (`max_completion_tokens`
 für GPT-5/o, abgeschaltetes Denken bei Qwen3 — aber nicht bei Mistral) stecken
-in `bapi.policy`.
+in `bapi.body`; welches Modell zu nehmen ist, in `bapi.models`.
 
 **Das Gateway reicht die OpenAI-Oberfläche durch**, nicht nur Chat:
 

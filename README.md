@@ -284,7 +284,8 @@ key travels as `X-API-KEY`, not as a Bearer token.
 Without a fixed model id the least loaded ready text model is chosen — and the
 next one if needed: `status: ready` does not mean a model answers. The quirks of
 the model families (`max_completion_tokens` for GPT-5/o, thinking switched off
-for Qwen3 — but not for Mistral) live in `bapi.policy`.
+for Qwen3 — but not for Mistral) live in `bapi.body`; which model to use, in
+`bapi.models`.
 
 **The gateway forwards the OpenAI surface**, not only chat:
 

@@ -583,7 +583,8 @@ holdings were compared against their initial state after every run.
 | `agent/format.py` | Hits, compact, budgeted, without losing the citation |
 | `agent/result.py` | Errors as results rather than exceptions |
 | `agent/confirm.py` | Show what would happen, then do it |
-| `bapi/policy.py` | Model choice and request shape — pure functions |
+| `bapi/models.py` | Which model: choice, load, retirement — pure functions |
+| `bapi/body.py` | What the request body must look like — pure functions |
 | `bapi/client.py` | HTTP to the b-api, retry, concurrency, TTL cache |
 | `bapi/passthrough.py` | The OpenAI routes the gateway forwards — embeddings, moderation, images, and `call` for the rest |
 

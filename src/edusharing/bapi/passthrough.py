@@ -1,6 +1,6 @@
 """The OpenAI-compatible routes the gateway forwards to a provider.
 
-``chat`` lives in ``client`` because it carries a policy -- model selection,
+``chat`` lives in ``client`` because it carries a policy -- model choice,
 per-family quirks, a measured fallback. These do not: they hand a body to
 ``/api/v1/llm/{provider}/{route}`` and shape what comes back.
 
@@ -39,7 +39,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..errors import EduSharingError
 from ..urls import path_segment
-from .policy import UNSET, ReasoningParam, reasoning_for_responses
+from .body import UNSET, ReasoningParam, reasoning_for_responses
 
 if TYPE_CHECKING:  # pragma: no cover
     from .client import BildungsAPI
