@@ -1,11 +1,12 @@
 # edu-sharing Python-Client — Architektur und Entwurf
 
-Stand: 29.08.2026 · Status: **neun Etappen abgeschlossen, Audit-Befunde
-behoben** — 1110 Tests offline, 96 live lesend, 76 live schreibend (die
+Stand: 31.08.2026 · Status: **neun Etappen abgeschlossen, Audit-Befunde
+behoben** — 1122 Tests offline, 96 live lesend, 76 live schreibend (die
 Live-Zahlen enthalten die 20 Beispiele, die als Testfälle laufen). Jeder
-öffentliche Name steht in [`REFERENCE.de.md`](REFERENCE.de.md) /
-[`REFERENCE.md`](REFERENCE.md), vollständig gehalten durch
-`tests/test_docs_complete.py`.
+öffentliche Name **und jedes Feld jedes Objekts** steht in
+[`REFERENCE.de.md`](REFERENCE.de.md) / [`REFERENCE.md`](REFERENCE.md), und der
+Skill nennt sie ebenfalls alle; `tests/test_docs_complete.py` hält alle drei
+vollständig.
 
 Eine Python-Bibliothek, die die REST-API eines edu-sharing-Repositoriums und
 der Dienste daneben (b-api) mit wenig Code zugänglich macht — **ohne** die

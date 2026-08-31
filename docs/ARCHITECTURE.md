@@ -2,7 +2,7 @@
 
 Deutsche Fassung: [`ARCHITECTURE.de.md`](ARCHITECTURE.de.md)
 
-Last updated: 2026-08-29 · Status: **nine stages complete, audit findings closed** — 1110 tests offline, 96 live reading, 76 live writing (the live counts include the 20 examples, which run as test cases). Every public name is in [`REFERENCE.md`](REFERENCE.md) / [`REFERENCE.de.md`](REFERENCE.de.md), kept complete by `tests/test_docs_complete.py`.
+Last updated: 2026-08-31 · Status: **nine stages complete, audit findings closed** — 1122 tests offline, 96 live reading, 76 live writing (the live counts include the 20 examples, which run as test cases). Every public name **and every field of every object** is in [`REFERENCE.md`](REFERENCE.md) / [`REFERENCE.de.md`](REFERENCE.de.md), and the skill names all of them too; `tests/test_docs_complete.py` keeps all three complete.
 
 A Python library that makes the REST API of an edu-sharing repository and the
 surrounding services (b-api) accessible with little code — **without**

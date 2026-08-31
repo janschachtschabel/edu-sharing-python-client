@@ -14,7 +14,58 @@ and in [`docs/audits/`](docs/audits/).
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- **`Repository.resolve_all(prop, label)`** — the blocking counterpart to
+  `Vocabulary.resolve_all`. A label can belong to two vocabularies; `resolve`
+  returns only the first. `search` resolved ambiguous labels internally either
+  way, so blocking callers already got the right hits — but to see the set
+  itself they needed `AsyncRepository`.
+- **The skill names the whole surface.** It routed the twenty flows and named
+  120 of 285 public names; an AI with only the skill loaded could not find
+  `create_node` (used by eight examples) or `is_anonymous` (nine). It now names
+  every public member of every object a caller holds, the free functions, the
+  error tree and the named constants with their values — 285 of 285, in both
+  languages.
+- **How edu-sharing stores metadata** — a new section in both skill versions.
+  Every value is a list; the `cm:` / `cclom:` / `ccm:` / `virtual:` namespaces;
+  `cm:name` as a key against `cclom:title` (material) and `cm:title`
+  (collection) as the title; vocabulary fields as URIs; the metadata set as a
+  silent discarder; shared lists; aspects against types; `propertyFilter`.
+- **Trap: four accessors on the blocking `Repository` are still asynchronous.**
+  `repo.vocab`, `repo.searcher`, `repo.collections` and `repo.nodes` hand back
+  the asynchronous objects unchanged, so a method call on them from blocking
+  code produces a coroutine that never runs — no error, no effect. Documented
+  with the table of blocking counterparts.
+- **The fields of every object are in both references.** They were measured
+  against `__all__`, which covers classes and functions but not the fields a
+  class carries: `Swimlane.heading`, `Group.signup`, `Relation.created_by`,
+  `PageVariant.target_group` and 35 more were absent from a reference that
+  counted as complete.
+- **Four guards, all derived rather than maintained**, so the measure grows
+  with the library instead of ageing in a hand-kept list:
+  `test_der_skill_nennt_jeden_oeffentlichen_namen` (everything in `__all__` is
+  in both skill versions), `test_der_skill_nennt_was_die_beispiele_benutzen`
+  (the lower bound: what a working example uses cannot be missing),
+  `test_jedes_feld_jeder_klasse_steht_in_der_referenz` (every public field and
+  property), and
+  `test_jeder_dokumentierte_repository_aufruf_nennt_echte_parameter`, which
+  checks every `repo.x(a, b=…)` in a file that asserts names against the real
+  signature — positional arguments by name *and* order, keyword arguments
+  against the parameter list unless the method takes `**kwargs`. The last one
+  found all fourteen wrong places below.
+
+### Fixed
+
+- **`docs/REFERENCE(.de).md` documented a capability that never existed.**
+  `repo.resolve(url_or_id)` promised "the node id behind a rendering URL". The
+  method exists under that name but does something else — `resolve(prop, label)`
+  translates a label. No URL-to-node-id resolution exists anywhere in the
+  source; the line had been there since the reference was first written.
+- **Twelve documented parameter names were wrong** across six files:
+  `repo.node(id)` for `node_id`, `repo.update_collection(id, …)` and
+  `repo.add_to_collection(coll_id, …)` for `collection_id`. Written as keyword
+  arguments they raise `TypeError`.
 
 ## [0.0.1] — 2026-08-31
 
