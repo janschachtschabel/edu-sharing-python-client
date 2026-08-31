@@ -48,7 +48,8 @@ Ereignisschleife in einem Thread für Sie.
 | `repo.about()` | `About` — `repository_version`, `api_version`, `services`, `plugins` |
 | `repo.whoami()` | `Identity` — `authority`, `username`, `display_name`, `is_anonymous`, `home_folder` |
 | `repo.metadatasets()` | `list[MetadataSet]` |
-| `repo.resolve(url_or_id)` | `str` — die Knoten-ID hinter einer Render-URL |
+| `repo.resolve(prop, label)` | `str \| None` — der Filterwert zu einem Label, blockierend |
+| `repo.resolve_all(prop, label)` | `list[str]` — **jeder** Wert, der dieses Label trägt |
 | `repo.close()` / `await repo.aclose()` | die Verbindung zurückgeben |
 
 ```python
@@ -185,7 +186,7 @@ festgelegt.
 
 ## Knoten
 
-`repo.node(id)` ist der eine Aufruf, der Ihnen einen `Node` gibt.
+`repo.node(node_id)` ist der eine Aufruf, der Ihnen einen `Node` gibt.
 
 | Aufruf | Ergebnis |
 |---|---|
@@ -336,7 +337,7 @@ Dateinamen in `name` und ein leeres `title` — gemessen am 28.08.2026.
 | `repo.create_collection(title, parent=…, scope=…, description=…)` | `Node` |
 | `repo.collections.create(...)` | dasselbe |
 | `repo.collections.update(id, title=…, description=…)` | `Node` |
-| `repo.update_collection(id, ...)` | dasselbe, blockierend |
+| `repo.update_collection(collection_id, ...)` | dasselbe, blockierend |
 | `repo.add_to_collection(collection_id, node_id)` | `bool` — `False`, wenn es schon drin war |
 | `repo.collections.add(...)` | dasselbe |
 | `repo.remove_from_collection(collection_id, node_id)` | `None` — das Material selbst bleibt |

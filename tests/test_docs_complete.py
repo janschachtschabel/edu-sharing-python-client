@@ -540,3 +540,68 @@ def test_der_skill_nennt_jeden_oeffentlichen_namen(name):
     assert not fehlend, (
         f"{name} nennt {len(fehlend)} von {len(namen)} oeffentlichen Namen "
         f"nicht:\n  " + "\n  ".join(f"{n}  ({namen[n]})" for n in fehlend))
+
+
+# --- Und stimmen die dokumentierten Signaturen? ---------------------------
+#
+# ``repo.resolve(url_or_id)`` stand in beiden Referenzen und versprach "die
+# Knoten-ID hinter einer Render-URL". Die Methode heisst so, tut aber etwas
+# anderes: ``resolve(prop, label)`` uebersetzt ein Label in einen Vokabular-
+# wert. Die Faehigkeit aus der Zeile gab es nie. Kein Waechter bemerkte es --
+# Namen wurden geprueft, Signaturen nicht.
+#
+# Positionelle Argumente werden nach Name UND Reihenfolge geprueft, denn ein
+# Leser schreibt sie irgendwann als Schluesselwort. Schluesselwortargumente
+# duerfen alles sein, wenn die Methode ``**kwargs`` hat.
+
+_REPO_AUFRUF = re.compile(r"`repo\.([a-z_]+)\(([^`)]*)\)`")
+_BEZEICHNER = re.compile(r"[a-z_][a-z_0-9]*")
+
+
+def _positionelle(ziel) -> list[str]:
+    import inspect
+    erlaubt = (inspect.Parameter.POSITIONAL_ONLY,
+               inspect.Parameter.POSITIONAL_OR_KEYWORD)
+    return [n for n, p in inspect.signature(ziel).parameters.items()
+            if n != "self" and p.kind in erlaubt]
+
+
+def test_jeder_dokumentierte_repository_aufruf_nennt_echte_parameter():
+    """``repo.x(a, b=…)`` muss es geben, und a muss so heissen."""
+    import inspect
+
+    from edusharing import AsyncRepository, Repository
+
+    falsch: list[str] = []
+    for datei in BEHAUPTEND:
+        pfad = WURZEL / datei
+        if not pfad.exists():
+            continue
+        for methode, roh in _REPO_AUFRUF.findall(pfad.read_text(encoding="utf-8")):
+            ziel = (getattr(Repository, methode, None)
+                    or getattr(AsyncRepository, methode, None))
+            if ziel is None:
+                falsch.append(f"{datei}: repo.{methode}() gibt es nicht")
+                continue
+            parameter = inspect.signature(ziel).parameters
+            offen = any(p.kind is inspect.Parameter.VAR_KEYWORD
+                        for p in parameter.values())
+            positionell = _positionelle(ziel)
+            stelle = 0
+            for stueck in (s.strip() for s in roh.split(",") if s.strip()):
+                if "=" in stueck:
+                    name = stueck.split("=")[0].strip()
+                    if (_BEZEICHNER.fullmatch(name) and name not in parameter
+                            and not offen):
+                        falsch.append(
+                            f"{datei}: repo.{methode}() hat kein Argument {name!r}")
+                    continue
+                if _BEZEICHNER.fullmatch(stueck):
+                    echt = positionell[stelle] if stelle < len(positionell) else None
+                    if echt != stueck:
+                        falsch.append(
+                            f"{datei}: repo.{methode}() nennt an Stelle {stelle + 1} "
+                            f"{stueck!r}, die Methode nennt es {echt!r}")
+                stelle += 1
+
+    assert not falsch, "\n  " + "\n  ".join(falsch)

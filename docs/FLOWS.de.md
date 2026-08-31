@@ -371,7 +371,7 @@ Zwischengespeichert: dasselbe Feld ein zweites Mal zu erfragen kostet nichts.
 
 ## `describe` — alles über einen Knoten
 
-**Ein Zugriff**, genau wie `repo.node(id)` auf der API-Ebene. Dieser Ablauf
+**Ein Zugriff**, genau wie `repo.node(node_id)` auf der API-Ebene. Dieser Ablauf
 spart keinen Umlauf; er liefert ein `dict` mit bereits aufgelösten
 Vokabularwerten statt eines `Node`-Objekts.
 

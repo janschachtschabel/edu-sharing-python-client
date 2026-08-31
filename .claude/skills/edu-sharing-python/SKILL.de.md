@@ -145,9 +145,9 @@ der Platte.)*
 | Material mit Vokabular anlegen | `repo.flows.add_material(title, url=…, subject=…)` |
 | Material ändern | `repo.flows.update_material(node_id, title=…)` |
 | Sammlung bauen und füllen | `repo.flows.build_collection(title, node_ids)` |
-| vorhandenes Material in eine Sammlung legen | `repo.add_to_collection(coll_id, node_id)` |
+| vorhandenes Material in eine Sammlung legen | `repo.add_to_collection(collection_id, node_id)` |
 | der Sammlungs-Zugriff hinter diesen Abkürzungen | `repo.collections.find/create/update/add/remove` |
-| wieder herausnehmen (Material bleibt) | `repo.remove_from_collection(coll_id, node_id)` |
+| wieder herausnehmen (Material bleibt) | `repo.remove_from_collection(collection_id, node_id)` |
 | löschen | `repo.flows.delete(node_id)` |
 | Datei hochladen | `node.content.upload(data, filename=…, mimetype=…)` |
 | Lösungsblatt anhängen | `node.children.add(data, filename=…, mimetype=…)` |
@@ -207,7 +207,7 @@ muss — die Argument- und Rückgabeformen stehen in `docs/REFERENCE.de.md`.
 
 | Man hält | Woher | Was darauf ist |
 |---|---|---|
-| `Repository` | `Repository(url, credential=…)` oder `.from_env()` | `.search()` `.node()` `.create_node()` `.children()` `.create_collection()` `.update_collection()` `.add_to_collection()` `.remove_from_collection()` `.find_collections()` `.resolve()` `.about()` `.whoami()` `.metadatasets()` `.close()`; `.url` `.credential` `.metadataset` `.raw` `.flows` `.people` `.relations` |
+| `Repository` | `Repository(url, credential=…)` oder `.from_env()` | `.search()` `.node()` `.create_node()` `.children()` `.create_collection()` `.update_collection()` `.add_to_collection()` `.remove_from_collection()` `.find_collections()` `.resolve()` `.resolve_all()` `.about()` `.whoami()` `.metadatasets()` `.close()`; `.url` `.credential` `.metadataset` `.raw` `.flows` `.people` `.relations` |
 | `AsyncRepository` | dasselbe, innerhalb einer Ereignisschleife | dieselben Namen mit `await`, `.aclose()` statt `.close()`, dazu `.nodes` `.collections` `.vocab` `.searcher` |
 | `Credential` | `BasicCredential(user, pw)`, `BasicCredential.from_env()`, `AnonymousCredential()`, `credential_from(…)` | `.headers()` `.is_anonymous` `.username` |
 
@@ -215,7 +215,7 @@ muss — die Argument- und Rückgabeformen stehen in `docs/REFERENCE.de.md`.
 
 | Man hält | Woher | Was darauf ist |
 |---|---|---|
-| `Node` | `repo.node(id)`, `repo.create_node(…)` | lesen `.id` `.name` `.title` `.type` `.url` `.access` `.can_write` `.is_public` `.preview_url` `.properties` `.keywords` `.raw` `.get()` `.get_all()` `.labels()` `.parents()` `.collections()`; schreiben `.update()` `.set_property()` `.add_keywords()` `.remove_keywords()` `.rate()` `.unrate()` `.delete()`; Türen `.content` `.children` `.permissions` `.workflow` `.comments` `.suggestions` `.page` `.rating` |
+| `Node` | `repo.node(node_id)`, `repo.create_node(…)` | lesen `.id` `.name` `.title` `.type` `.url` `.access` `.can_write` `.is_public` `.preview_url` `.properties` `.keywords` `.raw` `.get()` `.get_all()` `.labels()` `.parents()` `.collections()`; schreiben `.update()` `.set_property()` `.add_keywords()` `.remove_keywords()` `.rate()` `.unrate()` `.delete()`; Türen `.content` `.children` `.permissions` `.workflow` `.comments` `.suggestions` `.page` `.rating` |
 | `NodeContent` | `node.content` | `.download()` `.text()` `.upload()` `.set_preview()` `.delete_preview()`; `.has_content` `.mimetype` `.size` `.download_url` |
 | `NodePermissions` | `node.permissions` | `.get()` `.grant()` `.revoke()` `.publish()` `.unpublish()` |
 | `Permissions` | `node.permissions.get()` | `.own` `.inherited` `.effective` `.inherits` `.is_public` `.allows()` `.find()` |
@@ -664,13 +664,11 @@ Zu jedem gibt es ein blockierendes Gegenstück am Repositorium selbst:
 | `repo.nodes.get/create/children` | `repo.node()` / `repo.create_node()` / `repo.children()` |
 | `repo.collections.find/create/update/add/remove` | `repo.find_collections()` / `repo.create_collection()` / `repo.update_collection()` / `repo.add_to_collection()` / `repo.remove_from_collection()` |
 | `repo.searcher.search` | `repo.search()` |
-| `repo.vocab.resolve` | `repo.resolve()` |
+| `repo.vocab.resolve` / `.resolve_all` | `repo.resolve()` / `repo.resolve_all()` |
 | `repo.vocab.values` | `repo.flows.vocabulary(field)` |
 
-`resolve_all` ist die eine Ausnahme ohne blockierendes Gegenstück. Wo es darauf
-ankommt, bekommen blockierende Aufrufer beide URIs trotzdem — `search()` löst
-mehrdeutige Labels intern auf —; um die Liste selbst zu sehen, braucht es
-`AsyncRepository`.
+`repo.vocab.suggest` und `repo.vocab.clear_cache` haben kein blockierendes
+Gegenstück; alles, was ein Aufrufer zum Filtern braucht, schon.
 
 ---
 

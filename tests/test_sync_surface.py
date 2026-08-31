@@ -335,6 +335,17 @@ def test_resolve_synchron(repo):
         "http://vocab.test/080"
 
 
+def test_resolve_all_synchron(repo):
+    """Ein Label kann zu zwei Vokabularen gehoeren.
+
+    ``resolve`` liefert davon nur das erste. Blockierend gab es keinen Weg zur
+    ganzen Menge -- die Suche loeste sie intern auf, aber wer sie sehen wollte,
+    brauchte ``AsyncRepository``.
+    """
+    assert _kein_coroutine(repo.resolve_all("ccm:taxonid", "Biologie")) == \
+        ["http://vocab.test/080"]
+
+
 def test_search_synchron(repo):
     assert _kein_coroutine(repo.search("x")) is not None
 

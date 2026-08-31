@@ -45,7 +45,8 @@ returns; the sync one runs a loop in a thread for you.
 | `repo.about()` | `About` — `repository_version`, `api_version`, `services`, `plugins` |
 | `repo.whoami()` | `Identity` — `authority`, `username`, `display_name`, `is_anonymous`, `home_folder` |
 | `repo.metadatasets()` | `list[MetadataSet]` |
-| `repo.resolve(url_or_id)` | `str` — the node id behind a rendering URL |
+| `repo.resolve(prop, label)` | `str \| None` — a label's filter value, blocking |
+| `repo.resolve_all(prop, label)` | `list[str]` — **every** value carrying that label |
 | `repo.close()` / `await repo.aclose()` | give the connection back |
 
 ```python
@@ -177,7 +178,7 @@ Which short names exist is read from the instance, not fixed in the library.
 
 ## Nodes
 
-`repo.node(id)` is the one call that gets you a `Node`.
+`repo.node(node_id)` is the one call that gets you a `Node`.
 
 | Call | Result |
 |---|---|
@@ -328,7 +329,7 @@ for child in await node.children.list():
 | `repo.create_collection(title, parent=…, scope=…, description=…)` | `Node` |
 | `repo.collections.create(...)` | the same |
 | `repo.collections.update(id, title=…, description=…)` | `Node` |
-| `repo.update_collection(id, ...)` | the same, blocking |
+| `repo.update_collection(collection_id, ...)` | the same, blocking |
 | `repo.add_to_collection(collection_id, node_id)` | `bool` — `False` when it was already in |
 | `repo.collections.add(...)` | the same |
 | `repo.remove_from_collection(collection_id, node_id)` | `None` — the material itself stays |

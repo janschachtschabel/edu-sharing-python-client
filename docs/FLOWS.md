@@ -360,7 +360,7 @@ Cached: asking a second time for the same field costs nothing.
 
 ## `describe` — everything about one node
 
-**One request**, exactly like `repo.node(id)` at the API level. This flow saves
+**One request**, exactly like `repo.node(node_id)` at the API level. This flow saves
 no round trip; it hands back a `dict` with vocabulary fields already resolved to
 labels, instead of a `Node` object.
 

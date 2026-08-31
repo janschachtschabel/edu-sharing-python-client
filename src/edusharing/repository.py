@@ -422,8 +422,22 @@ class Repository:
         )
 
     def resolve(self, prop: str, label: str, *, locale: str | None = None) -> str | None:
-        """Translate a label into the value the repository filters on."""
+        """Translate a label into the value the repository filters on.
+
+        Only the first value. When the label may belong to two vocabularies,
+        use ``resolve_all``.
+        """
         return self._loop.run(self._async.vocab.resolve(prop, label, locale=locale))
+
+    def resolve_all(
+        self, prop: str, label: str, *, locale: str | None = None
+    ) -> list[str]:
+        """Every value carrying this label. See ``Vocabulary.resolve_all``.
+
+        ``search`` resolves ambiguous labels by itself, so this is for code
+        that wants to see the set rather than filter on it.
+        """
+        return self._loop.run(self._async.vocab.resolve_all(prop, label, locale=locale))
 
     def about(self) -> About:
         """Version, services, plugins and features of this instance."""
