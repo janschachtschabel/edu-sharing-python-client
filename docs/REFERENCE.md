@@ -786,6 +786,41 @@ verdict.categories                        # {"hate": False, …}
 await api.call("responses", {"model": "…", "input": "…"})
 ```
 
+### A virtual model — several ids under one name
+
+Only the AcademicCloud reports load, and it moves by the minute. Name two or
+three models that would all do, and the least loaded one answers.
+
+| Call | Result |
+|---|---|
+| `BildungsAPI(..., virtual_models={"schnell": [...]})` | define the groups |
+| `api.chat(prompt, model="schnell")` | the least loaded of that group |
+| `api.chat(prompt, model=["a", "b", "c"])` | the same, without naming it first |
+| `api.virtual_models` | `dict[str, list[str]]` — what is defined |
+| `rank_among(models, ["a", "b"])` | `list[Model]` — the order they will be tried |
+
+```python
+api = BildungsAPI.from_env(virtual_models={
+    "schnell": ["qwen3.6-35b-a3b", "gemma-4-31b-it", "glm-4.7"],
+})
+
+await api.chat("Fasse zusammen: …", model="schnell")
+api.last_model        # "gemma-4-31b-it" — it had demand 0 at that moment
+```
+
+**Every name has to exist.** A group that quietly shrank because one id was
+renamed would keep working and keep getting slower, with nothing to see —
+`deepseek-v4-flash` became `deepseek-v4-flash-0731` within nine days.
+
+**At OpenAI the order you wrote stands.** No load is reported there at all, so
+a group is a fallback chain rather than a load balancer.
+
+**A group name that is also a real model id is refused.** Which of the two
+answered would otherwise depend on lookup order.
+
+If a candidate does not answer, the next one is tried — that is the point of
+naming several. A single `model="id"` is never substituted.
+
 Effort and verbosity, for the families that take them:
 
 | Call | Result |

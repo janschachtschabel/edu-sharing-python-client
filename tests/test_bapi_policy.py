@@ -226,3 +226,47 @@ def test_none_heisst_gar_nicht_senden(modell):
                       reasoning_effort=None, verbosity=None)
     assert "reasoning_effort" not in body
     assert "verbosity" not in body
+
+
+# --- Virtuelles Modell -----------------------------------------------------
+#
+# Mehrere Modelle unter einem Namen, und die Bibliothek nimmt daraus immer das
+# am wenigsten ausgelastete. Nur die AcademicCloud meldet ``demand``; bei
+# OpenAI ist das Feld nicht vorhanden, dort wird daraus eine Ausweichkette in
+# der genannten Reihenfolge.
+
+def test_die_wahl_faellt_innerhalb_der_genannten_modelle():
+    """Ein niedriger ausgelastetes Modell ausserhalb der Auswahl gewinnt nicht."""
+    modelle = [_m("a", demand=3), _m("b", demand=0), _m("c", demand=1)]
+    assert pick_model(modelle, among=["a", "c"]).id == "c"
+
+
+def test_ein_unbekannter_name_in_der_auswahl_faellt_auf():
+    with pytest.raises(ValueError) as info:
+        pick_model([_m("a"), _m("b")], among=["a", "gibt-es-nicht"])
+    assert "gibt-es-nicht" in str(info.value)
+
+
+def test_auswahl_ohne_brauchbares_modell():
+    modelle = [_m("a", status="loading"), _m("b", demand=0)]
+    with pytest.raises(ValueError) as info:
+        pick_model(modelle, among=["a"])
+    assert "a" in str(info.value)
+
+
+def test_leere_auswahl_ist_ein_fehler():
+    with pytest.raises(ValueError):
+        pick_model([_m("a")], among=[])
+
+
+def test_ohne_auslastung_entscheidet_die_reihenfolge_der_auswahl():
+    """OpenAI meldet kein ``demand`` -- dann ist die genannte Reihenfolge die
+    Aussage des Aufrufers und wird respektiert."""
+    modelle = [_m("zebra", demand=None), _m("alpha", demand=None)]
+    assert pick_model(modelle, among=["zebra", "alpha"]).id == "zebra"
+
+
+def test_prefer_und_among_zusammen_ist_ein_fehler():
+    """Zwei Arten, dasselbe zu bestimmen -- da muss der Aufrufer sich festlegen."""
+    with pytest.raises(ValueError):
+        pick_model([_m("a")], prefer="a", among=["a"])

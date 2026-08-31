@@ -24,12 +24,13 @@ by GWDG and open-ended.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
 __all__ = [
-    "Model", "pick_model", "rank_models", "build_body", "read_answer",
+    "Model", "pick_model", "rank_models", "rank_among", "build_body", "read_answer",
     "DEFAULT_EFFORT", "DEFAULT_VERBOSITY", "UNSET", "ReasoningParam",
 ]
 
@@ -160,7 +161,54 @@ def rank_models(models: list[Model]) -> list[Model]:
     return sorted(usable, key=lambda m: (m.demand if m.demand is not None else 99, m.id))
 
 
-def pick_model(models: list[Model], *, prefer: str | None = None) -> Model:
+def rank_among(models: list[Model], among: Sequence[str]) -> list[Model]:
+    """The named models, least loaded first -- a virtual model's ranking.
+
+    ``among`` names two or three models that would all do; this returns them in
+    the order they should be tried. Every name must exist: a virtual model that
+    quietly shrinks because one id was renamed would keep working and keep
+    getting slower, with nothing to see.
+
+    Where the provider reports no load -- OpenAI reports none at all -- the
+    caller's own order stands. It is the only statement of preference there is.
+
+    Raises:
+        ValueError: for an empty selection, an unknown name, or when none of
+            the named models is usable.
+    """
+    if not among:
+        raise ValueError("A virtual model needs at least one model id.")
+
+    nach_id = {m.id: m for m in models}
+    unbekannt = [name for name in among if name not in nach_id]
+    if unbekannt:
+        raise ValueError(
+            f"Not offered here: {', '.join(unbekannt)}. "
+            f"Available: {', '.join(sorted(nach_id)) or '(none)'}. "
+            "Model ids change without notice, so a virtual model has to be "
+            "checked against /models rather than trusted."
+        )
+
+    gewaehlt = [nach_id[name] for name in among]
+    brauchbar = [m for m in gewaehlt if m.is_ready and m.can_chat]
+    if not brauchbar:
+        raise ValueError(
+            f"None of {', '.join(among)} is a ready text model right now."
+        )
+    if all(m.demand is None for m in brauchbar):
+        # No load reported anywhere: keep the caller's order untouched.
+        return brauchbar
+    return sorted(brauchbar,
+                  key=lambda m: (m.demand if m.demand is not None else 99,
+                                 among.index(m.id)))
+
+
+def pick_model(
+    models: list[Model],
+    *,
+    prefer: str | None = None,
+    among: Sequence[str] | None = None,
+) -> Model:
     """Choose a model -- the least loaded one that can answer.
 
     Args:
@@ -171,10 +219,23 @@ def pick_model(models: list[Model], *, prefer: str | None = None) -> Model:
             answered 503 ever since. A silent switch would be worse than an
             error: the answer would come from a different model without anyone
             noticing.
+        among: a virtual model -- the least loaded of these names wins. See
+            ``rank_among``.
 
     Raises:
-        ValueError: when ``prefer`` is absent or no model is usable.
+        ValueError: when ``prefer`` is absent, when both ``prefer`` and
+            ``among`` are given, or when no model is usable.
     """
+    if prefer and among is not None:
+        raise ValueError(
+            "prefer and among both name the model to use. Pass one of them: "
+            "prefer for exactly this model, among for the least loaded of "
+            "several."
+        )
+
+    if among is not None:
+        return rank_among(models, among)[0]
+
     if prefer:
         for m in models:
             if m.id == prefer:

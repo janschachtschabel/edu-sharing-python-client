@@ -389,3 +389,66 @@ async def test_chat_verwirft_einen_ausdruecklichen_wunsch_nicht_still():
             await api.chat("x", model="gpt-4o-mini", provider="openai",
                            reasoning_effort="high")
     assert "gpt-4o-mini" in str(info.value)
+
+
+# --- Virtuelles Modell -----------------------------------------------------
+#
+# Der Aufrufer nennt zwei oder drei Modelle, die alle taugen wuerden; die
+# Bibliothek nimmt daraus das am wenigsten ausgelastete. In MODELLE oben hat
+# qwen3.6-35b-a3b demand=0 und glm-4.7 demand=2.
+
+async def test_liste_waehlt_das_am_wenigsten_ausgelastete():
+    aufrufe = []
+    async with _client(_router, aufrufe) as api:
+        await api.chat("x", model=["glm-4.7", "qwen3.6-35b-a3b"])
+    assert json.loads(aufrufe[-1].content)["model"] == "qwen3.6-35b-a3b"
+
+
+async def test_benannter_verbund_wird_aufgeloest():
+    aufrufe = []
+    async with _client(_router, aufrufe,
+                       virtual_models={"schnell": ["glm-4.7", "qwen3.6-35b-a3b"]}) as api:
+        await api.chat("x", model="schnell")
+    assert json.loads(aufrufe[-1].content)["model"] == "qwen3.6-35b-a3b"
+
+
+async def test_ein_verbundname_der_wie_ein_echtes_modell_heisst_faellt_auf():
+    """Sonst haengt es vom Nachschlagen ab, welches von beiden gemeint war."""
+    async with _client(_router,
+                       virtual_models={"glm-4.7": ["qwen3.6-35b-a3b"]}) as api:
+        with pytest.raises(EduSharingError) as info:
+            await api.chat("x", model="glm-4.7")
+    assert "glm-4.7" in str(info.value)
+
+
+async def test_faellt_das_erste_modell_aus_kommt_das_zweite_dran():
+    """Genau dafuer nennt man mehrere."""
+    aufrufe = []
+
+    def handler(request):
+        if request.url.path.endswith("/models"):
+            return httpx.Response(200, json=MODELLE)
+        if b"qwen3.6-35b-a3b" in request.content:
+            return httpx.Response(503, json={"error": "Model pricing unavailable"})
+        return httpx.Response(200, json=ANTWORT)
+
+    async with _client(handler, aufrufe) as api:
+        antwort = await api.chat("x", model=["qwen3.6-35b-a3b", "glm-4.7"])
+    assert antwort == "Die Antwort"
+
+    # Der Reihe nach, ohne die Wiederholungen: ein 503 ist wiederholbar, also
+    # versucht der Transport dasselbe Modell erst mehrfach. Fuer einen Verbund
+    # ist das nicht ideal -- wechseln waere billiger als warten -- aber es ist
+    # bestehendes Verhalten und gehoert nicht in diese Aenderung.
+    gefragt = [json.loads(r.content)["model"] for r in aufrufe
+               if not r.url.path.endswith("/models")]
+    ohne_wiederholung = [m for i, m in enumerate(gefragt)
+                         if i == 0 or m != gefragt[i - 1]]
+    assert ohne_wiederholung == ["qwen3.6-35b-a3b", "glm-4.7"]
+
+
+async def test_ein_unbekannter_name_im_verbund_wird_gemeldet():
+    async with _client(_router) as api:
+        with pytest.raises(EduSharingError) as info:
+            await api.chat("x", model=["glm-4.7", "gibt-es-nicht"])
+    assert "gibt-es-nicht" in str(info.value)

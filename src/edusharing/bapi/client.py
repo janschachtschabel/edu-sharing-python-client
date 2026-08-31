@@ -29,6 +29,7 @@ import asyncio
 import logging
 import os
 import time
+from collections.abc import Mapping, Sequence
 from typing import Any, Self
 
 import httpx
@@ -42,6 +43,7 @@ from .policy import (
     ReasoningParam,
     build_body,
     pick_model,
+    rank_among,
     rank_models,
     read_answer,
 )
@@ -99,6 +101,9 @@ class BildungsAPI:
         max_concurrency: concurrent requests.
         models_cache_seconds: how long the model list stays valid. ``0``
             disables the cache.
+        virtual_models: names for groups of models, e.g.
+            ``{"schnell": ["qwen3.6-35b-a3b", "gemma-4-31b-it"]}``.
+            ``chat(model="schnell")`` then takes the least loaded of them.
     """
 
     def __init__(
@@ -112,6 +117,7 @@ class BildungsAPI:
         max_concurrency: int = DEFAULT_MAX_CONCURRENCY,
         backoff_base: float = DEFAULT_BACKOFF_BASE,
         models_cache_seconds: float = DEFAULT_MODELS_CACHE_SECONDS,
+        virtual_models: Mapping[str, Sequence[str]] | None = None,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         if not api_key:
@@ -130,6 +136,13 @@ class BildungsAPI:
         self.max_retries = max_retries
         self.backoff_base = backoff_base
         self.models_cache_seconds = models_cache_seconds
+        #: Names the caller gave to groups of models. ``chat(model="schnell")``
+        #: then takes the least loaded of the group. Empty by default: the
+        #: library invents no names, because a name only helps if the caller
+        #: knows what is behind it.
+        self.virtual_models: dict[str, list[str]] = {
+            name: list(ids) for name, ids in (virtual_models or {}).items()
+        }
         self._semaphore = asyncio.Semaphore(max_concurrency)
         self._client = client or httpx.AsyncClient(timeout=timeout)
         self._owns_client = client is None
@@ -199,11 +212,37 @@ class BildungsAPI:
                 self._models_cache = (now, models)
             return models
 
+    async def _resolve_group(
+        self, model: str | Sequence[str] | None, which: str
+    ) -> list[str] | None:
+        """The model ids behind ``model``, or ``None`` if it names just one.
+
+        Raises:
+            EduSharingError: when a group name is also a real model id. Which
+                of the two was meant would then depend on lookup order, and the
+                answer would come from a model nobody chose.
+        """
+        if model is None or (isinstance(model, str) and not model):
+            return None
+        if not isinstance(model, str):
+            return list(model)
+        if model not in self.virtual_models:
+            return None
+
+        vorhanden = {m.id for m in await self.models(which)}
+        if model in vorhanden:
+            raise EduSharingError(
+                f"{model!r} is both a group in virtual_models and a model "
+                f"offered by {which!r}. Rename the group -- otherwise which of "
+                "the two answers depends on lookup order."
+            )
+        return self.virtual_models[model]
+
     async def chat(
         self,
         prompt: str | list[dict[str, str]],
         *,
-        model: str | None = None,
+        model: str | Sequence[str] | None = None,
         provider: str | None = None,
         max_tokens: int = 1000,
         temperature: float = 0.0,
@@ -216,9 +255,16 @@ class BildungsAPI:
 
         Args:
             prompt: a string or a ready message list.
-            model: fixed model id. Without it the model list is fetched and the
-                least loaded ready text model is chosen -- that costs an extra
-                request but decides on current numbers.
+            model: three ways to say it.
+
+                * a model id -- exactly this model, no substitution;
+                * a list of ids, or the name of a group from
+                  ``virtual_models`` -- the least loaded of them, and the next
+                  one if it does not answer;
+                * nothing -- the least loaded ready text model of the provider.
+
+                Only the AcademicCloud reports load. At OpenAI a group keeps
+                the order you wrote it in, which makes it a fallback chain.
             system: system message; effective only when ``prompt`` is a string.
             thinking: allow Qwen3 to think. Defaults to ``False`` -- see
                 ``policy``.
@@ -226,6 +272,11 @@ class BildungsAPI:
         Returns:
             The answer text. If the budget went into thinking, the text comes
             from ``reasoning`` rather than ``content``.
+
+        Raises:
+            EduSharingError: when a group name is also a real model id, when a
+                named model is not offered, or when none of the candidates
+                answered.
         """
         if isinstance(prompt, str):
             messages = [{"role": "user", "content": prompt}]
@@ -244,13 +295,20 @@ class BildungsAPI:
                 reasoning_effort=reasoning_effort, verbosity=verbosity,
             )
 
-        if model:
+        gruppe = await self._resolve_group(model, which)
+
+        if gruppe is not None:
+            try:
+                candidates = rank_among(await self.models(which), gruppe)
+            except ValueError as exc:
+                raise EduSharingError(str(exc)) from exc
+        elif isinstance(model, str) and model:
             self.last_model = model
             return read_answer(await self._request("POST", path, json=body_for(model)))
-
-        candidates = rank_models(await self.models(which))
-        if not candidates:
-            raise EduSharingError(f"No ready text model at provider {which!r}.")
+        else:
+            candidates = rank_models(await self.models(which))
+            if not candidates:
+                raise EduSharingError(f"No ready text model at provider {which!r}.")
 
         failures: list[str] = []
         for candidate in candidates[:DEFAULT_MODEL_ATTEMPTS]:

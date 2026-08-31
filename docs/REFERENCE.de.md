@@ -799,6 +799,44 @@ verdict.categories                        # {"hate": False, …}
 await api.call("responses", {"model": "…", "input": "…"})
 ```
 
+### Ein virtuelles Modell — mehrere IDs unter einem Namen
+
+Nur die AcademicCloud meldet Auslastung, und die ändert sich im Minutentakt.
+Nennen Sie zwei oder drei Modelle, die alle taugen würden, und das am
+wenigsten ausgelastete antwortet.
+
+| Aufruf | Ergebnis |
+|---|---|
+| `BildungsAPI(..., virtual_models={"schnell": [...]})` | die Verbünde festlegen |
+| `api.chat(prompt, model="schnell")` | das am wenigsten ausgelastete daraus |
+| `api.chat(prompt, model=["a", "b", "c"])` | dasselbe, ohne es vorher zu benennen |
+| `api.virtual_models` | `dict[str, list[str]]` — was festgelegt ist |
+| `rank_among(models, ["a", "b"])` | `list[Model]` — die Reihenfolge der Versuche |
+
+```python
+api = BildungsAPI.from_env(virtual_models={
+    "schnell": ["qwen3.6-35b-a3b", "gemma-4-31b-it", "glm-4.7"],
+})
+
+await api.chat("Fasse zusammen: …", model="schnell")
+api.last_model        # "gemma-4-31b-it" — es hatte in dem Moment demand 0
+```
+
+**Jeder Name muss existieren.** Ein Verbund, der still schrumpft, weil eine ID
+umbenannt wurde, funktioniert weiter und wird langsamer, ohne dass man es
+sieht — `deepseek-v4-flash` wurde binnen neun Tagen zu
+`deepseek-v4-flash-0731`.
+
+**Bei OpenAI gilt Ihre Reihenfolge.** Dort wird keine Auslastung gemeldet, ein
+Verbund ist dann eine Ausweichkette, kein Lastausgleich.
+
+**Ein Verbundname, den es auch als Modell gibt, wird abgelehnt.** Sonst hinge
+es von der Reihenfolge des Nachschlagens ab, welches der beiden geantwortet
+hat.
+
+Antwortet ein Kandidat nicht, kommt der nächste dran — genau dafür nennt man
+mehrere. Ein einzelnes `model="id"` wird nie ersetzt.
+
 Aufwand und Ausführlichkeit, für die Familien, die sie annehmen:
 
 | Aufruf | Ergebnis |
