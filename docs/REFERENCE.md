@@ -960,7 +960,7 @@ await api.chat("Denk gründlich nach.", model="gpt-5.6-luna",
 
 await api.chat("x", model="gpt-4o-mini")                       # both omitted
 await api.chat("x", model="gpt-4o-mini", reasoning_effort="high")
-# ValueError: Model 'gpt-4o-mini' does not take reasoning_effort='high' …
+# ValidationError: Model 'gpt-4o-mini' does not take reasoning_effort='high' …
 ```
 
 **A default may be dropped, an explicit wish may not.** `gpt-4o-mini` answers
@@ -968,6 +968,11 @@ await api.chat("x", model="gpt-4o-mini", reasoning_effort="high")
 what makes it a default. A value you passed yourself raises instead: an answer
 produced without the effort you asked for is indistinguishable from one
 produced with it.
+
+Every one of these is a `ValidationError`, and therefore an `EduSharingError`:
+the library's promise is that catching that one catches them all. That holds
+for a route `call()` refuses, an unknown model in a group, and a reasoning
+parameter a model cannot take.
 
 The AcademicCloud accepts both and ignores them (measured: identical token
 usage at `low` and `high`), so the library does not send them there. Its lever

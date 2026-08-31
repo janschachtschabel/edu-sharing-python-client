@@ -979,7 +979,7 @@ await api.chat("Denk gründlich nach.", model="gpt-5.6-luna",
 
 await api.chat("x", model="gpt-4o-mini")                       # beide entfallen
 await api.chat("x", model="gpt-4o-mini", reasoning_effort="high")
-# ValueError: Model 'gpt-4o-mini' does not take reasoning_effort='high' …
+# ValidationError: Model 'gpt-4o-mini' does not take reasoning_effort='high' …
 ```
 
 **Eine Vorgabe darf entfallen, ein ausdrücklicher Wunsch nicht.** `gpt-4o-mini`
@@ -987,6 +987,11 @@ antwortet auf beide Parameter mit 400, also entfällt die Vorgabe dort
 stillschweigend — das ist, was eine Vorgabe ausmacht. Ein selbst übergebener
 Wert löst stattdessen einen Fehler aus: eine Antwort ohne den gewünschten
 Aufwand ist von einer mit ihm nicht zu unterscheiden.
+
+Jeder davon ist ein `ValidationError` und damit ein `EduSharingError`: das
+Versprechen der Bibliothek lautet, dass ein `except EduSharingError` alles
+fängt. Das gilt für eine Route, die `call()` ablehnt, ein unbekanntes Modell in
+einem Verbund und einen Aufwandsparameter, den ein Modell nicht annimmt.
 
 Die AcademicCloud nimmt beide an und ignoriert sie (gemessen: gleicher
 Tokenverbrauch bei `low` und `high`), also sendet die Bibliothek sie dort

@@ -9,6 +9,7 @@ wartet das Sieben- bis Neunfache. Die Modellwahl steht in
 import pytest
 
 from edusharing.bapi.body import build_body, read_answer
+from edusharing.errors import ValidationError
 
 # --- Request-Bau -----------------------------------------------------------
 
@@ -114,7 +115,7 @@ def test_vorgabe_entfaellt_auch_bei_der_academiccloud():
 @pytest.mark.parametrize("feld", ["reasoning_effort", "verbosity"])
 def test_ausdruecklicher_wunsch_wird_nicht_still_verworfen(feld):
     """Der Kern der Regel."""
-    with pytest.raises(ValueError) as info:
+    with pytest.raises(ValidationError) as info:
         build_body("gpt-4o-mini", [{"role": "user", "content": "x"}], **{feld: "high"})
     assert "gpt-4o-mini" in str(info.value)
     assert feld in str(info.value)

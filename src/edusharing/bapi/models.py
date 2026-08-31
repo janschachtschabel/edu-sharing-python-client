@@ -20,6 +20,8 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
+from ..errors import ValidationError
+
 __all__ = [
     "Model", "LoadReport", "load_report",
     "pick_model", "rank_models", "rank_among",
@@ -174,16 +176,16 @@ def rank_among(models: list[Model], among: Sequence[str]) -> list[Model]:
     caller's own order stands. It is the only statement of preference there is.
 
     Raises:
-        ValueError: for an empty selection, an unknown name, or when none of
+        ValidationError: for an empty selection, an unknown name, or when none of
             the named models is usable.
     """
     if not among:
-        raise ValueError("A virtual model needs at least one model id.")
+        raise ValidationError("A virtual model needs at least one model id.")
 
     nach_id = {m.id: m for m in models}
     unbekannt = [name for name in among if name not in nach_id]
     if unbekannt:
-        raise ValueError(
+        raise ValidationError(
             f"Not offered here: {', '.join(unbekannt)}. "
             f"Available: {', '.join(sorted(nach_id)) or '(none)'}. "
             "Model ids change without notice, so a virtual model has to be "
@@ -193,7 +195,7 @@ def rank_among(models: list[Model], among: Sequence[str]) -> list[Model]:
     gewaehlt = [nach_id[name] for name in among]
     brauchbar = [m for m in gewaehlt if m.is_ready and m.can_chat]
     if not brauchbar:
-        raise ValueError(
+        raise ValidationError(
             f"None of {', '.join(among)} is a ready text model right now."
         )
     if all(m.demand is None for m in brauchbar):
@@ -224,11 +226,11 @@ def pick_model(
             ``rank_among``.
 
     Raises:
-        ValueError: when ``prefer`` is absent, when both ``prefer`` and
+        ValidationError: when ``prefer`` is absent, when both ``prefer`` and
             ``among`` are given, or when no model is usable.
     """
     if prefer and among is not None:
-        raise ValueError(
+        raise ValidationError(
             "prefer and among both name the model to use. Pass one of them: "
             "prefer for exactly this model, among for the least loaded of "
             "several."
@@ -242,7 +244,7 @@ def pick_model(
             if m.id == prefer:
                 return m
         available = ", ".join(m.id for m in models) or "(none)"
-        raise ValueError(
+        raise ValidationError(
             f"Model {prefer!r} does not exist here. Available: {available}. "
             "Model ids change without notice -- check against /models before "
             "hard-coding one."
@@ -250,7 +252,7 @@ def pick_model(
 
     ranking = rank_models(models)
     if not ranking:
-        raise ValueError(
+        raise ValidationError(
             f"No ready text model among the {len(models)} reported."
         )
     return ranking[0]

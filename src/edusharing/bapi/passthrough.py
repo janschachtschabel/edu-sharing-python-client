@@ -37,9 +37,9 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from ..errors import EduSharingError
+from ..errors import EduSharingError, ValidationError
 from ..urls import path_segment
-from .body import UNSET, ReasoningParam, reasoning_for_responses
+from .body import UNSET, ReasoningParam, _Vorgabe, reasoning_for_responses
 
 if TYPE_CHECKING:  # pragma: no cover
     from .client import BildungsAPI
@@ -79,15 +79,15 @@ def _check_route(route: str) -> None:
     model". ``call`` is precisely the method whose argument a model chooses.
 
     Raises:
-        ValueError: naming the offending segment. Strict on purpose -- a route
+        ValidationError: naming the offending segment. Strict on purpose -- a route
             with a character this rejects fails loudly here rather than
             addressing something else quietly.
     """
     if not route:
-        raise ValueError("route must not be empty.")
+        raise ValidationError("route must not be empty.")
     for segment in route.split("/"):
         if not _SEGMENT.match(segment):
-            raise ValueError(
+            raise ValidationError(
                 f"route={route!r} is not addressable: the segment "
                 f"{segment!r} is empty or carries something other than "
                 "letters, digits, '_' and '-'. Routes look like "
@@ -150,16 +150,27 @@ class Answer:
 
     @property
     def truncated(self) -> bool:
-        """Whether the answer stops early. **Read this before using the text.**"""
+        """Whether the answer stops early. **Read this before using the text.**
+
+        A provider that reports no ``status`` at all counts as not truncated:
+        claiming a cut where none was reported would be inventing one. Both
+        measured providers do report it.
+        """
         return bool(self.status) and self.status != "completed"
 
 
 def _text_of(body: dict[str, Any]) -> str:
-    """The text out of the nested ``output[].content[].text``."""
+    """The text out of the nested ``output[].content[].text``.
+
+    Every level is checked, because every level comes from the gateway. An
+    ``AttributeError`` out of here would be neither informative nor catchable
+    as an ``EduSharingError``; an empty string at least says "no text".
+    """
     return "".join(
         teil.get("text") or ""
-        for eintrag in body.get("output") or []
-        for teil in eintrag.get("content") or []
+        for eintrag in (body.get("output") or [])
+        if isinstance(eintrag, dict)
+        for teil in (eintrag.get("content") or [])
         if isinstance(teil, dict)
     )
 
@@ -194,7 +205,8 @@ async def respond(
 
     Raises:
         EduSharingError: without a model.
-        ValueError: for an explicit reasoning parameter this model cannot take.
+        ValidationError: for an explicit reasoning parameter this model
+            cannot take, or for a route that is not addressable.
     """
     if not model:
         raise EduSharingError(
@@ -202,12 +214,29 @@ async def respond(
             "picking one here would be a silent model choice. Pass model=..., "
             "or use chat() where the library may choose."
         )
+    denken = reasoning_for_responses(
+        model, reasoning_effort=reasoning_effort, verbosity=verbosity)
+    # ``extra`` is the escape hatch, not a second way to set the same value.
+    # Spreading it last used to let it win silently, which is exactly the
+    # dropped-wish this parameter pair exists to prevent. An own value is
+    # honoured where the library only had a default to offer.
+    for schluessel in ("reasoning", "text"):
+        if schluessel not in extra:
+            continue
+        gesetzt = (reasoning_effort if schluessel == "reasoning" else verbosity)
+        if not isinstance(gesetzt, _Vorgabe) and gesetzt is not None:
+            raise ValidationError(
+                f"{schluessel}={extra[schluessel]!r} in the extra arguments and "
+                f"{'reasoning_effort' if schluessel == 'reasoning' else 'verbosity'}"
+                f"={gesetzt!r} both set the same thing. Pass one of them."
+            )
+        denken.pop(schluessel, None)
+
     body: dict[str, Any] = {
         "model": model,
         "input": prompt,
         "max_output_tokens": max_output_tokens,
-        **reasoning_for_responses(
-            model, reasoning_effort=reasoning_effort, verbosity=verbosity),
+        **denken,
         **extra,
     }
     antwort = await call(api, "responses", body, provider=provider)
@@ -236,14 +265,14 @@ async def call(
         provider: overrides the client's default for this call.
 
     Raises:
-        ValueError: for a leading slash, and for any route that could address
+        ValidationError: for a leading slash, and for any route that could address
             something other than it names -- ``..``, an empty segment, a query
             string. See ``_check_route``: this argument is a trust boundary,
             because it is the one a language model picks.
         EduSharingError: as the route answered.
     """
     if route.startswith("/"):
-        raise ValueError(
+        raise ValidationError(
             f"route={route!r} must be given without a leading slash -- it is "
             "appended to /api/v1/llm/{provider}/."
         )

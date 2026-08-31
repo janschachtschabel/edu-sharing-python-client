@@ -141,6 +141,23 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Fixed
 
+- **A cold model cache is filled once, not once per concurrent caller.** The
+  cache was checked before the lock and not again inside it, so the lock only
+  queued the callers up: six concurrent calls made six requests to `/models` —
+  against a gateway that rate-limits the key. `CACHE_FOREVER` now keeps the
+  promise its name makes.
+- **`ValidationError` instead of a bare `ValueError`** for a reasoning
+  parameter a model cannot take, a route `call()` refuses, and an unknown model
+  in a group. The reference says every failure is an `EduSharingError`; a
+  `ValueError` escaped that, and inconsistently — the same `chat()` call
+  converted one of the three and not the other two.
+- **A truncated `responses` body no longer raises `AttributeError`.** `_text_of`
+  now checks every level, because every level comes from the gateway.
+- **`respond()` refuses two ways of setting the same value.** `reasoning` in the
+  extra arguments used to win over `reasoning_effort=` silently, because it was
+  spread last. Passing only the extra still works — a default steps aside, an
+  explicit value does not.
+- `load()` judges retirement against the UTC day, not the local one.
 - **A busy model no longer consumes the full retry budget while another model
   is available.** A 503 is retryable, so the transport spent all
   `max_retries` on it — roughly 17 s at the default backoff — with a second

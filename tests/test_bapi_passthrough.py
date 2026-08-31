@@ -22,7 +22,7 @@ import httpx
 import pytest
 
 from edusharing.bapi import BildungsAPI, Moderation
-from edusharing.errors import EduSharingError
+from edusharing.errors import EduSharingError, ValidationError
 
 GATEWAY = "https://gateway.example.test"
 
@@ -164,7 +164,7 @@ async def test_call_lehnt_einen_fuehrenden_schraegstrich_ab():
     """Sonst entstuende /api/v1/llm/anbieter//route, und der Fehler kaeme vom
     Server statt von hier."""
     async with _client(_antwortet({})) as api:
-        with pytest.raises(ValueError, match="without a leading"):
+        with pytest.raises(ValidationError, match="without a leading"):
             await api.call("/audio/speech", {})
 
 
@@ -219,7 +219,7 @@ async def test_eine_route_darf_ihren_pfad_nicht_verlassen(route):
     """
     versendet = []
     async with _client(_antwortet({"ok": True}), versendet) as api:
-        with pytest.raises(ValueError):
+        with pytest.raises(ValidationError):
             await api.call(route, {})
     assert not versendet, (
         f"{route!r} wurde abgesetzt: {versendet[0].url if versendet else ''}")
@@ -317,6 +317,61 @@ async def test_ohne_faehiges_modell_entfaellt_die_vorgabe():
 
 async def test_ausdruecklicher_wunsch_wird_auch_hier_nicht_verworfen():
     async with _client(lambda r: httpx.Response(200, json=ANTWORT_FERTIG)) as api:
-        with pytest.raises(ValueError) as info:
+        with pytest.raises(ValidationError) as info:
             await api.respond("x", model="gemma-4-31b-it", reasoning_effort="high")
     assert "gemma-4-31b-it" in str(info.value)
+
+
+# --- Fremddaten am Rand ----------------------------------------------------
+
+@pytest.mark.parametrize("rumpf, erwartet", [
+    ({"output": [{"content": [{"text": "ok"}]}]}, "ok"),
+    ({"output": ["Text statt eines Eintrags"]}, ""),
+    ({"output": [{"content": "kein dict"}]}, ""),
+    ({"output": [{}]}, ""),
+    ({"output": None}, ""),
+    ({}, ""),
+])
+def test_der_text_wird_auch_aus_unerwarteten_ruempfen_gelesen(rumpf, erwartet):
+    """Der Rumpf kommt vom Gateway, nicht von uns.
+
+    Ein ``AttributeError`` waere hier weder aussagekraeftig noch als
+    ``EduSharingError`` fangbar -- die Bibliothek ist an genau solchen Raendern
+    sonst vorsichtig (``Model.is_retired_on`` faengt das unlesbare Datum,
+    ``read_answer`` prueft auf leere ``choices``).
+    """
+    from edusharing.bapi.passthrough import _text_of
+    assert _text_of(rumpf) == erwartet
+
+
+async def test_zwei_wege_denselben_wert_zu_setzen_sind_ein_fehler():
+    """``extra`` ist die Notluke -- aber nicht, um denselben Wert zweimal zu setzen.
+
+    Frueher gewann ``extra`` stillschweigend, weil es zuletzt ausgebreitet
+    wurde: ``reasoning_effort="high"`` verschwand neben einem eigenen
+    ``reasoning``. Das ist genau die stille Verwerfung, gegen die diese
+    Parameter ueberhaupt so behandelt werden.
+    """
+    async with _client(lambda r: httpx.Response(200, json=ANTWORT_FERTIG)) as api:
+        with pytest.raises(ValidationError) as info:
+            await api.respond("x", model="gpt-5.6-luna", reasoning_effort="high",
+                              reasoning={"effort": "minimal"})
+    assert "reasoning" in str(info.value)
+
+
+async def test_wer_nur_extra_setzt_bekommt_es_und_nicht_die_vorgabe():
+    """Umgekehrt darf die Vorgabe einen eigenen Wert nicht ueberschreiben."""
+    aufrufe = []
+
+    def handler(request):
+        aufrufe.append(request)
+        return httpx.Response(200, json=ANTWORT_FERTIG)
+
+    async with _client(handler) as api:
+        await api.respond("x", model="gpt-5.6-luna",
+                          reasoning={"effort": "minimal"})
+    import json as _json
+    koerper = _json.loads(aufrufe[-1].content)
+    assert koerper["reasoning"] == {"effort": "minimal"}
+    # Die Vorgabe fuer verbosity bleibt, die kollidiert ja nicht.
+    assert koerper["text"] == {"verbosity": "low"}

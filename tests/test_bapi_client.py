@@ -14,7 +14,7 @@ import httpx
 import pytest
 
 from edusharing.bapi import CACHE_FOREVER, BildungsAPI
-from edusharing.errors import EduSharingError
+from edusharing.errors import EduSharingError, ValidationError
 
 #: Frei erfunden. Die Tests antworten ueber MockTransport; eine echte
 #: Adresse hier waere eine Instanz im Code.
@@ -386,7 +386,7 @@ async def test_chat_reicht_einen_ausdruecklichen_wert_durch():
 
 async def test_chat_verwirft_einen_ausdruecklichen_wunsch_nicht_still():
     async with _client(_router) as api:
-        with pytest.raises(ValueError) as info:
+        with pytest.raises(ValidationError) as info:
             await api.chat("x", model="gpt-4o-mini", provider="openai",
                            reasoning_effort="high")
     assert "gpt-4o-mini" in str(info.value)
@@ -587,3 +587,59 @@ async def test_ein_verbund_probiert_alle_seine_mitglieder():
         with pytest.raises(EduSharingError):
             await api.chat("x", model=["m0", "m1", "m2", "m3", "m4"])
     assert set(_versuche_je_modell(aufrufe)) == {"m0", "m1", "m2", "m3", "m4"}
+
+
+async def test_gleichzeitige_aufrufe_holen_die_modelliste_nur_einmal():
+    """Sonst stimmt die Zusage von CACHE_FOREVER nicht.
+
+    Die Sperre allein reicht nicht: sie reiht die Aufrufer auf, aber jeder
+    holt danach trotzdem. Die Pruefung muss INNERHALB der Sperre wiederholt
+    werden.
+
+    Die Attrappe muss dafuer wirklich unterbrechen. Eine synchrone laeuft
+    durch, bevor die naechste Coroutine startet -- der Test koennte den
+    Fehler dann gar nicht zeigen, und genau so hat er sich beim ersten
+    Versuch versteckt.
+    """
+    anfragen = []
+
+    async def handler(request):
+        anfragen.append(request)
+        await asyncio.sleep(0.02)
+        return httpx.Response(200, json=MODELLE)
+
+    api = BildungsAPI("k", base_url=GATEWAY, models_cache_seconds=CACHE_FOREVER,
+                      client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    async with api:
+        await asyncio.gather(*(api.models() for _ in range(6)))
+    assert len(anfragen) == 1, f"{len(anfragen)} Anfragen statt einer"
+
+
+# --- Jeder Fehlschlag ist ein EduSharingError ------------------------------
+#
+# Die Referenz sagt: "Every failure is an EduSharingError. Catch that one to
+# catch them all." Zwei der drei Wege hielten das nicht ein -- und zwar
+# uneinheitlich, denn der dritte im selben Aufruf hielt es.
+
+@pytest.mark.parametrize("ruf", [
+    "chat_ausdruecklicher_wunsch",
+    "respond_ausdruecklicher_wunsch",
+    "chat_unbekanntes_modell_im_verbund",
+])
+async def test_jeder_fehlschlag_ist_als_edusharingerror_fangbar(ruf):
+    alt = {"data": [{"id": "gpt-4o-mini", "status": "ready",
+                     "input": ["text"], "output": ["text"]}]}
+
+    def handler(request):
+        if request.url.path.endswith("/models"):
+            return httpx.Response(200, json=alt)
+        return httpx.Response(200, json=ANTWORT)
+
+    async with _client(handler, provider="openai") as api:
+        with pytest.raises(EduSharingError):
+            if ruf == "chat_ausdruecklicher_wunsch":
+                await api.chat("x", model="gpt-4o-mini", reasoning_effort="high")
+            elif ruf == "respond_ausdruecklicher_wunsch":
+                await api.respond("x", model="gpt-4o-mini", reasoning_effort="high")
+            else:
+                await api.chat("x", model=["gibt-es-nicht"])

@@ -10,6 +10,7 @@ from datetime import date
 import pytest
 
 from edusharing.bapi.models import Model, pick_model
+from edusharing.errors import ValidationError
 
 
 def _m(mid, demand=0, status="ready", output=("text",)):
@@ -48,17 +49,17 @@ def test_bevorzugtes_modell_das_es_nicht_gibt_faellt_auf():
     deepseek-v4-flash binnen neun Tagen deepseek-v4-flash-0731, der alte Name
     antwortet seither mit 503. Ein stiller Wechsel auf ein anderes Modell
     waere schlimmer als ein Fehler."""
-    with pytest.raises(ValueError, match="wunsch"):
+    with pytest.raises(ValidationError, match="wunsch"):
         pick_model([_m("a")], prefer="wunsch")
 
 
 def test_ohne_brauchbares_modell_wird_das_gesagt():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         pick_model([_m("a", status="loading")])
 
 
 def test_leere_liste():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         pick_model([])
 
 
@@ -117,20 +118,20 @@ def test_die_wahl_faellt_innerhalb_der_genannten_modelle():
 
 
 def test_ein_unbekannter_name_in_der_auswahl_faellt_auf():
-    with pytest.raises(ValueError) as info:
+    with pytest.raises(ValidationError) as info:
         pick_model([_m("a"), _m("b")], among=["a", "gibt-es-nicht"])
     assert "gibt-es-nicht" in str(info.value)
 
 
 def test_auswahl_ohne_brauchbares_modell():
     modelle = [_m("a", status="loading"), _m("b", demand=0)]
-    with pytest.raises(ValueError) as info:
+    with pytest.raises(ValidationError) as info:
         pick_model(modelle, among=["a"])
     assert "a" in str(info.value)
 
 
 def test_leere_auswahl_ist_ein_fehler():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         pick_model([_m("a")], among=[])
 
 
@@ -143,5 +144,5 @@ def test_ohne_auslastung_entscheidet_die_reihenfolge_der_auswahl():
 
 def test_prefer_und_among_zusammen_ist_ein_fehler():
     """Zwei Arten, dasselbe zu bestimmen -- da muss der Aufrufer sich festlegen."""
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         pick_model([_m("a")], prefer="a", among=["a"])

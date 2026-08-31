@@ -30,7 +30,7 @@ import logging
 import os
 import time
 from collections.abc import Mapping, Sequence
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Any, Self
 
 import httpx
@@ -218,17 +218,32 @@ class BildungsAPI:
     async def models(self, provider: str | None = None) -> list[Model]:
         """The models of this provider, with load figures where reported."""
         which = provider or self.provider
-        now = time.monotonic()
 
-        if (
-            self.models_cache_seconds > 0
-            and self._models_cache
-            and which == self.provider
-            and now - self._models_cache[0] < self.models_cache_seconds
-        ):
-            return self._models_cache[1]
+        def aus_dem_cache() -> list[Model] | None:
+            if (
+                self.models_cache_seconds > 0
+                and self._models_cache
+                and which == self.provider
+                and time.monotonic() - self._models_cache[0]
+                < self.models_cache_seconds
+            ):
+                return self._models_cache[1]
+            return None
+
+        gemerkt = aus_dem_cache()
+        if gemerkt is not None:
+            return gemerkt
 
         async with self._models_lock:
+            # Again, inside the lock. Without this the lock only queues the
+            # callers up: each one still fetches, so a cold start with six
+            # concurrent calls made six requests -- against a gateway that
+            # answers 429 for the key, not the model.
+            gemerkt = aus_dem_cache()
+            if gemerkt is not None:
+                return gemerkt
+
+            now = time.monotonic()
             response = await self._request("GET", f"/api/v1/llm/{path_segment(which)}/models")
             raw = response.get("data") if isinstance(response, dict) else response
             models = [Model.from_response(m) for m in (raw or [])]
@@ -247,15 +262,18 @@ class BildungsAPI:
         cache is warm.
 
         Args:
-            on: the day to judge ``shutdown_date`` against. Defaults to today.
+            on: the day to judge ``shutdown_date`` against. Defaults to today
+                in UTC.
 
         Returns:
             A ``LoadReport``. **Read ``reports_load`` first** -- at OpenAI it
             is false and the ranking says nothing about queues.
         """
         which = provider or self.provider
+        # UTC, not the local day: the retirement dates come from the provider,
+        # and a local date boundary would shift them by up to a day.
         return load_report(await self.models(which), which,
-                           on or date.today())
+                           on or datetime.now(UTC).date())
 
     async def _resolve_group(
         self, model: str | Sequence[str] | None, which: str
@@ -343,10 +361,7 @@ class BildungsAPI:
         gruppe = await self._resolve_group(model, which)
 
         if gruppe is not None:
-            try:
-                candidates = rank_among(await self.models(which), gruppe)
-            except ValueError as exc:
-                raise EduSharingError(str(exc)) from exc
+            candidates = rank_among(await self.models(which), gruppe)
         elif isinstance(model, str) and model:
             self.last_model = model
             return read_answer(await self._request("POST", path, json=body_for(model)))

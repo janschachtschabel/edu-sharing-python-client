@@ -25,6 +25,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..errors import ValidationError
+
 __all__ = [
     "build_body", "read_answer", "reasoning_for_responses",
     "DEFAULT_EFFORT", "DEFAULT_MAX_TOKENS", "DEFAULT_VERBOSITY",
@@ -80,7 +82,9 @@ def _reasoning_param(
     """Put one reasoning parameter into the body, or account for why not.
 
     Raises:
-        ValueError: when the caller asked for a value this model does not take.
+        ValidationError: when the caller asked for a value this model does
+            not take. Not a plain ValueError: the library's promise is that
+            every failure is an EduSharingError.
     """
     if wert is None:
         return
@@ -92,7 +96,7 @@ def _reasoning_param(
             body[name] = vorgabe
         return
     if not kann:
-        raise ValueError(
+        raise ValidationError(
             f"Model {model!r} does not take {name}={wert!r} -- it answers 400. "
             f"Only the {', '.join(_REASONING_PREFIXES)} families accept it. "
             f"Pass {name}=None to leave it out, or choose a model that takes it. "
@@ -120,7 +124,7 @@ def reasoning_for_responses(
     it, a caller's value raises instead.
 
     Raises:
-        ValueError: as in ``build_body``.
+        ValidationError: as in ``build_body``.
     """
     flach: dict[str, Any] = {}
     _reasoning_param(flach, "reasoning_effort", reasoning_effort, model,
@@ -159,7 +163,7 @@ def build_body(
         verbosity: how long the answer should be, same families, same rule.
 
     Raises:
-        ValueError: when a caller's explicit ``reasoning_effort`` or
+        ValidationError: when a caller's explicit ``reasoning_effort`` or
             ``verbosity`` goes to a model that does not accept it.
     """
     key = model.lower()
