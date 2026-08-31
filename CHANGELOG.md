@@ -153,6 +153,26 @@ services; 1095 offline tests and 94 live ones against edu-sharing 11.0.
 
 ### Fixed
 
+- **Automatic model selection at OpenAI picked `babbage-002`.** OpenAI reports
+  neither load nor output types for any of its 132 models, so every one counted
+  as chat-capable and the ranking fell back to the id — alphabetical order
+  wearing a ranking's clothes. `chat()` without a model now refuses there with
+  a message that names the way out, instead of failing after three wasted
+  requests. `is_rankable()` is the check.
+- **A search on an ambiguous label found only half the material.** Measured
+  2026-08-31, 25 subject labels sit in two vocabularies at once — `Biologie`,
+  `Chemie`, `Physik` among them, once under `discipline` and once under
+  `hochschulfaechersystematik`. `resolve()` took the first and said nothing.
+  `resolve_all()` returns all of them and the search filters on all of them;
+  whoever wants the halves apart adds an educational-level filter.
+- **Five flows returned keys their own docstrings did not mention**, and the
+  unmentioned ones were the ones that matter: `placement.failed` (the way up
+  was refused, so an empty `path` is not "sits nowhere"),
+  `search_in_collection.unreadable` (collections the walk could not open),
+  `add_material.public`, `build_collection.public`, `describe.duplicate_ids`.
+  A test now compares each flow's promised shape against the dict it actually
+  returns.
+
 - **A cold model cache is filled once, not once per concurrent caller.** The
   cache was checked before the lock and not again inside it, so the lock only
   queued the callers up: six concurrent calls made six requests to `/models` —

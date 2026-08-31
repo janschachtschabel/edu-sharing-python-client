@@ -142,14 +142,34 @@ class Vocabulary:
             nobody asked for. For a follow-up question, ``suggest()`` provides
             candidates.
         """
+        alle = await self.resolve_all(prop, label_or_uri, locale=locale)
+        return alle[0] if alle else None
+
+    async def resolve_all(
+        self, prop: str, label_or_uri: str, *, locale: str | None = None
+    ) -> list[str]:
+        """Every value carrying this label -- one label can belong to two
+        vocabularies.
+
+        Measured 2026-08-31 against staging: 25 subject labels appear twice,
+        once under ``discipline`` (school subjects) and once under
+        ``hochschulfaechersystematik`` (university subjects) -- ``Biologie``,
+        ``Chemie``, ``Ethik``, ``Physik`` among them.
+
+        Filtering on only one of them answers half the question and looks like
+        the whole one, so a search filters on all of them. Whoever wants the
+        halves apart adds an educational-level filter.
+
+        Returns:
+            The filter values, in the order the instance lists them. Empty for
+            an unknown label; a URI passes through as the only entry.
+        """
         value = label_or_uri.strip()
         if _is_uri(value):
-            return value
+            return [value]
         wanted = value.casefold()
-        for entry in await self.values(prop, locale=locale):
-            if entry.label.strip().casefold() == wanted:
-                return entry.uri
-        return None
+        return [entry.uri for entry in await self.values(prop, locale=locale)
+                if entry.label.strip().casefold() == wanted]
 
     def clear_cache(self) -> None:
         """Discard the cached vocabularies.

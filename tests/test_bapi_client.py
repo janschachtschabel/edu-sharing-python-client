@@ -643,3 +643,32 @@ async def test_jeder_fehlschlag_ist_als_edusharingerror_fangbar(ruf):
                 await api.respond("x", model="gpt-4o-mini", reasoning_effort="high")
             else:
                 await api.chat("x", model=["gibt-es-nicht"])
+
+
+async def test_chat_raet_nicht_wo_es_nichts_zu_ranken_gibt():
+    """Der Fall, den der Test in test_bapi_models.py NICHT abdeckte.
+
+    Dort steht der Waechter in ``pick_model`` -- aber ``chat`` ruft
+    ``rank_models`` direkt. Der Unit-Test war gruen, der echte Weg griff
+    weiterhin zu babbage-002. Deshalb hier, an der Stelle, die Nutzer benutzen.
+    """
+    ohne_angaben = {"data": [{"id": i} for i in
+                             ("babbage-002", "gpt-5.6-luna", "dall-e-2")]}
+
+    def handler(request):
+        if request.url.path.endswith("/models"):
+            return httpx.Response(200, json=ohne_angaben)
+        return httpx.Response(200, json=ANTWORT)
+
+    async with _client(handler, provider="openai") as api:
+        with pytest.raises(EduSharingError) as info:
+            await api.chat("x")
+    assert "model=" in str(info.value)
+    assert api.last_model is None, "es wurde nichts gewaehlt"
+
+
+async def test_chat_waehlt_weiter_wo_es_eine_grundlage_gibt():
+    """Die Gegenprobe: MODELLE meldet demand und output, also bleibt alles."""
+    async with _client(_router) as api:
+        await api.chat("x")
+    assert api.last_model == "qwen3.6-35b-a3b"

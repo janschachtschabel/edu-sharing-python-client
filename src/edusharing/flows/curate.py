@@ -59,7 +59,10 @@ async def add_material(
             against this instance's vocabulary.
 
     Returns:
-        ``{id, title, url, parent_id, name, collection, unresolved}``.
+        ``{id, title, url, parent_id, name, collection, public, unresolved}``.
+        ``public`` says whether the material ended up readable without a
+        login -- publishing is two steps in edu-sharing, and a caller who
+        asked for it needs to know whether both took.
 
         **Check ``unresolved``.** Values listed there were NOT written; the
         material exists without them and looks complete.
@@ -212,7 +215,7 @@ async def build_collection(
         scope: visibility, e.g. ``MY``. The library's default when omitted.
 
     Returns:
-        ``{id, title, url, added, failed}``. ``added`` holds the ids that went
+        ``{id, title, url, added, failed, public}``. ``added`` holds the ids that went
         in, ``failed`` holds ``{id, reason}`` for those that did not.
 
         **The collection exists even when ``failed`` is non-empty.** Placing

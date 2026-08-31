@@ -230,9 +230,12 @@ class Search:
             values = [raw] if isinstance(raw, str) else list(raw)
             resolved: list[str] = []
             for value in values:
-                uri = await self._vocab.resolve(prop, value)
-                if uri:
-                    resolved.append(uri)
+                # All of them: one label can sit in two vocabularies, and
+                # filtering on one of them answers half the question while
+                # looking like the whole one. See ``Vocabulary.resolve_all``.
+                uris = await self._vocab.resolve_all(prop, value)
+                if uris:
+                    resolved.extend(uris)
                 else:
                     unresolved.append(
                         UnresolvedFilter(

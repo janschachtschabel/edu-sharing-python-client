@@ -545,7 +545,8 @@ page.by_position             # True
 |---|---|
 | `repo.vocab.values(prop, locale=…)` | `list[VocabularyValue]` — gemerkt |
 | `repo.vocab.suggest(prop, text)` | `list[VocabularyValue]` — Teilzeichenkette, nicht gemerkt |
-| `repo.vocab.resolve(prop, "Biologie")` | `str \| None` — die URI zum Filtern |
+| `repo.vocab.resolve(prop, "Biologie")` | `str \| None` — die erste URI |
+| `repo.vocab.resolve_all(prop, "Biologie")` | `list[str]` — **alle**; ein Label kann in zwei Vokabularen stehen |
 | `repo.vocab.clear_cache()` | `None` |
 | `value.uri` / `value.label` | `str` |
 
@@ -625,7 +626,7 @@ als die gestellte.
 |---|---|
 | `repo.flows.describe(node_id)` | `{id, title, url, description, source_url, mimetype, mediatype, fields, name, type, access, public, has_content, keywords, properties}` |
 | `repo.flows.describe_many(ids)` | `{requested, found, nodes, failed}` — Reihenfolge bleibt |
-| `repo.flows.placement(node_id)` | `{id, title, path, collections, scope}` — `path` liest sich **von oben nach unten** |
+| `repo.flows.placement(node_id)` | `{id, title, path, collections, scope, failed}` — `path` liest sich **von oben nach unten** |
 
 ```python
 info = await repo.flows.describe(node_id)
@@ -933,6 +934,7 @@ wenigsten ausgelastete antwortet.
 | `api.chat(prompt, model=["a", "b", "c"])` | dasselbe, ohne es vorher zu benennen |
 | `api.virtual_models` | `dict[str, list[str]]` — was festgelegt ist |
 | `rank_among(models, ["a", "b"])` | `list[Model]` — die Reihenfolge der Versuche |
+| `is_rankable(models)` | `bool` — ob überhaupt etwas gemeldet wurde, worauf man ranken kann |
 
 ```python
 api = BildungsAPI.from_env(virtual_models={

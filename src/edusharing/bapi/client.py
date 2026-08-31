@@ -35,13 +35,19 @@ from typing import Any, Self
 
 import httpx
 
-from ..errors import EduSharingError, at_least, error_from_response
+from ..errors import (
+    EduSharingError,
+    ValidationError,
+    at_least,
+    error_from_response,
+)
 from ..urls import path_segment
 from . import passthrough
 from .body import UNSET, ReasoningParam, build_body, read_answer
 from .models import (
     LoadReport,
     Model,
+    is_rankable,
     load_report,
     pick_model,
     rank_among,
@@ -366,7 +372,18 @@ class BildungsAPI:
             self.last_model = model
             return read_answer(await self._request("POST", path, json=body_for(model)))
         else:
-            candidates = rank_models(await self.models(which))
+            angebot = await self.models(which)
+            if not is_rankable(angebot):
+                # Nothing to choose on. Ranking would be alphabetical order in
+                # a ranking's clothes -- measured, that picked babbage-002 out
+                # of OpenAI's 132 and failed three times before saying so.
+                raise ValidationError(
+                    f"Provider {which!r} reports neither load nor output types "
+                    f"for any of its {len(angebot)} models, so there is nothing "
+                    "to choose on. Pass model=\"...\" for one, or model=[...] "
+                    "for a group; ask load() to see what is offered."
+                )
+            candidates = rank_models(angebot)
             if not candidates:
                 raise EduSharingError(f"No ready text model at provider {which!r}.")
 

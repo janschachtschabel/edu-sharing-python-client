@@ -150,7 +150,10 @@ async def search_in_collection(
         limit: how much material to read per collection.
 
     Returns:
-        ``{query, hits, searched, truncated}``. **Read ``truncated``**: an
+        ``{query, hits, searched, unreadable, truncated}``. **``unreadable``
+        counts the collections the walk could not open** -- refused, not
+        absent. Together with ``truncated`` it is what separates "there is
+        nothing" from "you were not shown everything". **Read ``truncated``**: an
         empty result from a walk that stopped early is not "there is none".
 
     Raises:

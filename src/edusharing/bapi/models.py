@@ -24,7 +24,7 @@ from ..errors import ValidationError
 
 __all__ = [
     "Model", "LoadReport", "load_report",
-    "pick_model", "rank_models", "rank_among",
+    "pick_model", "rank_models", "rank_among", "is_rankable",
 ]
 
 
@@ -149,6 +149,19 @@ def load_report(models: list[Model], provider: str, day: date) -> LoadReport:
     )
 
 
+def is_rankable(models: list[Model]) -> bool:
+    """Whether this list says anything a ranking could rest on.
+
+    A provider that reports neither load nor output types offers nothing to
+    rank by, and ``rank_models`` would fall back to the model id -- which is
+    alphabetical order wearing a ranking's clothes.
+
+    Measured 2026-08-31: OpenAI reports neither, for all 132 of its models.
+    The AcademicCloud reports both for all 15 of its own.
+    """
+    return any(m.demand is not None or m.output for m in models)
+
+
 def rank_models(models: list[Model]) -> list[Model]:
     """All usable models, least loaded first.
 
@@ -157,6 +170,11 @@ def rank_models(models: list[Model]) -> list[Model]:
     yet answers with ``503 Model pricing unavailable``. That a model is unusable
     appears in no model list -- you find out by asking, and then you need a
     successor.
+
+    **Check ``is_rankable`` first for an automatic choice.** Where nothing is
+    reported this still returns a list, in id order, because a caller who
+    already knows the ids may want them sorted -- but that order is not a
+    statement about anything.
     """
     usable = [m for m in models if m.is_ready and m.can_chat]
     # Sort demand None (providers without load info) last, so a measured value
@@ -248,6 +266,16 @@ def pick_model(
             f"Model {prefer!r} does not exist here. Available: {available}. "
             "Model ids change without notice -- check against /models before "
             "hard-coding one."
+        )
+
+    if not is_rankable(models):
+        raise ValidationError(
+            f"This provider reports neither load nor output types for any of "
+            f"its {len(models)} models, so there is nothing to choose on. "
+            "Ranking them would be alphabetical order pretending to be a "
+            "ranking -- measured 2026-08-31, that picked babbage-002 out of "
+            "OpenAI's 132. Pass model=\"...\" for one, or model=[...] for a "
+            "group; ask load() to see what is offered."
         )
 
     ranking = rank_models(models)

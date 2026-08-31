@@ -146,3 +146,47 @@ def test_prefer_und_among_zusammen_ist_ein_fehler():
     """Zwei Arten, dasselbe zu bestimmen -- da muss der Aufrufer sich festlegen."""
     with pytest.raises(ValidationError):
         pick_model([_m("a")], prefer="a", among=["a"])
+
+
+# --- Wo nichts zu ranken ist ----------------------------------------------
+#
+# Gemessen am 31.08.2026 gegen die b-api: OpenAI meldet fuer alle 132 Modelle
+# weder ``demand`` noch ``output``. Damit gilt jedes als chatfaehig und die
+# Sortierung faellt auf den Namen zurueck -- die automatische Wahl griff zu
+# ``babbage-002``, einem Vervollstaendigungsmodell, und der Aufruf endete nach
+# drei vergeblichen Versuchen mit einer Meldung, die die Ursache nicht nennt.
+#
+# Alphabetisch ist keine Rangfolge. Wo es nichts zu ranken gibt, ist Raten die
+# falsche Antwort: die Bibliothek kann nicht wissen, welches der 132 Modelle
+# taugt, und darf es auch nicht wissen wollen -- das waere eine verdrahtete
+# Konvention.
+
+def test_ohne_jede_ranggrundlage_wird_nicht_geraten():
+    ohne = [Model(id=i) for i in ("babbage-002", "gpt-5.6-luna", "dall-e-2")]
+    with pytest.raises(ValidationError) as info:
+        pick_model(ohne)
+    # Die Meldung muss den Ausweg nennen, nicht nur den Fehlschlag.
+    assert "model=" in str(info.value)
+    assert "load()" in str(info.value)
+
+
+def test_eine_einzige_lastangabe_genuegt_als_grundlage():
+    """Sobald irgendetwas gemeldet wird, ist die Rangfolge eine Aussage."""
+    gemischt = [Model(id="a"), Model(id="b", demand=0)]
+    assert pick_model(gemischt).id == "b"
+
+
+def test_eine_angabe_zur_ausgabeart_genuegt_ebenfalls():
+    """Sie macht die Liste rankbar -- an der Reihenfolge aendert sie nichts.
+
+    Ein Modell ohne gemeldete Ausgabeart gilt weiter als chatfaehig (das Feld
+    ist dort abwesend, nicht verneint), also entscheidet wie sonst die
+    Auslastung, und bei Gleichstand die ID.
+    """
+    gemischt = [Model(id="a"), Model(id="b", output=("text",))]
+    assert pick_model(gemischt).id == "a"
+
+
+def test_mit_ranggrundlage_bleibt_alles_wie_es_war():
+    modelle = [_m("a", demand=3), _m("b", demand=0)]
+    assert pick_model(modelle).id == "b"

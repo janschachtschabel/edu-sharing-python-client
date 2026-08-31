@@ -251,3 +251,56 @@ async def test_nach_clear_cache_wird_neu_geladen():
     v.clear_cache()
     assert len(await v.values("ccm:taxonid")) == 3
     assert len(aufrufe) == 2, "nach dem Leeren muss erneut geladen werden"
+
+
+# --- Ein Label, zwei Vokabulare -------------------------------------------
+#
+# Gemessen am 31.08.2026 gegen die Staging: 25 Fachlabels stehen doppelt --
+# einmal in ``discipline`` (Schulfach), einmal in ``hochschulfaechersystematik``.
+# ``Biologie``, ``Chemie``, ``Ethik``, ``Physik`` und 21 weitere.
+#
+# ``resolve`` nahm den ersten Treffer, ohne zu sagen, dass es einen zweiten
+# gibt. Eine Suche nach ``subject="Biologie"`` fand damit nur die eine Haelfte,
+# und niemand konnte das sehen. Wer die Haelften trennen will, filtert
+# zusaetzlich nach Bildungsstufe.
+
+DOPPELT = {"values": [
+    {"key": "http://w3id.org/openeduhub/vocabs/discipline/080",
+     "displayString": "Biologie", "replacementString": None, "translation": None},
+    {"key": "http://w3id.org/openeduhub/vocabs/hochschulfaechersystematik/n026",
+     "displayString": "Biologie", "replacementString": None, "translation": None},
+    {"key": "http://w3id.org/openeduhub/vocabs/discipline/460",
+     "displayString": "Physik", "replacementString": None, "translation": None},
+]}
+
+
+async def test_resolve_all_liefert_beide_vokabulare():
+    vocab = _vocab(lambda r: httpx.Response(200, json=DOPPELT))
+    uris = await vocab.resolve_all("ccm:taxonid", "Biologie")
+    assert len(uris) == 2
+    assert any("discipline" in u for u in uris)
+    assert any("hochschulfaechersystematik" in u for u in uris)
+
+
+async def test_resolve_all_bei_eindeutigem_label():
+    vocab = _vocab(lambda r: httpx.Response(200, json=DOPPELT))
+    assert len(await vocab.resolve_all("ccm:taxonid", "Physik")) == 1
+
+
+async def test_resolve_all_bei_unbekanntem_label():
+    vocab = _vocab(lambda r: httpx.Response(200, json=DOPPELT))
+    assert await vocab.resolve_all("ccm:taxonid", "Gibtsnicht") == []
+
+
+async def test_eine_uri_geht_unveraendert_durch():
+    """Wie bei ``resolve``: eine URI ist schon, was das Repositorium will."""
+    vocab = _vocab(lambda r: httpx.Response(200, json=DOPPELT))
+    uri = "http://w3id.org/openeduhub/vocabs/discipline/080"
+    assert await vocab.resolve_all("ccm:taxonid", uri) == [uri]
+
+
+async def test_resolve_bleibt_die_einzahl():
+    """Der alte Aufruf aendert sich nicht -- er hat weiterhin seinen Zweck."""
+    vocab = _vocab(lambda r: httpx.Response(200, json=DOPPELT))
+    einer = await vocab.resolve("ccm:taxonid", "Biologie")
+    assert einer in await vocab.resolve_all("ccm:taxonid", "Biologie")

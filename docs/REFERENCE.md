@@ -535,7 +535,8 @@ page.by_position             # True
 |---|---|
 | `repo.vocab.values(prop, locale=…)` | `list[VocabularyValue]` — cached |
 | `repo.vocab.suggest(prop, text)` | `list[VocabularyValue]` — substring, not cached |
-| `repo.vocab.resolve(prop, "Biologie")` | `str \| None` — the URI to filter on |
+| `repo.vocab.resolve(prop, "Biologie")` | `str \| None` — the first URI |
+| `repo.vocab.resolve_all(prop, "Biologie")` | `list[str]` — **all** of them; one label can sit in two vocabularies |
 | `repo.vocab.clear_cache()` | `None` |
 | `value.uri` / `value.label` | `str` |
 
@@ -614,7 +615,7 @@ applied — the search answered a wider question than you asked.
 |---|---|
 | `repo.flows.describe(node_id)` | `{id, title, url, description, source_url, mimetype, mediatype, fields, name, type, access, public, has_content, keywords, properties}` |
 | `repo.flows.describe_many(ids)` | `{requested, found, nodes, failed}` — order preserved |
-| `repo.flows.placement(node_id)` | `{id, title, path, collections, scope}` — `path` reads **top down** |
+| `repo.flows.placement(node_id)` | `{id, title, path, collections, scope, failed}` — `path` reads **top down** |
 
 ```python
 info = await repo.flows.describe(node_id)
@@ -916,6 +917,7 @@ three models that would all do, and the least loaded one answers.
 | `api.chat(prompt, model=["a", "b", "c"])` | the same, without naming it first |
 | `api.virtual_models` | `dict[str, list[str]]` — what is defined |
 | `rank_among(models, ["a", "b"])` | `list[Model]` — the order they will be tried |
+| `is_rankable(models)` | `bool` — whether anything was reported to rank on |
 
 ```python
 api = BildungsAPI.from_env(virtual_models={

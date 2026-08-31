@@ -41,7 +41,9 @@ async def describe(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
 
     Returns:
         ``{id, title, url, description, source_url, mimetype, mediatype, fields,
-        name, type, access, public, has_content, keywords, properties}``.
+        name, type, access, public, has_content, keywords, properties,
+        duplicate_ids}``. ``duplicate_ids`` is empty here -- the key comes from
+        the shared hit shape, where a deduplicated search fills it.
         ``public`` says whether anyone may read the node -- inherited access
         included, and free, because the node response carries it.
         ``properties`` holds the raw edu-sharing properties for anything the
@@ -79,13 +81,20 @@ async def placement(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
         node_id: the node's id.
 
     Returns:
-        ``{id, title, path, collections, scope}``.
+        ``{id, title, path, collections, scope, failed}``.
 
         ``path`` runs **top down**, ready to print as a breadcrumb -- unlike
         ``node.parents()``, which mirrors the endpoint and gives the nearest
         first. ``scope`` says how far the path reaches: it stops at the
         boundary of what the account may read, and saying so keeps a truncated
         path from passing as a complete one.
+
+        **Read ``failed``.** The two halves are asked together and one may be
+        refused on its own -- an anonymous read of a node inside a collection
+        answers ``500 AccessDeniedException`` for the way up while the
+        collections come back fine. ``path`` is then empty, and without
+        ``failed`` that reads as "this node sits nowhere" instead of "you may
+        not see where it sits". Each entry carries ``part`` and ``reason``.
 
     Raises:
         NotFoundError: when no node carries this id.

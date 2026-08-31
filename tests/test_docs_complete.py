@@ -324,3 +324,52 @@ def test_jeder_verweis_zeigt_auf_eine_datei_die_es_gibt():
                 kaputt.append(f"{datei} -> {ziel}")
 
     assert not kaputt, "\n  " + "\n  ".join(kaputt)
+
+
+# --- Und stimmt die versprochene Ergebnisform? -----------------------------
+#
+# Ein Ablauf beschreibt seine Rueckgabe als ``{a, b, c}``. Wer einen Schluessel
+# nicht nennt, laesst ihn niemanden lesen -- und ausgerechnet die
+# ungenannten waren die wichtigen: ``placement.failed`` sagt, dass der Weg nach
+# oben verweigert wurde, und ohne ihn liest sich ein leerer ``path`` als "der
+# Knoten liegt nirgends" statt "Sie duerfen nicht sehen, wo er liegt". Am
+# 31.08.2026 ist genau das einem Pruefskript passiert, das die Bibliothek
+# benutzen sollte.
+
+ABLAEUFE = WURZEL / "src" / "edusharing" / "flows"
+_VERSPROCHEN = re.compile(r"``\{([a-z_,\s]+)\}``")
+
+
+def _letzte_woertliche_rueckgabe(funktion: ast.AST) -> set[str] | None:
+    """Die Schluessel des zurueckgegebenen dict-Literals, falls es eins gibt."""
+    gefunden = None
+    for knoten in ast.walk(funktion):
+        if isinstance(knoten, ast.Return) and isinstance(knoten.value, ast.Dict):
+            gefunden = {s.value for s in knoten.value.keys
+                        if isinstance(s, ast.Constant) and isinstance(s.value, str)}
+    return gefunden
+
+
+def test_jeder_ablauf_nennt_jeden_schluessel_den_er_liefert():
+    """Was zurueckkommt, steht im Docstring -- vollstaendig.
+
+    Geprueft wird nur, wo die Funktion ein dict-Literal zurueckgibt. Wo sie
+    einen Helfer ruft (``result_as_dict``), kann das hier nichts sagen, und das
+    zu behaupten waere schlimmer als die Luecke.
+    """
+    fehlend: list[str] = []
+    for pfad in sorted(ABLAEUFE.glob("*.py")):
+        baum = ast.parse(pfad.read_text(encoding="utf-8"), filename=str(pfad))
+        for knoten in baum.body:
+            if not isinstance(knoten, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            treffer = _VERSPROCHEN.search(ast.get_docstring(knoten) or "")
+            echte = _letzte_woertliche_rueckgabe(knoten)
+            if not treffer or echte is None:
+                continue
+            genannt = {s.strip() for s in treffer.group(1).split(",") if s.strip()}
+            offen = sorted(echte - genannt)
+            if offen:
+                fehlend.append(f"{pfad.name}:{knoten.name} liefert auch {offen}")
+
+    assert not fehlend, "\n  " + "\n  ".join(fehlend)
