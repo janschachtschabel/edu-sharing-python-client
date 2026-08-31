@@ -462,3 +462,81 @@ def test_der_skill_nennt_jede_tuer_in_die_bibliothek(name):
     assert not fehlend, (
         f"{name} nennt {len(fehlend)} von {len(wege)} Zugriffswegen nicht: "
         f"{', '.join(fehlend)}")
+
+
+# Der Test darueber prueft die Tueren -- jeden Zugriffsweg. Er sagt nichts
+# darueber, was man tut, wenn man hindurch ist: ``repo.nodes`` stand darin,
+# ``repo.create_node`` nicht, obwohl acht Beispiele damit anfangen.
+#
+# Das schaerfere Mass ist ableitbar statt gepflegt: Was eine lauffaehige
+# Anwendung in diesem Repositorium benutzt, muss der Skill nennen. Kommt ein
+# Beispiel dazu, waechst das Mass mit -- ohne dass jemand eine Liste pflegt.
+
+BEISPIELE = WURZEL / "docs" / "examples"
+
+
+def namen_der_beispiele() -> dict[str, str]:
+    """Jeder oeffentliche Name, den ein Beispiel benutzt, und wo zuerst."""
+    namen = oeffentliche_namen()
+    benutzt: dict[str, str] = {}
+    for pfad in sorted(BEISPIELE.glob("*.py")):
+        for knoten in ast.walk(ast.parse(pfad.read_text(encoding="utf-8"))):
+            if isinstance(knoten, ast.Name):
+                wort = knoten.id
+            elif isinstance(knoten, ast.Attribute):
+                wort = knoten.attr
+            elif isinstance(knoten, ast.alias):
+                wort = knoten.name
+            else:
+                continue
+            if wort in namen:
+                benutzt.setdefault(wort, pfad.name)
+    return benutzt
+
+
+@pytest.mark.parametrize("name", sorted(SKILLS))
+def test_der_skill_nennt_was_die_beispiele_benutzen(name):
+    """Was eine echte Anwendung braucht, darf der Wegweiser nicht verschweigen."""
+    benutzt = namen_der_beispiele()
+    assert len(benutzt) >= 60, (
+        f"die Beispiele wurden nicht gelesen: nur {len(benutzt)} Namen gefunden")
+
+    geschrieben = _in_code_geschrieben(SKILLS[name].read_text(encoding="utf-8"))
+    fehlend = sorted(n for n in benutzt if n not in geschrieben)
+    assert not fehlend, (
+        f"{name} nennt {len(fehlend)} von {len(benutzt)} Namen nicht, die "
+        f"Beispiele benutzen:\n  "
+        + "\n  ".join(f"{n}  ({benutzt[n]})" for n in fehlend))
+
+
+def test_der_waechter_wuerde_einen_fehlenden_namen_bemerken():
+    """Sonst prueft der Test darueber nichts.
+
+    Kein Sonderweg: derselbe Vergleich, nur gegen einen Text, in dem ein Name
+    fehlt, den die Beispiele benutzen.
+    """
+    benutzt = namen_der_beispiele()
+    assert "create_node" in benutzt, "das Mass selbst ist kaputt"
+
+    ohne = SKILLS["SKILL.md"].read_text(encoding="utf-8").replace(
+        "create_node", "xxx")
+    geschrieben = _in_code_geschrieben(ohne)
+    assert "create_node" not in geschrieben
+
+
+# Das Mass darueber -- "was ein Beispiel benutzt" -- ist die Untergrenze. Der
+# Skill ist inzwischen darueber hinaus: er nennt jeden oeffentlichen Namen.
+# Dieser Test haelt das fest, denn eine Wegweisertabelle, die eine neue
+# Funktion verschweigt, laesst die KI sie von Hand nachbauen. Wer die
+# Oberflaeche erweitert, erweitert beide Sprachfassungen des Skills mit.
+
+
+@pytest.mark.parametrize("name", sorted(SKILLS))
+def test_der_skill_nennt_jeden_oeffentlichen_namen(name):
+    """Alles aus ``__all__`` steht im Skill -- in beiden Sprachfassungen."""
+    namen = oeffentliche_namen()
+    geschrieben = _in_code_geschrieben(SKILLS[name].read_text(encoding="utf-8"))
+    fehlend = sorted(n for n in namen if n not in geschrieben)
+    assert not fehlend, (
+        f"{name} nennt {len(fehlend)} von {len(namen)} oeffentlichen Namen "
+        f"nicht:\n  " + "\n  ".join(f"{n}  ({namen[n]})" for n in fehlend))

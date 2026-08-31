@@ -1,6 +1,6 @@
 ---
 name: edu-sharing-python
-description: Using the edu-sharing-python-client library (import `edusharing`) — both levels (API objects and flow dicts), all 20 flows, the neighbouring services (b-api LLM gateway, text extraction, metadata agent), the measured traps, and the rules for putting it behind a model. Use when writing Python against an edu-sharing repository, building an MCP server or agent tool over WLO/OpenEduHub content, or when a call returned HTTP 200 and stored nothing. Trigger u.a. "edu-sharing Python", "edusharing library", "repo.flows", "SilentDropError", "Bibliothek nutzen", "Suche in Python", "Material anlegen Python", "MCP-Werkzeug edu-sharing", "b-api Python", "Textextraktion", "metadata agent schema", "welcher Aufruf für", "unresolved", "total_is_lower_bound".
+description: Using the edu-sharing-python-client library (import `edusharing`) — both levels (API objects and flow dicts), all 20 flows, the complete public surface object by object, how edu-sharing stores metadata (list-valued properties, the cm:/cclom:/ccm:/virtual: namespaces, cm:name versus cclom:title, vocabulary URIs, metadata sets), the neighbouring services (b-api LLM gateway, text extraction, metadata agent), the measured traps, and the rules for putting it behind a model. Use when writing Python against an edu-sharing repository, building an MCP server or agent tool over WLO/OpenEduHub content, or when a call returned HTTP 200 and stored nothing. Trigger u.a. "edu-sharing Python", "edusharing library", "repo.flows", "SilentDropError", "Bibliothek nutzen", "Suche in Python", "Material anlegen Python", "MCP-Werkzeug edu-sharing", "b-api Python", "Textextraktion", "metadata agent schema", "welcher Aufruf für", "unresolved", "total_is_lower_bound", "cm:name", "cclom:title", "propertyFilter", "Metadatensatz", "properties leer", "Eigenschaft schreiben".
 ---
 
 # edu-sharing for Python — how to use it
@@ -178,21 +178,267 @@ table.
 
 | The task | The call |
 |---|---|
-| one shape for success and failure | `as_result(awaitable, format=format_results)` |
+| one shape for success and failure | `as_result(awaitable, format=format_results)` → `ToolResult`: `.ok` `.text` `.data` `.error` `.error_type` `.metadata` |
 | a hit as compact text | `format_hit(hit)` / `format_results(result)` |
 | mark foreign text as data | `as_untrusted(text, label="description")` |
 | clean control characters out | `sanitize_text(text)` / `one_line(text)` |
 | refuse an internal address | `check_url(url)` / `is_safe_url(url)` |
-| plan a change, let a person confirm | `plan_update(node, title=…)` → `.describe()` → `.apply()` |
+| plan a change, let a person confirm | `plan_update(node, title=…)` → `ChangePlan`: `.node` `.changes` `.unchanged` `.has_changes` `.can_write` `.describe()` `.apply()` |
+
+### The whole surface, object by object
+
+The tables above route the twenty common jobs. Everything else is reached
+through an object you already hold. This names every public member, so nothing
+has to be guessed — argument and return shapes are in `docs/REFERENCE.md`.
+
+**Getting in**
+
+| You hold | From | On it |
+|---|---|---|
+| `Repository` | `Repository(url, credential=…)` or `.from_env()` | `.search()` `.node()` `.create_node()` `.children()` `.create_collection()` `.update_collection()` `.add_to_collection()` `.remove_from_collection()` `.find_collections()` `.resolve()` `.about()` `.whoami()` `.metadatasets()` `.close()`; `.url` `.credential` `.metadataset` `.raw` `.flows` `.people` `.relations` |
+| `AsyncRepository` | the same, inside an event loop | the same names awaited, `.aclose()` for `.close()`, plus `.nodes` `.collections` `.vocab` `.searcher` |
+| `Credential` | `BasicCredential(user, pw)`, `BasicCredential.from_env()`, `AnonymousCredential()`, `credential_from(…)` | `.headers()` `.is_anonymous` `.username` |
+
+**One node and everything hanging off it**
+
+| You hold | From | On it |
+|---|---|---|
+| `Node` | `repo.node(id)`, `repo.create_node(…)` | read `.id` `.name` `.title` `.type` `.url` `.access` `.can_write` `.is_public` `.preview_url` `.properties` `.keywords` `.raw` `.get()` `.get_all()` `.labels()` `.parents()` `.collections()`; write `.update()` `.set_property()` `.add_keywords()` `.remove_keywords()` `.rate()` `.unrate()` `.delete()`; doors `.content` `.children` `.permissions` `.workflow` `.comments` `.suggestions` `.page` `.rating` |
+| `NodeContent` | `node.content` | `.download()` `.text()` `.upload()` `.set_preview()` `.delete_preview()`; `.has_content` `.mimetype` `.size` `.download_url` |
+| `NodePermissions` | `node.permissions` | `.get()` `.grant()` `.revoke()` `.publish()` `.unpublish()` |
+| `Permissions` | `node.permissions.get()` | `.own` `.inherited` `.effective` `.inherits` `.is_public` `.allows()` `.find()` |
+| `Ace` | `permissions.find(…)` | `.authority` `.authority_type` `.permissions` `.allows()` `.for_authority()` `.as_body()` |
+| `Workflow` | `node.workflow` | `.history()` `.submit()`; `WorkflowStep`: `.status` `.receivers` `.comment` `.editor` `.at` |
+| `Comments` | `node.comments` | `.list()` `.add()` `.edit()` `.delete()`; `Comment`: `.id` `.text` `.author` `.created` `.reply_to` |
+| `Suggestions` | `node.suggestions` | `.list()` `.propose()` `.decide()`; `Suggestion`: `.id` `.property` `.value` `.status` `.why` `.confidence` `.author` |
+| `ChildObjects` | `node.children` | `.list()` `.add()` |
+| `Rating` | `node.rating` | `.average` `.count` `.own` |
+| `NodePage` | `node.page` | `.get()` `.render()` |
+
+**Collections, people, relations, vocabulary**
+
+| You hold | From | On it |
+|---|---|---|
+| `Collections` | `repo.collections` — **async only** | `.find()` `.create()` `.update()` `.add()` `.remove()` |
+| `Nodes` | `repo.nodes` — **async only** | `.get()` `.create()` `.children()` `.repository_url`; `ChildPage`: `.nodes` `.total` `.offset` |
+| `Search` | `repo.searcher` — **async only** | `.search()` |
+| `Vocabulary` | `repo.vocab` — **async only** | `.values()` `.suggest()` `.resolve()` `.resolve_all()` `.clear_cache()`; `VocabularyValue`: `.uri` `.label` |
+| `People` | `repo.people` | `.memberships()` `.group()` `.members()` `.create_group()` `.delete_group()` `.add_member()` `.remove_member()`; `Group`: `.name` `.short_name` `.display_name` `.type` `.signup`; `Member`: `.name` `.is_group` |
+| `Relations` | `repo.relations` | `.of()` `.create()` `.delete()` `.approve()`; `Relation`: `.type` `.from_id` `.to_id` `.from_title` `.to_title` `.ai_generated` `.approved` `.created_by` `.created_at` `.opposite_of()`; `RELATION_TYPES` lists the accepted kinds |
+
+**What comes back from a search**
+
+| You hold | From | On it |
+|---|---|---|
+| `SearchResult` | `repo.search(…)` (the flow returns the same as a `dict`) | `.hits` `.total` `.total_is_lower_bound` `.facets` `.suggestions` `.unresolved` `.ignored` `.warnings` `.raw` |
+| `SearchHit` | `result.hits[i]` | `.id` `.title` `.url` `.description` `.source_url` `.mimetype` `.mediatype` `.properties()` `.labels()` |
+| `Facet` | `result.facets` | `.property` `.values` `.other_count` `.truncated`; `FacetValue`: `.value` `.count` |
+| `UnresolvedFilter` | `result.unresolved` | `.field` `.value` `.suggestions` |
+
+**The instance, and curated pages**
+
+| You hold | From | On it |
+|---|---|---|
+| `Identity` | `repo.whoami()` | `.authority` `.username` `.display_name` `.is_anonymous` `.home_folder` `.raw` |
+| `About` | `repo.about()` | `.repository_version` `.renderservice_version` `.api_version` `.services` `.plugins` `.features` `.themes_url` `.raw` |
+| `MetadataSet` | `repo.metadatasets()` | `.id` `.name` |
+| `CuratedPage` | `node.page.get()` | `.collection_id` `.folder_id` `.variants` `.rendered_id` `.document` `.rendered` `.by_position` `.variant()` |
+| `PageVariant` | `page.variant(…)`, `variant_from_node(…)` | `.id` `.title` `.is_template` `.target_group` `.educational_contexts` `.intention` `.education_levels` `.swimlanes` `.readable` `.node_ids` |
+| `Swimlane` / `SwimlaneItem` | `variant.swimlanes` | `.heading` `.type` `.items` / `.widget` `.node_id` |
+| `Ancestry` | `ancestry_of(…)`, `collections_of(…)` | `.node` `.parents` `.scope` |
+
+**The neighbouring services, as objects**
+
+| You hold | From | On it |
+|---|---|---|
+| `BildungsAPI` | `BildungsAPI(url, key)` or `.from_env()` | `.chat()` `.respond()` `.models()` `.load()` `.embeddings()` `.moderate()` `.images()` `.call()` `.aclose()` |
+| `Answer` | `.chat()` / `.respond()` | `.text` `.status` `.reason` `.model` `.truncated` `.raw` |
+| `Model` | `.models()` | `.id` `.name` `.demand` `.status` `.input` `.output` `.owned_by` `.shutdown_date` `.is_ready` `.can_chat` `.is_retired_on()` |
+| `LoadReport` | `.load()` | `.provider` `.models` `.reports_load` `.retired` `.total` `.least_loaded` `.summary()`; free functions `load_report()` `rank_models()` `rank_among()` `pick_model()` `is_rankable()` |
+| `Moderation` / `GeneratedImage` | `.moderate()` / `.images()` | `.flagged` `.categories` `.scores` / `.url` `.b64` `.revised_prompt` |
+| `TextExtraction` | `TextExtraction(url)` or `.from_env()` | `.text_of()` `.ping()` `.aclose()`; `ExtractedText`: `.url` `.text` `.lang` `.status` `.char_count` `.truncated` `.reason` `.detail` |
+| `MetadataAgent` | `MetadataAgent(url)` or `.from_env()` | `.schemas()` `.schema()` `.content_types()` `.content_type_for()` `.clear_cache()` `.aclose()`; `SchemaInfo`: `.file` `.profile_id` `.groups` `.field_count`; `ContentType`: `.uri` `.schema_file` `.label` `.icon` |
+| `Transport` | `repo.raw` | `.request()` `.json()` `.is_repository_url()` `.aclose()` — for routes this library does not wrap |
+
+**Free functions worth knowing**
+
+| The job | The call |
+|---|---|
+| turn a title into a legal `cm:name` | `name_from_title(title)` |
+| turn a label into the field's URIs | `resolve_vocabulary(repo, field, label)` |
+| widen a weak query | `expand_query(text)` → `QueryVariant`: `.label` `.weight` `.text` |
+| score a hit against a query yourself | `score_hit(hit, terms)` / `query_terms(text)` / `term_matches(…)` |
+| fold duplicates | `deduplicate(hits)` |
+| a result as plain JSON | `result_as_dict(result)` / `hit_as_dict(hit)` |
+| the stopword and synonym lists | `LanguageProfile`: `.stopwords` `.framing` `.synonyms`; `GERMAN_SYNONYMS` |
+| normalise an instance URL | `normalize_repository_url(url)` / `rest_base(url)` / `path_segment(id)` / `is_unroutable_host(host)` |
+| a search that reranks and reports both halves | `search_reranked(repo, text)` |
+| every sub-collection of one collection | `sub_collections(repo, id)` |
+| a node's rating without holding the node | `rating_of(repo, id)` / `rate(…)` / `unrate(…)` |
+| cap text before it reaches a model | `cap_text(text, limit)` |
+
+**Errors** — all inherit `EduSharingError`, so a single `except EduSharingError`
+catches everything this library raises:
+
+`TransportError` · `AuthenticationError` · `PermissionDeniedError` ·
+`NotFoundError` · `ValidationError` · `ConflictError` · `SilentDropError` ·
+`ServerError` · `UnsafeUrlError`
+
+`at_least(error, …)` reads a partial result out of a failure;
+`details_withheld(…)` names what an error deliberately does not reveal.
+
+**The rest of `__all__`** is machinery you only touch when extending the
+library rather than using it: `Flows` (the type behind `repo.flows`), `__version__`,
+the constructors `from_response` / `from_node` / `from_raw_header` / `error_from_response`, the b-api body helpers `build_body` / `read_answer` /
+`reasoning_for_responses`, and `field_property`, which maps a short field name to
+its property. Nothing above depends on calling them.
+
+**Named constants — the defaults, and the magic strings**
+
+Every default below is a keyword argument you can override; the constant exists
+so the value has a name instead of being buried in a signature.
+
+| Constant | Value | What it governs |
+|---|---|---|
+| `DEFAULT_EFFORT` / `DEFAULT_VERBOSITY` | `"low"` | reasoning and verbosity on models that support them |
+| `DEFAULT_MAX_TOKENS` / `DEFAULT_MAX_OUTPUT_TOKENS` | `1000` | the cap on a chat answer / on a responses answer |
+| `DEFAULT_HIT_CHARS` / `DEFAULT_RESULT_CHARS` | `400` / `4000` | how much `format_hit` / `format_results` hands a model |
+| `DEFAULT_POOL` | `25` | how many hits `search(rerank=True)` fetches before reranking |
+| `MAX_VARIANTS` | `5` | how many rewrites `expand_query` produces |
+| `DEFAULT_MAX_COLLECTIONS` / `DEFAULT_MAX_WIDGETS` | `50` / `24` | ceilings on `browse_tree` and on a rendered page |
+| `RELATED_ON` | `("subject", "level")` | the fields `related()` compares on by default |
+| `METHODS` | `("simple", "browser")` | the extraction methods `text_of` accepts |
+| `PROPOSAL_BATCH` | `"edusharing-python"` | the batch name proposals are filed under |
+| `GERMAN` | a `LanguageProfile` | the German stopword, framing and synonym lists |
+
+| Constant | Value | Why it has a name |
+|---|---|---|
+| `KEYWORD_PROPERTY` | `cclom:general_keyword` | the shared keyword list (see 4.6) |
+| `CHILD_ASPECT` / `ORDER_PROPERTY` | `ccm:io_childobject` / `ccm:childobject_order` | what marks and orders a child object |
+| `PAGE_REF` / `PAGE_CONFIG` / `VARIANT_CONFIG` | `ccm:page_config_ref` / `ccm:page_config` / `ccm:page_variant_config` | the three properties a curated page hangs on |
+| `EVERYONE` / `CONSUMER` | `GROUP_EVERYONE` / `Consumer` | the authority and right that make a node public |
+| `GUEST_AUTHORITY` | `esguest` | who you are when nobody signed in |
+| `UNTRUSTED_MARKER` | the fence `as_untrusted` wraps text in | so a model can see where foreign text begins |
+
+`UNSET` is the sentinel behind the rule **a default may be dropped, an explicit
+wish may not**: passing nothing lets the library omit a parameter a model does
+not support; passing a value explicitly makes an unsupported parameter an
+error rather than a silent omission. `ReasoningParam` is its type.
 
 ---
 
-## 4. The traps — what to watch for
+## 4. How edu-sharing stores metadata
+
+Knowing the calls is not enough to write correct code against a repository.
+These eight properties of the underlying store explain most of what would
+otherwise look like the library behaving strangely.
+
+### 4.1 Every value is a list
+
+A property is never a scalar. `node.properties` is `dict[str, list[str]]` — a
+title is a one-element list, a subject with three values is a three-element
+list, and an absent property is a missing key, not an empty string.
+
+```python
+node.properties["cclom:title"]      # ["Fractions explained"] -- a list
+node.get("cclom:title")             # "Fractions explained"   -- the first value
+node.get_all("ccm:taxonid")         # every value, [] if unset
+```
+
+Use `get()` when you want one, `get_all()` when the field may legitimately
+carry several. Reaching into `properties` directly and treating the result as a
+string is the single most common mistake.
+
+### 4.2 Four namespaces, and they mean different things
+
+| Prefix | Comes from | Example |
+|---|---|---|
+| `cm:` | Alfresco's own content model — the file system underneath | `cm:name`, `cm:title`, `cm:description` |
+| `cclom:` | the learning-object metadata standard | `cclom:title`, `cclom:general_keyword`, `cclom:general_description` |
+| `ccm:` | edu-sharing's own additions | `ccm:taxonid`, `ccm:educationalcontext`, `ccm:wwwurl` |
+| `virtual:` | not part of the stored model — a service puts them on the response | `virtual:profiling_widget_intention` |
+
+Two consequences. A property you invent under `ccm:` will not exist for the
+metadata set (see 4.5). And a `virtual:` value you read back is owned by
+whichever service produced it — on curated pages that is the page builder — so
+treat it as something to read, and change it through the tool that owns it.
+
+### 4.3 `cm:name` is a key, not a title
+
+`cm:name` is the node's name **inside its parent folder** — the equivalent of a
+filename. It must be unique among its siblings, and the repository rejects or
+mangles characters a filename cannot carry. The human-readable title is a
+different field.
+
+```python
+name_from_title("Bruchrechnung: Übung 1/2")   # a legal cm:name
+```
+
+Worse, the title field is not the same everywhere: **material carries
+`cclom:title`, a collection carries `cm:title`.** Writing the wrong one leaves
+the object looking untitled. The library's `title=` shorthand writes both, so
+prefer it over naming the property yourself.
+
+### 4.4 Vocabulary fields hold URIs, never labels
+
+`ccm:taxonid` does not contain `"Biologie"`; it contains a URI from a
+SKOS vocabulary. Filtering or writing a label puts a value in that matches
+nothing.
+
+```python
+await repo.vocab.resolve_all("subject", "Biologie")
+# -> both URIs: the school subject and the university subject
+```
+
+One label can belong to two vocabularies — measured against staging, 25 subject
+labels appear both under school subjects and under university subjects. This is
+why `resolve_all` returns a list and the search filters on all of them; taking
+only the first finds half the material.
+
+### 4.5 The metadata set decides what exists — silently
+
+Every instance carries one or more metadata sets (`repo.metadatasets()`) that
+define which properties an object may hold. A property the set does not know is
+**not** rejected: the repository answers `200 OK` and stores nothing.
+
+This is why every write in this library reads back and raises `SilentDropError`
+on a mismatch. Do not switch that off, and do not treat a `200` as proof.
+
+### 4.6 Some lists are shared property
+
+`cclom:general_keyword` is maintained jointly — by editors, by crawlers, by
+other applications. Setting it replaces everyone else's work.
+
+```python
+await node.add_keywords("fractions")        # merges
+await node.update(keywords=["fractions"])   # replaces -- rarely what you want
+```
+
+The same care applies to any list-valued field you did not author alone.
+
+### 4.7 Aspects are not types
+
+A node has one type (`ccm:io` for material, `ccm:map` for a collection) and any
+number of aspects layered on top. A child object is not a type of node — it is a
+normal node carrying the aspect `ccm:io_childobject`. Searching for it as a type
+finds nothing.
+
+### 4.8 Properties arrive empty unless you ask for them
+
+Several repository routes return nodes with an empty `properties` map unless the
+request carries `propertyFilter=-all-`. The library sets it where it calls those
+routes; if you go around the library with `repo.raw.request(...)`, you have to
+set it yourself, or you will conclude the data is missing when it is merely
+unrequested.
+
+---
+
+## 5. The traps — what to watch for
 
 Each of these was measured against a real instance. They are the reason the
 library exists.
 
-### 4.1 HTTP 200 does not mean it was stored
+### 5.1 HTTP 200 does not mean it was stored
 
 edu-sharing accepts writes it then discards. Every write in this library reads
 back and raises `SilentDropError` instead of reporting success.
@@ -209,7 +455,7 @@ except SilentDropError as exc:
 Known droppers: `relations.create(metadata=...)` (accepted, stored nowhere),
 and metadata-set fields the instance does not know.
 
-### 4.2 `unresolved` is not decoration
+### 5.2 `unresolved` is not decoration
 
 A filter value the instance does not know is **not applied**, and the search
 answers a wider question than you asked.
@@ -225,7 +471,7 @@ values that were **not** written. The material exists without them.
 
 **Never report a result to a user or a model without checking this.**
 
-### 4.3 `total_is_lower_bound`, `truncated`, `complete`
+### 5.3 `total_is_lower_bound`, `truncated`, `complete`
 
 - `total_is_lower_bound=True` → `total` counts *at least* that many. Reporting
   it as an exact figure states a number that is not one.
@@ -235,7 +481,7 @@ values that were **not** written. The material exists without them.
 
 `find_collections` always sets `total_is_lower_bound`: it merges two routes.
 
-### 4.4 A collection is not a folder, and a search cannot be scoped to it
+### 5.4 A collection is not a folder, and a search cannot be scoped to it
 
 - Create collections through `repo.create_collection`, never as a `ccm:map`
   node. A node created the other way is not a collection to the rest of the
@@ -249,7 +495,7 @@ values that were **not** written. The material exists without them.
 - `collection_contents` asks **two** routes. Material alone reports a
   collection of sub-collections as empty.
 
-### 4.5 Three different kinds of belonging
+### 5.5 Three different kinds of belonging
 
 | | Holds | Read with |
 |---|---|---|
@@ -264,7 +510,7 @@ Relations keep the opposite direction automatically: create `isPartOf` from the
 episode and the series reports `hasPart`. A fresh relation is
 `approved=False` — `relations.approve(...)` sets it.
 
-### 4.6 Labels versus URIs
+### 5.6 Labels versus URIs
 
 `node.get("ccm:taxonid")` gives the URI. `node.labels("ccm:taxonid")` gives
 "Mathematik". `SearchHit.labels` does the same. The flow level resolves labels
@@ -291,7 +537,7 @@ Writing takes the first, deliberately: tagging a year 6 worksheet as a
 university subject is a claim, not a widening. Add a `level` filter to keep the
 halves apart.
 
-### 4.7 Paging, limits and defaults that truncate
+### 5.7 Paging, limits and defaults that truncate
 
 - `repo.people.members(group)` defaults to 10 and truncates silently. Pass
   `limit`.
@@ -301,7 +547,7 @@ halves apart.
   returned an article where `browser` returned a cookie banner. If one yields
   nothing, try the other.
 
-### 4.8 A framing word ruins a query
+### 5.8 A framing word ruins a query
 
 Measured over a 60-node pool: `"Bruchrechnung"` matched 0 nodes and
 `"die Bruchrechnung"` matched 43. `rerank=True` expands and re-scores the
@@ -311,13 +557,13 @@ or a model, not for a machine-built filter query.
 `rerank=True` and `offset` do not combine — the pool is merged across variants,
 so an offset into it would not mean what a caller expects.
 
-### 4.9 Dead index entries
+### 5.9 Dead index entries
 
 Measured: 4 of 25 search hits were no longer retrievable. `describe_many`
 reports them in `failed` instead of raising, so a shorter list than requested
 is distinguishable from "these do not exist".
 
-### 4.10 The two providers are not interchangeable
+### 5.10 The two providers are not interchangeable
 
 Measured 2026-08-31. `openai` offers 132 models and reports no load;
 `academiccloud` offers 15 and reports `demand` 0 to 23, which moves by the
@@ -339,7 +585,7 @@ A virtual model (`model=["a","b","c"]`, or a name from `virtual_models`) takes
 the least loaded of them. That is worth having at the AcademicCloud; at OpenAI
 it degenerates into a fallback chain in the order you wrote.
 
-### 4.11 Asking for load, and switching instead of waiting
+### 5.11 Asking for load, and switching instead of waiting
 
 `demand` moves by the minute, so the model list is cached 30 seconds. Match
 that to how long your process lives:
@@ -367,9 +613,36 @@ means exactly one attempt each: the knob only lowers.
 A 429 is the case this cannot help — the AcademicCloud limits the key, not the
 model, so the next candidate fails just as fast.
 
+### 5.12 On the blocking `Repository`, four accessors are still asynchronous
+
+`Repository` wraps most of what it hands out so it blocks. Four properties do
+not: `repo.vocab`, `repo.searcher`, `repo.collections` and `repo.nodes` return
+the asynchronous objects unchanged. Calling a method on them from blocking code
+produces a coroutine that is never awaited — no error, no effect.
+
+```python
+repo = Repository(url, credential=cred)
+repo.collections.find("Bruchrechnung")   # a coroutine object -- does nothing
+repo.find_collections("Bruchrechnung")   # the blocking route
+```
+
+Every one of them has a blocking counterpart on the repository itself:
+
+| Instead of | Use |
+|---|---|
+| `repo.nodes.get/create/children` | `repo.node()` / `repo.create_node()` / `repo.children()` |
+| `repo.collections.find/create/update/add/remove` | `repo.find_collections()` / `repo.create_collection()` / `repo.update_collection()` / `repo.add_to_collection()` / `repo.remove_from_collection()` |
+| `repo.searcher.search` | `repo.search()` |
+| `repo.vocab.resolve` | `repo.resolve()` |
+| `repo.vocab.values` | `repo.flows.vocabulary(field)` |
+
+`resolve_all` is the one exception with no blocking counterpart. Blocking
+callers still get both URIs where it counts — `search()` resolves ambiguous
+labels internally — but to inspect the list itself, use `AsyncRepository`.
+
 ---
 
-## 5. Putting it behind a model
+## 6. Putting it behind a model
 
 ### Never let repository text act as an instruction
 
@@ -417,7 +690,7 @@ supplied. The library logs only what it built itself.
 
 ---
 
-## 6. Where to look things up
+## 7. Where to look things up
 
 | Question | File |
 |---|---|
@@ -432,7 +705,7 @@ against: it writes the same use case twice and counts the requests each sends.
 
 ---
 
-## 7. Checklist before shipping a tool built on this
+## 8. Checklist before shipping a tool built on this
 
 ```
 [ ] Instance comes from configuration, not from a literal in the code
@@ -449,7 +722,7 @@ against: it writes the same use case twice and counts the requests each sends.
 
 ---
 
-## 8. Related skills
+## 9. Related skills
 
 | Skill | For |
 |---|---|
