@@ -98,6 +98,10 @@ services; 1095 offline tests and 94 live ones against edu-sharing 11.0.
   environment variable the code does not read. In English and German, both held
   to those same tests — a translation nobody checks is the first thing to rot.
 - **A dependency CVE step in CI** (`pip-audit --skip-editable`).
+- **CI has actually run.** The pipeline existed for days without a remote to
+  run on; on 2026-08-31 the history was pushed to
+  `janschachtschabel/edu-sharing-python-client` and it went green on the
+  first attempt across Python 3.11, 3.12, 3.13 and 3.14.
 - **A type check in CI** (`mypy`, configured in `pyproject.toml`). It found two
   places that were correct only by accident: a `json.loads` on a value that
   could be `None`, and an `int()` that relied on catching the resulting
