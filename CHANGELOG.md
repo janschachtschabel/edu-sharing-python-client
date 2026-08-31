@@ -45,6 +45,24 @@ and in [`docs/audits/`](docs/audits/).
 - **`docs/examples/17_flow_belonging.py`** — the three kinds of belonging side
   by side: collection, child object, relation. `child_objects` and `relations`
   were the only two flows without a runnable example.
+- **`BildungsAPI.respond()`** — the `responses` route, on **both** providers.
+  The assumption was that only OpenAI has it; measured 2026-08-31, the
+  AcademicCloud answers it too. Returns an `Answer` rather than a string,
+  because `status` can be `incomplete`: a reasoning model given 32 output
+  tokens spends all of them thinking and returns the thinking.
+- **`reasoning_effort` and `verbosity` on `chat()` and `respond()`**, defaulting
+  to `low`. Measured: `gpt-5.6-luna` spent 14 reasoning tokens without the
+  parameter and 0 with `low`. Applied only where the model takes them —
+  `gpt-4o-mini` answers 400, and the AcademicCloud accepts and ignores them.
+  A default is dropped silently; **an explicit value raises instead of being
+  dropped**.
+- **A virtual model** — `chat(model=["a", "b", "c"])`, or a name from
+  `BildungsAPI(virtual_models={...})`. The least loaded of the named models
+  answers, and the next one is tried if it does not. Only the AcademicCloud
+  reports load (`demand` 0 to 23 across its 15 models); at OpenAI a group is a
+  fallback chain in the order given.
+- **`Model.shutdown_date` and `Model.is_retired_on(day)`** — OpenAI reports a
+  retirement date for 57 of its 132 models, the AcademicCloud for none.
 - **A skill for coding agents**, `.claude/skills/edu-sharing-python/`. A routing
   table from task to call across both levels, the neighbouring services and the
   measured traps, pointing at `wlo-edu-sharing-api` for the raw REST API and at

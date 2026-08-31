@@ -799,6 +799,30 @@ verdict.categories                        # {"hate": False, …}
 await api.call("responses", {"model": "…", "input": "…"})
 ```
 
+### Was welcher Anbieter kann
+
+Gemessen am 31.08.2026 gegen das Staging-Gateway. Bewusst keine Tabelle im
+Code: die wäre eine Kopie, die veraltet. Die Bibliothek fragt und meldet, was
+sie bekommt.
+
+| | `openai` | `academiccloud` |
+|---|---|---|
+| angebotene Modelle | 132 | 15 |
+| Auslastung je Modell (`demand`) | nicht gemeldet | **ja**, 0 bis 23 |
+| `shutdown_date` | bei 57 von 132 | nicht gemeldet |
+| `chat/completions` | ja | ja |
+| `responses` | ja | ja |
+| `embeddings` | ja | 404 — kein Embedding-Modell im Angebot |
+| `moderations` | ja | 404 |
+| `images/generations` | ja | 404 |
+| `reasoning_effort`, `verbosity` | nur gpt-5 und o-Serie | angenommen, ohne Wirkung |
+| Denken abschalten | — | `chat_template_kwargs` (Qwen3) |
+
+Also: das virtuelle Modell lohnt bei der AcademicCloud, wo Auslastung gemeldet
+wird und sich bewegt. Bei OpenAI ist es eine Ausweichkette. Moderation,
+Einbettungen und Bildgenerierung gibt es nur bei OpenAI — die 15 Modelle der
+AcademicCloud erzeugen `text` und `thought`, sonst nichts.
+
 ### Die Route `responses`
 
 Beide Anbieter haben sie — gemessen am 31.08.2026 antworteten `gpt-5.6-luna`

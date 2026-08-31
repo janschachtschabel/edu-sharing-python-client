@@ -155,11 +155,15 @@ table.
 | The task | The call |
 |---|---|
 | ask a model | `BildungsAPI.chat(prompt)` |
+| ask through the responses route | `.respond(prompt, model=…)` → check `.truncated` |
+| the least loaded of several models | `.chat(prompt, model=["a", "b", "c"])` |
 | which models are there | `.models()` |
-| embeddings | `.embeddings(texts)` |
-| moderation | `.moderate(texts)` |
-| image generation | `.images(prompt)` |
-| any other forwarded OpenAI route | `.call("responses", body)` |
+| cheaper thinking (default) | nothing — `reasoning_effort` is already `low` |
+| more thinking | `.chat(prompt, reasoning_effort="high")` |
+| embeddings *(OpenAI only)* | `.embeddings(texts)` |
+| moderation *(OpenAI only)* | `.moderate(texts)` |
+| image generation *(OpenAI only)* | `.images(prompt)` |
+| any other forwarded OpenAI route | `.call("batches", body)` |
 | text behind a URL | `TextExtraction.text_of(url, method="simple")` |
 | what belongs in a content type's JSON | `MetadataAgent.content_types()` / `.schema(file)` |
 
@@ -290,6 +294,28 @@ so an offset into it would not mean what a caller expects.
 Measured: 4 of 25 search hits were no longer retrievable. `describe_many`
 reports them in `failed` instead of raising, so a shorter list than requested
 is distinguishable from "these do not exist".
+
+### 4.10 The two providers are not interchangeable
+
+Measured 2026-08-31. `openai` offers 132 models and reports no load;
+`academiccloud` offers 15 and reports `demand` 0 to 23, which moves by the
+minute. Both carry `chat/completions` and `responses`. Only OpenAI carries
+`embeddings`, `moderations` and `images/generations` — the AcademicCloud
+answers 404 and its models produce `text` and `thought`, nothing else.
+
+`reasoning_effort` and `verbosity` work on the gpt-5 and o series and are
+refused by older OpenAI models with 400. The AcademicCloud accepts them and
+ignores them: identical token usage at `low` and `high`. Its lever is
+`chat_template_kwargs`, which the library sets for Qwen3.
+
+The library defaults both to `low` and applies them only where they work.
+**An explicit value is never dropped for you** — it raises instead, because an
+answer produced without the effort you asked for looks exactly like one
+produced with it.
+
+A virtual model (`model=["a","b","c"]`, or a name from `virtual_models`) takes
+the least loaded of them. That is worth having at the AcademicCloud; at OpenAI
+it degenerates into a fallback chain in the order you wrote.
 
 ---
 

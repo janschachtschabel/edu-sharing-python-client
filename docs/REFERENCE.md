@@ -786,6 +786,29 @@ verdict.categories                        # {"hate": False, …}
 await api.call("responses", {"model": "…", "input": "…"})
 ```
 
+### What each provider can do
+
+Measured 2026-08-31 against the staging gateway. Not a table in the code: it
+would be a copy that goes stale. The library asks and reports what it gets.
+
+| | `openai` | `academiccloud` |
+|---|---|---|
+| models offered | 132 | 15 |
+| load per model (`demand`) | not reported | **yes**, 0 to 23 |
+| `shutdown_date` | on 57 of 132 | not reported |
+| `chat/completions` | yes | yes |
+| `responses` | yes | yes |
+| `embeddings` | yes | 404 — no embedding model offered |
+| `moderations` | yes | 404 |
+| `images/generations` | yes | 404 |
+| `reasoning_effort`, `verbosity` | gpt-5 and o series only | accepted, no effect |
+| switching off thinking | — | `chat_template_kwargs` (Qwen3) |
+
+So: the virtual model is worth having at the AcademicCloud, where load is
+reported and moves. At OpenAI it is a fallback chain. Moderation, embeddings
+and image generation only exist at OpenAI — the AcademicCloud's 15 models
+produce `text` and `thought`, nothing else.
+
 ### The `responses` route
 
 Both providers carry it — measured 2026-08-31, `gpt-5.6-luna` at OpenAI and

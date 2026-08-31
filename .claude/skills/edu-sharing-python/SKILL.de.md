@@ -166,11 +166,15 @@ der Platte.)*
 | Die Aufgabe | Der Aufruf |
 |---|---|
 | ein Modell fragen | `BildungsAPI.chat(prompt)` |
+| über die responses-Route fragen | `.respond(prompt, model=…)` → `.truncated` prüfen |
+| das am wenigsten ausgelastete von mehreren | `.chat(prompt, model=["a", "b", "c"])` |
 | welche Modelle gibt es | `.models()` |
-| Einbettungen | `.embeddings(texts)` |
-| Moderation | `.moderate(texts)` |
-| Bildgenerierung | `.images(prompt)` |
-| jede andere durchgereichte OpenAI-Route | `.call("responses", body)` |
+| billiger denken (Vorgabe) | nichts — `reasoning_effort` steht schon auf `low` |
+| mehr denken | `.chat(prompt, reasoning_effort="high")` |
+| Einbettungen *(nur OpenAI)* | `.embeddings(texts)` |
+| Moderation *(nur OpenAI)* | `.moderate(texts)` |
+| Bildgenerierung *(nur OpenAI)* | `.images(prompt)` |
+| jede andere durchgereichte OpenAI-Route | `.call("batches", body)` |
 | Text hinter einer URL | `TextExtraction.text_of(url, method="simple")` |
 | was in den JSON-Bereich einer Inhaltsart gehört | `MetadataAgent.content_types()` / `.schema(file)` |
 
@@ -310,6 +314,28 @@ Aufrufer erwartet.
 Gemessen: 4 von 25 Suchtreffern waren nicht mehr abrufbar. `describe_many`
 meldet sie in `failed`, statt zu werfen — eine kürzere Liste als angefragt ist
 so davon zu unterscheiden, dass es diese Knoten nicht gibt.
+
+### 4.10 Die zwei Anbieter sind nicht austauschbar
+
+Gemessen am 31.08.2026. `openai` bietet 132 Modelle und meldet keine
+Auslastung; `academiccloud` bietet 15 und meldet `demand` 0 bis 23, was sich im
+Minutentakt ändert. Beide haben `chat/completions` und `responses`. Nur OpenAI
+hat `embeddings`, `moderations` und `images/generations` — die AcademicCloud
+antwortet 404, und ihre Modelle erzeugen `text` und `thought`, sonst nichts.
+
+`reasoning_effort` und `verbosity` wirken bei der gpt-5- und o-Serie und werden
+von älteren OpenAI-Modellen mit 400 abgelehnt. Die AcademicCloud nimmt sie an
+und ignoriert sie: gleicher Tokenverbrauch bei `low` und `high`. Ihr Hebel ist
+`chat_template_kwargs`, das die Bibliothek für Qwen3 setzt.
+
+Die Bibliothek stellt beide auf `low` und wendet sie nur an, wo sie wirken.
+**Ein ausdrücklicher Wert wird nie für Sie verworfen** — er löst stattdessen
+einen Fehler aus, denn eine Antwort ohne den gewünschten Aufwand sieht genauso
+aus wie eine mit ihm.
+
+Ein virtuelles Modell (`model=["a","b","c"]` oder ein Name aus
+`virtual_models`) nimmt das am wenigsten ausgelastete davon. Das lohnt bei der
+AcademicCloud; bei OpenAI wird daraus eine Ausweichkette in Ihrer Reihenfolge.
 
 ---
 
