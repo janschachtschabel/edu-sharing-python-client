@@ -168,6 +168,7 @@ der Platte.)*
 | ein Modell fragen | `BildungsAPI.chat(prompt)` |
 | über die responses-Route fragen | `.respond(prompt, model=…)` → `.truncated` prüfen |
 | das am wenigsten ausgelastete von mehreren | `.chat(prompt, model=["a", "b", "c"])` |
+| wie die Modelle gerade dastehen | `.load()` → `.summary()` |
 | welche Modelle gibt es | `.models()` |
 | billiger denken (Vorgabe) | nichts — `reasoning_effort` steht schon auf `low` |
 | mehr denken | `.chat(prompt, reasoning_effort="high")` |
@@ -336,6 +337,36 @@ aus wie eine mit ihm.
 Ein virtuelles Modell (`model=["a","b","c"]` oder ein Name aus
 `virtual_models`) nimmt das am wenigsten ausgelastete davon. Das lohnt bei der
 AcademicCloud; bei OpenAI wird daraus eine Ausweichkette in Ihrer Reihenfolge.
+
+### 4.11 Auslastung abfragen, und wechseln statt warten
+
+`demand` ändert sich im Minutentakt, deshalb wird die Modellliste 30 Sekunden
+gemerkt. Stellen Sie das darauf ein, wie lange Ihr Prozess lebt:
+
+```python
+# Ein Skript, das eine Minute läuft: einmal fragen.
+api = BildungsAPI.from_env(models_cache_seconds=CACHE_FOREVER)
+print((await api.load()).summary())      # ins Startprotokoll
+
+# Ein Dienst, der einen Tag läuft: die 30 Sekunden stehen lassen. CACHE_FOREVER
+# ließe ihn nach Zahlen von vor Stunden entscheiden.
+```
+
+`load()` liefert einen `LoadReport`. **Zuerst `reports_load` lesen** — bei
+OpenAI steht dort `false`, es wird gar keine Auslastung gemeldet, und die
+Rangfolge ist alphabetisch statt eine Aussage über Warteschlangen.
+
+**Wechseln schlägt Warten, solange es wohin zu wechseln gibt.** Ein 503 ist
+wiederholbar, also verbrauchte ein ausgelastetes Modell bisher das volle
+`max_retries` — rund 17 s bei voreingestellter Wartezeit — während ein anderes
+danebenstand. Ein Kandidat bekommt jetzt `retries_before_switching`
+Wiederholungen (Vorgabe 1), solange ein weiterer da ist; der letzte behält das
+volle Budget. `max_retries=0` heißt weiterhin genau ein Versuch je Modell: die
+Stellschraube senkt nur.
+
+Ein 429 ist der Fall, dem das nicht hilft — die AcademicCloud begrenzt den
+Schlüssel, nicht das Modell, der nächste Kandidat scheitert also genauso
+schnell.
 
 ---
 

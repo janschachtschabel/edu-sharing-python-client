@@ -868,6 +868,57 @@ das Modell sie nicht kennt, ein ausdrücklicher Wert löst einen Fehler aus.
 **`model` ist Pflicht.** Die Route verweigert ohne, und stillschweigend eines
 zu wählen wäre eine Ersetzung. Virtuelle Modelle gibt es bei `chat`.
 
+### Auslastung, und wann man sie abfragt
+
+`demand` ändert sich im Minutentakt, deshalb wird die Modellliste 30 Sekunden
+gemerkt. Zwei Stellschrauben entscheiden über das Verhalten, und die richtige
+Einstellung hängt daran, wie lange Ihr Prozess lebt.
+
+| Aufruf | Ergebnis |
+|---|---|
+| `api.load(provider=…, on=…)` | `LoadReport` |
+| `report.reports_load` | `bool` — **zuerst lesen** |
+| `report.models` | `tuple[Model, ...]` — brauchbar, am wenigsten ausgelastet zuerst |
+| `report.least_loaded` | `Model \| None` |
+| `report.retired` | `tuple[str, ...]` — IDs jenseits ihres `shutdown_date` |
+| `report.total` | `int` — alles, was der Anbieter gelistet hat |
+| `report.summary()` | `str` — eine Zeile je Modell, fürs Startprotokoll |
+| `load_report(models, provider, day)` | dasselbe aus einer Liste, die Sie schon haben |
+| `BildungsAPI(models_cache_seconds=CACHE_FOREVER)` | einmal fragen, nie wieder |
+| `BildungsAPI(models_cache_seconds=0)` | jedes Mal fragen |
+| `BildungsAPI(retries_before_switching=1)` | Wiederholungen je Kandidat vor dem Wechsel |
+
+```python
+api = BildungsAPI.from_env(models_cache_seconds=CACHE_FOREVER)
+print((await api.load()).summary())
+# academiccloud: 15 of 15 usable, load reported
+#   demand=  0  gemma-4-31b-it
+#   demand=  0  qwen3.5-122b-a10b
+#   demand=  4  glm-4.7
+#   demand= 23  qwen3.8-27b
+```
+
+**`CACHE_FOREVER` ist für ein Skript richtig und für einen Dienst falsch.** Ein
+Prozess, der eine Minute läuft, sollte einmal fragen. Ein Prozess, der einen
+Tag läuft, entschiede dann nach Zahlen von vor Stunden — dort die 30 Sekunden
+stehen lassen oder eigene setzen.
+
+**Immer zuerst `reports_load`.** Bei OpenAI steht dort `false`: es wird gar
+keine Auslastung gemeldet, die Rangfolge ist also alphabetisch und sagt nichts
+über Warteschlangen.
+
+**Wiederholen gegen Wechseln.** Ein 503 ist wiederholbar, also verbrauchte der
+Transport ohne Begrenzung das volle `max_retries` — rund 17 s bei der
+voreingestellten Wartezeit — an einem ausgelasteten Modell, während ein anderes
+danebenstand. Jetzt bekommt ein Kandidat `retries_before_switching`
+Wiederholungen (Vorgabe 1), solange ein weiterer da ist; der **letzte** behält
+das volle Budget, denn es gibt nichts mehr zum Wechseln. Die Stellschraube
+senkt nur: `max_retries=0` heißt weiterhin ein Versuch je Modell.
+
+Ein 429 ist der Fall, dem das nicht hilft. Gemessen begrenzt die AcademicCloud
+den Schlüssel, nicht das Modell — der nächste Kandidat scheitert also genauso
+schnell, und der Lauf endet beim letzten, der wie bisher wartet.
+
 ### Ein virtuelles Modell — mehrere IDs unter einem Namen
 
 Nur die AcademicCloud meldet Auslastung, und die ändert sich im Minutentakt.

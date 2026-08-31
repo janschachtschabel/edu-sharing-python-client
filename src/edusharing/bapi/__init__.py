@@ -20,11 +20,22 @@ cannot answer that question.
                                    provider="openai")
 """
 
-from .client import BildungsAPI
-from .passthrough import GeneratedImage, Moderation
-from .policy import Model, build_body, pick_model, rank_models, read_answer
+from .client import CACHE_FOREVER, BildungsAPI
+from .passthrough import Answer, GeneratedImage, Moderation
+from .policy import (
+    LoadReport,
+    Model,
+    build_body,
+    load_report,
+    pick_model,
+    rank_among,
+    rank_models,
+    read_answer,
+)
 
 __all__ = ["BildungsAPI", "Model", "pick_model", "rank_models",
            "build_body", "read_answer",
+           # Modellwahl und Auslastung
+           "LoadReport", "load_report", "rank_among", "CACHE_FOREVER",
            # Die durchgereichten OpenAI-Routen
-           "Moderation", "GeneratedImage"]
+           "Moderation", "GeneratedImage", "Answer"]

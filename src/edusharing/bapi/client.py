@@ -30,6 +30,7 @@ import logging
 import os
 import time
 from collections.abc import Mapping, Sequence
+from datetime import date
 from typing import Any, Self
 
 import httpx
@@ -39,9 +40,11 @@ from ..urls import path_segment
 from . import passthrough
 from .policy import (
     UNSET,
+    LoadReport,
     Model,
     ReasoningParam,
     build_body,
+    load_report,
     pick_model,
     rank_among,
     rank_models,
@@ -80,6 +83,24 @@ DEFAULT_BACKOFF_BASE = 2.5
 #: choice on stale numbers. No cache at all costs an extra request per call.
 DEFAULT_MODELS_CACHE_SECONDS = 30.0
 
+#: ``models_cache_seconds=CACHE_FOREVER`` asks once and never again. Right for
+#: a script that runs for a minute; **wrong for a long-lived service**, which
+#: would then choose models on figures from hours ago. ``0`` disables the cache
+#: and costs one extra request per call.
+CACHE_FOREVER = float("inf")
+
+#: How often one candidate is retried before the next model is tried instead.
+#: A 503 is retryable, so without this the transport spent the full
+#: ``max_retries`` on a busy model -- roughly 17 s at the default backoff --
+#: while another model stood right next to it. The **last** candidate keeps the
+#: full budget: there is nothing left to switch to, so waiting is all there is.
+#:
+#: A 429 is the exception that this cannot help: measured, the AcademicCloud
+#: answers "API rate limit exceeded" for the key, not for the model, so the
+#: next candidate fails just as fast. The run then ends at the last candidate,
+#: which waits as before.
+DEFAULT_RETRIES_BEFORE_SWITCHING = 1
+
 #: Status codes where a second attempt can succeed. 404 is deliberately absent:
 #: "This is not a chat model" will not improve on the fourth try.
 RETRYABLE = frozenset({429, 500, 502, 503, 504})
@@ -100,7 +121,10 @@ class BildungsAPI:
         provider: ``academiccloud`` or ``openai``.
         max_concurrency: concurrent requests.
         models_cache_seconds: how long the model list stays valid. ``0``
-            disables the cache.
+            disables the cache, ``CACHE_FOREVER`` asks exactly once.
+        retries_before_switching: how often one model is retried before the
+            next candidate is tried instead. The last candidate keeps the full
+            ``max_retries`` -- there is nothing left to switch to.
         virtual_models: names for groups of models, e.g.
             ``{"schnell": ["qwen3.6-35b-a3b", "gemma-4-31b-it"]}``.
             ``chat(model="schnell")`` then takes the least loaded of them.
@@ -117,6 +141,7 @@ class BildungsAPI:
         max_concurrency: int = DEFAULT_MAX_CONCURRENCY,
         backoff_base: float = DEFAULT_BACKOFF_BASE,
         models_cache_seconds: float = DEFAULT_MODELS_CACHE_SECONDS,
+        retries_before_switching: int = DEFAULT_RETRIES_BEFORE_SWITCHING,
         virtual_models: Mapping[str, Sequence[str]] | None = None,
         client: httpx.AsyncClient | None = None,
     ) -> None:
@@ -130,12 +155,14 @@ class BildungsAPI:
         at_least("max_concurrency", max_concurrency, 1)
         at_least("backoff_base", backoff_base, 0)
         at_least("models_cache_seconds", models_cache_seconds, 0)
+        at_least("retries_before_switching", retries_before_switching, 0)
         self._api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.provider = provider
         self.max_retries = max_retries
         self.backoff_base = backoff_base
         self.models_cache_seconds = models_cache_seconds
+        self.retries_before_switching = retries_before_switching
         #: Names the caller gave to groups of models. ``chat(model="schnell")``
         #: then takes the least loaded of the group. Empty by default: the
         #: library invents no names, because a name only helps if the caller
@@ -211,6 +238,27 @@ class BildungsAPI:
             if which == self.provider:
                 self._models_cache = (now, models)
             return models
+
+    async def load(
+        self, provider: str | None = None, *, on: date | None = None,
+    ) -> LoadReport:
+        """What the provider says about its models right now.
+
+        Ask this once at start-up and log ``summary()``: whoever reads the log
+        later then knows what the model choice was made on. It uses the same
+        cached list as everything else, so it costs nothing extra when the
+        cache is warm.
+
+        Args:
+            on: the day to judge ``shutdown_date`` against. Defaults to today.
+
+        Returns:
+            A ``LoadReport``. **Read ``reports_load`` first** -- at OpenAI it
+            is false and the ranking says nothing about queues.
+        """
+        which = provider or self.provider
+        return load_report(await self.models(which), which,
+                           on or date.today())
 
     async def _resolve_group(
         self, model: str | Sequence[str] | None, which: str
@@ -310,10 +358,24 @@ class BildungsAPI:
             if not candidates:
                 raise EduSharingError(f"No ready text model at provider {which!r}.")
 
+        # A group is an explicit list: whoever names five means five. The cap
+        # belongs to the automatic choice, where the library is guessing.
+        versuche = candidates if gruppe is not None \
+            else candidates[:DEFAULT_MODEL_ATTEMPTS]
+
         failures: list[str] = []
-        for candidate in candidates[:DEFAULT_MODEL_ATTEMPTS]:
+        for nummer, candidate in enumerate(versuche):
+            # While another model is still available, switching beats waiting.
+            # The last one keeps the full budget -- there is nothing to switch
+            # to, so waiting is all there is.
+            letzter = nummer == len(versuche) - 1
+            # Nur senken, nie anheben: wer max_retries=0 setzt, will genau
+            # einen Versuch je Modell -- auch beim ersten Kandidaten.
+            budget = None if letzter else min(self.retries_before_switching,
+                                              self.max_retries)
             try:
-                response = await self._request("POST", path, json=body_for(candidate.id))
+                response = await self._request(
+                    "POST", path, json=body_for(candidate.id), max_retries=budget)
             except EduSharingError as exc:
                 # A "ready" model may still not answer. Whoever left the choice
                 # to the library wants an answer -- not the news that the first
@@ -388,11 +450,21 @@ class BildungsAPI:
     async def _pick(self, provider: str) -> Model:
         return pick_model(await self.models(provider))
 
-    async def _request(self, method: str, path: str, **kwargs: Any) -> Any:
+    async def _request(
+        self, method: str, path: str, *,
+        max_retries: int | None = None, **kwargs: Any,
+    ) -> Any:
+        """One request, retried within the given budget.
+
+        ``max_retries`` overrides the client's own budget for this call. The
+        candidate loop in ``chat`` uses it to move on quickly while another
+        model is still available -- see ``DEFAULT_RETRIES_BEFORE_SWITCHING``.
+        """
         url = f"{self.base_url}{path}"
         last: EduSharingError | None = None
+        budget = self.max_retries if max_retries is None else max_retries
 
-        for attempt in range(self.max_retries + 1):
+        for attempt in range(budget + 1):
             if attempt:
                 # No retry-after on the 429 -- exponential is all there is.
                 await asyncio.sleep(self.backoff_base * (2 ** (attempt - 1)))

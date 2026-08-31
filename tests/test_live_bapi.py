@@ -9,6 +9,7 @@ deepseek-v4-flash-0731, der alte Name antwortet seither mit 503.
 """
 
 import os
+from datetime import date
 
 import pytest
 
@@ -143,3 +144,35 @@ async def test_ein_zu_kleines_budget_meldet_sich_als_abgeschnitten(llm):
                                 provider="academiccloud", max_output_tokens=32)
     assert antwort.truncated is True
     assert antwort.reason == "max_output_tokens"
+
+
+# --- Der Auslastungsbericht ------------------------------------------------
+
+@pytest.mark.live
+async def test_die_academiccloud_meldet_auslastung(llm):
+    bericht = await llm.load("academiccloud")
+    assert bericht.reports_load is True
+    assert bericht.models, bericht.summary()
+    # Am wenigsten ausgelastet zuerst -- monoton steigend.
+    lasten = [m.demand for m in bericht.models if m.demand is not None]
+    assert lasten == sorted(lasten), bericht.summary()
+
+
+@pytest.mark.live
+async def test_openai_meldet_keine_auslastung_und_sagt_das(llm):
+    """Der Grund, warum ``reports_load`` existiert.
+
+    Ohne das Feld waere die Rangfolge dort alphabetisch, und wer sie als
+    Aussage ueber Warteschlangen liest, irrt.
+    """
+    bericht = await llm.load("openai")
+    assert bericht.reports_load is False
+    assert bericht.total > 100, bericht.total
+    assert all(m.demand is None for m in bericht.models)
+
+
+@pytest.mark.live
+async def test_openai_meldet_abgekuendigte_modelle(llm):
+    """Gemessen am 31.08.2026: 57 von 132 tragen ein shutdown_date."""
+    bericht = await llm.load("openai", on=date(2026, 12, 31))
+    assert bericht.retired, "kein einziges abgekuendigtes Modell gefunden"

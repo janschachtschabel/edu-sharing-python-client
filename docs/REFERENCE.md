@@ -853,6 +853,56 @@ where the model cannot take it, an explicit value raises.
 **`model` is required.** The route refuses without one, and choosing silently
 would be a substitution. Virtual models live on `chat`.
 
+### Load, and when to ask for it
+
+`demand` moves by the minute, so the model list is cached for 30 seconds by
+default. Two knobs decide how that behaves, and the right setting depends on
+how long your process lives.
+
+| Call | Result |
+|---|---|
+| `api.load(provider=…, on=…)` | `LoadReport` |
+| `report.reports_load` | `bool` — **read this first** |
+| `report.models` | `tuple[Model, ...]` — usable, least loaded first |
+| `report.least_loaded` | `Model \| None` |
+| `report.retired` | `tuple[str, ...]` — ids past their `shutdown_date` |
+| `report.total` | `int` — everything the provider listed |
+| `report.summary()` | `str` — one line per model, for a start-up log |
+| `load_report(models, provider, day)` | the same, from a list you already have |
+| `BildungsAPI(models_cache_seconds=CACHE_FOREVER)` | ask once, never again |
+| `BildungsAPI(models_cache_seconds=0)` | ask every time |
+| `BildungsAPI(retries_before_switching=1)` | retries per candidate before moving on |
+
+```python
+api = BildungsAPI.from_env(models_cache_seconds=CACHE_FOREVER)
+print((await api.load()).summary())
+# academiccloud: 15 of 15 usable, load reported
+#   demand=  0  gemma-4-31b-it
+#   demand=  0  qwen3.5-122b-a10b
+#   demand=  4  glm-4.7
+#   demand= 23  qwen3.8-27b
+```
+
+**`CACHE_FOREVER` is right for a script and wrong for a service.** A process
+that runs for a minute should ask once. A process that runs for a day would
+then be choosing models on figures from hours ago — leave the 30 seconds
+alone there, or set your own.
+
+**`reports_load` first, always.** At OpenAI it is `false`: no load is reported
+at all, so the ranking is alphabetical and says nothing about queues.
+
+**Retrying versus switching.** A 503 is retryable, so without a limit the
+transport spent the full `max_retries` — roughly 17 s at the default backoff —
+on a busy model while another stood next to it. Now a candidate gets
+`retries_before_switching` retries (default 1) while another candidate remains;
+the **last** one keeps the full budget, because there is nothing to switch to.
+The knob only ever lowers the budget: `max_retries=0` still means one attempt
+each.
+
+A 429 is the case this cannot help. Measured, the AcademicCloud limits the key
+rather than the model, so the next candidate fails just as fast and the run
+ends at the last one, waiting as before.
+
 ### A virtual model — several ids under one name
 
 Only the AcademicCloud reports load, and it moves by the minute. Name two or

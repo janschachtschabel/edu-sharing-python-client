@@ -30,7 +30,8 @@ from datetime import date
 from typing import Any
 
 __all__ = [
-    "Model", "pick_model", "rank_models", "rank_among", "build_body", "read_answer",
+    "Model", "LoadReport", "load_report",
+    "pick_model", "rank_models", "rank_among", "build_body", "read_answer",
     "DEFAULT_EFFORT", "DEFAULT_VERBOSITY", "UNSET", "ReasoningParam",
     "reasoning_for_responses",
 ]
@@ -145,6 +146,58 @@ class Model:
             name=data.get("name"),
             shutdown_date=data.get("shutdown_date"),
         )
+
+
+@dataclass(frozen=True)
+class LoadReport:
+    """What the provider says about its models right now.
+
+    Meant to be asked once at start-up and printed or logged, so that whoever
+    reads the log later knows what the choice was made on.
+
+    **``reports_load`` first.** OpenAI reports no load at all -- there the
+    ranking below is alphabetical, not a statement about queues, and a caller
+    who reads it as one is misled. Only the AcademicCloud reports ``demand``,
+    measured 2026-08-31 between 0 and 23 across its 15 models.
+    """
+
+    provider: str
+    #: Usable text models, least loaded first.
+    models: tuple[Model, ...] = ()
+    #: Whether any model reported a load figure at all.
+    reports_load: bool = False
+    #: Ids the provider has announced an end for, as of the day asked about.
+    retired: tuple[str, ...] = ()
+    #: Every model the provider listed, including the unusable ones.
+    total: int = 0
+
+    @property
+    def least_loaded(self) -> Model | None:
+        """The model that would answer, or ``None`` when none can."""
+        return self.models[0] if self.models else None
+
+    def summary(self) -> str:
+        """One line per model, for a start-up log."""
+        kopf = (f"{self.provider}: {len(self.models)} of {self.total} usable, "
+                + ("load reported" if self.reports_load else "NO load reported"))
+        zeilen = [kopf]
+        for m in self.models:
+            last = "  -" if m.demand is None else f"{m.demand:>3}"
+            ende = "  retired" if m.id in self.retired else ""
+            zeilen.append(f"  demand={last}  {m.id}{ende}")
+        return "\n".join(zeilen)
+
+
+def load_report(models: list[Model], provider: str, day: date) -> LoadReport:
+    """Build the report from a model list. Pure, so it is testable."""
+    brauchbar = rank_models(models)
+    return LoadReport(
+        provider=provider,
+        models=tuple(brauchbar),
+        reports_load=any(m.demand is not None for m in models),
+        retired=tuple(m.id for m in models if m.is_retired_on(day)),
+        total=len(models),
+    )
 
 
 def rank_models(models: list[Model]) -> list[Model]:

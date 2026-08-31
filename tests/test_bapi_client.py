@@ -8,11 +8,12 @@ erst am Fehler.
 
 import asyncio
 import json
+from datetime import date
 
 import httpx
 import pytest
 
-from edusharing.bapi import BildungsAPI
+from edusharing.bapi import CACHE_FOREVER, BildungsAPI
 from edusharing.errors import EduSharingError
 
 #: Frei erfunden. Die Tests antworten ueber MockTransport; eine echte
@@ -452,3 +453,137 @@ async def test_ein_unbekannter_name_im_verbund_wird_gemeldet():
         with pytest.raises(EduSharingError) as info:
             await api.chat("x", model=["glm-4.7", "gibt-es-nicht"])
     assert "gibt-es-nicht" in str(info.value)
+
+
+# --- Wann die Auslastung abgefragt wird ------------------------------------
+#
+# ``demand`` bewegt sich im Minutentakt, also ist die Vorgabe ein kurzer Cache
+# (30 s). Wer ein kurzes Skript schreibt, will die Zahlen genau einmal holen;
+# wer einen langlaufenden Dienst schreibt, will sie nicht veralten lassen. Das
+# ist dieselbe Stellschraube, nur anders gestellt.
+
+async def test_cache_forever_fragt_die_modelle_genau_einmal():
+    aufrufe = []
+    async with _client(_router, aufrufe,
+                       models_cache_seconds=CACHE_FOREVER) as api:
+        await api.models()
+        await api.models()
+        await api.models()
+    assert sum(1 for r in aufrufe if r.url.path.endswith("/models")) == 1
+
+
+async def test_ohne_cache_wird_jedes_mal_gefragt():
+    aufrufe = []
+    async with _client(_router, aufrufe, models_cache_seconds=0) as api:
+        await api.models()
+        await api.models()
+    assert sum(1 for r in aufrufe if r.url.path.endswith("/models")) == 2
+
+
+# --- Der Auslastungsbericht ------------------------------------------------
+
+async def test_load_meldet_die_modelle_am_wenigsten_ausgelastet_zuerst():
+    async with _client(_router) as api:
+        bericht = await api.load()
+    assert [m.id for m in bericht.models] == ["qwen3.6-35b-a3b", "glm-4.7"]
+    assert bericht.least_loaded is not None
+    assert bericht.least_loaded.id == "qwen3.6-35b-a3b"
+    assert bericht.reports_load is True
+
+
+async def test_load_sagt_wenn_es_gar_keine_auslastung_gibt():
+    """Bei OpenAI ist ``demand`` nicht vorhanden -- dann ist der ganze Bericht
+    fuer die Lastfrage wertlos, und das muss dastehen."""
+    ohne = {"data": [{"id": "gpt-5.6-luna"}, {"id": "gpt-4o-mini"}]}
+
+    def handler(request):
+        if request.url.path.endswith("/models"):
+            return httpx.Response(200, json=ohne)
+        return httpx.Response(200, json=ANTWORT)
+
+    async with _client(handler) as api:
+        bericht = await api.load()
+    assert bericht.reports_load is False
+    assert "gpt-5.6-luna" in bericht.summary()
+
+
+async def test_der_bericht_nennt_abgekuendigte_modelle():
+    mit_datum = {"data": [{"id": "gpt-4", "shutdown_date": "2026-01-01"}]}
+
+    def handler(request):
+        return httpx.Response(200, json=mit_datum)
+
+    async with _client(handler) as api:
+        bericht = await api.load(on=date(2026, 6, 1))
+    assert bericht.retired == ("gpt-4",)
+    assert "gpt-4" in bericht.summary()
+
+
+# --- Wiederholen oder wechseln ---------------------------------------------
+#
+# Ein 503 ist wiederholbar, also versuchte der Transport dasselbe ausgelastete
+# Modell dreimal, bevor er wechselte -- bei backoff_base 2.5 rund 17 s, obwohl
+# ein anderes Modell danebenstand. Wer mehrere Modelle nennt, will wechseln.
+
+def _immer_503(aufrufe):
+    def handler(request):
+        aufrufe.append(request)
+        if request.url.path.endswith("/models"):
+            return httpx.Response(200, json=MODELLE)
+        return httpx.Response(503, json={"error": "Model pricing unavailable"})
+    return handler
+
+
+def _versuche_je_modell(aufrufe):
+    from collections import Counter
+    return Counter(json.loads(r.content)["model"] for r in aufrufe
+                   if not r.url.path.endswith("/models"))
+
+
+async def test_ein_kandidat_wird_einmal_wiederholt_dann_gewechselt():
+    aufrufe = []
+    async with _client(_immer_503(aufrufe), max_retries=3) as api:
+        with pytest.raises(EduSharingError):
+            await api.chat("x", model=["qwen3.6-35b-a3b", "glm-4.7"])
+    zaehler = _versuche_je_modell(aufrufe)
+    # Der erste: ein Versuch plus eine Wiederholung.
+    assert zaehler["qwen3.6-35b-a3b"] == 2
+    # Der letzte: das volle Budget, denn danach kommt nichts mehr.
+    assert zaehler["glm-4.7"] == 4
+
+
+async def test_das_budget_je_kandidat_ist_einstellbar():
+    aufrufe = []
+    async with _client(_immer_503(aufrufe), max_retries=3,
+                       retries_before_switching=0) as api:
+        with pytest.raises(EduSharingError):
+            await api.chat("x", model=["qwen3.6-35b-a3b", "glm-4.7"])
+    assert _versuche_je_modell(aufrufe)["qwen3.6-35b-a3b"] == 1
+
+
+async def test_ein_einzelnes_modell_behaelt_das_volle_budget():
+    """Ohne Alternative gibt es nichts zu wechseln -- warten ist alles."""
+    aufrufe = []
+    async with _client(_immer_503(aufrufe), max_retries=2) as api:
+        with pytest.raises(EduSharingError):
+            await api.chat("x", model="glm-4.7")
+    assert _versuche_je_modell(aufrufe)["glm-4.7"] == 3
+
+
+async def test_ein_verbund_probiert_alle_seine_mitglieder():
+    """Wer fuenf nennt, meint fuenf -- die Obergrenze gilt der automatischen
+    Wahl, nicht einer ausdruecklichen Aufzaehlung."""
+    viele = {"data": [{"id": f"m{i}", "demand": i, "status": "ready",
+                       "input": ["text"], "output": ["text"]} for i in range(5)]}
+    aufrufe = []
+
+    def handler(request):
+        aufrufe.append(request)
+        if request.url.path.endswith("/models"):
+            return httpx.Response(200, json=viele)
+        return httpx.Response(503, json={"error": "weg"})
+
+    async with _client(handler, max_retries=0) as api:
+        with pytest.raises(EduSharingError):
+            await api.chat("x", model=["m0", "m1", "m2", "m3", "m4"])
+    assert set(_versuche_je_modell(aufrufe)) == {"m0", "m1", "m2", "m3", "m4"}

@@ -56,6 +56,13 @@ and in [`docs/audits/`](docs/audits/).
   `gpt-4o-mini` answers 400, and the AcademicCloud accepts and ignores them.
   A default is dropped silently; **an explicit value raises instead of being
   dropped**.
+- **`BildungsAPI.load()`** — what the provider says about its models right now,
+  ranked, with `summary()` for a start-up log. **`reports_load` first**: at
+  OpenAI it is false, no load is reported at all, and the ranking is
+  alphabetical rather than a statement about queues.
+- **`CACHE_FOREVER`** as a model-cache lifetime — ask once and never again.
+  Right for a script, wrong for a service, which would then choose models on
+  figures from hours ago. The 30-second default stays.
 - **A virtual model** — `chat(model=["a", "b", "c"])`, or a name from
   `BildungsAPI(virtual_models={...})`. The least loaded of the named models
   answers, and the next one is tried if it does not. Only the AcademicCloud
@@ -133,6 +140,18 @@ and in [`docs/audits/`](docs/audits/).
   belong in published examples.
 
 ### Fixed
+
+- **A busy model no longer consumes the full retry budget while another model
+  is available.** A 503 is retryable, so the transport spent all
+  `max_retries` on it — roughly 17 s at the default backoff — with a second
+  candidate standing right next to it, which defeats the point of naming
+  several. A candidate now gets `retries_before_switching` retries (default 1)
+  while another remains; the last keeps the full budget, because there is
+  nothing left to switch to. The knob only lowers: `max_retries=0` still means
+  one attempt each. A 429 is the case it cannot help — the AcademicCloud
+  limits the key, not the model.
+- **A virtual model tries all its members.** The cap of three belongs to the
+  automatic choice, where the library is guessing; naming five means five.
 
 - A child object that could be created but then neither filled nor removed is
   now logged with its id. The caller receives the upload error, which does not

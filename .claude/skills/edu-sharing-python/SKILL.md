@@ -157,6 +157,7 @@ table.
 | ask a model | `BildungsAPI.chat(prompt)` |
 | ask through the responses route | `.respond(prompt, model=…)` → check `.truncated` |
 | the least loaded of several models | `.chat(prompt, model=["a", "b", "c"])` |
+| what the models look like right now | `.load()` → `.summary()` |
 | which models are there | `.models()` |
 | cheaper thinking (default) | nothing — `reasoning_effort` is already `low` |
 | more thinking | `.chat(prompt, reasoning_effort="high")` |
@@ -316,6 +317,34 @@ produced with it.
 A virtual model (`model=["a","b","c"]`, or a name from `virtual_models`) takes
 the least loaded of them. That is worth having at the AcademicCloud; at OpenAI
 it degenerates into a fallback chain in the order you wrote.
+
+### 4.11 Asking for load, and switching instead of waiting
+
+`demand` moves by the minute, so the model list is cached 30 seconds. Match
+that to how long your process lives:
+
+```python
+# A script that runs for a minute: ask once.
+api = BildungsAPI.from_env(models_cache_seconds=CACHE_FOREVER)
+print((await api.load()).summary())      # into the start-up log
+
+# A service that runs for a day: leave the 30 seconds alone. CACHE_FOREVER
+# would have it choosing models on figures from hours ago.
+```
+
+`load()` returns a `LoadReport`. **Read `reports_load` first** — at OpenAI it
+is `false`, no load is reported at all, and the ranking is alphabetical rather
+than a statement about queues.
+
+**Switching beats waiting while there is somewhere to switch to.** A 503 is
+retryable, so a busy model used to consume the full `max_retries` — roughly
+17 s at the default backoff — with another model standing right next to it.
+A candidate now gets `retries_before_switching` retries (default 1) while
+another remains; the last one keeps the full budget. `max_retries=0` still
+means exactly one attempt each: the knob only lowers.
+
+A 429 is the case this cannot help — the AcademicCloud limits the key, not the
+model, so the next candidate fails just as fast.
 
 ---
 
