@@ -42,7 +42,8 @@ returns; the sync one runs a loop in a thread for you.
 | `repo.url` | `str` — the instance, normalised |
 | `repo.credential` | `Credential` — what is being sent |
 | `repo.metadataset` | `str` — the metadata set in use, e.g. `"mds_oeh"` |
-| `repo.about()` | `About` — `repository_version`, `api_version`, `services`, `plugins` |
+| `repo.about()` | `About` |
+| `About` | `api_version`, `features`, `plugins`, `raw`, `renderservice_version`, `repository_version`, `services`, `themes_url` |
 | `repo.whoami()` | `Identity` — `authority`, `username`, `display_name`, `is_anonymous`, `home_folder` |
 | `repo.metadatasets()` | `list[MetadataSet]` |
 | `repo.resolve(prop, label)` | `str \| None` — a label's filter value, blocking |
@@ -362,6 +363,7 @@ system.
 | `node.unrate()` | `Rating` |
 | `rating_of(repo, node_id)` | `Rating \| None` |
 | `node.comments.list()` | `list[Comment]` |
+| `Comment` | `author`, `created`, `id`, `reply_to`, `text` |
 | `node.comments.add(text, reply_to=…)` | `Comment` |
 | `node.comments.edit(comment_id, text)` | `Comment` |
 | `node.comments.delete(comment_id)` | `None` |
@@ -386,6 +388,7 @@ comment.text               # "Passt zu Klasse 6."
 | Call | Result |
 |---|---|
 | `node.permissions.get()` | `Permissions` |
+| `Permissions` | `effective`, `inherited`, `inherits`, `is_public`, `own` |
 | `node.permissions.grant(authority, "Read", authority_type=…)` | `bool` |
 | `node.permissions.revoke(authority, "Read")` | `bool` |
 | `node.permissions.publish()` | `bool` — readable without login |
@@ -423,6 +426,7 @@ this one keeps the other entries and the permissions the authority already had.
 | Call | Result |
 |---|---|
 | `repo.people.memberships()` | `list[Group]` — the groups you are in |
+| `Group` | `display_name`, `name`, `raw`, `short_name`, `signup`, `type` |
 | `repo.people.group(name)` | `Group` |
 | `repo.people.members(group, limit=…, offset=…)` | `list[Member]` |
 | `repo.people.create_group(name, display_name=…, type=…, parent=…)` | `Group` |
@@ -452,6 +456,7 @@ group without saying so.
 | Call | Result |
 |---|---|
 | `repo.relations.of(node_id)` | `list[Relation]` |
+| `Relation` | `ai_generated`, `approved`, `created_at`, `created_by`, `from_id`, `from_title`, `metadata`, `raw`, `to_id`, `to_title`, `type` |
 | `repo.relations.create(from_id, "isPartOf", to_id, ai_generated=…)` | `None` |
 | `repo.relations.approve(from_id, "isPartOf", to_id)` | `None` |
 | `repo.relations.delete(from_id, "isPartOf", to_id)` | `None` |
@@ -479,10 +484,12 @@ itself is made.
 | Call | Result |
 |---|---|
 | `node.suggestions.list()` | `list[Suggestion]` |
+| `Suggestion` | `author`, `confidence`, `id`, `property`, `status`, `value`, `why` |
 | `node.suggestions.propose(property, value, reason, confidence=…, batch=…)` | `Suggestion` |
 | `node.suggestions.decide(ids, accept=True)` | `None` |
 | `PROPOSAL_BATCH` | the default batch name |
 | `node.workflow.history()` | `list[WorkflowStep]` |
+| `WorkflowStep` | `at`, `comment`, `editor`, `receivers`, `status` |
 | `node.workflow.submit(receiver, status, comment="")` | `WorkflowStep` |
 
 ```python
@@ -510,13 +517,17 @@ A collection may carry a landing page built from swimlanes and widgets.
 | Call | Result |
 |---|---|
 | `node.page.get()` | `CuratedPage \| None` |
+| `CuratedPage` | `by_position`, `collection_id`, `document`, `folder_id`, `rendered`, `rendered_id`, `variants` |
 | `node.page.render(variant_id)` | `CuratedPage` |
 | `page.rendered` | `PageVariant \| None` — the one that is live |
+| `PageVariant` | `education_levels`, `educational_contexts`, `id`, `intention`, `is_template`, `node_ids`, `readable`, `swimlanes`, `target_group`, `title` |
 | `page.variant(variant_id)` | `PageVariant \| None` |
 | `page.by_position` | `bool` |
 | `variant.node_ids` | `tuple[str, ...]` |
 | `variant_from_node(body)` | `PageVariant` |
 | `Swimlane` / `SwimlaneItem` | one row, and one widget in it |
+| `Swimlane` | `heading`, `items`, `type` |
+| `SwimlaneItem` | `node_id`, `widget` |
 | `PAGE_CONFIG` `VARIANT_CONFIG` `PAGE_REF` | the property names behind all this |
 | `DEFAULT_MAX_WIDGETS` | how many widgets a page flow resolves at most |
 
@@ -730,6 +741,7 @@ These are exported for anyone building their own flow.
 | `RELATED_ON` | the fields `related()` compares by default |
 | `hit_as_dict(hit, aliases)` / `result_as_dict(result, …)` | the JSON shape used everywhere |
 | `expand_query(text, profile=GERMAN)` | `list[QueryVariant]` — rephrasings for reranking |
+| `QueryVariant` | `label`, `text`, `weight` |
 | `MAX_VARIANTS` | how many at most |
 | `search_reranked(repo, text, pool=…)` | the pooled, re-scored search |
 | `DEFAULT_POOL` | how many candidates it pools |
@@ -739,6 +751,7 @@ These are exported for anyone building their own flow.
 | `name_from_title(title)` | a filesystem-safe node name |
 | `resolve_vocabulary(repo, field, value)` | label → URI, with suggestions on failure |
 | `LanguageProfile` / `GERMAN` | stopwords and framing words; German is the only profile shipped |
+| `LanguageProfile` | `framing`, `stopwords`, `synonyms` |
 
 ```python
 from edusharing import GERMAN
@@ -765,11 +778,14 @@ sending your data to a host nobody chose.
 | `BildungsAPI(base_url=…, api_key=…)` | the client |
 | `BildungsAPI.from_env()` | needs `B_API_BASE_URL` **and** `B_API_KEY` |
 | `api.models(provider=…)` | `list[Model]` — cached briefly |
+| `Model` | `can_chat`, `demand`, `id`, `input`, `is_ready`, `name`, `output`, `owned_by`, `shutdown_date`, `status` |
 | `api.chat(prompt, model=…, system=…, max_tokens=…, thinking=…)` | `str` |
 | `api.chat(…, reasoning_effort="high", verbosity="low")` | `str` — see below |
 | `api.embeddings(texts, model=…)` | `list[list[float]]`, ordered by `index` |
 | `api.moderate(texts, model=…)` | `list[Moderation]` |
+| `Moderation` | `categories`, `flagged`, `raw`, `scores` |
 | `api.images(prompt, model=…, n=…, size=…)` | `list[GeneratedImage]` |
+| `GeneratedImage` | `b64`, `revised_prompt`, `url` |
 | `api.call(route, body, provider=…)` | the raw JSON of any forwarded route |
 | `api.aclose()` | give the connection back |
 
@@ -991,7 +1007,7 @@ Model choice, when you do not pass one:
 
 | Name | Does |
 |---|---|
-| `Model` | `id`, `owned_by`, `is_ready`, `can_chat`, `Model.from_response(body)` |
+| `Model.from_response(body)` | one model from a raw entry — fields above |
 | `rank_models(models)` | least loaded first |
 | `pick_model(models, prefer=…)` | the one to use |
 | `build_body(...)` / `read_answer(response)` | request body and answer text |
@@ -1005,6 +1021,7 @@ Model choice, when you do not pass one:
 | `TextExtraction.from_env()` | needs `EDU_SHARING_TEXT_EXTRACTION_URL` |
 | `service.ping()` | `dict` — the service's own health answer |
 | `service.text_of(url, method=…, output_format=…, lang=…, max_chars=…)` | `ExtractedText` — `text`, `lang`, `status`, `char_count`, `truncated`, `reason` |
+| `ExtractedText` | `char_count`, `detail`, `lang`, `reason`, `status`, `text`, `truncated`, `url` |
 | `METHODS` | `("simple", "browser")` |
 
 ```python
@@ -1034,8 +1051,10 @@ runtime.
 | `MetadataAgent(base_url=…)` | the client |
 | `MetadataAgent.from_env()` | needs `METADATA_AGENT_URL` |
 | `agent.content_types(context=…, version=…)` | `list[ContentType]` — cached per context |
+| `ContentType` | `icon`, `label`, `raw`, `schema_file`, `uri` |
 | `agent.content_type_for(uri)` | `ContentType \| None` |
 | `agent.schemas(context=…, version=…)` | `list[SchemaInfo]` |
+| `SchemaInfo` | `field_count`, `file`, `groups`, `profile_id`, `raw` |
 | `agent.schema(file, context=…, version=…)` | `dict` — unshaped, as delivered |
 | `agent.clear_cache()` | forget the mapping |
 | `TYPE_FIELD` `CORE_SCHEMA` `DEFAULT_CONTEXT` `DEFAULT_VERSION` | the names behind it |
@@ -1072,6 +1091,7 @@ to a network by itself.
 | Call | Result |
 |---|---|
 | `plan_update(node, title=…, subject=…)` | `ChangePlan` |
+| `ChangePlan` | `can_write`, `changes`, `has_changes`, `node`, `unchanged` |
 | `plan.has_changes` | `bool` |
 | `plan.can_write` | `bool` |
 | `plan.describe()` | `str` — old → new, for a human to read |

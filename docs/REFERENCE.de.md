@@ -45,7 +45,8 @@ Ereignisschleife in einem Thread für Sie.
 | `repo.url` | `str` — die Instanz, normalisiert |
 | `repo.credential` | `Credential` — was gesendet wird |
 | `repo.metadataset` | `str` — der genutzte Metadatensatz, z. B. `"mds_oeh"` |
-| `repo.about()` | `About` — `repository_version`, `api_version`, `services`, `plugins` |
+| `repo.about()` | `About` |
+| `About` | `api_version`, `features`, `plugins`, `raw`, `renderservice_version`, `repository_version`, `services`, `themes_url` |
 | `repo.whoami()` | `Identity` — `authority`, `username`, `display_name`, `is_anonymous`, `home_folder` |
 | `repo.metadatasets()` | `list[MetadataSet]` |
 | `repo.resolve(prop, label)` | `str \| None` — der Filterwert zu einem Label, blockierend |
@@ -370,6 +371,7 @@ Systems keine Sammlung.
 | `node.unrate()` | `Rating` |
 | `rating_of(repo, node_id)` | `Rating \| None` |
 | `node.comments.list()` | `list[Comment]` |
+| `Comment` | `author`, `created`, `id`, `reply_to`, `text` |
 | `node.comments.add(text, reply_to=…)` | `Comment` |
 | `node.comments.edit(comment_id, text)` | `Comment` |
 | `node.comments.delete(comment_id)` | `None` |
@@ -394,6 +396,7 @@ comment.text               # "Passt zu Klasse 6."
 | Aufruf | Ergebnis |
 |---|---|
 | `node.permissions.get()` | `Permissions` |
+| `Permissions` | `effective`, `inherited`, `inherits`, `is_public`, `own` |
 | `node.permissions.grant(authority, "Read", authority_type=…)` | `bool` |
 | `node.permissions.revoke(authority, "Read")` | `bool` |
 | `node.permissions.publish()` | `bool` — ohne Anmeldung lesbar |
@@ -432,6 +435,7 @@ README-Abschnitt *Veröffentlichen*.
 | Aufruf | Ergebnis |
 |---|---|
 | `repo.people.memberships()` | `list[Group]` — Ihre Gruppen |
+| `Group` | `display_name`, `name`, `raw`, `short_name`, `signup`, `type` |
 | `repo.people.group(name)` | `Group` |
 | `repo.people.members(group, limit=…, offset=…)` | `list[Member]` |
 | `repo.people.create_group(name, display_name=…, type=…, parent=…)` | `Group` |
@@ -461,6 +465,7 @@ größere Gruppe, ohne es zu sagen.
 | Aufruf | Ergebnis |
 |---|---|
 | `repo.relations.of(node_id)` | `list[Relation]` |
+| `Relation` | `ai_generated`, `approved`, `created_at`, `created_by`, `from_id`, `from_title`, `metadata`, `raw`, `to_id`, `to_title`, `type` |
 | `repo.relations.create(from_id, "isPartOf", to_id, ai_generated=…)` | `None` |
 | `repo.relations.approve(from_id, "isPartOf", to_id)` | `None` |
 | `repo.relations.delete(from_id, "isPartOf", to_id)` | `None` |
@@ -488,10 +493,12 @@ Verknüpfung selbst entsteht.
 | Aufruf | Ergebnis |
 |---|---|
 | `node.suggestions.list()` | `list[Suggestion]` |
+| `Suggestion` | `author`, `confidence`, `id`, `property`, `status`, `value`, `why` |
 | `node.suggestions.propose(property, value, reason, confidence=…, batch=…)` | `Suggestion` |
 | `node.suggestions.decide(ids, accept=True)` | `None` |
 | `PROPOSAL_BATCH` | der voreingestellte Stapelname |
 | `node.workflow.history()` | `list[WorkflowStep]` |
+| `WorkflowStep` | `at`, `comment`, `editor`, `receivers`, `status` |
 | `node.workflow.submit(receiver, status, comment="")` | `WorkflowStep` |
 
 ```python
@@ -520,13 +527,17 @@ Eine Sammlung kann eine Landeseite tragen, gebaut aus Bahnen und Widgets.
 | Aufruf | Ergebnis |
 |---|---|
 | `node.page.get()` | `CuratedPage \| None` |
+| `CuratedPage` | `by_position`, `collection_id`, `document`, `folder_id`, `rendered`, `rendered_id`, `variants` |
 | `node.page.render(variant_id)` | `CuratedPage` |
 | `page.rendered` | `PageVariant \| None` — die aktive |
+| `PageVariant` | `education_levels`, `educational_contexts`, `id`, `intention`, `is_template`, `node_ids`, `readable`, `swimlanes`, `target_group`, `title` |
 | `page.variant(variant_id)` | `PageVariant \| None` |
 | `page.by_position` | `bool` |
 | `variant.node_ids` | `tuple[str, ...]` |
 | `variant_from_node(body)` | `PageVariant` |
 | `Swimlane` / `SwimlaneItem` | eine Bahn, und ein Widget darin |
+| `Swimlane` | `heading`, `items`, `type` |
+| `SwimlaneItem` | `node_id`, `widget` |
 | `PAGE_CONFIG` `VARIANT_CONFIG` `PAGE_REF` | die Eigenschaftsnamen dahinter |
 | `DEFAULT_MAX_WIDGETS` | wie viele Widgets ein Seitenablauf höchstens auflöst |
 
@@ -743,6 +754,7 @@ Diese sind für alle da, die sich einen eigenen Ablauf bauen.
 | `RELATED_ON` | die Felder, nach denen `related()` standardmäßig vergleicht |
 | `hit_as_dict(hit, aliases)` / `result_as_dict(result, …)` | die überall genutzte JSON-Form |
 | `expand_query(text, profile=GERMAN)` | `list[QueryVariant]` — Umformulierungen fürs Umsortieren |
+| `QueryVariant` | `label`, `text`, `weight` |
 | `MAX_VARIANTS` | wie viele höchstens |
 | `search_reranked(repo, text, pool=…)` | die gepoolte, neu bewertete Suche |
 | `DEFAULT_POOL` | wie viele Kandidaten sie sammelt |
@@ -752,6 +764,7 @@ Diese sind für alle da, die sich einen eigenen Ablauf bauen.
 | `name_from_title(title)` | ein dateisystemtauglicher Knotenname |
 | `resolve_vocabulary(repo, field, value)` | Label → URI, mit Vorschlägen bei Fehlschlag |
 | `LanguageProfile` / `GERMAN` | Stoppwörter und Rahmenwörter; Deutsch ist das einzige mitgelieferte Profil |
+| `LanguageProfile` | `framing`, `stopwords`, `synonyms` |
 
 ```python
 from edusharing import GERMAN
@@ -778,11 +791,14 @@ Daten an einen Host zu schicken, den niemand gewählt hat.
 | `BildungsAPI(base_url=…, api_key=…)` | der Client |
 | `BildungsAPI.from_env()` | braucht `B_API_BASE_URL` **und** `B_API_KEY` |
 | `api.models(provider=…)` | `list[Model]` — kurz gemerkt |
+| `Model` | `can_chat`, `demand`, `id`, `input`, `is_ready`, `name`, `output`, `owned_by`, `shutdown_date`, `status` |
 | `api.chat(prompt, model=…, system=…, max_tokens=…, thinking=…)` | `str` |
 | `api.chat(…, reasoning_effort="high", verbosity="low")` | `str` — siehe unten |
 | `api.embeddings(texts, model=…)` | `list[list[float]]`, nach `index` sortiert |
 | `api.moderate(texts, model=…)` | `list[Moderation]` |
+| `Moderation` | `categories`, `flagged`, `raw`, `scores` |
 | `api.images(prompt, model=…, n=…, size=…)` | `list[GeneratedImage]` |
+| `GeneratedImage` | `b64`, `revised_prompt`, `url` |
 | `api.call(route, body, provider=…)` | das rohe JSON jeder durchgereichten Route |
 | `api.aclose()` | die Verbindung zurückgeben |
 
@@ -1010,7 +1026,7 @@ Modellwahl, wenn Sie keines übergeben:
 
 | Name | Tut |
 |---|---|
-| `Model` | `id`, `owned_by`, `is_ready`, `can_chat`, `Model.from_response(body)` |
+| `Model.from_response(body)` | ein Modell aus einem rohen Eintrag — Felder oben |
 | `rank_models(models)` | am wenigsten ausgelastet zuerst |
 | `pick_model(models, prefer=…)` | das zu nehmende |
 | `build_body(...)` / `read_answer(response)` | Anfragerumpf und Antworttext |
@@ -1024,6 +1040,7 @@ Modellwahl, wenn Sie keines übergeben:
 | `TextExtraction.from_env()` | braucht `EDU_SHARING_TEXT_EXTRACTION_URL` |
 | `service.ping()` | `dict` — die Gesundheitsantwort des Dienstes |
 | `service.text_of(url, method=…, output_format=…, lang=…, max_chars=…)` | `ExtractedText` — `text`, `lang`, `status`, `char_count`, `truncated`, `reason` |
+| `ExtractedText` | `char_count`, `detail`, `lang`, `reason`, `status`, `text`, `truncated`, `url` |
 | `METHODS` | `("simple", "browser")` |
 
 ```python
@@ -1054,8 +1071,10 @@ Dienst, und nur zur Laufzeit.
 | `MetadataAgent(base_url=…)` | der Client |
 | `MetadataAgent.from_env()` | braucht `METADATA_AGENT_URL` |
 | `agent.content_types(context=…, version=…)` | `list[ContentType]` — je Kontext gemerkt |
+| `ContentType` | `icon`, `label`, `raw`, `schema_file`, `uri` |
 | `agent.content_type_for(uri)` | `ContentType \| None` |
 | `agent.schemas(context=…, version=…)` | `list[SchemaInfo]` |
+| `SchemaInfo` | `field_count`, `file`, `groups`, `profile_id`, `raw` |
 | `agent.schema(file, context=…, version=…)` | `dict` — ungeformt, wie geliefert |
 | `agent.clear_cache()` | die Zuordnung vergessen |
 | `TYPE_FIELD` `CORE_SCHEMA` `DEFAULT_CONTEXT` `DEFAULT_VERSION` | die Namen dahinter |
@@ -1092,6 +1111,7 @@ Nichts davon spricht von sich aus mit einem Netz.
 | Aufruf | Ergebnis |
 |---|---|
 | `plan_update(node, title=…, subject=…)` | `ChangePlan` |
+| `ChangePlan` | `can_write`, `changes`, `has_changes`, `node`, `unchanged` |
 | `plan.has_changes` | `bool` |
 | `plan.can_write` | `bool` |
 | `plan.describe()` | `str` — alt → neu, zum Lesen für einen Menschen |

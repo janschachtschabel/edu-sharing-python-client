@@ -605,3 +605,41 @@ def test_jeder_dokumentierte_repository_aufruf_nennt_echte_parameter():
                 stelle += 1
 
     assert not falsch, "\n  " + "\n  ".join(falsch)
+
+
+# --- Und stehen die Felder der Objekte drin? ------------------------------
+#
+# ``test_jeder_oeffentliche_name_steht_in_beiden_referenzen`` misst gegen
+# ``__all__`` -- also gegen Klassen und Funktionen, nicht gegen die Felder,
+# die eine Klasse traegt. Darum fehlten ``Swimlane.heading``, ``Group.signup``,
+# ``Relation.created_by`` und 36 weitere in der Referenz, obwohl sie als
+# vollstaendig galt. Wer ein Objekt zurueckbekommt, muss nachlesen koennen,
+# was darauf ist; sonst raet er, und Raten erfindet Feldnamen.
+
+
+def felder_der_klassen() -> dict[str, list[str]]:
+    """Jedes oeffentliche Feld jeder oeffentlichen Klasse."""
+    gefunden: dict[str, list[str]] = {}
+    for name, klasse in sorted(_klassen_der_bibliothek().items()):
+        felder = set(getattr(klasse, "__annotations__", {}))
+        felder |= {n for n, wert in vars(klasse).items() if isinstance(wert, property)}
+        offen = sorted(f for f in felder if not f.startswith("_"))
+        if offen:
+            gefunden[name] = offen
+    return gefunden
+
+
+@pytest.mark.parametrize("datei", sorted(REFERENZEN))
+def test_jedes_feld_jeder_klasse_steht_in_der_referenz(datei):
+    """Wer ein Objekt zurueckgibt, dokumentiert, was darauf ist."""
+    felder = felder_der_klassen()
+    assert len(felder) >= 25, f"die Klassen wurden nicht gefunden: {len(felder)}"
+
+    geschrieben = _in_code_geschrieben(REFERENZEN[datei].read_text(encoding="utf-8"))
+    fehlend = [(kl, [f for f in fs if f not in geschrieben])
+               for kl, fs in felder.items()]
+    fehlend = [(kl, fs) for kl, fs in fehlend if fs]
+    anzahl = sum(len(fs) for _, fs in fehlend)
+    assert not fehlend, (
+        f"{datei}: {anzahl} Felder aus {len(fehlend)} Klassen fehlen:\n  "
+        + "\n  ".join(f"{kl}: {', '.join(fs)}" for kl, fs in fehlend))
