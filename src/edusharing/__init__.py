@@ -33,6 +33,9 @@ their own because they have an address of their own, and a connection to a
 repository says nothing about whether they exist.
 """
 
+from importlib.metadata import PackageNotFoundError as _PackageNotFound
+from importlib.metadata import version as _metadata_version
+
 from .auth import ANONYMOUS, AnonymousCredential, BasicCredential, Credential
 from .content import NodeContent
 from .errors import (
@@ -54,7 +57,17 @@ from .results import Facet, FacetValue, SearchHit, SearchResult, UnresolvedFilte
 from .search import STANDARD_FIELD_ALIASES
 from .vocab import Vocabulary, VocabularyValue
 
+#: The installed version. Read from the package metadata rather than written
+#: here: two copies of the same number drift, and the wrong one only surfaces
+#: when somebody quotes it in a bug report. ``"0+unknown"`` when the package is
+#: not installed at all -- running straight from a source tree.
+try:
+    __version__ = _metadata_version("edu-sharing-python-client")
+except _PackageNotFound:  # pragma: no cover - only without an install
+    __version__ = "0+unknown"
+
 __all__ = [
+    "__version__",
     # Entry point
     "Repository",
     "AsyncRepository",

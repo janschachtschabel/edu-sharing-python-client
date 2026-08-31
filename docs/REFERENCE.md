@@ -35,6 +35,7 @@ returns; the sync one runs a loop in a thread for you.
 
 | Call | Result |
 |---|---|
+| `edusharing.__version__` | `str` — `"0.0.1"`, read from the package metadata |
 | `Repository(url, auth=(user, password))` | the connection |
 | `Repository.from_env()` | reads `EDU_SHARING_URL`, `EDU_SHARING_USER`, `EDU_SHARING_PASSWORD` |
 | `AsyncRepository(url, ...)` | the same, `async` |

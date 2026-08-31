@@ -4,15 +4,22 @@ All notable changes to this project are recorded here, following
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follow
 [Semantic Versioning](https://semver.org/).
 
-Nothing has been released yet: the project sits at `0.0.0` and is not on PyPI.
-Until a first release, breaking changes carry no migration burden — they are
-recorded anyway, because the habit has to exist before it is needed.
+Not on PyPI. `0.0.1` is the first tagged version: everything below was built
+before it, and the number exists so that what comes next has something to be
+compared against. The leading zeros are honest — the surface may still move.
 
 Every entry that names a number was measured. Where a change came from a
 measurement against a live instance, the date and the instance are in the code
 and in [`docs/audits/`](docs/audits/).
 
 ## [Unreleased]
+
+Nothing yet.
+
+## [0.0.1] — 2026-08-31
+
+First numbered version. Reading, writing, twenty flows, three neighbouring
+services; 1093 offline tests and 93 live ones against edu-sharing 11.0.
 
 ### Added
 

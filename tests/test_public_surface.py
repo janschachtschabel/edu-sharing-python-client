@@ -24,3 +24,29 @@ def test_kein_name_steht_doppelt():
     doppelt = sorted({n for n in edusharing.__all__
                       if edusharing.__all__.count(n) > 1})
     assert not doppelt, f"mehrfach in __all__: {doppelt}"
+
+
+def test_die_version_ist_abfragbar():
+    """``import edusharing`` heisst, das Paket heisst anders.
+
+    Die Distribution ist ``edu-sharing-python-client``, der Import
+    ``edusharing`` -- wer einen Fehler meldet, kann die Version sonst nicht
+    ohne Umweg nennen.
+    """
+    from importlib.metadata import version
+
+    assert isinstance(edusharing.__version__, str)
+    assert edusharing.__version__ == version("edu-sharing-python-client")
+
+
+def test_die_version_steht_nicht_zweimal_im_quelltext():
+    """Sie kommt aus den Paketdaten, nicht aus einer zweiten Kopie.
+
+    Zwei Stellen mit derselben Zahl driften auseinander -- und die falsche
+    faellt erst auf, wenn jemand sie in einer Fehlermeldung liest.
+    """
+    from pathlib import Path
+
+    quelle = (Path(edusharing.__file__).parent / "__init__.py").read_text(
+        encoding="utf-8")
+    assert edusharing.__version__ not in quelle
