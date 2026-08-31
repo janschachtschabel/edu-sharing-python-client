@@ -954,6 +954,8 @@ wird:
 | [`14_flow_page.py`](docs/examples/14_flow_page.py) | die kuratierte Seite einer Sammlung lesen, samt Widgets — und dieselbe Seite als Objekte |
 | [`17_flow_belonging.py`](docs/examples/17_flow_belonging.py) | die drei Arten von Zugehörigkeit: Sammlung, Serienobjekt, Beziehung |
 | [`18_video_recommendation.py`](docs/examples/18_video_recommendation.py) | zehn Videos zu einem Thema, umsortiert, dann empfiehlt ein Modell eines |
+| [`19_collection_audit.py`](docs/examples/19_collection_audit.py) | eine Sammlung prüfen — und warum ein leerer `path` nicht „nirgends“ heißt |
+| [`20_provider_load.py`](docs/examples/20_provider_load.py) | welches Modell antworten soll, und woran man das misst - Auslastung, Verbünde, Verweigerung |
 
 **Beide Ebenen nebeneinander:**
 

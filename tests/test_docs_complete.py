@@ -52,7 +52,17 @@ def oeffentliche_namen() -> dict[str, str]:
         baum = ast.parse(pfad.read_text(encoding="utf-8"), filename=str(pfad))
         exportiert = _aus_all(baum)
         herkunft = pfad.relative_to(QUELLE).as_posix()
+        # Auch die Rumpfe von try/except auf oberster Ebene: ``__version__``
+        # wird dort zugewiesen, fuer den Fall ohne Installation. Wer nur
+        # ``baum.body`` liest, hat genau dort einen blinden Fleck.
+        oberste: list[ast.stmt] = []
         for knoten in baum.body:
+            oberste.append(knoten)
+            if isinstance(knoten, ast.Try):
+                oberste.extend(knoten.body)
+                for behandler in knoten.handlers:
+                    oberste.extend(behandler.body)
+        for knoten in oberste:
             if isinstance(knoten, ast.ClassDef) and knoten.name in exportiert:
                 gefunden.setdefault(knoten.name, herkunft)
                 for eintrag in knoten.body:
@@ -373,3 +383,15 @@ def test_jeder_ablauf_nennt_jeden_schluessel_den_er_liefert():
                 fehlend.append(f"{pfad.name}:{knoten.name} liefert auch {offen}")
 
     assert not fehlend, "\n  " + "\n  ".join(fehlend)
+
+
+def test_der_waechter_sieht_auch_zuweisungen_in_einem_try_block():
+    """Sonst hat er einen blinden Fleck, und der ist am 31.08.2026 aufgefallen.
+
+    ``__version__`` wird in einem ``try``/``except`` zugewiesen -- fuer den
+    Fall, dass das Paket gar nicht installiert ist. Der Waechter las nur
+    ``baum.body`` und sah die Zuweisung deshalb nicht; der Eintrag in der
+    Referenz musste von Hand geschrieben werden, und ein naechster Name an
+    derselben Stelle waere still durchgerutscht.
+    """
+    assert "__version__" in oeffentliche_namen()

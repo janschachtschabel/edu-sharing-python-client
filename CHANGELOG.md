@@ -39,7 +39,7 @@ services; 1095 offline tests and 94 live ones against edu-sharing 11.0.
   URI or label depending on what you held.
 - **`LanguageProfile` and `GERMAN`** are importable from `edusharing` directly.
   `GERMAN` was bound but never declared in `flows.__all__`.
-- **The 18 examples run as test cases** (`pytest -m live` / `-m write`). An
+- **The 20 examples run as test cases** (`pytest -m live` / `-m write`). An
   example is executable documentation, and documentation nobody executes rots.
 - **`docs/REFERENCE.md` and `docs/REFERENCE.de.md`** — every public name, the
   call that uses it, and the shape that comes back, with real outputs. 266
@@ -49,6 +49,14 @@ services; 1095 offline tests and 94 live ones against edu-sharing 11.0.
   (`remove_from_collection`, `remove_keywords`, `collections.remove`,
   `vocab.suggest`, `models()`, `ping()`, `schemas()`, `ChangePlan`,
   `format_hit`, `check_url`) and six wrong field names in the first draft.
+- **`docs/examples/19_collection_audit.py`** — audit a collection, and the
+  section that matters: an empty `path` is not "sits nowhere". The obvious
+  script printed exactly that wrong conclusion; `placement.failed` is what
+  tells a refusal from an absence. Measured: signing in does not lift this
+  particular refusal.
+- **`docs/examples/20_provider_load.py`** — which model should answer, and on
+  what basis. `load()`, a virtual model, and OpenAI's refusal side by side.
+  Written to keep the `babbage-002` bug fixed.
 - **`docs/examples/18_video_recommendation.py`** — the ten best videos on a
   topic, filtered by content type, reranked, as a table, then a model on the
   gateway recommends one. The titles go through `as_untrusted` before they
@@ -152,6 +160,14 @@ services; 1095 offline tests and 94 live ones against edu-sharing 11.0.
   belong in published examples.
 
 ### Fixed
+
+- **An automatically chosen model that the provider has retired is now logged.**
+  19 of OpenAI's 132 were already past their date on 2026-08-31. They are not
+  excluded — they still answer, and a caller who names one means it — but when
+  the *library* chooses, nobody else is in a position to notice.
+- The documentation guard read only top-level assignments and so could not see
+  `__version__`, which is assigned inside a `try` for the not-installed case.
+  It now reads `try` bodies too.
 
 - **Automatic model selection at OpenAI picked `babbage-002`.** OpenAI reports
   neither load nor output types for any of its 132 models, so every one counted

@@ -8,6 +8,7 @@ erst am Fehler.
 
 import asyncio
 import json
+import logging
 from datetime import date
 
 import httpx
@@ -672,3 +673,42 @@ async def test_chat_waehlt_weiter_wo_es_eine_grundlage_gibt():
     async with _client(_router) as api:
         await api.chat("x")
     assert api.last_model == "qwen3.6-35b-a3b"
+
+
+# --- Abgekuendigte Modelle in der Wahl -------------------------------------
+#
+# Gemessen am 31.08.2026: 19 der 132 OpenAI-Modelle waren an dem Tag bereits
+# ueber ihr shutdown_date hinaus und standen weiter in der Liste. Sie
+# auszuschliessen waere falsch -- sie antworten noch, und wer eines
+# ausdruecklich nennt, meint es. Aber wenn die BIBLIOTHEK eines waehlt, muss
+# das jemand erfahren koennen.
+
+MIT_ABKUENDIGUNG = {"data": [
+    {"id": "alt-aber-frei", "demand": 0, "status": "ready",
+     "input": ["text"], "output": ["text"], "shutdown_date": "2020-01-01"},
+    {"id": "neu-aber-voll", "demand": 5, "status": "ready",
+     "input": ["text"], "output": ["text"]},
+]}
+
+
+async def test_eine_automatische_wahl_meldet_ein_abgekuendigtes_modell(caplog):
+    caplog.set_level(logging.WARNING, logger="edusharing")
+
+    def handler(request):
+        if request.url.path.endswith("/models"):
+            return httpx.Response(200, json=MIT_ABKUENDIGUNG)
+        return httpx.Response(200, json=ANTWORT)
+
+    async with _client(handler) as api:
+        await api.chat("x")
+
+    assert api.last_model == "alt-aber-frei", "die Wahl bleibt die Wahl"
+    meldungen = [r.getMessage() for r in caplog.records]
+    assert any("alt-aber-frei" in m and "2020-01-01" in m for m in meldungen), meldungen
+
+
+async def test_ein_lebendes_modell_wird_nicht_gemeldet(caplog):
+    caplog.set_level(logging.WARNING, logger="edusharing")
+    async with _client(_router) as api:
+        await api.chat("x")
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]

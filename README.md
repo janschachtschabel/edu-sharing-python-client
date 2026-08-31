@@ -930,6 +930,8 @@ them:
 | [`14_flow_page.py`](docs/examples/14_flow_page.py) | read the curated page a collection renders, widgets and all — then the same page as objects |
 | [`17_flow_belonging.py`](docs/examples/17_flow_belonging.py) | the three kinds of belonging: collection, child object, relation |
 | [`18_video_recommendation.py`](docs/examples/18_video_recommendation.py) | ten videos on a topic, reranked, then a model recommends one |
+| [`19_collection_audit.py`](docs/examples/19_collection_audit.py) | audit a collection - and why an empty `path` is not `nowhere` |
+| [`20_provider_load.py`](docs/examples/20_provider_load.py) | which model should answer, and on what basis - load, groups, and a refusal |
 
 **Both levels side by side:**
 

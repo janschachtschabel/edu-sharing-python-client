@@ -29,7 +29,7 @@ import asyncio
 import logging
 import os
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, date, datetime
 from typing import Any, Self
 
@@ -392,11 +392,27 @@ class BildungsAPI:
         versuche = candidates if gruppe is not None \
             else candidates[:DEFAULT_MODEL_ATTEMPTS]
 
+        return read_answer(await self._first_that_answers(versuche, path, body_for))
+
+    async def _first_that_answers(
+        self,
+        versuche: list[Model],
+        path: str,
+        body_for: Callable[[str], dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Try the candidates in order and return the first answer.
+
+        Switching beats waiting while another candidate remains: a 503 is
+        retryable, so without a cap the transport spent the full
+        ``max_retries`` on a busy model with a second one standing next to it.
+        The last candidate keeps the full budget -- there is nothing left to
+        switch to.
+
+        Raises:
+            EduSharingError: when none of them answered, naming each failure.
+        """
         failures: list[str] = []
         for nummer, candidate in enumerate(versuche):
-            # While another model is still available, switching beats waiting.
-            # The last one keeps the full budget -- there is nothing to switch
-            # to, so waiting is all there is.
             letzter = nummer == len(versuche) - 1
             # Nur senken, nie anheben: wer max_retries=0 setzt, will genau
             # einen Versuch je Modell -- auch beim ersten Kandidaten.
@@ -415,8 +431,16 @@ class BildungsAPI:
                     candidate.id, type(exc).__name__,
                 )
                 continue
+            if candidate.is_retired_on(datetime.now(UTC).date()):
+                # Not excluded: it still answers, and 19 of OpenAI's 132 were
+                # already past their date on 2026-08-31. But when the LIBRARY
+                # chose it, nobody else is in a position to notice.
+                logger.warning(
+                    "chose %s, which the provider retired on %s",
+                    candidate.id, candidate.shutdown_date,
+                )
             self.last_model = candidate.id
-            return read_answer(response)
+            return response
 
         raise EduSharingError(
             "None of the models tried answered. " + " | ".join(failures)

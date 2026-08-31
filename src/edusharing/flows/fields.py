@@ -43,6 +43,15 @@ async def resolve_vocabulary(
     Unresolvable values are NOT sent: a value the metadata set does not know is
     rejected by the repository or stored as an unusable string, and both are
     worse than a reported gap.
+
+    **One label, one value -- deliberately, and unlike the search.** Measured
+    2026-08-31, 25 subject labels sit in two vocabularies at once, once under
+    ``discipline`` and once under ``hochschulfaechersystematik``. Searching
+    filters on both (``Vocabulary.resolve_all``), because finding half the
+    material while looking like all of it is a wrong answer. Writing takes the
+    first, because writing both would *assert* both: tagging a year 6 worksheet
+    as a university subject is a claim, not a widening. A caller who wants the
+    other one passes its URI, which goes through untouched.
     """
     resolved: dict[str, list[str]] = {}
     unresolved: list[dict[str, Any]] = []
