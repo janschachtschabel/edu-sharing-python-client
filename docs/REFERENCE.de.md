@@ -776,6 +776,7 @@ Daten an einen Host zu schicken, den niemand gewählt hat.
 | `BildungsAPI.from_env()` | braucht `B_API_BASE_URL` **und** `B_API_KEY` |
 | `api.models(provider=…)` | `list[Model]` — kurz gemerkt |
 | `api.chat(prompt, model=…, system=…, max_tokens=…, thinking=…)` | `str` |
+| `api.chat(…, reasoning_effort="high", verbosity="low")` | `str` — siehe unten |
 | `api.embeddings(texts, model=…)` | `list[list[float]]`, nach `index` sortiert |
 | `api.moderate(texts, model=…)` | `list[Moderation]` |
 | `api.images(prompt, model=…, n=…, size=…)` | `list[GeneratedImage]` |
@@ -797,6 +798,41 @@ verdict.categories                        # {"hate": False, …}
 
 await api.call("responses", {"model": "…", "input": "…"})
 ```
+
+Aufwand und Ausführlichkeit, für die Familien, die sie annehmen:
+
+| Aufruf | Ergebnis |
+|---|---|
+| `api.chat(prompt)` | `reasoning_effort` und `verbosity` stehen auf `low` |
+| `DEFAULT_EFFORT` / `DEFAULT_VERBOSITY` | `"low"` — was die Vorgabe bedeutet |
+| `api.chat(prompt, reasoning_effort=None)` | gar nicht senden |
+| `api.chat(prompt, reasoning_effort="high")` | senden, oder Fehler wenn das Modell es nicht kann |
+| `UNSET` | die Marke für „die Bibliothek entscheidet"; selten selbst genannt |
+| `ReasoningParam` | der Typ des Parameters: `str \| _Vorgabe \| None` |
+| `model.shutdown_date` | `str \| None` — `"2026-10-23"`, oder `None` |
+| `model.is_retired_on(date(2026, 12, 1))` | `bool` |
+
+```python
+# gpt-5.6-luna verbrauchte ohne den Parameter 14 Denk-Tokens und mit "low"
+# null -- bei derselben Frage, gemessen am 31.08.2026.
+await api.chat("Fasse zusammen: …", model="gpt-5.6-luna")     # Aufwand low
+await api.chat("Denk gründlich nach.", model="gpt-5.6-luna",
+               reasoning_effort="high")                        # wird übernommen
+
+await api.chat("x", model="gpt-4o-mini")                       # beide entfallen
+await api.chat("x", model="gpt-4o-mini", reasoning_effort="high")
+# ValueError: Model 'gpt-4o-mini' does not take reasoning_effort='high' …
+```
+
+**Eine Vorgabe darf entfallen, ein ausdrücklicher Wunsch nicht.** `gpt-4o-mini`
+antwortet auf beide Parameter mit 400, also entfällt die Vorgabe dort
+stillschweigend — das ist, was eine Vorgabe ausmacht. Ein selbst übergebener
+Wert löst stattdessen einen Fehler aus: eine Antwort ohne den gewünschten
+Aufwand ist von einer mit ihm nicht zu unterscheiden.
+
+Die AcademicCloud nimmt beide an und ignoriert sie (gemessen: gleicher
+Tokenverbrauch bei `low` und `high`), also sendet die Bibliothek sie dort
+nicht. Ihr Hebel ist `chat_template_kwargs`, das `build_body` für Qwen3 setzt.
 
 `call()` erreicht alles, was das Gateway durchreicht — `responses`, `audio/*`,
 `batches`, `vector_stores`. **Die Route ist eine Vertrauensgrenze**: jedes

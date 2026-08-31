@@ -353,3 +353,39 @@ def test_mit_adresse_aus_der_umgebung_geht_es(monkeypatch):
     monkeypatch.setenv("B_API_BASE_URL", "https://gateway.example.test")
     llm = BildungsAPI.from_env()
     assert llm.base_url == "https://gateway.example.test"
+
+
+# --- reasoning_effort und verbosity durchreichen ---------------------------
+
+async def test_chat_setzt_die_vorgabe_low_bei_einem_reasoning_modell():
+    aufrufe = []
+    async with _client(_router, aufrufe) as api:
+        await api.chat("x", model="gpt-5.6-luna", provider="openai")
+    koerper = json.loads(aufrufe[-1].content)
+    assert koerper["reasoning_effort"] == "low"
+    assert koerper["verbosity"] == "low"
+
+
+async def test_chat_laesst_sie_weg_wo_das_modell_sie_nicht_kennt():
+    aufrufe = []
+    async with _client(_router, aufrufe) as api:
+        await api.chat("x", model="gpt-4o-mini", provider="openai")
+    koerper = json.loads(aufrufe[-1].content)
+    assert "reasoning_effort" not in koerper
+    assert "verbosity" not in koerper
+
+
+async def test_chat_reicht_einen_ausdruecklichen_wert_durch():
+    aufrufe = []
+    async with _client(_router, aufrufe) as api:
+        await api.chat("x", model="gpt-5.6-luna", provider="openai",
+                       reasoning_effort="high")
+    assert json.loads(aufrufe[-1].content)["reasoning_effort"] == "high"
+
+
+async def test_chat_verwirft_einen_ausdruecklichen_wunsch_nicht_still():
+    async with _client(_router) as api:
+        with pytest.raises(ValueError) as info:
+            await api.chat("x", model="gpt-4o-mini", provider="openai",
+                           reasoning_effort="high")
+    assert "gpt-4o-mini" in str(info.value)

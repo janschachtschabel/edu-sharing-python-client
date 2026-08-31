@@ -763,6 +763,7 @@ sending your data to a host nobody chose.
 | `BildungsAPI.from_env()` | needs `B_API_BASE_URL` **and** `B_API_KEY` |
 | `api.models(provider=…)` | `list[Model]` — cached briefly |
 | `api.chat(prompt, model=…, system=…, max_tokens=…, thinking=…)` | `str` |
+| `api.chat(…, reasoning_effort="high", verbosity="low")` | `str` — see below |
 | `api.embeddings(texts, model=…)` | `list[list[float]]`, ordered by `index` |
 | `api.moderate(texts, model=…)` | `list[Moderation]` |
 | `api.images(prompt, model=…, n=…, size=…)` | `list[GeneratedImage]` |
@@ -784,6 +785,41 @@ verdict.categories                        # {"hate": False, …}
 
 await api.call("responses", {"model": "…", "input": "…"})
 ```
+
+Effort and verbosity, for the families that take them:
+
+| Call | Result |
+|---|---|
+| `api.chat(prompt)` | `reasoning_effort` and `verbosity` default to `low` |
+| `DEFAULT_EFFORT` / `DEFAULT_VERBOSITY` | `"low"` — the values that default means |
+| `api.chat(prompt, reasoning_effort=None)` | do not send it at all |
+| `api.chat(prompt, reasoning_effort="high")` | send it, or raise if the model cannot |
+| `UNSET` | the sentinel for "the library decides"; a caller rarely names it |
+| `ReasoningParam` | the parameter's type: `str \| _Vorgabe \| None` |
+| `model.shutdown_date` | `str \| None` — `"2026-10-23"`, or `None` |
+| `model.is_retired_on(date(2026, 12, 1))` | `bool` |
+
+```python
+# gpt-5.6-luna spent 14 reasoning tokens without the parameter and 0 with
+# "low" on the same question -- measured 2026-08-31.
+await api.chat("Fasse zusammen: …", model="gpt-5.6-luna")     # effort low
+await api.chat("Denk gründlich nach.", model="gpt-5.6-luna",
+               reasoning_effort="high")                        # honoured
+
+await api.chat("x", model="gpt-4o-mini")                       # both omitted
+await api.chat("x", model="gpt-4o-mini", reasoning_effort="high")
+# ValueError: Model 'gpt-4o-mini' does not take reasoning_effort='high' …
+```
+
+**A default may be dropped, an explicit wish may not.** `gpt-4o-mini` answers
+400 for both parameters, so the default is left out for it silently — that is
+what makes it a default. A value you passed yourself raises instead: an answer
+produced without the effort you asked for is indistinguishable from one
+produced with it.
+
+The AcademicCloud accepts both and ignores them (measured: identical token
+usage at `low` and `high`), so the library does not send them there. Its lever
+is `chat_template_kwargs`, which `build_body` sets for Qwen3.
 
 `call()` reaches anything the gateway forwards — `responses`, `audio/*`,
 `batches`, `vector_stores`. **Its route is a trust boundary**: each segment must

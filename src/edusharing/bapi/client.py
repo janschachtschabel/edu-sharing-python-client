@@ -36,7 +36,15 @@ import httpx
 from ..errors import EduSharingError, at_least, error_from_response
 from ..urls import path_segment
 from . import passthrough
-from .policy import Model, build_body, pick_model, rank_models, read_answer
+from .policy import (
+    UNSET,
+    Model,
+    ReasoningParam,
+    build_body,
+    pick_model,
+    rank_models,
+    read_answer,
+)
 
 __all__ = ["BildungsAPI"]
 
@@ -201,6 +209,8 @@ class BildungsAPI:
         temperature: float = 0.0,
         thinking: bool = False,
         system: str | None = None,
+        reasoning_effort: ReasoningParam = UNSET,
+        verbosity: ReasoningParam = UNSET,
     ) -> str:
         """Send a request and return the answer text.
 
@@ -231,6 +241,7 @@ class BildungsAPI:
             return build_body(
                 mid, messages,
                 max_tokens=max_tokens, temperature=temperature, thinking=thinking,
+                reasoning_effort=reasoning_effort, verbosity=verbosity,
             )
 
         if model:
