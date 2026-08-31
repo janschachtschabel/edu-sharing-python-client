@@ -17,7 +17,14 @@ Nachschlagetabelle.
 
 ## Installieren
 
-Python 3.11 oder neuer. Noch nicht auf PyPI, also aus einer Arbeitskopie:
+Python 3.11 oder neuer. Noch nicht auf PyPI, also aus git:
+
+```bash
+uv pip install git+https://github.com/janschachtschabel/edu-sharing-python-client
+```
+
+Oder aus einer Arbeitskopie — das brauchen Sie, um die Tests und die Beispiele
+laufen zu lassen:
 
 ```bash
 uv pip install -e .

@@ -13,7 +13,14 @@ Python client for [edu-sharing](https://edu-sharing.com) repositories and the
 
 ## Installing
 
-Python 3.11 or newer. Not on PyPI yet, so install from a checkout:
+Python 3.11 or newer. Not on PyPI yet, so install from git:
+
+```bash
+uv pip install git+https://github.com/janschachtschabel/edu-sharing-python-client
+```
+
+Or from a checkout, which is what you want in order to run the tests and the
+examples:
 
 ```bash
 uv pip install -e .

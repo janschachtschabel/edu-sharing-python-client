@@ -13,7 +13,7 @@ Beide Fassungen stehen unter denselben Tests: tests/test_docs_complete.py.
 
 *[English version: SKILL.md](SKILL.md)*
 
-Die Bibliothek unter `github.com/…/edu-sharing-python-bib` (Paket
+Die Bibliothek unter `github.com/janschachtschabel/edu-sharing-python-client` (Paket
 `edu-sharing-python-client`, Import `edusharing`). Sie umhüllt die REST-API von
 edu-sharing und drei Dienste daneben, und ihr zentrales Versprechen lautet:
 **ein Schreibvorgang, der nicht stattgefunden hat, wird als Fehlschlag gemeldet,

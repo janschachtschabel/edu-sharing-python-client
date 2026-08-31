@@ -7,7 +7,7 @@ description: Using the edu-sharing-python-client library (import `edusharing`) â
 
 *Deutsche Fassung: [SKILL.de.md](SKILL.de.md)*
 
-The library at `github.com/â€¦/edu-sharing-python-bib` (package
+The library at `github.com/janschachtschabel/edu-sharing-python-client` (package
 `edu-sharing-python-client`, import `edusharing`). It wraps edu-sharing's REST
 API and three neighbouring services, and its central promise is that **a write
 that did not happen is reported as a failure, not a success**.

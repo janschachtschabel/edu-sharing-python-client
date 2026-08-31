@@ -23,7 +23,9 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/openeduhub/edu-sharing-python-bib"
+Repository = "https://github.com/janschachtschabel/edu-sharing-python-client"
+Issues = "https://github.com/janschachtschabel/edu-sharing-python-client/issues"
+Changelog = "https://github.com/janschachtschabel/edu-sharing-python-client/blob/main/CHANGELOG.md"
 
 [build-system]
 requires = ["hatchling"]
