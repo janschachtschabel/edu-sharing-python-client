@@ -1,7 +1,7 @@
 # edu-sharing Python-Client — Architektur und Entwurf
 
 Stand: 29.08.2026 · Status: **neun Etappen abgeschlossen, Audit-Befunde
-behoben** — 1095 Tests offline, 94 live lesend, 76 live schreibend (die
+behoben** — 1107 Tests offline, 94 live lesend, 76 live schreibend (die
 Live-Zahlen enthalten die 18 Beispiele, die als Testfälle laufen). Jeder
 öffentliche Name steht in [`REFERENCE.de.md`](REFERENCE.de.md) /
 [`REFERENCE.md`](REFERENCE.md), vollständig gehalten durch
