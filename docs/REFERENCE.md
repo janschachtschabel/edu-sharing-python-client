@@ -786,6 +786,50 @@ verdict.categories                        # {"hate": False, …}
 await api.call("responses", {"model": "…", "input": "…"})
 ```
 
+### The `responses` route
+
+Both providers carry it — measured 2026-08-31, `gpt-5.6-luna` at OpenAI and
+`gemma-4-31b-it` at the AcademicCloud both answered `status: completed`.
+
+| Call | Result |
+|---|---|
+| `api.respond(prompt, model=…, max_output_tokens=…)` | `Answer` |
+| `answer.text` | `str` |
+| `answer.truncated` | `bool` — **read this first** |
+| `answer.status` / `answer.reason` | `"incomplete"` / `"max_output_tokens"` |
+| `answer.model` / `answer.raw` | what answered, and the whole body |
+| `DEFAULT_MAX_OUTPUT_TOKENS` | `1000` |
+| `reasoning_for_responses(model, …)` | the nested parameter shape |
+
+```python
+answer = await api.respond("Nenne die Hauptstadt von Frankreich.",
+                           model="gpt-5.6-luna", max_output_tokens=300)
+answer.text          # "Die Hauptstadt von Frankreich ist Paris."
+answer.truncated     # False
+
+kurz = await api.respond("Warum ist der Himmel blau?",
+                         model="qwen3.5-122b-a10b", provider="academiccloud",
+                         max_output_tokens=32)
+kurz.truncated       # True
+kurz.reason          # "max_output_tokens"
+kurz.text            # "Thinking Process:
+
+1. **Analyze…"  <- not an answer
+```
+
+**Thinking is paid from the same budget.** A reasoning model given 32 tokens
+spends all of them thinking and returns the thinking. `truncated` is how you
+tell that apart from a finished reply.
+
+**The parameter shape differs from `chat`.** Here it is
+`reasoning={"effort": …}` and `text={"verbosity": …}`; the flat `chat` spelling
+is refused with *"Unsupported parameter … In the Responses API, …"*. The
+library translates for you, and the same rule applies: the default is dropped
+where the model cannot take it, an explicit value raises.
+
+**`model` is required.** The route refuses without one, and choosing silently
+would be a substitution. Virtual models live on `chat`.
+
 ### A virtual model — several ids under one name
 
 Only the AcademicCloud reports load, and it moves by the minute. Name two or

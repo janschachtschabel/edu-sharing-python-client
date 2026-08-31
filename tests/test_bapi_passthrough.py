@@ -223,3 +223,100 @@ async def test_eine_route_darf_ihren_pfad_nicht_verlassen(route):
             await api.call(route, {})
     assert not versendet, (
         f"{route!r} wurde abgesetzt: {versendet[0].url if versendet else ''}")
+
+
+# --- responses -------------------------------------------------------------
+#
+# Gemessen am 31.08.2026: **beide** Anbieter koennen den Endpunkt.
+#
+#   openai/gpt-5.6-luna     status=completed   'Hallo!'
+#   academiccloud/gemma-4   status=completed   'Hallo! Wie kann ich dir...'
+#   academiccloud/qwen3.5   status=incomplete  Budget ins Denken gelaufen
+#
+# Die Parameterform ist eine andere als bei chat/completions -- dort
+# ``reasoning_effort``, hier ``reasoning={"effort": ...}``. Die chat-Form wird
+# ausdruecklich abgelehnt: "Unsupported parameter: 'reasoning_effort'. In the
+# Responses API, ...". ``model`` ist Pflicht, es gibt keine automatische Wahl.
+
+ANTWORT_FERTIG = {
+    "status": "completed",
+    "model": "gpt-5.6-luna",
+    "output": [{"content": [{"type": "output_text", "text": "Hallo!"}]}],
+    "usage": {"output_tokens": 6},
+}
+
+ANTWORT_ABGESCHNITTEN = {
+    "status": "incomplete",
+    "model": "qwen3.5-122b-a10b",
+    "incomplete_details": {"reason": "max_output_tokens"},
+    "output": [{"content": [{"type": "output_text", "text": "Thinking Proce"}]}],
+    "usage": {"output_tokens": 64},
+}
+
+
+async def test_responses_liefert_den_text():
+    async with _client(lambda r: httpx.Response(200, json=ANTWORT_FERTIG)) as api:
+        antwort = await api.respond("Sag hallo.", model="gpt-5.6-luna")
+    assert antwort.text == "Hallo!"
+    assert antwort.status == "completed"
+    assert antwort.truncated is False
+    assert antwort.model == "gpt-5.6-luna"
+
+
+async def test_eine_abgeschnittene_antwort_sagt_dass_sie_es_ist():
+    """Der Punkt der ganzen Klasse.
+
+    ``incomplete`` heisst, das Budget ist ins Denken gelaufen und der Text ist
+    abgeschnitten. Nur den Text zurueckzugeben saehe aus wie eine vollstaendige
+    Antwort -- und genau davor schuetzt diese Bibliothek sonst ueberall.
+    """
+    async with _client(lambda r: httpx.Response(200, json=ANTWORT_ABGESCHNITTEN)) as api:
+        antwort = await api.respond("x", model="qwen3.5-122b-a10b")
+    assert antwort.truncated is True
+    assert antwort.reason == "max_output_tokens"
+    assert antwort.text == "Thinking Proce"
+
+
+async def test_ohne_modell_gibt_es_keine_anfrage():
+    """Der Endpunkt verlangt es, und raten waere eine stille Modellwahl."""
+    async with _client(lambda r: httpx.Response(200, json=ANTWORT_FERTIG)) as api:
+        with pytest.raises(EduSharingError):
+            await api.respond("x", model="")
+
+
+async def test_die_vorgabe_kommt_in_der_responses_form():
+    aufrufe = []
+
+    def handler(request):
+        aufrufe.append(request)
+        return httpx.Response(200, json=ANTWORT_FERTIG)
+
+    async with _client(handler) as api:
+        await api.respond("x", model="gpt-5.6-luna")
+    import json as _json
+    koerper = _json.loads(aufrufe[-1].content)
+    assert koerper["reasoning"] == {"effort": "low"}
+    assert koerper["text"] == {"verbosity": "low"}
+    assert "reasoning_effort" not in koerper
+
+
+async def test_ohne_faehiges_modell_entfaellt_die_vorgabe():
+    aufrufe = []
+
+    def handler(request):
+        aufrufe.append(request)
+        return httpx.Response(200, json=ANTWORT_FERTIG)
+
+    async with _client(handler) as api:
+        await api.respond("x", model="gemma-4-31b-it")
+    import json as _json
+    koerper = _json.loads(aufrufe[-1].content)
+    assert "reasoning" not in koerper
+    assert "text" not in koerper
+
+
+async def test_ausdruecklicher_wunsch_wird_auch_hier_nicht_verworfen():
+    async with _client(lambda r: httpx.Response(200, json=ANTWORT_FERTIG)) as api:
+        with pytest.raises(ValueError) as info:
+            await api.respond("x", model="gemma-4-31b-it", reasoning_effort="high")
+    assert "gemma-4-31b-it" in str(info.value)

@@ -109,3 +109,37 @@ async def test_rerank_wird_nicht_durchgereicht(llm):
     with pytest.raises(EduSharingError) as fehler:
         await llm.call("rerank", {"model": "x"}, provider="openai")
     assert "403" in str(fehler.value), str(fehler.value)[:120]
+
+
+# --- responses -------------------------------------------------------------
+#
+# Beide Anbieter koennen den Endpunkt. Der Test prueft das gegen beide, weil
+# genau diese Annahme falsch war, bevor sie gemessen wurde.
+
+@pytest.mark.live
+@pytest.mark.parametrize("provider, modell", [
+    ("openai", "gpt-5.6-luna"),
+    ("academiccloud", "gemma-4-31b-it"),
+])
+async def test_responses_antwortet_bei_beiden_anbietern(llm, provider, modell):
+    antwort = await llm.respond(
+        "Nenne die Hauptstadt von Frankreich, in drei Woertern.",
+        model=modell, provider=provider, max_output_tokens=300)
+    assert antwort.status == "completed", antwort.raw.get("incomplete_details")
+    assert antwort.truncated is False
+    assert "aris" in antwort.text, antwort.text
+    assert antwort.model
+
+
+@pytest.mark.live
+async def test_ein_zu_kleines_budget_meldet_sich_als_abgeschnitten(llm):
+    """Der Fall, den ein blosser Text verschweigen wuerde.
+
+    qwen3.5 denkt, und das Denken zahlt aus demselben Budget: gemessen am
+    31.08.2026 gingen 32 Tokens vollstaendig in den Denkprozess.
+    """
+    antwort = await llm.respond("Warum ist der Himmel blau?",
+                                model="qwen3.5-122b-a10b",
+                                provider="academiccloud", max_output_tokens=32)
+    assert antwort.truncated is True
+    assert antwort.reason == "max_output_tokens"

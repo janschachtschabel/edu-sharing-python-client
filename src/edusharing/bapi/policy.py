@@ -32,6 +32,7 @@ from typing import Any
 __all__ = [
     "Model", "pick_model", "rank_models", "rank_among", "build_body", "read_answer",
     "DEFAULT_EFFORT", "DEFAULT_VERBOSITY", "UNSET", "ReasoningParam",
+    "reasoning_for_responses",
 ]
 
 #: Model families with a deviating body layout.
@@ -281,6 +282,40 @@ def _reasoning_param(
             "indistinguishable from one produced with it."
         )
     body[name] = wert
+
+
+def reasoning_for_responses(
+    model: str,
+    *,
+    reasoning_effort: ReasoningParam = UNSET,
+    verbosity: ReasoningParam = UNSET,
+) -> dict[str, Any]:
+    """The same two parameters in the shape the ``responses`` route wants.
+
+    ``chat/completions`` takes ``reasoning_effort`` and ``verbosity`` flat.
+    ``responses`` refuses exactly those and wants ``reasoning={"effort": ...}``
+    and ``text={"verbosity": ...}`` -- measured 2026-08-31, the flat form
+    answers *"Unsupported parameter: 'reasoning_effort'. In the Responses
+    API, ..."*.
+
+    Same rule as everywhere: a default is dropped where the model cannot take
+    it, a caller's value raises instead.
+
+    Raises:
+        ValueError: as in ``build_body``.
+    """
+    flach: dict[str, Any] = {}
+    _reasoning_param(flach, "reasoning_effort", reasoning_effort, model,
+                     vorgabe=DEFAULT_EFFORT)
+    _reasoning_param(flach, "verbosity", verbosity, model,
+                     vorgabe=DEFAULT_VERBOSITY)
+
+    verschachtelt: dict[str, Any] = {}
+    if "reasoning_effort" in flach:
+        verschachtelt["reasoning"] = {"effort": flach["reasoning_effort"]}
+    if "verbosity" in flach:
+        verschachtelt["text"] = {"verbosity": flach["verbosity"]}
+    return verschachtelt
 
 
 def build_body(

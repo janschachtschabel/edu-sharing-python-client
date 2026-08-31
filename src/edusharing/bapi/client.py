@@ -365,6 +365,16 @@ class BildungsAPI:
         return await passthrough.images(
             self, prompt, model=model, provider=provider, **extra)
 
+    async def respond(
+        self, prompt: str, *, model: str, **kwargs: Any,
+    ) -> passthrough.Answer:
+        """Ask through the ``responses`` route. See ``passthrough.respond``.
+
+        **Check ``truncated``** on the answer: ``incomplete`` means the budget
+        ran out, usually into thinking, and the text stops mid-sentence.
+        """
+        return await passthrough.respond(self, prompt, model=model, **kwargs)
+
     async def call(
         self, route: str, body: dict[str, Any], *, provider: str | None = None,
     ) -> dict[str, Any]:

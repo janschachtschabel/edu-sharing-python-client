@@ -39,12 +39,18 @@ from typing import TYPE_CHECKING, Any
 
 from ..errors import EduSharingError
 from ..urls import path_segment
+from .policy import UNSET, ReasoningParam, reasoning_for_responses
 
 if TYPE_CHECKING:  # pragma: no cover
     from .client import BildungsAPI
 
-__all__ = ["GeneratedImage", "Moderation", "call", "embeddings", "images",
-           "moderate"]
+#: Enough room that a reasoning model does not spend the whole budget on
+#: thinking. Measured 2026-08-31: 32 tokens were not enough for
+#: qwen3.5-122b-a10b, 300 were.
+DEFAULT_MAX_OUTPUT_TOKENS = 1000
+
+__all__ = ["Answer", "DEFAULT_MAX_OUTPUT_TOKENS", "GeneratedImage", "Moderation",
+           "call", "embeddings", "images", "moderate", "respond"]
 
 
 #: What a route segment may consist of. Every forwarded route is built from
@@ -121,6 +127,97 @@ class GeneratedImage:
     b64: str | None = None
     #: Some models rewrite the prompt before drawing and say so.
     revised_prompt: str = ""
+
+
+@dataclass(frozen=True)
+class Answer:
+    """One answer from the ``responses`` route.
+
+    Not just the text: ``status`` can be ``incomplete``, which means the budget
+    ran out -- usually into thinking -- and the text stops mid-sentence.
+    Measured 2026-08-31, ``qwen3.5-122b-a10b`` spent all 32 output tokens on
+    its thinking process and returned that instead of an answer. Handing back
+    the text alone would make that look like a finished reply.
+    """
+
+    text: str
+    #: ``completed``, ``incomplete``, or whatever else the provider reports.
+    status: str = ""
+    #: Why it stopped, e.g. ``max_output_tokens``. Empty when it did not.
+    reason: str = ""
+    model: str = ""
+    raw: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def truncated(self) -> bool:
+        """Whether the answer stops early. **Read this before using the text.**"""
+        return bool(self.status) and self.status != "completed"
+
+
+def _text_of(body: dict[str, Any]) -> str:
+    """The text out of the nested ``output[].content[].text``."""
+    return "".join(
+        teil.get("text") or ""
+        for eintrag in body.get("output") or []
+        for teil in eintrag.get("content") or []
+        if isinstance(teil, dict)
+    )
+
+
+async def respond(
+    api: BildungsAPI,
+    prompt: str,
+    *,
+    model: str,
+    provider: str | None = None,
+    max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
+    reasoning_effort: ReasoningParam = UNSET,
+    verbosity: ReasoningParam = UNSET,
+    **extra: Any,
+) -> Answer:
+    """Ask through the ``responses`` route.
+
+    Both providers carry it -- measured 2026-08-31, ``gpt-5.6-luna`` and
+    ``gemma-4-31b-it`` both answered ``status: completed``. The parameter shape
+    differs from ``chat/completions``: here it is ``reasoning={"effort": ...}``
+    and ``text={"verbosity": ...}``, and the flat form is refused outright.
+
+    Args:
+        model: required. The route refuses without it, and guessing one would
+            be a silent model choice. There is no virtual model here -- that
+            lives on ``chat``.
+        max_output_tokens: the budget. Thinking is spent from it, so a
+            reasoning model needs room or comes back ``truncated``.
+
+    Returns:
+        An ``Answer``. **Check ``truncated``.**
+
+    Raises:
+        EduSharingError: without a model.
+        ValueError: for an explicit reasoning parameter this model cannot take.
+    """
+    if not model:
+        raise EduSharingError(
+            "responses needs a model id -- the route refuses without one, and "
+            "picking one here would be a silent model choice. Pass model=..., "
+            "or use chat() where the library may choose."
+        )
+    body: dict[str, Any] = {
+        "model": model,
+        "input": prompt,
+        "max_output_tokens": max_output_tokens,
+        **reasoning_for_responses(
+            model, reasoning_effort=reasoning_effort, verbosity=verbosity),
+        **extra,
+    }
+    antwort = await call(api, "responses", body, provider=provider)
+    return Answer(
+        text=_text_of(antwort),
+        status=str(antwort.get("status") or ""),
+        reason=str((antwort.get("incomplete_details") or {}).get("reason") or ""),
+        model=str(antwort.get("model") or model),
+        raw=antwort,
+    )
 
 
 async def call(

@@ -799,6 +799,51 @@ verdict.categories                        # {"hate": False, …}
 await api.call("responses", {"model": "…", "input": "…"})
 ```
 
+### Die Route `responses`
+
+Beide Anbieter haben sie — gemessen am 31.08.2026 antworteten `gpt-5.6-luna`
+bei OpenAI und `gemma-4-31b-it` bei der AcademicCloud beide mit
+`status: completed`.
+
+| Aufruf | Ergebnis |
+|---|---|
+| `api.respond(prompt, model=…, max_output_tokens=…)` | `Answer` |
+| `answer.text` | `str` |
+| `answer.truncated` | `bool` — **zuerst lesen** |
+| `answer.status` / `answer.reason` | `"incomplete"` / `"max_output_tokens"` |
+| `answer.model` / `answer.raw` | wer geantwortet hat, und der ganze Rumpf |
+| `DEFAULT_MAX_OUTPUT_TOKENS` | `1000` |
+| `reasoning_for_responses(model, …)` | die verschachtelte Parameterform |
+
+```python
+answer = await api.respond("Nenne die Hauptstadt von Frankreich.",
+                           model="gpt-5.6-luna", max_output_tokens=300)
+answer.text          # "Die Hauptstadt von Frankreich ist Paris."
+answer.truncated     # False
+
+kurz = await api.respond("Warum ist der Himmel blau?",
+                         model="qwen3.5-122b-a10b", provider="academiccloud",
+                         max_output_tokens=32)
+kurz.truncated       # True
+kurz.reason          # "max_output_tokens"
+kurz.text            # "Thinking Process:
+
+1. **Analyze…"  <- keine Antwort
+```
+
+**Das Denken zahlt aus demselben Budget.** Ein Reasoning-Modell mit 32 Tokens
+verbraucht sie vollständig fürs Denken und gibt das Denken zurück. `truncated`
+ist, woran Sie das von einer fertigen Antwort unterscheiden.
+
+**Die Parameterform ist eine andere als bei `chat`.** Hier
+`reasoning={"effort": …}` und `text={"verbosity": …}`; die flache Schreibweise
+von `chat` wird abgelehnt: *„Unsupported parameter … In the Responses API, …"*.
+Die Bibliothek übersetzt das, und dieselbe Regel gilt: die Vorgabe entfällt, wo
+das Modell sie nicht kennt, ein ausdrücklicher Wert löst einen Fehler aus.
+
+**`model` ist Pflicht.** Die Route verweigert ohne, und stillschweigend eines
+zu wählen wäre eine Ersetzung. Virtuelle Modelle gibt es bei `chat`.
+
 ### Ein virtuelles Modell — mehrere IDs unter einem Namen
 
 Nur die AcademicCloud meldet Auslastung, und die ändert sich im Minutentakt.
