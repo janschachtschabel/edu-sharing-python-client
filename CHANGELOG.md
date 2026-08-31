@@ -19,7 +19,7 @@ Nothing yet.
 ## [0.0.1] — 2026-08-31
 
 First numbered version. Reading, writing, twenty flows, three neighbouring
-services; 1093 offline tests and 93 live ones against edu-sharing 11.0.
+services; 1095 offline tests and 94 live ones against edu-sharing 11.0.
 
 ### Added
 
@@ -39,7 +39,7 @@ services; 1093 offline tests and 93 live ones against edu-sharing 11.0.
   URI or label depending on what you held.
 - **`LanguageProfile` and `GERMAN`** are importable from `edusharing` directly.
   `GERMAN` was bound but never declared in `flows.__all__`.
-- **The 17 examples run as test cases** (`pytest -m live` / `-m write`). An
+- **The 18 examples run as test cases** (`pytest -m live` / `-m write`). An
   example is executable documentation, and documentation nobody executes rots.
 - **`docs/REFERENCE.md` and `docs/REFERENCE.de.md`** — every public name, the
   call that uses it, and the shape that comes back, with real outputs. 266
@@ -49,6 +49,11 @@ services; 1093 offline tests and 93 live ones against edu-sharing 11.0.
   (`remove_from_collection`, `remove_keywords`, `collections.remove`,
   `vocab.suggest`, `models()`, `ping()`, `schemas()`, `ChangePlan`,
   `format_hit`, `check_url`) and six wrong field names in the first draft.
+- **`docs/examples/18_video_recommendation.py`** — the ten best videos on a
+  topic, filtered by content type, reranked, as a table, then a model on the
+  gateway recommends one. The titles go through `as_untrusted` before they
+  reach the model context. Runs without a gateway key: the table is printed and
+  the recommendation says it was skipped.
 - **`docs/examples/17_flow_belonging.py`** — the three kinds of belonging side
   by side: collection, child object, relation. `child_objects` and `relations`
   were the only two flows without a runnable example.

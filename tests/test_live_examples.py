@@ -41,6 +41,7 @@ LESEND = frozenset({
     "13_flow_tree.py",
     "14_flow_page.py",
     "15_full_text.py",
+    "18_video_recommendation.py",
 })
 
 #: Legen etwas an -- jedes einen eigenen Wegwerf-Ordner, den es selbst wieder

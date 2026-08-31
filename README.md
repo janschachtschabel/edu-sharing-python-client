@@ -929,6 +929,7 @@ them:
 | [`13_flow_tree.py`](docs/examples/13_flow_tree.py) | walk a collection, search inside it, count what is in it |
 | [`14_flow_page.py`](docs/examples/14_flow_page.py) | read the curated page a collection renders, widgets and all — then the same page as objects |
 | [`17_flow_belonging.py`](docs/examples/17_flow_belonging.py) | the three kinds of belonging: collection, child object, relation |
+| [`18_video_recommendation.py`](docs/examples/18_video_recommendation.py) | ten videos on a topic, reranked, then a model recommends one |
 
 **Both levels side by side:**
 
