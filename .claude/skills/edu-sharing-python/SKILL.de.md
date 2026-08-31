@@ -113,6 +113,8 @@ der Platte.)*
 | nur Sammlungen finden | `repo.flows.find_collections(text)` |
 | mehr wie dieser Knoten | `repo.flows.related(node_id, on=["subject", "level"])` |
 | welche Werte lässt ein Feld zu | `repo.flows.vocabulary("subject")` |
+| alle Werte eines Feldes, oder eine Teilzeichenkette | `repo.vocab.values(prop)` / `repo.vocab.suggest(prop, "ysik")` |
+| der Filterwert zu einem Label — **alle** davon | `repo.vocab.resolve_all(prop, "Biologie")` |
 | eine schlecht formulierte Anfrage („irgendwas mit Brüchen") | `repo.flows.search(text, rerank=True)` |
 | *innerhalb* einer Sammlung suchen | `repo.flows.search_in_collection(id, text)` |
 | Sammlungen mit kuratierter Seite finden | `repo.flows.find_pages(text)` |
@@ -131,6 +133,9 @@ der Platte.)*
 | wie viel ist darin | `repo.flows.collection_stats(id)` |
 | die kuratierte Landeseite | `repo.flows.page(collection_id)` |
 | die Datei selbst | `node.content.download()` / `node.content.text()` |
+| die kuratierte Seite als Objekte | `node.page.get()` / `node.page.render(variant)` |
+| eine Seite der Kinder eines Knotens | `repo.nodes.children(node_id, limit=…)` |
+| wer bin ich, was bietet diese Instanz | `repo.whoami()` / `repo.about()` / `repo.metadatasets()` |
 | Text einer Seite, die das Repositorium *nicht* hat | `TextExtraction.text_of(url)` |
 
 ### Ändern
@@ -141,6 +146,7 @@ der Platte.)*
 | Material ändern | `repo.flows.update_material(node_id, title=…)` |
 | Sammlung bauen und füllen | `repo.flows.build_collection(title, node_ids)` |
 | vorhandenes Material in eine Sammlung legen | `repo.add_to_collection(coll_id, node_id)` |
+| der Sammlungs-Zugriff hinter diesen Abkürzungen | `repo.collections.find/create/update/add/remove` |
 | wieder herausnehmen (Material bleibt) | `repo.remove_from_collection(coll_id, node_id)` |
 | löschen | `repo.flows.delete(node_id)` |
 | Datei hochladen | `node.content.upload(data, filename=…, mimetype=…)` |
@@ -159,7 +165,7 @@ der Platte.)*
 | einen Vorschlag annehmen oder ablehnen | `node.suggestions.decide(ids, accept=True)` |
 | zur Prüfung weiterreichen | `node.workflow.submit("GROUP_redaktion", "TO_BE_CHECKED")` |
 | Rechte geben oder nehmen | `node.permissions.grant(who, "Read")` / `.revoke(...)` |
-| Gruppen und Mitglieder | `repo.people.*` |
+| Gruppen und Mitglieder | `repo.people.memberships()` / `.group(name)` / `.members(name, limit=…)` / `.create_group(name)` / `.add_member(gruppe, wer)` |
 
 ### Die Nachbardienste
 
@@ -286,6 +292,21 @@ und `count`.
 
 Welche Kurznamen (`subject`, `level`, …) es gibt, wird **von der Instanz
 gelesen**, nicht in der Bibliothek festgelegt: `repo.searcher.field_aliases`.
+
+**Ein Label kann zu zwei Vokabularen gehören.** Am 31.08.2026 gegen die Staging
+gemessen: 25 Fachlabels stehen sowohl in `discipline` (Schulfächer) als auch in
+`hochschulfaechersystematik` (Hochschulfächer) — darunter `Biologie`, `Chemie`,
+`Physik`. Eine Suche über das Label filtert auf **alle**, denn die halbe
+Materialmenge zu finden und wie die ganze auszusehen ist eine falsche Antwort:
+
+```python
+await repo.vocab.resolve(prop, "Biologie")      # die erste — eine von zweien
+await repo.vocab.resolve_all(prop, "Biologie")  # beide, so filtert die Suche
+```
+
+Geschrieben wird die erste, und zwar mit Absicht: ein Arbeitsblatt für Klasse 6
+als Hochschulfach zu markieren ist eine Behauptung, keine Erweiterung. Wer die
+Hälften trennen will, filtert zusätzlich nach `level`.
 
 ### 4.7 Blättern, Grenzen und Vorgaben, die stillschweigend kürzen
 

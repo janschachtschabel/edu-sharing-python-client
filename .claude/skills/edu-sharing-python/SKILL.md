@@ -102,6 +102,8 @@ table.
 | find collections only | `repo.flows.find_collections(text)` |
 | more like this node | `repo.flows.related(node_id, on=["subject", "level"])` |
 | which values does a field allow | `repo.flows.vocabulary("subject")` |
+| every value of a field, or a substring of one | `repo.vocab.values(prop)` / `repo.vocab.suggest(prop, "ysik")` |
+| a label's filter value — **all** of them | `repo.vocab.resolve_all(prop, "Biologie")` |
 | a poorly phrased query ("something about fractions") | `repo.flows.search(text, rerank=True)` |
 | search *inside* one collection | `repo.flows.search_in_collection(id, text)` |
 | find collections that render a curated page | `repo.flows.find_pages(text)` |
@@ -120,6 +122,9 @@ table.
 | how much is in there | `repo.flows.collection_stats(id)` |
 | the curated landing page | `repo.flows.page(collection_id)` |
 | the file itself | `node.content.download()` / `node.content.text()` |
+| the curated page as objects | `node.page.get()` / `node.page.render(variant)` |
+| one page of a node's children | `repo.nodes.children(node_id, limit=…)` |
+| who am I, what does this instance offer | `repo.whoami()` / `repo.about()` / `repo.metadatasets()` |
 | text of a page the repository does *not* hold | `TextExtraction.text_of(url)` |
 
 ### Changing things
@@ -130,6 +135,7 @@ table.
 | change material | `repo.flows.update_material(node_id, title=…)` |
 | build a collection and fill it | `repo.flows.build_collection(title, node_ids)` |
 | put existing material into a collection | `repo.add_to_collection(coll_id, node_id)` |
+| the collection accessor behind those shortcuts | `repo.collections.find/create/update/add/remove` |
 | take it out again (material stays) | `repo.remove_from_collection(coll_id, node_id)` |
 | delete | `repo.flows.delete(node_id)` |
 | upload a file | `node.content.upload(data, filename=…, mimetype=…)` |
@@ -148,7 +154,7 @@ table.
 | accept or reject a proposal | `node.suggestions.decide(ids, accept=True)` |
 | hand on for review | `node.workflow.submit("GROUP_redaktion", "TO_BE_CHECKED")` |
 | grant or revoke rights | `node.permissions.grant(who, "Read")` / `.revoke(...)` |
-| groups and members | `repo.people.*` |
+| groups and members | `repo.people.memberships()` / `.group(name)` / `.members(name, limit=…)` / `.create_group(name)` / `.add_member(group, who)` |
 
 ### The neighbouring services
 
@@ -269,6 +275,21 @@ Facet *values* are URIs and carry no label — `FacetValue` has `value` and
 
 Which short names (`subject`, `level`, …) exist is **read from the instance**,
 not fixed in the library: `repo.searcher.field_aliases`.
+
+**One label can belong to two vocabularies.** Measured 2026-08-31 against
+staging, 25 subject labels sit in both `discipline` (school subjects) and
+`hochschulfaechersystematik` (university subjects) — `Biologie`, `Chemie`,
+`Physik` among them. A search on the label filters on **all** of them, because
+finding half the material while looking like all of it is a wrong answer:
+
+```python
+await repo.vocab.resolve(prop, "Biologie")      # the first — one of two
+await repo.vocab.resolve_all(prop, "Biologie")  # both, which is what search uses
+```
+
+Writing takes the first, deliberately: tagging a year 6 worksheet as a
+university subject is a claim, not a widening. Add a `level` filter to keep the
+halves apart.
 
 ### 4.7 Paging, limits and defaults that truncate
 

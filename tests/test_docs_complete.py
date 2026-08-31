@@ -86,8 +86,14 @@ def _in_code_geschrieben(text: str) -> set[str]:
 
     Nur dort: ein Name, der bloss im Fliesstext auftaucht, ist erwaehnt, nicht
     dokumentiert -- und ``delete`` als deutsches Wort gibt es ohnehin nicht.
+
+    Die Zaeune kommen zuerst heraus, sonst paart das Inline-Muster deren
+    Backticks mit denen echter Spans. Und ein Inline-Span darf umbrechen: ein
+    Umbruch mittendrin gehoert der Zeilenbreite, nicht der Bedeutung.
     """
-    stuecke = re.findall(r"```.*?```", text, re.S) + re.findall(r"`[^`\n]+`", text)
+    zaeune = re.findall(r"```.*?```", text, re.S)
+    ohne_zaeune = re.sub(r"```.*?```", "", text, flags=re.S)
+    stuecke = zaeune + re.findall(r"`[^`]+`", ohne_zaeune, re.S)
     return {w for stueck in stuecke
             for w in re.findall(r"[A-Za-z_][A-Za-z0-9_]*", stueck)}
 
@@ -395,3 +401,64 @@ def test_der_waechter_sieht_auch_zuweisungen_in_einem_try_block():
     derselben Stelle waere still durchgerutscht.
     """
     assert "__version__" in oeffentliche_namen()
+
+
+def test_der_waechter_liest_auch_einen_umgebrochenen_code_span():
+    """Ein Span, der ueber eine Zeile laeuft, zerriss die Zuordnung.
+
+    Gefunden am 31.08.2026 in README.md: ``answers `500\nAccessDeniedException`.
+    The library translates that to `PermissionDeniedError``` -- das Muster
+    konnte den ersten Span nicht fassen, paarte dessen schliessende Backtick
+    mit der oeffnenden des naechsten und hielt die Prosa dazwischen fuer Code.
+
+    Zwei Fehlerrichtungen, und die zweite ist die schlimmere: ein Name, der nur
+    im Fliesstext steht, haette als dokumentiert gegolten.
+    """
+    text = ("answers `500\nAccessDeniedException`. The library translates that "
+            "to `PermissionDeniedError` -- as a server error")
+
+    gefunden = _in_code_geschrieben(text)
+    assert "AccessDeniedException" in gefunden, "der umgebrochene Span fehlt"
+    assert "PermissionDeniedError" in gefunden, "der Span dahinter fehlt"
+    # Und die Prosa zwischen den beiden gilt weiterhin nicht als Code:
+    assert "translates" not in gefunden, "Fliesstext als Code gezaehlt"
+
+
+# --- Erklaert der Skill die ganze Bibliothek? ------------------------------
+#
+# Die Waechter oben pruefen den Skill auf Ablaeufe und ``node.*``-Aufrufe.
+# Beides war lueckenlos -- und trotzdem fehlten am 31.08.2026 drei ganze
+# Bereiche: die Vokabular-API (nur der Ablauf war genannt, nicht
+# ``repo.vocab.resolve_all``, die Korrektur fuer mehrdeutige Labels), die
+# Instanz-Auskunft, und ``repo.people`` stand als blosser Stern da.
+#
+# Der Skill ist eine Wegweisertabelle, keine Referenz -- aber ein Wegweiser,
+# der eine Tuer nicht nennt, fuehrt niemanden hindurch. Eine KI hat im
+# Normalfall nur ihn geladen, nicht das Repositorium.
+
+#: Zeilen der dreispaltigen Zugriffstabelle: ``| `repo.vocab` | `Vocabulary` | ... |``
+_ZUGRIFF = re.compile(r"^\|\s*`(repo|node)\.([a-z_]+)`\s*\|\s*`[A-Z]\w*`\s*\|", re.M)
+
+
+def zugriffswege() -> set[str]:
+    """Die Tueren in die Bibliothek, aus der Referenz abgeleitet.
+
+    Nicht von Hand gepflegt: eine Liste im Test veraltet, sobald ein Zugriff
+    dazukommt. Die Referenz nennt sie ohnehin, und dass SIE vollstaendig ist,
+    prueft der Test darueber.
+    """
+    text = REFERENZEN["REFERENCE.md"].read_text(encoding="utf-8")
+    return {f"{objekt}.{attribut}" for objekt, attribut in _ZUGRIFF.findall(text)}
+
+
+@pytest.mark.parametrize("name", sorted(SKILLS))
+def test_der_skill_nennt_jede_tuer_in_die_bibliothek(name):
+    """Jeder Zugriffsweg kommt im Skill vor -- sonst ist der Bereich unsichtbar."""
+    wege = zugriffswege()
+    assert len(wege) >= 12, f"die Zugriffstabelle wurde nicht erkannt: {wege}"
+
+    text = SKILLS[name].read_text(encoding="utf-8")
+    fehlend = sorted(w for w in wege if w not in text)
+    assert not fehlend, (
+        f"{name} nennt {len(fehlend)} von {len(wege)} Zugriffswegen nicht: "
+        f"{', '.join(fehlend)}")

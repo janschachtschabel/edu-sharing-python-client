@@ -90,6 +90,13 @@ services; 1095 offline tests and 94 live ones against edu-sharing 11.0.
   fallback chain in the order given.
 - **`Model.shutdown_date` and `Model.is_retired_on(day)`** — OpenAI reports a
   retirement date for 57 of its 132 models, the AcademicCloud for none.
+- **The skill names every door into the library.** It listed all 20 flows and
+  every `node.*` call, and three whole areas were still missing: the vocabulary
+  API (only the flow was there, not `resolve_all` — this release's fix for
+  ambiguous labels), the instance's own answers (`whoami`, `about`,
+  `metadatasets`), and `repo.people.*` stood as a bare wildcard. A test now
+  derives the accessors from the reference and requires each in both language
+  versions.
 - **A skill for coding agents**, `.claude/skills/edu-sharing-python/`. A routing
   table from task to call across both levels, the neighbouring services and the
   measured traps, pointing at `wlo-edu-sharing-api` for the raw REST API and at
@@ -164,6 +171,12 @@ services; 1095 offline tests and 94 live ones against edu-sharing 11.0.
   belong in published examples.
 
 ### Fixed
+
+- The documentation guard mis-read a code span that wraps across a line: it
+  paired the closing backtick of one span with the opening backtick of the next
+  and treated the prose between them as code. Both error directions — a
+  documented name counted as missing, and a prose mention counted as
+  documented. Fences are removed first now, and an inline span may wrap.
 
 - **An automatically chosen model that the provider has retired is now logged.**
   19 of OpenAI's 132 were already past their date on 2026-08-31. They are not
