@@ -321,7 +321,7 @@ so the value has a name instead of being buried in a signature.
 | `DEFAULT_MAX_CHARS` | `200000` | where `flows.text` cuts, at a word boundary |
 | `SKILL_SEARCH_PAGE` / `SKILL_BUNDLE_MAX` / `SKILL_VISIT_MAX` / `SKILL_DEPTH_MAX` | `50` / `50` / `30` / `2` | skill hits pooled · companion files listed before a folder counts as an inbox · collections a scoped walk may read · levels the walk descends |
 | `REGISTRY_SCAN_MAX` / `REGISTRY_MAX` / `REGISTRY_POOL` / `REGISTRY_CONTEXT_MAX` | `50` / `100` / `10` / `50` | files scanned for a registry · entries per answer · heads resolved at once · contexts per answer |
-| `DUPLICATE_SCAN_LIMIT` | `20` | hits `find_by_url` compares before `add_material` creates; `check_before_create` applies `if_exists` |
+| `DUPLICATE_SCAN_LIMIT` | `20` | hits `find_by_url` compares before `add_material` creates; `check_before_create` applies `if_exists`, `validate_if_exists` refuses a misspelled one |
 | `EXCLUSION_MAX` | `200` | the largest refill after `exclude_ids` — `limit` itself is never capped |
 | `DEFAULT_POOL` | `25` | how many hits `search(rerank=True)` fetches before reranking |
 | `MAX_VARIANTS` | `5` | how many rewrites `expand_query` produces |

@@ -295,7 +295,9 @@ class Node:
             properties: ``{property: value}``. Single values become lists.
             verify: the read-back check. Only switch it off when the extra
                 request per write demonstrably hurts -- it is the only evidence
-                that anything was stored.
+                that anything was stored. At a reference the original is read
+                regardless, so the redirection can be disclosed; only the
+                check is skipped.
             **aliases: short names from ``WRITE_FIELD_ALIASES``, e.g. ``title=``.
 
         Returns:
@@ -325,7 +327,8 @@ class Node:
             value: the value, or ``None`` to delete.
 
         Raises:
-            SilentDropError: when the value is not set afterwards.
+            SilentDropError: when the value is not set afterwards -- or, with
+                ``None``, when the property is still there.
         """
         return await nodes_write.set_property(self, prop, value, verify=verify)
 
@@ -440,7 +443,8 @@ class Nodes:
                 predictable.
             type: node type, ``ccm:io`` for material, ``cm:folder`` for folders.
             rename_if_exists: appends a counter on a name collision instead of
-                failing with 409; ``node.name`` then carries the stored name.
+                failing with 409. ``node.name`` carries the stored name in every
+                case -- the key is the repository's to choose.
             verify: check the response against what was sent. Costs nothing --
                 the response carries the created node -- and catches the case
                 where the repository answers 200 and stores less than it was
@@ -477,9 +481,10 @@ class Nodes:
             # Against the response, not a fresh read: measured, the response
             # already shows what was dropped, and a second request would only
             # cost a round trip.
-            # ``cm:name`` is left out: with ``rename_if_exists`` a collision
-            # comes back with a counter appended -- the repository keeping its
-            # promise, not dropping a value. ``node.name`` carries the result.
+            # ``cm:name`` is left out of the check: the repository may alter it
+            # (with ``rename_if_exists`` a collision gets a counter appended),
+            # and that is the key it chose, not a dropped value. ``node.name``
+            # carries the stored name in every case.
             stored = {k: v for k, v in fields.items() if k != "cm:name"}
             nodes_write.check(node, stored, route="create")
         return node

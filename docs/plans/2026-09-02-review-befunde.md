@@ -208,11 +208,15 @@ Suche/Wächter (R):
 - [x] R12 NIT — Namen/Exporte (`empty_collections`, `walk_collections`, `pages_among`, `carries`); REFERENCE `resolve_vocabulary(every_value=…)`; `if values:` verwirft skalares `0`.
 
 Schreibpfad (W):
-- [ ] W1 MINOR — `replaced` liest die Referenz statt des Originals.
-- [ ] W2 MINOR — `placement`-Docstring: „zwei Anfragen", Teil `original` fehlt.
-- [ ] W3 MINOR — „`text/*`" in Kostentabelle, Abschnitt und Fassade; es sind Text, JSON und XML.
-- [ ] W4 MINOR — `add_material` „3–6 Anfragen" stimmt nicht (1 + je Schritt; Veröffentlichen 4).
-- [ ] W5 NIT — `set_property`-Docstring ohne Lösch-Probe; `verify`-Text ohne Referenz-Lesen.
-- [ ] W6 NIT — `cm:name`-Ausnahme unbedingt, Kommentar sagt Zähler; Test pinnt das Mock-Format.
-- [ ] W7 NIT — `find_by_url` zahlt Vokabular und Suche vor dem Abweisen; `validate_if_exists` nicht in `__all__`.
-- [ ] W8 NIT — `add_material`-Ausgabebeispiel ohne `existing`, `created`, `warnings`.
+- [x] W1 MINOR — `replaced` liest die Referenz statt des Originals.
+- [x] W2 MINOR — `placement`-Docstring: „zwei Anfragen", Teil `original` fehlt.
+- [x] W3 MINOR — „`text/*`" in Kostentabelle, Abschnitt und Fassade; es sind Text, JSON und XML.
+- [x] W4 MINOR — `add_material` „3–6 Anfragen" stimmt nicht (1 + je Schritt; Veröffentlichen 4).
+- [x] W5 NIT — `set_property`-Docstring ohne Lösch-Probe; `verify`-Text ohne Referenz-Lesen.
+- [x] W6 NIT — `cm:name`-Ausnahme unbedingt, Kommentar sagt Zähler; Test pinnt das Mock-Format.
+- [x] W7 NIT — `find_by_url` zahlt Vokabular und Suche vor dem Abweisen; `validate_if_exists` nicht in `__all__`.
+- [x] W8 NIT — `add_material`-Ausgabebeispiel ohne `existing`, `created`, `warnings`.
+
+Stand nach der zweiten Runde: alle 30 Befunde umgesetzt, drei Commits, jeder
+hinter dem Gate. Erste Runde 45 (44 umgesetzt, B14 mit Begründung
+unverändert), zweite Runde 30 — zusammen 74 Befunde behoben.

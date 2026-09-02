@@ -79,7 +79,12 @@ async def accept_suggestion(
             # the editors' work away.
             await node.add_keywords(match.value)
         else:
-            before = node.get_all(match.property)
+            # What the write displaces is the ORIGINAL's list: a reference
+            # carries a copy that stops inheriting once written to.
+            owner = node
+            if node.is_reference and node.original_id:
+                owner = await repo.nodes.get(node.original_id)
+            before = owner.get_all(match.property)
             await node.set_property(match.property, match.value)
             answer["replaced"] = [v for v in before if v != match.value]
     except EduSharingError as exc:

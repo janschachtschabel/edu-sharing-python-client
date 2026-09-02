@@ -41,7 +41,7 @@ out by hand.
 | `search(rerank=True)` | 1 per variant (≤5), parallel | expand → query each → score and merge in memory |
 | `vocabulary` | 1 | resolve short name → fetch values (cached) |
 | `describe` | 1 | load node |
-| `text` | 1–3 | load node → stored text → (the file, for `text/*`) → (the linked page, with a service) |
+| `text` | 1–3 | load node → stored text → (the file, for a text, JSON or XML upload) → (the linked page, with a service) |
 | `search_all` | 3–4 (`include_pages` adds none) | material search (+1 to resolve a filter) + collection search (its two routes), in parallel |
 | `placement` | 3 | load node (to resolve a reference) → way up + collections of the original, in parallel |
 | `describe_many` | one per distinct id, in parallel | load each, report the ones that are gone |
@@ -59,9 +59,9 @@ out by hand.
 | `child_objects` | 2 | load parent → its children, filtered and sorted |
 | `find_collections` | 2, parallel; with `parent_id` one per collection opened | both collection routes → merge on id → filter locally |
 | `collection_contents` | 2, parallel | material listing + sub-collection listing |
-| `add_material` | 3–6 | check the address (`url`) → whoami (if no parent) → resolve vocabulary → create → add to collection (if asked) → publish (if asked) |
+| `add_material` | 1 + one per step taken (address 1, whoami 1, each vocabulary field 1, collection 1, publish 4) | check the address (`url`) → whoami (if no parent) → resolve vocabulary → create → add to collection (if asked) → publish (if asked) |
 | `update_material` | 3–4 | resolve vocabulary → load → write → read back |
-| `build_collection` | 1 + one per node (+2 to publish) | create → add each, catching failures → publish (if asked) |
+| `build_collection` | 1 + one per node (+4 to publish) | create → add each, catching failures → publish (if asked) |
 | `delete` | 2 | load (to name it) → delete |
 | `accept_suggestion` | 6–7 | load node → list proposals → write and read back → mark |
 
@@ -445,7 +445,7 @@ which is the whole point when the answer has to travel onwards.
 ## `text` — the full text of one material, and why there is none
 
 **One to three requests.** The repository's own text first (`/textContent`);
-then the file itself, when the record carries a `text/*` upload — measured on
+then the file itself, when the record carries a text, JSON or XML upload — measured on
 2026-08-27, `/textContent` returns nothing for Markdown and JSON although the
 file has text; then the linked page (`ccm:wwwurl`) through the text-extraction
 service, and only when you pass one: the library knows no service address.
@@ -1437,7 +1437,10 @@ repo.flows.add_material(
   "name": "Photosynthese einfach erklärt",
   "collection": {"id": "…", "added": true},
   "public": false,
-  "unresolved": []
+  "unresolved": [],
+  "existing": null,
+  "created": true,
+  "warnings": []
 }
 ```
 
@@ -1466,7 +1469,8 @@ appends a counter rather than failing.
 *Example: [`examples/06_flow_create.py`](examples/06_flow_create.py)*
 
 
-**Behind it** — 3 to 6 requests:
+**Behind it** — one request per step taken (publishing counts four: two reads,
+the grant and its read-back):
 
 ```python
 # what repo.flows.add_material("T", url=url, subject="Biologie") does

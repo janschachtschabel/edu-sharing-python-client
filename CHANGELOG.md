@@ -160,6 +160,16 @@ and in [`docs/audits/`](docs/audits/).
   keywords against the function behind a `**kwargs` facade; the mirror
   guard looks both ways and at positional order; `carries`,
   `walk_collections` and `pages_among` are exported and documented.
+- **Second review round, write path.** `accept_suggestion` names the
+  original's values under `replaced` when called at a reference (the
+  reference carries a copy); `find_by_url` refuses a scheme-less address
+  before paying for a vocabulary lookup and an unfiltered search;
+  `validate_if_exists` is public; the `placement` docstring counts three
+  requests and names the `original` part; `set_property` and `update`
+  docstrings say what the read-back does with a deletion and at a
+  reference; the cost table counts `add_material` per step taken and
+  publishing at four; the `add_material` example carries `existing`,
+  `created` and `warnings`; "text/*" reads "text, JSON or XML" everywhere.
 
 ## [0.1.0] — 2026-09-02
 

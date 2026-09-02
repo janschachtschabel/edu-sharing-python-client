@@ -525,7 +525,8 @@ async def test_anlegen_mit_umbenennung_ist_kein_verlust():
     stillen Verlust, mit falscher Diagnose."""
     server = Server(umbenennung=True)
     node = await _nodes(server).create("eltern", name="x.txt", title="T")
-    assert node.name == "x.txt-1" and node.get("cm:name") == "x.txt-1"
+    assert node.name != "x.txt" and node.get("cm:name") == node.name, (
+        "der gespeicherte Name ist der Schluessel, den das Repositorium waehlte")
 
 
 async def test_anlegen_prueft_ohne_zusaetzliche_anfrage():

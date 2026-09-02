@@ -766,6 +766,7 @@ stopped early is not "there is none".
 | Call | Returns |
 |---|---|
 | `repo.flows.add_material(title, url=…, parent_id=…, subject=…, if_exists=…)` | `{id, title, url, parent_id, name, collection, public, unresolved, existing, created, warnings}` — `if_exists="return"` names an existing record for `url` instead of creating a second |
+| `validate_if_exists(if_exists)` | raises `ValidationError` unless `return`, `raise` or `create` |
 | `find_by_url(repo, url)` | `{id, title, url} \| None` — the record already carrying this address; `ValidationError` when the metadata set cannot filter on `ccm:wwwurl` |
 | `check_before_create(repo, url, if_exists)` | `(existing, warnings)` — applies `if_exists`; raises `ConflictError` for `"raise"` |
 | `DUPLICATE_SCAN_LIMIT` | `20` — hits compared per check |

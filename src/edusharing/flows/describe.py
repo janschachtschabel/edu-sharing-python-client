@@ -78,10 +78,12 @@ async def describe(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
 async def placement(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
     """Where a node sits and who has curated it, as JSON.
 
-    Two requests, sent together: the way up, and the collections holding a
-    reference. They answer different questions -- a node in ten collections
-    still has one parent chain -- and asking both is the usual way to explain
-    to a person, or to a model, what a hit actually is.
+    Three requests: one read first -- a listing id is a reference, and the
+    collections have to be asked for the original behind it -- then two sent
+    together: the way up, and the collections holding a reference. They
+    answer different questions -- a node in ten collections still has one
+    parent chain -- and asking both is the usual way to explain to a person,
+    or to a model, what a hit actually is.
 
     Args:
         repo: the connection.
@@ -104,7 +106,10 @@ async def placement(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
         answers ``500 AccessDeniedException`` for the way up while the
         collections come back fine. ``path`` is then empty, and without
         ``failed`` that reads as "this node sits nowhere" instead of "you may
-        not see where it sits". Each entry carries ``part`` and ``reason``.
+        not see where it sits". Each entry carries ``part`` (``original``,
+        ``path`` or ``collections``) and ``reason``; ``original`` means the
+        node itself could not be read, and both halves were asked with the id
+        as given.
 
     Raises:
         NotFoundError: when no node carries this id.

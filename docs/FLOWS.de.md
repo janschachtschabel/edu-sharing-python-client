@@ -42,7 +42,7 @@ nur von Hand ausgeschrieben.
 | `search(rerank=True)` | 1 je Variante (≤5), parallel | expandieren → je Variante suchen → im Speicher bewerten und mischen |
 | `vocabulary` | 1 | Kurzname auflösen → Werte holen (zwischengespeichert) |
 | `describe` | 1 | Knoten laden |
-| `text` | 1–3 | Knoten laden → gespeicherter Text → (die Datei, bei `text/*`) → (die verlinkte Seite, mit Dienst) |
+| `text` | 1–3 | Knoten laden → gespeicherter Text → (die Datei, bei Text, JSON oder XML) → (die verlinkte Seite, mit Dienst) |
 | `search_all` | 3–4 (`include_pages` kostet keine) | Materialsuche (+1 zum Auflösen eines Filters) + Sammlungssuche (ihre zwei Wege), parallel |
 | `placement` | 3 | Knoten laden (Referenz auflösen) → Weg nach oben + Sammlungen des Originals, parallel |
 | `describe_many` | eine je verschiedener ID, parallel | jeden laden, die verschwundenen melden |
@@ -60,9 +60,9 @@ nur von Hand ausgeschrieben.
 | `child_objects` | 2 | Hauptknoten laden → seine Kinder, gefiltert und sortiert |
 | `find_collections` | 2, parallel; mit `parent_id` eine je geöffneter Sammlung | beide Sammlungswege → über die ID zusammenlegen → lokal filtern |
 | `collection_contents` | 2, parallel | Materialliste + Untersammlungsliste |
-| `add_material` | 3–6 | die Adresse (`url`) prüfen → whoami (ohne parent) → Vokabular auflösen → anlegen → einlegen (auf Wunsch) → veröffentlichen (auf Wunsch) |
+| `add_material` | 1 + eine je gegangenem Schritt (Adresse 1, whoami 1, je Vokabularfeld 1, Sammlung 1, Veröffentlichen 4) | die Adresse (`url`) prüfen → whoami (ohne parent) → Vokabular auflösen → anlegen → einlegen (auf Wunsch) → veröffentlichen (auf Wunsch) |
 | `update_material` | 3–4 | Vokabular auflösen → laden → schreiben → zurücklesen |
-| `build_collection` | 1 + eine je Knoten (+2 zum Veröffentlichen) | anlegen → jeden einlegen, Fehlschläge auffangen → veröffentlichen (auf Wunsch) |
+| `build_collection` | 1 + eine je Knoten (+4 zum Veröffentlichen) | anlegen → jeden einlegen, Fehlschläge auffangen → veröffentlichen (auf Wunsch) |
 | `delete` | 2 | laden (um ihn zu benennen) → löschen |
 | `accept_suggestion` | 6–7 | Knoten laden → Vorschläge auflisten → schreiben und zurücklesen → markieren |
 
@@ -455,8 +455,8 @@ darum geht es, wenn die Antwort weiterreisen soll.
 ## `text` — der Volltext eines Materials, und warum es keinen gibt
 
 **Eine bis drei Anfragen.** Zuerst der eigene Text des Repositoriums
-(`/textContent`); dann die Datei selbst, wenn der Datensatz eine
-`text/*`-Datei trägt — gemessen am 27.08.2026 liefert `/textContent` für
+(`/textContent`); dann die Datei selbst, wenn der Datensatz eine Text-, JSON-
+oder XML-Datei trägt — gemessen am 27.08.2026 liefert `/textContent` für
 Markdown und JSON nichts, obwohl die Datei Text hat; dann die verlinkte Seite
 (`ccm:wwwurl`) über den Extraktionsdienst, und nur, wenn man einen übergibt:
 die Bibliothek kennt keine Dienstadresse.
@@ -1476,7 +1476,10 @@ repo.flows.add_material(
   "name": "Photosynthese einfach erklärt",
   "collection": {"id": "…", "added": true},
   "public": false,
-  "unresolved": []
+  "unresolved": [],
+  "existing": null,
+  "created": true,
+  "warnings": []
 }
 ```
 
@@ -1506,7 +1509,8 @@ einer Namenskollision wird ein Zähler angehängt statt abzubrechen.
 *Beispiel: [`examples/06_flow_create.py`](examples/06_flow_create.py)*
 
 
-**Was dahinter läuft** — 3 bis 6 Anfragen:
+**Was dahinter läuft** — eine Anfrage je gegangenem Schritt (Veröffentlichen
+zählt vier: zwei Lesezugriffe, die Freigabe und ihr Zurücklesen):
 
 ```python
 # was repo.flows.add_material("T", url=url, subject="Biologie") tut

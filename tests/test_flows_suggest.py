@@ -182,15 +182,19 @@ async def test_scheitert_das_markieren_bleibt_der_wert_und_die_antwort_sagt_es()
 # --- Review B11: ein Vorschlag an einer Referenz, offline --------------------
 
 class MitReferenz(Instanz):
-    """ref-1 ist eine Referenz auf den Knoten NID."""
+    """ref-1 ist eine Referenz auf den Knoten NID -- mit eigener Kopie der
+    Eigenschaften, die nicht mehr mitwandert, sobald jemand hineinschreibt."""
+
+    ref_props: dict[str, list[str]] | None = None
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         if request.method == "GET" and request.url.path.endswith("/ref-1/metadata"):
             self.anfragen.append(request)
+            props = self.ref_props if self.ref_props is not None else dict(self.props)
             return httpx.Response(200, json={"node": {
                 "ref": {"id": "ref-1"}, "type": "ccm:io", "name": "k.txt",
                 "originalId": NID, "aspects": ["ccm:collection_io_reference"],
-                "properties": dict(self.props)}})
+                "properties": props}})
         return super().handler(request)
 
 
@@ -203,3 +207,15 @@ async def test_annehmen_an_einer_referenz_schreibt_ans_original():
     assert got["applied"] is True and got["id"] == "ref-1"
     schreib = [r.url.path for r in instanz.anfragen if r.url.path.endswith("/property")]
     assert schreib and all(f"/{NID}/" in p for p in schreib), schreib
+
+
+async def test_replaced_nennt_die_werte_des_originals_nicht_der_referenz():
+    """Die Referenz traegt eine Kopie, die nach dem ersten Schreiben nicht mehr
+    mitwandert; verdraengt wird, was das ORIGINAL hatte."""
+    instanz = MitReferenz([_vorschlag("s-1", "ccm:taxonid", "http://vocab.test/neu")])
+    instanz.props["ccm:taxonid"] = ["http://vocab.test/original"]
+    instanz.ref_props = {"cclom:title": ["Probe"], "ccm:taxonid": ["http://vocab.test/kopie"]}
+    async with instanz.repo() as repo:
+        got = await repo.flows.accept_suggestion("ref-1", "s-1")
+    assert got["applied"] is True
+    assert got["replaced"] == ["http://vocab.test/original"]

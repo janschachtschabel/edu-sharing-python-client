@@ -186,3 +186,13 @@ async def test_ohne_adresse_gibt_es_nichts_zu_pruefen():
         got = await repo.flows.add_material("Neu")
     assert got["created"] is True
     assert not any("/search/v1" in r.url.path for r in instanz.anfragen)
+
+
+async def test_eine_schemalose_adresse_kostet_keine_anfrage():
+    """Die Suche nimmt nur http(s) -- das weiss die Pruefung selbst, statt erst
+    Vokabular und eine ungefilterte Suche zu bezahlen."""
+    instanz = Instanz([])
+    async with instanz.repo() as repo:
+        with pytest.raises(ValidationError):
+            await find_by_url(repo, "www.example.org/x")
+    assert instanz.anfragen == []

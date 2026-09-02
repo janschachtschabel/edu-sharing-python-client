@@ -30,11 +30,15 @@ from ..errors import ConflictError, ValidationError
 if TYPE_CHECKING:  # pragma: no cover
     from ..repository import AsyncRepository
 
-__all__ = ["find_by_url", "check_before_create", "DUPLICATE_SCAN_LIMIT"]
+__all__ = ["find_by_url", "check_before_create", "validate_if_exists", "DUPLICATE_SCAN_LIMIT"]
 
 #: Hits compared per check. The exact address ranks first when it exists; the
 #: rest of the page is neighbours, and twenty is plenty of room for them.
 DUPLICATE_SCAN_LIMIT = 20
+_NOT_A_CRITERION = (
+    "{url!r} could not be sent as a ccm:wwwurl criterion -- the search takes only "
+    "http(s) addresses -- so the duplicate check did not run."
+)
 
 
 async def find_by_url(repo: AsyncRepository, url: str) -> dict[str, Any] | None:
@@ -55,14 +59,16 @@ async def find_by_url(repo: AsyncRepository, url: str) -> dict[str, Any] | None:
     wanted = url.strip().lower()
     if not wanted:
         return None
+    if not wanted.startswith(("http://", "https://")):
+        # The search takes only http(s) addresses as a criterion. Asking anyway
+        # would cost a vocabulary lookup and an unfiltered search for the same
+        # answer; the check below stays as the second line of defence.
+        raise ValidationError(_NOT_A_CRITERION.format(url=url))
     result = await repo.search(filters={"ccm:wwwurl": url.strip()}, limit=DUPLICATE_SCAN_LIMIT)
     if result.unresolved:
         # Not sent means not filtered: the hits below would be neighbours of
         # nothing, and "no duplicate" a guess.
-        raise ValidationError(
-            f"{url!r} could not be sent as a ccm:wwwurl criterion -- the search takes "
-            "only http(s) addresses -- so the duplicate check did not run."
-        )
+        raise ValidationError(_NOT_A_CRITERION.format(url=url))
     for hit in result.hits:
         stored = (hit.source_url or "").strip()
         if stored and stored.lower() == wanted:

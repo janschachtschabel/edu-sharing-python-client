@@ -335,7 +335,7 @@ zu verschwinden.
 | `DEFAULT_MAX_CHARS` | `200000` | wo `flows.text` kürzt, an einer Wortgrenze |
 | `SKILL_SEARCH_PAGE` / `SKILL_BUNDLE_MAX` / `SKILL_VISIT_MAX` / `SKILL_DEPTH_MAX` | `50` / `50` / `30` / `2` | Skill-Treffer im Pool · Begleitdateien, bevor ein Ordner als Eingang zählt · Sammlungen je Gang · Ebenen, die der Gang hinabsteigt |
 | `REGISTRY_SCAN_MAX` / `REGISTRY_MAX` / `REGISTRY_POOL` / `REGISTRY_CONTEXT_MAX` | `50` / `100` / `10` / `50` | Dateien auf der Suche nach der Registry · Einträge je Antwort · Köpfe auf einmal · Kontexte je Antwort |
-| `DUPLICATE_SCAN_LIMIT` | `20` | Treffer, die `find_by_url` vergleicht, bevor `add_material` anlegt; `check_before_create` wendet `if_exists` an |
+| `DUPLICATE_SCAN_LIMIT` | `20` | Treffer, die `find_by_url` vergleicht, bevor `add_material` anlegt; `check_before_create` wendet `if_exists` an, `validate_if_exists` weist ein verschriebenes ab |
 | `EXCLUSION_MAX` | `200` | das größte Nachladen nach `exclude_ids` — `limit` selbst wird nie gekappt |
 | `DEFAULT_POOL` | `25` | wie viele Treffer `search(rerank=True)` vor dem Neuordnen holt |
 | `MAX_VARIANTS` | `5` | wie viele Umformulierungen `expand_query` erzeugt |
