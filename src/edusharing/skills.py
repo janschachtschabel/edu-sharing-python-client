@@ -36,7 +36,7 @@ from typing import TYPE_CHECKING, Any
 
 from .content import is_text_like
 from .errors import NotFoundError, PermissionDeniedError
-from .flows.fields import resolve_vocabulary
+from .flows.fields import carries, resolve_vocabulary
 from .flows.ranking import query_terms, term_matches
 from .results import original_id_of
 from .skills_markdown import SkillReference, parse_blocks
@@ -208,7 +208,8 @@ class Skills:
             candidates = [
                 n for n in raw_nodes
                 if _is(n, conventions.type_property, conventions.skill_type)
-                and all(_carries(n, prop, values) for prop, values in wanted.items())
+                and all(carries(n.get("properties") or {}, prop, values)
+                        for prop, values in wanted.items())
             ]
         else:
             result = await self._repo.search(
@@ -427,11 +428,6 @@ def _first(value: Any) -> str | None:
 
 def _is(raw: dict[str, Any], prop: str, value: str) -> bool:
     return value in ((raw.get("properties") or {}).get(prop) or [])
-
-
-def _carries(raw: dict[str, Any], prop: str, values: list[str]) -> bool:
-    stored = (raw.get("properties") or {}).get(prop) or []
-    return any(v in stored for v in values)
 
 
 def _dedupe_by_original(skills: list[SkillSummary]) -> list[SkillSummary]:

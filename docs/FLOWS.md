@@ -711,6 +711,16 @@ nearest level first; empty `text` lists them all.
 Collections are how edu-sharing groups material for teaching, so finding them is
 a different question from finding single resources — and a different endpoint.
 
+**A short-name filter is judged here, on more candidates than `limit`.** The
+collection routes take a search word and nothing else, so `subject="Biologie"`
+is applied locally: up to five times `limit` (at most 100) candidates are
+fetched and filtered, `total` then counts the matches among them, and
+`warnings` says when the search knew more candidates than were judged.
+`query.filters` echoes your words, as in `search`. Below a `parent_id` the
+walk keeps each collection's record, so the same filter works there; a query
+of stopwords only is matched as typed; more sub-collections than one page
+lists make `total_is_lower_bound` true.
+
 **Input**
 
 ```python

@@ -731,6 +731,17 @@ Sammlungen sind die Art, wie edu-sharing Material für den Unterricht bündelt.
 Sie zu finden ist eine andere Frage als einzelne Materialien zu finden — und ein
 anderer Endpunkt.
 
+**Ein Kurznamen-Filter wird hier beurteilt, an mehr Kandidaten als `limit`.**
+Die Sammlungsrouten nehmen ein Suchwort und sonst nichts, also wird
+`subject="Biologie"` lokal angewandt: bis zu fünfmal `limit` (höchstens 100)
+Kandidaten werden geholt und gefiltert, `total` zählt danach die Treffer
+darunter, und `warnings` sagt, wenn die Suche mehr Kandidaten kannte als
+beurteilt wurden. `query.filters` gibt Deine Worte wieder, wie bei `search`.
+Unter einer `parent_id` behält der Gang den Datensatz jeder Sammlung, der
+Filter wirkt also auch dort; ein Text nur aus Stoppwörtern wird wörtlich
+verglichen; mehr Untersammlungen, als eine Seite listet, machen
+`total_is_lower_bound` wahr.
+
 **Eingabe**
 
 ```python

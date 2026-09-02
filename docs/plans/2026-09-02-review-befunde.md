@@ -68,7 +68,7 @@ Status: `[ ]` offen · `[x]` erledigt · `[-]` bewusst nicht (Begründung).
 - [ ] C2 MAJOR — `search_all(include_pages=True)`: `find_pages` läuft außerhalb
   der Ausfallbehandlung — ein 503 der Sammlungsrouten wirft und verliert die
   Materialtreffer (Audit A9, wieder eingebaut). → in denselben `gather`.
-- [ ] C3 MAJOR — `find_collections`: Kurznamen-Filter werden NACH dem
+- [x] C3 MAJOR — `find_collections`: Kurznamen-Filter werden NACH dem
   Server-Schnitt bei `limit` angewandt; `total` bleibt die ungefilterte Zahl.
   → mit Filter mehr holen (gekappt), `total=len(kept)` als Untergrenze,
   Warnung mit der Zahl der beurteilten Kandidaten.
@@ -78,18 +78,18 @@ Status: `[ ]` offen · `[x]` erledigt · `[-]` bewusst nicht (Begründung).
   → eine `_empty`-Form für beide Wege; Test auf gleiche Schlüsselmenge.
 - [ ] C6 MINOR — `SyncFlows.find_collections(text)` ohne Vorgabe, asynchron
   `text=""`. → Vorgabe; Reflexions-Wächter für Signaturen Async ↔ Sync.
-- [ ] C7 MINOR — `_below` baut `SearchHit` ohne `raw`; mit `parent_id` UND
+- [x] C7 MINOR — `_below` baut `SearchHit` ohne `raw`; mit `parent_id` UND
   Kurzname ist jeder Treffer `unjudged`. → Rohdaten aus `browse_tree`
   mitführen, `SearchHit.from_node`.
-- [ ] C8 MINOR — `browse_tree` ignoriert `pagination.total` (>50
+- [x] C8 MINOR — `browse_tree` ignoriert `pagination.total` (>50
   Untersammlungen fallen stumm weg). → `truncated=True`.
-- [ ] C9 MINOR — `_below`: ein `text` nur aus Stoppwörtern ergibt `terms=[]`
+- [x] C9 MINOR — `_below`: ein `text` nur aus Stoppwörtern ergibt `terms=[]`
   → alles passt. → Teilstring-Rückfall oder Warnung.
 - [x] C10 MINOR — `hit_as_dict`: `list(values)` zerlegt einen String in
   Zeichen, ein `int` wirft. → Liste erzwingen.
 - [ ] C11 MINOR — `find_pages` läuft sequenziell nach dem `gather` und sendet
   dieselben zwei Sammlungsanfragen erneut. → in den `gather` (mit C2).
-- [ ] C12 MINOR — (a) `search_all` reicht `**aliases` nicht an
+- [x] C12 MINOR (b, c erledigt; a im search_all-Commit) — (a) `search_all` reicht `**aliases` nicht an
   `find_collections` durch, meldet sie aber als `filters_ignored`; (b)
   `_carries` doppelt (`collections.py`, `skills.py`); (c) `query.filters` hat
   zwei Formen. → (a) prüfen und angleichen, (b) eine Fassung, (c) die Worte

@@ -98,6 +98,16 @@ and in [`docs/audits/`](docs/audits/).
   vocabularies) -- so the same short name narrowed collections and skills
   differently from material, silently. `resolve_vocabulary(...,
   every_value=True)` is the reading rule; writing keeps the first.
+- **`find_collections` judges its filter on candidates, not on the cut
+  page.** A short name was applied after the server had cut the merge at
+  `limit`, and `total` stayed the unfiltered figure -- ten candidates judged,
+  48 claimed. Now five times `limit` (at most 100) are fetched, `total`
+  counts the matches, and `warnings` names candidates beyond that. Below a
+  `parent_id` the walk keeps each record, so a filter there no longer makes
+  every hit `unjudged`; more sub-collections than one page lists set
+  `truncated`; a query of stopwords only is matched as typed instead of
+  matching everything; `query.filters` echoes the caller's words as `search`
+  does; one `carries` serves collections and skills.
 
 ## [0.1.0] — 2026-09-02
 

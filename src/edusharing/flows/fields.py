@@ -85,6 +85,14 @@ async def resolve_vocabulary(
     return resolved, unresolved
 
 
+def carries(props: dict[str, Any], prop: str, values: list[str]) -> bool:
+    """Whether a record carries one of the wanted values for ``prop`` -- the
+    local half of a filter the endpoint would not take."""
+    stored = props.get(prop) or []
+    stored = stored if isinstance(stored, list) else [stored]
+    return any(v in stored for v in values)
+
+
 async def _resolve(
     repo: AsyncRepository, prop: str, text: str, every_value: bool
 ) -> list[str]:

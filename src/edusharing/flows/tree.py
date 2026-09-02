@@ -73,12 +73,40 @@ async def browse_tree(
 
     Returns:
         ``{id, collections, opened, truncated}``, nested. ``opened`` is how
-        many were actually read, ``truncated`` whether the cap or a cycle cut
-        the walk short.
+        many were actually read, ``truncated`` whether the cap cut the walk
+        short -- or a collection listed more sub-collections than one page
+        holds, which the walk does not follow up.
 
     Raises:
         NotFoundError: when no collection carries this id.
     """
+    entries, opened, truncated = await walk_collections(
+        repo, collection_id, depth=depth, max_collections=max_collections)
+    return {
+        "id": collection_id,
+        "collections": _without_records(entries),
+        "opened": opened,
+        "truncated": truncated,
+    }
+
+
+def _without_records(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The browsable shape: id, title and children -- the record stays inside."""
+    return [{"id": e["id"], "title": e["title"],
+             "collections": _without_records(e["collections"])} for e in entries]
+
+
+async def walk_collections(
+    repo: AsyncRepository,
+    collection_id: str,
+    *,
+    depth: int,
+    max_collections: int,
+) -> tuple[list[dict[str, Any]], int, bool]:
+    """The walk behind ``browse_tree``, with each collection's record kept as
+    ``raw`` -- ``find_collections`` judges its filters on those. Returns the
+    nested entries, how many collections were opened, and whether anything
+    was cut short."""
     seen: set[str] = {collection_id}
     state = {"opened": 0, "truncated": False}
 
@@ -96,8 +124,12 @@ async def browse_tree(
             "/children/collections",
             params={"maxItems": max_collections},
         )
+        found = response.get("collections") or []
+        if int((response.get("pagination") or {}).get("total") or 0) > len(found):
+            # More than one page lists: the rest is neither read nor followed.
+            state["truncated"] = True
         children = []
-        for data in response.get("collections") or []:
+        for data in found:
             child_id = (data.get("ref") or {}).get("id") or ""
             if not child_id or child_id in seen:
                 # A graph, not a tree: the same collection can be reached
@@ -108,17 +140,13 @@ async def browse_tree(
             children.append({
                 "id": child_id,
                 "title": data.get("title") or data.get("name") or "",
+                "raw": data,
                 "collections": await walk(child_id, left - 1),
             })
         return children
 
     tree = await walk(collection_id, depth)
-    return {
-        "id": collection_id,
-        "collections": tree,
-        "opened": state["opened"],
-        "truncated": state["truncated"],
-    }
+    return tree, int(state["opened"]), bool(state["truncated"])
 
 
 async def search_in_collection(

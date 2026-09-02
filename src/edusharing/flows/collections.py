@@ -17,19 +17,24 @@ from typing import TYPE_CHECKING, Any
 
 from ..errors import ValidationError
 from ..results import SearchHit, SearchResult
-from .fields import resolve_vocabulary
+from .fields import carries, resolve_vocabulary
 from .find import search
 from .language import GERMAN, LanguageProfile
 from .pages import find_pages
 from .ranking import query_terms, term_matches
 from .rerank import DEFAULT_POOL
 from .serialize import result_as_dict
-from .tree import browse_tree
+from .tree import DEFAULT_MAX_COLLECTIONS, walk_collections
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..repository import AsyncRepository
 
 __all__ = ["find_collections", "search_all"]
+
+#: Candidates fetched when a short-name filter has to be judged locally: five
+#: times ``limit``, at most this many. Disclosed in ``warnings`` when the
+#: search knew more.
+_FILTER_SCAN_MAX = 100
 
 
 async def find_collections(
@@ -50,10 +55,14 @@ async def find_collections(
     so what narrows a collection search is applied here:
 
     * ``subject="Biologie"`` and the other short names are resolved against
-      the vocabulary and matched against each hit's own properties. A hit that
-      carries no properties at all cannot be judged -- one leg of the
-      collection search has a fixed, empty projection -- and is counted in
-      ``unjudged`` rather than silently kept or dropped.
+      the vocabulary and matched against each hit's own properties. Because
+      the endpoint cannot narrow, more candidates than ``limit`` are fetched
+      (five times, at most 100) and judged here; ``total`` then counts the
+      matches among them, and ``warnings`` says when the search knew more
+      candidates than were judged. A hit that carries no properties at all
+      cannot be judged -- one leg of the collection search has a fixed,
+      empty projection -- and is counted in ``unjudged`` rather than
+      silently kept or dropped.
     * ``parent_id`` does not search at all: the sub-collections below it are
       walked (two levels, see ``browse_tree``) and ``text`` is matched against
       their titles, every term. That is how the MCP scopes a collection search
@@ -73,6 +82,8 @@ async def find_collections(
         properties and could not be filtered. ``total_is_lower_bound`` is
         **true** for a search: the collection search asks two routes and
         merges them, so the figure counts at least this many, possibly more.
+        With ``parent_id`` it is true only when the walk was cut short.
+        ``query.filters`` echoes your words, as ``search`` does.
         ``unresolved`` names a filter value the vocabulary does not know --
         that filter was not applied, and the result is broader than asked.
 
@@ -86,25 +97,40 @@ async def find_collections(
         "metadataset": repo.metadataset,
         "limit": limit,
         "kind": "collections",
-        "filters": wanted,
+        # The caller's words, as ``search`` echoes them; the URIs are applied.
+        "filters": dict(aliases),
         "parent_id": parent_id,
     }
+    # With a local filter the page must hold candidates, not answers.
+    scan = min(limit * 5, _FILTER_SCAN_MAX) if wanted else limit
     if parent_id:
-        result = await _below(repo, parent_id, text, limit)
+        result = await _below(repo, parent_id, text, scan)
     else:
-        result = await repo.collections.find(text, limit=limit)
+        result = await repo.collections.find(text, limit=scan)
 
     unjudged = 0
     if wanted:
+        judged = len(result.hits)
         kept = []
         for hit in result.hits:
             props = hit.properties()
             if not props:
                 unjudged += 1
                 continue
-            if all(_carries(props, prop, values) for prop, values in wanted.items()):
+            if all(carries(props, prop, values) for prop, values in wanted.items()):
                 kept.append(hit)
-        result = replace(result, hits=kept)
+        beyond = result.total > judged
+        warnings = list(result.warnings)
+        if beyond:
+            warnings.append(
+                f"filter applied locally to {judged} of {result.total} candidates -- "
+                "matches beyond them are not counted"
+            )
+        # ``total`` now counts matches, not candidates -- and says so.
+        result = replace(
+            result, hits=kept[:limit], total=len(kept),
+            total_is_lower_bound=result.total_is_lower_bound or beyond, warnings=warnings,
+        )
 
     answer = result_as_dict(
         result, query=query, aliases=repo.searcher.field_aliases, properties=properties)
@@ -113,36 +139,34 @@ async def find_collections(
     return answer
 
 
-def _carries(props: dict[str, Any], prop: str, values: list[str]) -> bool:
-    """Whether the hit carries one of the wanted values for ``prop``."""
-    stored = props.get(prop) or []
-    stored = stored if isinstance(stored, list) else [stored]
-    return any(v in stored for v in values)
-
-
 async def _below(
     repo: AsyncRepository, parent_id: str, text: str, limit: int
 ) -> SearchResult:
     """The collections below ``parent_id`` whose title matches every term."""
-    tree = await browse_tree(repo, parent_id, depth=2)
+    entries, _opened, truncated = await walk_collections(
+        repo, parent_id, depth=2, max_collections=DEFAULT_MAX_COLLECTIONS)
     terms = query_terms(text)
+    # A query of stopwords only is still a query: matched as typed, not as
+    # nothing -- "nothing" would have matched every collection.
+    needle = text.strip().lower()
     hits: list[SearchHit] = []
     # Level by level: the direct sub-collections first, then theirs. A reader
     # scanning the answer expects the nearer ones before the deeper ones.
-    level = list(tree["collections"])
+    level = entries
     while level:
         for entry in level:
-            title = entry.get("title") or ""
-            if all(term_matches(term, title.lower()) for term in terms):
-                hits.append(SearchHit(
-                    id=entry["id"], title=title,
-                    url=f"{repo.url}/components/render/{entry['id']}",
-                ))
+            title = (entry.get("title") or "").lower()
+            matched = (all(term_matches(term, title) for term in terms) if terms
+                       else needle in title)
+            if matched:
+                # The record itself, so a short-name filter can judge the hit.
+                hits.append(SearchHit.from_node(entry["raw"], repo.url))
         level = [child for entry in level for child in (entry.get("collections") or [])]
-    warnings = ["the walk was cut short by its cap"] if tree["truncated"] else []
+    warnings = ["the walk was cut short: its cap, or more sub-collections than a "
+                "page lists"] if truncated else []
     return SearchResult(
         hits=hits[:limit], total=len(hits),
-        total_is_lower_bound=tree["truncated"], warnings=warnings,
+        total_is_lower_bound=truncated, warnings=warnings,
     )
 
 

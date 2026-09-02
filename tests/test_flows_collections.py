@@ -265,9 +265,11 @@ class Gefiltert(Instanz):
             eltern = pfad.split("/-home-/")[1].split("/")[0]
             kinder = {"wurzel": [("u-physik", "Optik in der Physik"), ("u-bio", "Zellen")],
                       "u-physik": [("uu-1", "Linsen und Optik")]}.get(eltern, [])
+            fach = {"u-physik": {"ccm:taxonid": ["http://x/460"]}}
             return httpx.Response(200, json={"collections": [
                 {"ref": {"id": i}, "title": t, "collection": {"scope": "MY"},
-                 "properties": {"cclom:title": [t]}} for i, t in kinder]})
+                 "properties": {"cclom:title": [t], **fach.get(i, {})}} for i, t in kinder],
+                "pagination": {"total": len(kinder), "from": 0, "count": len(kinder)}})
         if "queries" in pfad:
             return httpx.Response(200, json={"nodes": [
                 _knoten("c-physik", "Physik-Sammlung", **{"ccm:taxonid": ["http://x/460"]}),
@@ -305,8 +307,7 @@ async def test_ein_lesefilter_nimmt_jede_uri_eines_labels():
     async with _repo(instanz) as repo:
         got = await repo.flows.find_collections("Physik", subject="Physik")
     assert [h["id"] for h in got["hits"]] == ["c-schule", "c-uni"]
-    assert sorted(got["query"]["filters"]["ccm:taxonid"]) == [
-        "http://x/460", "http://x/hochschule/460"]
+    assert got["query"]["filters"] == {"subject": "Physik"}
 
 
 async def test_ein_fachfilter_wirkt_auf_die_sammlungen_lokal():
@@ -316,7 +317,7 @@ async def test_ein_fachfilter_wirkt_auf_die_sammlungen_lokal():
     assert [h["id"] for h in got["hits"]] == ["c-bio"]
     assert got["unjudged"] == 1, "der Treffer ohne Eigenschaften kann nicht beurteilt werden"
     assert got["unresolved"] == []
-    assert got["query"]["filters"] == {"ccm:taxonid": ["http://x/080"]}
+    assert got["query"]["filters"] == {"subject": "Biologie"}, "die Worte des Aufrufers"
 
 
 async def test_ein_unaufloesbarer_filter_wird_gemeldet_und_verengt_nicht():
@@ -334,6 +335,78 @@ async def test_ein_elternbereich_wird_gegangen_statt_gesucht():
     assert [h["id"] for h in got["hits"]] == ["u-physik", "uu-1"]
     assert not any("queries" in r.url.path for r in instanz.anfragen), "keine Suche"
     assert got["query"]["parent_id"] == "wurzel"
+
+
+async def test_ein_filter_beurteilt_mehr_kandidaten_als_das_limit():
+    """Die Sammlungsrouten nehmen den Filter nicht; wird er lokal angewandt,
+    muss die Seite Kandidaten halten, nicht Antworten -- sonst ist limit=1
+    mit Fachfilter meist leer. total zaehlt danach die Treffer, nicht die
+    Kandidaten."""
+    instanz = Gefiltert()
+    async with _repo(instanz) as repo:
+        got = await repo.flows.find_collections("Physik", subject="Biologie", limit=1)
+    suche = [r for r in instanz.anfragen if "queries" in r.url.path]
+    assert suche and suche[0].url.params.get("maxItems") == "5", "fuenfmal das Limit"
+    assert [h["id"] for h in got["hits"]] == ["c-bio"]
+    assert got["total"] == 1 and got["returned"] == 1
+
+
+class VieleKandidaten(Gefiltert):
+    """Die Suche kennt 48 Sammlungen, liefert aber drei -- der Rest bleibt unbeurteilt."""
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        antwort = super().__call__(request)
+        if "queries" in request.url.path:
+            data = antwort.json()
+            data["pagination"]["total"] = 48
+            return httpx.Response(200, json=data)
+        return antwort
+
+
+async def test_unbeurteilte_kandidaten_werden_gesagt():
+    instanz = VieleKandidaten()
+    async with _repo(instanz) as repo:
+        got = await repo.flows.find_collections("Physik", subject="Biologie")
+    assert got["total"] == 1 and got["total_is_lower_bound"] is True
+    assert any("48" in w for w in got["warnings"]), got["warnings"]
+
+
+async def test_unter_einem_elternbereich_traegt_ein_treffer_seine_eigenschaften():
+    """Bisher baute der Gang Treffer ohne Rohdaten: mit parent_id UND Kurzname
+    war jeder Treffer unjudged, die Antwort immer leer."""
+    instanz = Gefiltert()
+    async with _repo(instanz) as repo:
+        got = await repo.flows.find_collections("", parent_id="wurzel", subject="Physik")
+    assert [h["id"] for h in got["hits"]] == ["u-physik"]
+    assert got["unjudged"] == 0
+
+
+class MehrAlsEineSeite(Gefiltert):
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        antwort = super().__call__(request)
+        if request.url.path.endswith("/children/collections"):
+            data = antwort.json()
+            data["pagination"] = {"total": 120, "from": 0, "count": len(data["collections"])}
+            return httpx.Response(200, json=data)
+        return antwort
+
+
+async def test_mehr_untersammlungen_als_eine_seite_sind_eine_untergrenze():
+    instanz = MehrAlsEineSeite()
+    async with _repo(instanz) as repo:
+        got = await repo.flows.find_collections("", parent_id="wurzel")
+    assert got["total_is_lower_bound"] is True and got["warnings"]
+
+
+async def test_ein_text_aus_stoppwoertern_filtert_trotzdem():
+    """query_terms streicht Stoppwoerter; ein Text nur aus solchen ergab leere
+    Begriffe, und leer passte auf alles."""
+    instanz = Gefiltert()
+    async with _repo(instanz) as repo:
+        nichts = await repo.flows.find_collections("die", parent_id="wurzel")
+        teil = await repo.flows.find_collections("in der", parent_id="wurzel")
+    assert nichts["hits"] == []
+    assert [h["id"] for h in teil["hits"]] == ["u-physik"]
 
 
 async def test_ohne_text_liefert_der_elternbereich_alles():
