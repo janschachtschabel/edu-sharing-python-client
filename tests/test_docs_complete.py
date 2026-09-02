@@ -554,7 +554,7 @@ def test_der_skill_nennt_jeden_oeffentlichen_namen(name):
 # Leser schreibt sie irgendwann als Schluesselwort. Schluesselwortargumente
 # duerfen alles sein, wenn die Methode ``**kwargs`` hat.
 
-_REPO_AUFRUF = re.compile(r"`repo\.([a-z_]+)\(([^`)]*)\)`")
+_REPO_AUFRUF = re.compile(r"`repo\.((?:flows\.)?[a-z_]+)\(([^`)]*)\)`")
 _BEZEICHNER = re.compile(r"[a-z_][a-z_0-9]*")
 
 
@@ -566,11 +566,20 @@ def _positionelle(ziel) -> list[str]:
             if n != "self" and p.kind in erlaubt]
 
 
+def _repo_ziel(methode: str):
+    """Die Methode hinter ``repo.x`` oder ``repo.flows.x`` -- seit dem
+    02.09.2026 auch die Fassade, deren 57 dokumentierte Aufrufe dem Waechter
+    bis dahin entgingen."""
+    from edusharing import AsyncRepository, Repository
+    from edusharing.flows import Flows
+    if methode.startswith("flows."):
+        return getattr(Flows, methode[len("flows."):], None)
+    return getattr(Repository, methode, None) or getattr(AsyncRepository, methode, None)
+
+
 def test_jeder_dokumentierte_repository_aufruf_nennt_echte_parameter():
     """``repo.x(a, b=…)`` muss es geben, und a muss so heissen."""
     import inspect
-
-    from edusharing import AsyncRepository, Repository
 
     falsch: list[str] = []
     for datei in BEHAUPTEND:
@@ -578,8 +587,7 @@ def test_jeder_dokumentierte_repository_aufruf_nennt_echte_parameter():
         if not pfad.exists():
             continue
         for methode, roh in _REPO_AUFRUF.findall(pfad.read_text(encoding="utf-8")):
-            ziel = (getattr(Repository, methode, None)
-                    or getattr(AsyncRepository, methode, None))
+            ziel = _repo_ziel(methode)
             if ziel is None:
                 falsch.append(f"{datei}: repo.{methode}() gibt es nicht")
                 continue

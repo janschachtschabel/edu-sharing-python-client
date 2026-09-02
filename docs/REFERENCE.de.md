@@ -697,7 +697,7 @@ als die gestellte.
 | `repo.flows.text(node_id, extraction=…, max_chars=…)` | `{id, title, text, source, source_url, char_count, truncated, reason, detail}` — Repositorium → Datei → verlinkte Seite; `reason` sagt, warum keiner da ist |
 | `DEFAULT_MAX_CHARS` | `200000` — die Grenze des Ablaufs |
 | `repo.flows.describe(node_id)` | `{id, title, url, description, source_url, mimetype, mediatype, fields, name, type, aspects, original_id, access, public, has_content, keywords, properties}` |
-| `repo.flows.describe_many(ids)` | `{requested, found, nodes, failed}` — Reihenfolge bleibt |
+| `repo.flows.describe_many(node_ids)` | `{requested, found, nodes, failed}` — Reihenfolge bleibt |
 | `repo.flows.placement(node_id)` | `{id, original_id, title, path, collections, scope, failed}` — `path` liest sich **von oben nach unten** |
 
 ```python
@@ -722,7 +722,7 @@ diese Knoten nicht gibt.
 
 | Aufruf | Liefert |
 |---|---|
-| `repo.flows.collection_contents(id, limit=…, offset=…, properties=…)` | `{id, materials, collections, total_materials, returned_materials}` |
+| `repo.flows.collection_contents(collection_id, limit=…, offset=…, properties=…)` | `{id, materials, collections, total_materials, returned_materials}` |
 | `repo.flows.child_objects(node_id)` | `{id, count, children}` |
 | `repo.flows.relations(node_id)` | `{id, count, relations}` |
 
@@ -748,9 +748,9 @@ eine Sammlung aus Untersammlungen leer aussehen.
 
 | Aufruf | Liefert |
 |---|---|
-| `repo.flows.browse_tree(id, depth=…, max_collections=…)` | `{id, collections, opened, truncated}`, verschachtelt |
-| `repo.flows.search_in_collection(id, text, …)` | `{query, hits, searched, truncated}` |
-| `repo.flows.collection_stats(id, …)` | `{id, materials, collections, sampled, complete, by}` |
+| `repo.flows.browse_tree(collection_id, depth=…, max_collections=…)` | `{id, collections, opened, truncated}`, verschachtelt |
+| `repo.flows.search_in_collection(collection_id, query, …)` | `{query, hits, searched, truncated}` |
+| `repo.flows.collection_stats(collection_id, …)` | `{id, materials, collections, sampled, complete, by}` |
 | `DEFAULT_MAX_COLLECTIONS` | die voreingestellte Obergrenze des Gangs |
 
 ```python
@@ -783,7 +783,7 @@ Gang, der früh abgebrochen hat, heißt nicht „es gibt keins".
 | `check_before_create(repo, url, if_exists)` | `(existing, warnings)` — wendet `if_exists` an; wirft `ConflictError` bei `"raise"` |
 | `DUPLICATE_SCAN_LIMIT` | `20` — verglichene Treffer je Prüfung |
 | `repo.flows.update_material(node_id, …)` | `{id, title, url, name, unresolved}` |
-| `repo.flows.build_collection(title, node_ids, …)` | `{id, title, url, added, failed}` |
+| `repo.flows.build_collection(title, node_ids=[…], …)` | `{id, title, url, added, failed}` |
 | `repo.flows.accept_suggestion(node_id, suggestion_id)` | `{id, suggestion_id, property, value, applied, status, failed}` — schreiben, zurücklesen, dann markieren |
 | `repo.flows.find_skills(text, collection_id=…, subject=…)` | `{query, hits, unresolved, truncated}` |
 | `repo.flows.skill(node_id, include_files=…)` | das `SkillDocument` als dict — `files_reason` lesen |

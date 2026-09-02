@@ -117,6 +117,11 @@ and in [`docs/audits/`](docs/audits/).
   keys -- a `KeyError` in production only; both buckets are built through
   one path now. Short names reach the collection bucket (applied locally);
   `filters_ignored` names raw `filters` only.
+- **Blocking `find_collections` takes no text, like the async one.** The
+  mirror demanded a positional `text`; a guard now compares every facade
+  method's defaults between the two, and the documentation guard checks
+  `repo.flows.x(...)` calls against the real signatures -- 57 of them had
+  escaped it.
 
 ## [0.1.0] — 2026-09-02
 

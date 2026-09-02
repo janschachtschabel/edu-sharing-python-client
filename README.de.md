@@ -185,7 +185,7 @@ gemessen **null**.
 Zum Ausprobieren: `python docs/examples/01_connect.py` und `02_search.py`
 
 **Als Ablauf:** `repo.flows.find_collections("Optik")`, und
-`repo.flows.collection_contents(id)`, um eine zu öffnen.
+`repo.flows.collection_contents(collection_id)`, um eine zu öffnen.
 
 ### Schreiben — mit Rückleseprobe
 

@@ -327,6 +327,47 @@ def test_find_collections_synchron(repo):
     assert _kein_coroutine(repo.find_collections("Optik")) is not None
 
 
+def test_die_synchrone_fassade_spiegelt_die_vorgaben():
+    """Review C6: Flows.find_collections(text="") hatte blockierend keine
+    Vorgabe. Jede Methode der Fassade braucht ein Spiegelbild; wo es dieselben
+    Parameter nennt, muessen die Vorgaben gleich sein, und was es nicht nennt,
+    muss ueber **kwargs erreichbar bleiben."""
+    from edusharing._sync import SyncFlows
+    from edusharing.flows import Flows
+
+    fehler = []
+    for name, fn in inspect.getmembers(Flows, inspect.isfunction):
+        if name.startswith("_"):
+            continue
+        spiegel = getattr(SyncFlows, name, None)
+        if spiegel is None:
+            fehler.append(f"{name}: fehlt in SyncFlows")
+            continue
+        a = {n: p for n, p in inspect.signature(fn).parameters.items() if n != "self"}
+        b = {n: p for n, p in inspect.signature(spiegel).parameters.items() if n != "self"}
+        offen = any(p.kind is inspect.Parameter.VAR_KEYWORD for p in b.values())
+        for n, p in a.items():
+            if p.kind is inspect.Parameter.VAR_KEYWORD:
+                continue
+            if n in b and b[n].default != p.default:
+                fehler.append(f"{name}({n}): Vorgabe {b[n].default!r} statt {p.default!r}")
+            elif n not in b and not offen:
+                fehler.append(f"{name}({n}): fehlt im Spiegel")
+    assert not fehler, "\n".join(fehler)
+
+
+def test_skills_synchron(repo):
+    """SyncSkills stand in keinem Test -- genau die Klasse, fuer die diese
+    Datei da ist."""
+    from edusharing._sync import SyncSkills
+
+    assert isinstance(repo.skills, SyncSkills)
+    for name in ("search", "get", "registry", "pick"):
+        assert not inspect.iscoroutinefunction(getattr(repo.skills, name)), name
+    registry = _kein_coroutine(repo.skills.registry("coll-1"))
+    assert registry.reason == "no_registry"
+
+
 # --- Vokabular und Auskuenfte --------------------------------------------
 
 def test_resolve_synchron(repo):

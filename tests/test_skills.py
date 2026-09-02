@@ -91,7 +91,9 @@ class Instanz:
                  registry_docs: list[dict] | None = None, coll_status: int = 200,
                  registry_text: str = REG_MD, unter: dict[str, int] | None = None,
                  unter_total: int | None = None,
-                 kopf_status: dict[str, int] | None = None) -> None:
+                 kopf_status: dict[str, int] | None = None,
+                 coll_total: int | None = None,
+                 content_status: dict[str, int] | None = None) -> None:
         self.nodes = {
             SA: _skill(SA, "Lehrprofil auswerten", keywords=("Lehrkontext",),
                        description="erfasst den Kontext"),
@@ -111,6 +113,8 @@ class Instanz:
         self.unter = unter or {}
         self.unter_total = unter_total          # pagination.total der Sammlungsliste
         self.kopf_status = kopf_status or {}    # /metadata-Status je Knoten
+        self.coll_total = coll_total            # pagination.total der Dateiliste
+        self.content_status = content_status or {}   # /content-Status je Knoten
         if self.unter:
             self.nodes[SD] = _skill(SD, "Stunde planen", keywords=("Planung",))
             self.texts[SD] = "# Stunde\n\nAnleitung D."
@@ -142,6 +146,8 @@ class Instanz:
             return httpx.Response(200, json={"text": ""})          # Markdown: leer, gemessen
         if pfad.endswith("/content"):
             nid = pfad.split("/-home-/")[1].split("/")[0]
+            if nid in self.content_status:
+                return httpx.Response(self.content_status[nid], json=_fehler("Gesperrt"))
             # Eine Referenz liefert den Inhalt ihres Originals.
             text = self.texts.get(nid) or self.texts[self.nodes[nid].get("originalId", nid)]
             return httpx.Response(200, content=text.encode("utf-8"))
@@ -156,8 +162,9 @@ class Instanz:
             if self.coll_status != 200:
                 return httpx.Response(self.coll_status, json=_fehler("DAOMissingException"))
             docs = [*self.registry_docs, self.nodes[REF_A]]
+            total = self.coll_total if self.coll_total is not None else len(docs)
             return httpx.Response(200, json={"nodes": docs,
-                                             "pagination": _seite(len(docs), len(docs))})
+                                             "pagination": _seite(total, len(docs))})
         if pfad.endswith(f"/{COLL}/children/collections"):
             subs = [{"ref": {"id": s}, "title": f"Unter {s}"} for s in self.unter]
             total = self.unter_total if self.unter_total is not None else len(subs)
@@ -488,6 +495,49 @@ async def test_ein_serverfehler_beim_kopf_ist_kein_unresolved():
     async with instanz.repo() as repo:
         with pytest.raises(ServerError):
             await repo.skills.registry(COLL)
+
+
+async def test_ohne_aufloesung_kommen_die_koepfe_aus_den_bloecken():
+    """resolve=False ist der billige Gang: Titel und IDs, keine Lesezugriffe."""
+    instanz = Instanz()
+    async with instanz.repo() as repo:
+        reg = await repo.skills.registry(COLL, resolve=False)
+    assert [e.node_id for e in reg.entries] == [SA, SB, SC]
+    assert reg.entries[0].title == "Lehrprofil auswerten" and reg.entries[0].description == ""
+    assert not any(r.url.path.endswith(f"/{SA}/metadata") for r in instanz.anfragen)
+
+
+async def test_mehr_eintraege_als_eine_antwort_traegt_werden_gesagt():
+    block = "::: ki-skill\n[Lehrprofil auswerten](" + RENDER + SA + ")\n:::\n\n"
+    instanz = Instanz(registry_text="# R\n\n" + block * 101)
+    async with instanz.repo() as repo:
+        reg = await repo.skills.registry(COLL)
+    assert reg.truncated == (100, 101) and len(reg.entries) == 100
+
+
+async def test_eine_abgeschnittene_dateiliste_ist_kein_befund_der_abwesenheit():
+    mit = Instanz(coll_total=80)
+    ohne = Instanz(registry_docs=[], coll_total=80)
+    async with mit.repo() as a, ohne.repo() as b:
+        gefunden = await a.skills.registry(COLL)
+        nichts = await b.skills.registry(COLL)
+    assert gefunden.reason == "" and gefunden.scan_truncated == (2, 80)
+    assert nichts.reason == "no_registry" and nichts.scan_truncated == (1, 80)
+
+
+async def test_ein_unlesbares_dokument_ist_ein_grund():
+    instanz = Instanz(content_status={REG: 403})
+    async with instanz.repo() as repo:
+        reg = await repo.skills.registry(COLL)
+    assert reg.reason == "unreadable" and reg.registry_id == REG and reg.entries == []
+
+
+async def test_ein_block_ohne_repositoriumsadresse_ist_unaufgeloest():
+    extern = REG_MD + "\n::: ki-skill\n[Extern](https://example.org/x)\n:::\n"
+    instanz = Instanz(registry_text=extern)
+    async with instanz.repo() as repo:
+        reg = await repo.skills.registry(COLL)
+    assert {"title": "Extern", "node_id": ""} in reg.unresolved
 
 
 # --- Auswahl ---------------------------------------------------------------

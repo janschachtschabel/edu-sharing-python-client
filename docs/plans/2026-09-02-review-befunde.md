@@ -21,7 +21,7 @@ Status: `[ ]` offen · `[x]` erledigt · `[-]` bewusst nicht (Begründung).
 - [x] A3 MAJOR — `_walk`: ein 403/404 einer Untersammlung wirft die ganze Suche
   (Präzedenz A10 in `flows/tree.py`). → je Untersammlung fangen, zählen
   (`SkillSearch.unreadable`), weiterlaufen; Fehler der Wurzel bleibt ein Fehler.
-- [ ] A4 MAJOR — Der Sammlungszweig (`_walk`, `_is`, `_carries`, Tiefe, Besuchs-
+- [x] A4 MAJOR — Der Sammlungszweig (`_walk`, `_is`, `_carries`, Tiefe, Besuchs-
   grenze, `truncated`) ist ungetestet; ebenso `resolve=False`, `REGISTRY_MAX`,
   `scan_truncated`, `reason="unreadable"`, Block ohne ID, `no_folder`, eigene
   `block_kinds`. → Tests.
@@ -76,7 +76,7 @@ Status: `[ ]` offen · `[x]` erledigt · `[-]` bewusst nicht (Begründung).
 - [x] C5 MAJOR — Der Ausfall-Eimer von `search_all` hat andere Schlüssel als
   der Erfolgs-Eimer (`unjudged`, `query.filters`, `query.parent_id` fehlen).
   → eine `_empty`-Form für beide Wege; Test auf gleiche Schlüsselmenge.
-- [ ] C6 MINOR — `SyncFlows.find_collections(text)` ohne Vorgabe, asynchron
+- [x] C6 MINOR — `SyncFlows.find_collections(text)` ohne Vorgabe, asynchron
   `text=""`. → Vorgabe; Reflexions-Wächter für Signaturen Async ↔ Sync.
 - [x] C7 MINOR — `_below` baut `SearchHit` ohne `raw`; mit `parent_id` UND
   Kurzname ist jeder Treffer `unjudged`. → Rohdaten aus `browse_tree`
@@ -97,10 +97,10 @@ Status: `[ ]` offen · `[x]` erledigt · `[-]` bewusst nicht (Begründung).
   `_carries` doppelt (`collections.py`, `skills.py`); (c) `query.filters` hat
   zwei Formen. → (a) prüfen und angleichen, (b) eine Fassung, (c) die Worte
   des Aufrufers in beiden.
-- [ ] C13 MINOR — Test-Lücken: `Repository.from_env` mit `EDU_SHARING_METADATASET`,
+- [x] C13 MINOR — Test-Lücken: `Repository.from_env` mit `EDU_SHARING_METADATASET`,
   `SyncSkills` in `test_sync_surface.py`, tote Alternativen in
   `test_flows_search_more.py:80`, plus die Fälle aus C1/C2/C3/C7.
-- [ ] C14 MINOR — Wächter-Lücken: `repo.flows.x(...)` (57 Aufrufe) entgeht dem
+- [x] C14 MINOR — Wächter-Lücken: `repo.flows.x(...)` (57 Aufrufe) entgeht dem
   Signatur-Wächter; Schlüssel-Wächter überspringt Abläufe, die einen Helfer
   zurückgeben; `_sync.__all__` nennt 7 von 14 Klassen.
 - [ ] C15 MINOR — Falsche Aussagen: FLOWS „`find.find_collections`" (liegt in
@@ -150,7 +150,7 @@ geprüft); die Befunde betreffen Verhalten, das schon vorher so war.
 - [ ] B10 MINOR — FLOWS: `placement` „2 Anfragen, nicht drei" (es sind drei),
   `accept_suggestion` „vier" (sechs), `add_material` „2–4" ohne
   Adressprüfung, doppelter „Behind it"-Block. Beide Sprachen.
-- [ ] B11 MINOR — Tests: `set_property(None)` bei behaltener Eigenschaft;
+- [x] B11 MINOR (Löschen einer Referenz und `accept_suggestion` an einer Referenz sind heute live belegt, 61 Schreibbeweise) — Tests: `set_property(None)` bei behaltener Eigenschaft;
   `verify=False` über Referenz; `create` mit Umbenennung; `placement` mit
   scheiterndem Knotenlesen; `flows.delete` an einer Referenz;
   `accept_suggestion` an Referenz und mit scheiterndem `decide`;

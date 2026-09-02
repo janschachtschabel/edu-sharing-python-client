@@ -118,7 +118,7 @@ der Platte.)*
 | alle Werte eines Feldes, oder eine Teilzeichenkette | `repo.vocab.values(prop)` / `repo.vocab.suggest(prop, "ysik")` |
 | der Filterwert zu einem Label — **alle** davon | `repo.vocab.resolve_all(prop, "Biologie")` |
 | eine schlecht formulierte Anfrage („irgendwas mit Brüchen") | `repo.flows.search(text, rerank=True)` |
-| *innerhalb* einer Sammlung suchen | `repo.flows.search_in_collection(id, text)` |
+| *innerhalb* einer Sammlung suchen | `repo.flows.search_in_collection(collection_id, query)` |
 | Sammlungen mit kuratierter Seite finden | `repo.flows.find_pages(text)` |
 
 ### Eines lesen
@@ -126,13 +126,13 @@ der Platte.)*
 | Die Aufgabe | Der Aufruf |
 |---|---|
 | alles über einen Knoten, als JSON | `repo.flows.describe(node_id)` |
-| mehrere Knoten auf einmal | `repo.flows.describe_many(ids)` |
+| mehrere Knoten auf einmal | `repo.flows.describe_many(node_ids)` |
 | wo liegt er (Brotkrumenpfad) | `repo.flows.placement(node_id)` |
-| was ist in dieser Sammlung | `repo.flows.collection_contents(id)` |
+| was ist in dieser Sammlung | `repo.flows.collection_contents(collection_id)` |
 | was hängt *unter* diesem Material | `repo.flows.child_objects(node_id)` |
 | was steht *daneben* | `repo.flows.relations(node_id)` |
-| was liegt darunter, rekursiv | `repo.flows.browse_tree(id, depth=2)` |
-| wie viel ist darin | `repo.flows.collection_stats(id)` |
+| was liegt darunter, rekursiv | `repo.flows.browse_tree(collection_id, depth=2)` |
+| wie viel ist darin | `repo.flows.collection_stats(collection_id)` |
 | die kuratierte Landeseite | `repo.flows.page(collection_id)` |
 | der Text eines Materials, wo immer er liegt — und *warum* keiner da ist | `repo.flows.text(node_id, extraction=…)` → `source`, `reason` lesen |
 | die Anleitung eines Skills, seine Verweise und Begleitdateien | `repo.flows.skill(node_id)` → `files_reason` lesen |
@@ -149,7 +149,7 @@ der Platte.)*
 |---|---|
 | Material mit Vokabular anlegen | `repo.flows.add_material(title, url=…, subject=…)` · `if_exists=\"return\"` nennt einen vorhandenen Datensatz zu `url`, statt einen zweiten anzulegen (`created`, `existing`) |
 | Material ändern | `repo.flows.update_material(node_id, title=…)` |
-| Sammlung bauen und füllen | `repo.flows.build_collection(title, node_ids)` |
+| Sammlung bauen und füllen | `repo.flows.build_collection(title, node_ids=[…])` |
 | vorhandenes Material in eine Sammlung legen | `repo.add_to_collection(collection_id, node_id)` |
 | der Sammlungs-Zugriff hinter diesen Abkürzungen | `repo.collections.find/create/update/add/remove` |
 | wieder herausnehmen (Material bleibt) | `repo.remove_from_collection(collection_id, node_id)` |

@@ -21,7 +21,9 @@ if TYPE_CHECKING:
     from .nodes import Node
 
 __all__ = ["LoopThread", "SyncTransport", "SyncNode", "SyncNodeContent",
-           "SyncChildObjects", "SyncFlows", "SyncRelations"]
+           "SyncChildObjects", "SyncFlows", "SyncRelations", "SyncNodePage",
+           "SyncNodePermissions", "SyncSuggestions", "SyncWorkflow", "SyncComments",
+           "SyncSkills", "SyncPeople"]
 
 T = TypeVar("T")
 
@@ -394,7 +396,7 @@ class SyncFlows:
         """Like ``Flows.relations``, blocking."""
         return self._loop.run(self._flows.relations(node_id))
 
-    def find_collections(self, text: str, **kwargs: Any) -> dict[str, Any]:
+    def find_collections(self, text: str = "", **kwargs: Any) -> dict[str, Any]:
         """Like ``Flows.find_collections``, blocking."""
         return self._loop.run(self._flows.find_collections(text, **kwargs))
 

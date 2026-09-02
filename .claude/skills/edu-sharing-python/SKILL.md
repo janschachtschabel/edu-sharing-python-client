@@ -107,7 +107,7 @@ table.
 | every value of a field, or a substring of one | `repo.vocab.values(prop)` / `repo.vocab.suggest(prop, "ysik")` |
 | a label's filter value — **all** of them | `repo.vocab.resolve_all(prop, "Biologie")` |
 | a poorly phrased query ("something about fractions") | `repo.flows.search(text, rerank=True)` |
-| search *inside* one collection | `repo.flows.search_in_collection(id, text)` |
+| search *inside* one collection | `repo.flows.search_in_collection(collection_id, query)` |
 | find collections that render a curated page | `repo.flows.find_pages(text)` |
 
 ### Reading one thing
@@ -115,13 +115,13 @@ table.
 | The task | The call |
 |---|---|
 | everything about a node, as JSON | `repo.flows.describe(node_id)` |
-| several nodes at once | `repo.flows.describe_many(ids)` |
+| several nodes at once | `repo.flows.describe_many(node_ids)` |
 | where does it sit (breadcrumb) | `repo.flows.placement(node_id)` |
-| what is in this collection | `repo.flows.collection_contents(id)` |
+| what is in this collection | `repo.flows.collection_contents(collection_id)` |
 | what hangs *under* this material | `repo.flows.child_objects(node_id)` |
 | what stands *beside* it | `repo.flows.relations(node_id)` |
-| what is underneath, recursively | `repo.flows.browse_tree(id, depth=2)` |
-| how much is in there | `repo.flows.collection_stats(id)` |
+| what is underneath, recursively | `repo.flows.browse_tree(collection_id, depth=2)` |
+| how much is in there | `repo.flows.collection_stats(collection_id)` |
 | the curated landing page | `repo.flows.page(collection_id)` |
 | the text of a material, wherever it is — and *why* there is none | `repo.flows.text(node_id, extraction=…)` → read `source`, `reason` |
 | a skill's instruction, its references and companion files | `repo.flows.skill(node_id)` → read `files_reason` |
@@ -138,7 +138,7 @@ table.
 |---|---|
 | create material with vocabulary | `repo.flows.add_material(title, url=…, subject=…)` · `if_exists=\"return\"` names an existing record for `url` instead of creating a second (`created`, `existing`) |
 | change material | `repo.flows.update_material(node_id, title=…)` |
-| build a collection and fill it | `repo.flows.build_collection(title, node_ids)` |
+| build a collection and fill it | `repo.flows.build_collection(title, node_ids=[…])` |
 | put existing material into a collection | `repo.add_to_collection(collection_id, node_id)` |
 | the collection accessor behind those shortcuts | `repo.collections.find/create/update/add/remove` |
 | take it out again (material stays) | `repo.remove_from_collection(collection_id, node_id)` |

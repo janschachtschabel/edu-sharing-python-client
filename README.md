@@ -185,7 +185,7 @@ measured as **zero**.
 Try it: `python docs/examples/01_connect.py` and `02_search.py`
 
 **As a flow:** `repo.flows.find_collections("Optik")`, and
-`repo.flows.collection_contents(id)` to open one.
+`repo.flows.collection_contents(collection_id)` to open one.
 
 ### Writing — with a read-back check
 

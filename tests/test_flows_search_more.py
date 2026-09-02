@@ -80,8 +80,7 @@ async def test_facet_limit_wird_durchgereicht():
         await repo.flows.search("x", facets=["subject"], facet_limit=100)
     facetten = instanz.koerper[0]["facets"]
     assert facetten and facetten[0]["property"] == "ccm:taxonid"
-    assert instanz.koerper[0].get("facetLimit") == 100 or \
-        any(f.get("count") == 100 or f.get("limit") == 100 for f in facetten), instanz.koerper[0]
+    assert instanz.koerper[0]["facetLimit"] == 100, "der Body-Schluessel, gemessen"
 
 
 async def test_das_eigene_limit_wird_nicht_gekappt():

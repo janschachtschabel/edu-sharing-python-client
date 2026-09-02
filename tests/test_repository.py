@@ -408,6 +408,21 @@ def test_ein_uebergebener_metadatensatz_schlaegt_die_variable(monkeypatch):
     assert AsyncRepository.from_env(metadataset="-default-").metadataset == "-default-"
 
 
+def test_auch_das_blockierende_repository_liest_den_metadatensatz(monkeypatch):
+    """Die Behauptung gilt fuer beide from_env -- getestet war nur das eine."""
+    from edusharing import Repository
+
+    monkeypatch.setenv("EDU_SHARING_URL", REPO)
+    monkeypatch.setenv("EDU_SHARING_METADATASET", "mds_oeh")
+    monkeypatch.delenv("EDU_SHARING_USER", raising=False)
+    monkeypatch.delenv("EDU_SHARING_PASSWORD", raising=False)
+    r = Repository.from_env()
+    try:
+        assert r.metadataset == "mds_oeh"
+    finally:
+        r.close()
+
+
 def test_ohne_variable_bleibt_die_vorgabe(monkeypatch):
     monkeypatch.setenv("EDU_SHARING_URL", REPO)
     monkeypatch.delenv("EDU_SHARING_METADATASET", raising=False)
