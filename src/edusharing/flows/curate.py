@@ -21,12 +21,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ..errors import EduSharingError, ValidationError
+from .duplicates import check_before_create
 from .fields import name_from_title, resolve_vocabulary
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..repository import AsyncRepository
 
 __all__ = ["add_material", "build_collection", "delete", "update_material"]
+
 
 async def add_material(
     repo: AsyncRepository,
@@ -40,6 +42,7 @@ async def add_material(
     collection_id: str | None = None,
     properties: dict[str, Any] | None = None,
     publish: bool = False,
+    if_exists: str = "return",
     **aliases: Any,
 ) -> dict[str, Any]:
     """Create material -- with vocabulary, and optionally straight into a
@@ -57,9 +60,20 @@ async def add_material(
         properties: raw edu-sharing properties, for anything not covered.
         **aliases: configured short names -- ``subject="Biologie"`` is resolved
             against this instance's vocabulary.
+        publish: make it world-readable right away. Off by default -- reading
+            cannot be taken back.
+        if_exists: what to do when a record for ``url`` already exists.
+            ``"return"`` (default) names it and creates nothing; ``"raise"``
+            raises ``ConflictError``; ``"create"`` skips the check. Measured
+            2026-09-02: ``mds_oeh`` accepts ``ccm:wwwurl`` as a criterion,
+            ``-default-`` does not -- then the default check is skipped and
+            ``warnings`` says so, while ``"raise"`` refuses to guess.
 
     Returns:
-        ``{id, title, url, parent_id, name, collection, public, unresolved}``.
+        ``{id, title, url, parent_id, name, collection, public, unresolved,
+        existing, created, warnings}``. ``created`` is ``False`` when an existing
+        record was returned instead -- then ``existing`` names it and the
+        location keys are ``None``.
         ``public`` says whether the material ended up readable without a
         login -- publishing is two steps in edu-sharing, and a caller who
         asked for it needs to know whether both took.
@@ -75,6 +89,12 @@ async def add_material(
         raise ValidationError(
             "Material needs a title -- it is what a person sees in the search."
         )
+    existing: dict[str, Any] | None = None
+    warnings: list[str] = []
+    if url is not None:
+        existing, warnings = await check_before_create(repo, url, if_exists)
+    if existing is not None:
+        return _instead_of_creating(repo, existing, warnings)
 
     if parent_id is None:
         identity = await repo.whoami()
@@ -124,6 +144,28 @@ async def add_material(
         "collection": collection,
         "public": public,
         "unresolved": unresolved,
+        "existing": None,
+        "created": True,
+        "warnings": warnings,
+    }
+
+
+def _instead_of_creating(
+    repo: AsyncRepository, existing: dict[str, Any], warnings: list[str]
+) -> dict[str, Any]:
+    """The ``add_material`` answer that names an existing record.
+
+    Same keys as the created case, so a caller reads one shape: ``created`` is
+    ``False``, ``existing`` says which record, and the location keys are
+    ``None`` because nothing was placed anywhere.
+    """
+    return {
+        "id": existing["id"],
+        "title": existing["title"],
+        "url": f"{repo.url}/components/render/{existing['id']}",
+        "parent_id": None, "name": None, "collection": None,
+        "public": None, "unresolved": [],
+        "existing": existing, "created": False, "warnings": warnings,
     }
 
 

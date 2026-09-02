@@ -132,7 +132,7 @@ table.
 
 | The task | The call |
 |---|---|
-| create material with vocabulary | `repo.flows.add_material(title, url=…, subject=…)` |
+| create material with vocabulary | `repo.flows.add_material(title, url=…, subject=…)` · `if_exists=\"return\"` names an existing record for `url` instead of creating a second (`created`, `existing`) |
 | change material | `repo.flows.update_material(node_id, title=…)` |
 | build a collection and fill it | `repo.flows.build_collection(title, node_ids)` |
 | put existing material into a collection | `repo.add_to_collection(collection_id, node_id)` |
@@ -153,6 +153,7 @@ table.
 | rate | `node.rate(4)` / `node.unrate()` |
 | **propose** a value instead of writing it | `node.suggestions.propose(prop, value, reason)` |
 | accept or reject a proposal | `node.suggestions.decide(ids, accept=True)` |
+| **accept** a proposal so that it takes effect — write, read back, then mark | `repo.flows.accept_suggestion(node_id, suggestion_id)` → read `applied` |
 | hand on for review | `node.workflow.submit("GROUP_redaktion", "TO_BE_CHECKED")` |
 | grant or revoke rights | `node.permissions.grant(who, "Read")` / `.revoke(...)` |
 | groups and members | `repo.people.memberships()` / `.group(name)` / `.members(name, limit=…)` / `.create_group(name)` / `.add_member(group, who)` |
@@ -305,6 +306,7 @@ so the value has a name instead of being buried in a signature.
 | `DEFAULT_MAX_TOKENS` / `DEFAULT_MAX_OUTPUT_TOKENS` | `1000` | the cap on a chat answer / on a responses answer |
 | `DEFAULT_HIT_CHARS` / `DEFAULT_RESULT_CHARS` | `400` / `4000` | how much `format_hit` / `format_results` hands a model |
 | `DEFAULT_MAX_CHARS` | `200000` | where `flows.text` cuts, at a word boundary |
+| `DUPLICATE_SCAN_LIMIT` | `20` | hits `find_by_url` compares before `add_material` creates; `check_before_create` applies `if_exists` |
 | `DEFAULT_POOL` | `25` | how many hits `search(rerank=True)` fetches before reranking |
 | `MAX_VARIANTS` | `5` | how many rewrites `expand_query` produces |
 | `DEFAULT_MAX_COLLECTIONS` / `DEFAULT_MAX_WIDGETS` | `50` / `24` | ceilings on `browse_tree` and on a rendered page |

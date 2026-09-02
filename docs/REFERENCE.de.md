@@ -724,9 +724,13 @@ Gang, der früh abgebrochen hat, heißt nicht „es gibt keins".
 
 | Aufruf | Liefert |
 |---|---|
-| `repo.flows.add_material(parent_id, title=…, url=…, subject=…, …)` | `{id, title, url, parent_id, name, collection, unresolved}` |
+| `repo.flows.add_material(title, url=…, parent_id=…, subject=…, if_exists=…)` | `{id, title, url, parent_id, name, collection, public, unresolved, existing, created, warnings}` — `if_exists="return"` nennt einen vorhandenen Datensatz zu `url`, statt einen zweiten anzulegen |
+| `find_by_url(repo, url)` | `{id, title, url} \| None` — der Datensatz, der diese Adresse schon trägt; `ValidationError`, wenn der Metadatensatz nicht nach `ccm:wwwurl` filtern kann |
+| `check_before_create(repo, url, if_exists)` | `(existing, warnings)` — wendet `if_exists` an; wirft `ConflictError` bei `"raise"` |
+| `DUPLICATE_SCAN_LIMIT` | `20` — verglichene Treffer je Prüfung |
 | `repo.flows.update_material(node_id, …)` | `{id, title, url, name, unresolved}` |
 | `repo.flows.build_collection(title, node_ids, …)` | `{id, title, url, added, failed}` |
+| `repo.flows.accept_suggestion(node_id, suggestion_id)` | `{id, suggestion_id, property, value, applied, status, failed}` — schreiben, zurücklesen, dann markieren |
 | `repo.flows.delete(node_id)` | `{id, title, name, type, is_reference, original_id, recycled}` — an einer Referenz verschwindet nur die Referenz |
 
 ```python

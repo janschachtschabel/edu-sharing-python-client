@@ -55,10 +55,11 @@ out by hand.
 | `child_objects` | 2 | load parent → its children, filtered and sorted |
 | `find_collections` | 2, parallel | both collection routes → merge on id |
 | `collection_contents` | 2, parallel | material listing + sub-collection listing |
-| `add_material` | 2–5 | whoami (if no parent) → resolve vocabulary → create → add to collection (if asked) → publish (if asked) |
+| `add_material` | 3–6 | check the address (`url`) → whoami (if no parent) → resolve vocabulary → create → add to collection (if asked) → publish (if asked) |
 | `update_material` | 3–4 | resolve vocabulary → load → write → read back |
 | `build_collection` | 1 + one per node (+2 to publish) | create → add each, catching failures → publish (if asked) |
 | `delete` | 2 | load (to name it) → delete |
+| `accept_suggestion` | 4 | load node → list proposals → write and read back → mark |
 
 Three of them — `search`, `vocabulary`, `describe` — send exactly what the API
 level sends. They save no round trip at all: their gain is the JSON shape and
@@ -1153,7 +1154,52 @@ The read-back is not the flow's doing — `node.update()` carries it either way.
 ---
 
 
+## `accept_suggestion` — apply a proposal, read it back, then mark it
+
+**Four requests.** Load the node, list its proposals, write the proposed value
+with `set_property` and read it back, and only then mark the proposal
+`ACCEPTED`. Measured on 2026-08-28: marking alone writes **nothing** into the
+node — a proposal accepted by `decide()` leaves the property as it was, so
+"accepted" on its own is a record of something that never happened.
+
+**Input**
+
+```python
+repo.flows.accept_suggestion(node_id, suggestion_id)
+```
+
+**Output**
+
+```json
+{
+  "id": "1f71f84a-…",
+  "suggestion_id": "s-4410…",
+  "property": "ccm:taxonid",
+  "value": "http://w3id.org/openeduhub/vocabs/discipline/080",
+  "applied": true,
+  "status": "ACCEPTED",
+  "failed": []
+}
+```
+
+**Read `applied`.** When the value does not arrive (`SilentDropError`), nothing
+is marked, `status` stays `PENDING` and `failed` carries `{part: "apply"}`;
+a proposal already decided comes back with `{part: "status"}` and is not
+applied again. Declining needs no flow — `node.suggestions.decide(ids,
+accept=False)` touches nothing but the proposal, which is what declining means.
+
+---
+
 ## `add_material` — create with proper metadata
+
+**Since 2026-09-02, `url` is checked first.** A second record for the same
+address is a duplicate by definition, so with `if_exists="return"` (the
+default) an existing record is named — `created` is `False`, `existing` carries
+`{id, title, url}`, and nothing is created. `"raise"` raises `ConflictError`;
+`"create"` skips the check. Whether the check can run is a property of the
+metadata set — measured, `mds_oeh` accepts `ccm:wwwurl` as a criterion and
+`-default-` does not — and when it cannot, the default check is skipped and
+`warnings` says so, while `"raise"` refuses to guess.
 
 **Input**
 

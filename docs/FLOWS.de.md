@@ -56,10 +56,11 @@ nur von Hand ausgeschrieben.
 | `child_objects` | 2 | Hauptknoten laden → seine Kinder, gefiltert und sortiert |
 | `find_collections` | 2, parallel | beide Sammlungswege → über die ID zusammenlegen |
 | `collection_contents` | 2, parallel | Materialliste + Untersammlungsliste |
-| `add_material` | 2–5 | whoami (ohne parent) → Vokabular auflösen → anlegen → einlegen (auf Wunsch) → veröffentlichen (auf Wunsch) |
+| `add_material` | 3–6 | die Adresse (`url`) prüfen → whoami (ohne parent) → Vokabular auflösen → anlegen → einlegen (auf Wunsch) → veröffentlichen (auf Wunsch) |
 | `update_material` | 3–4 | Vokabular auflösen → laden → schreiben → zurücklesen |
 | `build_collection` | 1 + eine je Knoten (+2 zum Veröffentlichen) | anlegen → jeden einlegen, Fehlschläge auffangen → veröffentlichen (auf Wunsch) |
 | `delete` | 2 | laden (um ihn zu benennen) → löschen |
+| `accept_suggestion` | 4 | Knoten laden → Vorschläge auflisten → schreiben und zurücklesen → markieren |
 
 Drei davon — `search`, `vocabulary`, `describe` — schicken exakt das, was die
 API-Ebene schickt. Sie sparen keinen einzigen Umlauf: ihr Gewinn ist die
@@ -1186,7 +1187,54 @@ sie ohnehin mit.
 ---
 
 
+## `accept_suggestion` — einen Vorschlag anwenden, zurücklesen, dann markieren
+
+**Vier Anfragen.** Den Knoten laden, seine Vorschläge auflisten, den
+vorgeschlagenen Wert mit `set_property` schreiben und zurücklesen, und erst
+dann den Vorschlag als `ACCEPTED` markieren. Gemessen am 28.08.2026: Markieren
+allein schreibt **nichts** in den Knoten — ein mit `decide()` angenommener
+Vorschlag lässt die Eigenschaft, wie sie war; „angenommen" allein ist damit
+das Protokoll von etwas, das nie passiert ist.
+
+**Eingabe**
+
+```python
+repo.flows.accept_suggestion(node_id, suggestion_id)
+```
+
+**Ausgabe**
+
+```json
+{
+  "id": "1f71f84a-…",
+  "suggestion_id": "s-4410…",
+  "property": "ccm:taxonid",
+  "value": "http://w3id.org/openeduhub/vocabs/discipline/080",
+  "applied": true,
+  "status": "ACCEPTED",
+  "failed": []
+}
+```
+
+**`applied` lesen.** Kommt der Wert nicht an (`SilentDropError`), wird nichts
+markiert, `status` bleibt `PENDING` und `failed` trägt `{part: "apply"}`; ein
+schon entschiedener Vorschlag kommt mit `{part: "status"}` zurück und wird
+nicht erneut angewandt. Ablehnen braucht keinen Ablauf —
+`node.suggestions.decide(ids, accept=False)` rührt nur den Vorschlag an, und
+genau das heißt Ablehnen.
+
+---
+
 ## `add_material` — anlegen, mit sauberen Metadaten
+
+**Seit dem 02.09.2026 wird `url` zuerst geprüft.** Ein zweiter Datensatz für
+dieselbe Adresse ist per Definition eine Dublette; mit `if_exists="return"`
+(Vorgabe) wird ein vorhandener genannt — `created` ist `False`, `existing`
+trägt `{id, title, url}`, und nichts wird angelegt. `"raise"` wirft
+`ConflictError`; `"create"` lässt die Prüfung aus. Ob sie laufen kann, ist
+Sache des Metadatensatzes — gemessen nimmt `mds_oeh` `ccm:wwwurl` als
+Kriterium an, `-default-` nicht — und wenn nicht, fällt die Vorgabe aus und
+`warnings` sagt es, während `"raise"` sich weigert zu raten.
 
 **Eingabe**
 

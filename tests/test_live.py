@@ -426,3 +426,24 @@ async def test_text_findet_den_text_eines_treffers(repo):
         assert (got["source"] != "none") == (got["reason"] == "")
         quellen.append(got["source"])
     assert "repository" in quellen, quellen
+
+
+# --- Dubletten, live -------------------------------------------------------
+
+@pytest.mark.live
+async def test_find_by_url_findet_den_datensatz_zu_einer_bekannten_adresse():
+    """Gemessen am 02.09.2026: mit mds_oeh ist ccm:wwwurl ein Kriterium und die
+    Adresse eines Treffers findet genau diesen Treffer wieder; -default-
+    weist das Kriterium zurueck."""
+    from edusharing.errors import ValidationError
+    from edusharing.flows.duplicates import find_by_url
+    async with AsyncRepository.from_env(metadataset="mds_oeh") as repo:
+        hits = (await repo.search("Bruchrechnung", limit=8)).hits
+        hit = next((h for h in hits if h.source_url), None)
+        assert hit is not None, "kein verlinkter Treffer unter den ersten acht"
+        found = await find_by_url(repo, hit.source_url)
+        assert found is not None
+        assert found["url"].lower() == hit.source_url.lower()
+    async with AsyncRepository.from_env() as repo:
+        with pytest.raises(ValidationError):
+            await find_by_url(repo, hit.source_url)

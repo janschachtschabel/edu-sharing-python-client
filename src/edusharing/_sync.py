@@ -446,6 +446,10 @@ class SyncFlows:
         """Like ``Flows.add_material``, blocking."""
         return self._loop.run(self._flows.add_material(title, **kwargs))
 
+    def accept_suggestion(self, node_id: str, suggestion_id: str) -> dict[str, Any]:
+        """Like ``Flows.accept_suggestion``, blocking."""
+        return self._loop.run(self._flows.accept_suggestion(node_id, suggestion_id))
+
     def build_collection(self, title: str, **kwargs: Any) -> dict[str, Any]:
         """Like ``Flows.build_collection``, blocking."""
         return self._loop.run(self._flows.build_collection(title, **kwargs))

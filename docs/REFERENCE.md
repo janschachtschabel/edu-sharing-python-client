@@ -712,9 +712,13 @@ stopped early is not "there is none".
 
 | Call | Returns |
 |---|---|
-| `repo.flows.add_material(parent_id, title=…, url=…, subject=…, …)` | `{id, title, url, parent_id, name, collection, unresolved}` |
+| `repo.flows.add_material(title, url=…, parent_id=…, subject=…, if_exists=…)` | `{id, title, url, parent_id, name, collection, public, unresolved, existing, created, warnings}` — `if_exists="return"` names an existing record for `url` instead of creating a second |
+| `find_by_url(repo, url)` | `{id, title, url} \| None` — the record already carrying this address; `ValidationError` when the metadata set cannot filter on `ccm:wwwurl` |
+| `check_before_create(repo, url, if_exists)` | `(existing, warnings)` — applies `if_exists`; raises `ConflictError` for `"raise"` |
+| `DUPLICATE_SCAN_LIMIT` | `20` — hits compared per check |
 | `repo.flows.update_material(node_id, …)` | `{id, title, url, name, unresolved}` |
 | `repo.flows.build_collection(title, node_ids, …)` | `{id, title, url, added, failed}` |
+| `repo.flows.accept_suggestion(node_id, suggestion_id)` | `{id, suggestion_id, property, value, applied, status, failed}` — write, read back, then mark |
 | `repo.flows.delete(node_id)` | `{id, title, name, type, is_reference, original_id, recycled}` — deleting a reference removes only the reference |
 
 ```python

@@ -143,7 +143,7 @@ der Platte.)*
 
 | Die Aufgabe | Der Aufruf |
 |---|---|
-| Material mit Vokabular anlegen | `repo.flows.add_material(title, url=…, subject=…)` |
+| Material mit Vokabular anlegen | `repo.flows.add_material(title, url=…, subject=…)` · `if_exists=\"return\"` nennt einen vorhandenen Datensatz zu `url`, statt einen zweiten anzulegen (`created`, `existing`) |
 | Material ändern | `repo.flows.update_material(node_id, title=…)` |
 | Sammlung bauen und füllen | `repo.flows.build_collection(title, node_ids)` |
 | vorhandenes Material in eine Sammlung legen | `repo.add_to_collection(collection_id, node_id)` |
@@ -164,6 +164,7 @@ der Platte.)*
 | bewerten | `node.rate(4)` / `node.unrate()` |
 | einen Wert **vorschlagen** statt ihn zu schreiben | `node.suggestions.propose(prop, value, reason)` |
 | einen Vorschlag annehmen oder ablehnen | `node.suggestions.decide(ids, accept=True)` |
+| einen Vorschlag **wirksam** annehmen — schreiben, zurücklesen, dann markieren | `repo.flows.accept_suggestion(node_id, suggestion_id)` → `applied` lesen |
 | zur Prüfung weiterreichen | `node.workflow.submit("GROUP_redaktion", "TO_BE_CHECKED")` |
 | Rechte geben oder nehmen | `node.permissions.grant(who, "Read")` / `.revoke(...)` |
 | Gruppen und Mitglieder | `repo.people.memberships()` / `.group(name)` / `.members(name, limit=…)` / `.create_group(name)` / `.add_member(gruppe, wer)` |
@@ -319,6 +320,7 @@ zu verschwinden.
 | `DEFAULT_MAX_TOKENS` / `DEFAULT_MAX_OUTPUT_TOKENS` | `1000` | die Grenze einer Chat-Antwort / einer Responses-Antwort |
 | `DEFAULT_HIT_CHARS` / `DEFAULT_RESULT_CHARS` | `400` / `4000` | wie viel `format_hit` / `format_results` einem Modell reicht |
 | `DEFAULT_MAX_CHARS` | `200000` | wo `flows.text` kürzt, an einer Wortgrenze |
+| `DUPLICATE_SCAN_LIMIT` | `20` | Treffer, die `find_by_url` vergleicht, bevor `add_material` anlegt; `check_before_create` wendet `if_exists` an |
 | `DEFAULT_POOL` | `25` | wie viele Treffer `search(rerank=True)` vor dem Neuordnen holt |
 | `MAX_VARIANTS` | `5` | wie viele Umformulierungen `expand_query` erzeugt |
 | `DEFAULT_MAX_COLLECTIONS` / `DEFAULT_MAX_WIDGETS` | `50` / `24` | Obergrenzen für `browse_tree` und für eine gerenderte Seite |

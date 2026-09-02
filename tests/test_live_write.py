@@ -798,3 +798,28 @@ async def test_schreiben_an_einer_listing_id_erreicht_das_original(repo, sammlun
     assert (await repo.node(knoten.id)).title == "Ueber die Referenz geschrieben"
     danach = await repo.flows.collection_contents(sammlung.id, limit=10)
     assert all(m["id"] != listing_id for m in danach["materials"])
+
+
+# --- Paket 3: Dubletten und Vorschlaege annehmen ----------------------------
+#
+# Nicht ausgefuehrt am 02.09.2026 (Staging-Login mit 401 abgelehnt).
+
+async def test_zweites_material_zu_derselben_adresse_wird_nicht_angelegt(repo, ordner):
+    adresse = f"https://example.org/pytest-{uuid.uuid4().hex[:8]}"
+    erstes = await repo.flows.add_material("Erstes", url=adresse, parent_id=ordner.id)
+    assert erstes["created"] is True
+    zweites = await repo.flows.add_material("Zweites", url=adresse, parent_id=ordner.id)
+    assert zweites["created"] is False
+    assert zweites["existing"]["id"] == erstes["id"]
+    assert zweites["id"] == erstes["id"]
+
+
+async def test_vorschlag_annehmen_schreibt_den_wert_wirklich(repo, knoten):
+    vorschlag = await knoten.suggestions.propose(
+        "cclom:general_keyword", "pytest-angenommen", "Test der Reihenfolge")
+    got = await repo.flows.accept_suggestion(knoten.id, vorschlag.id)
+    assert got["applied"] is True
+    assert got["status"] == "ACCEPTED"
+    assert "pytest-angenommen" in (await repo.node(knoten.id)).keywords
+    offen = [s for s in await knoten.suggestions.list() if s.id == vorschlag.id]
+    assert offen and offen[0].status == "ACCEPTED"

@@ -28,7 +28,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from . import contents, curate, describe, find, pages, tree
+from . import contents, curate, describe, find, pages, suggest, tree
 from . import text as text_flow
 from .language import GERMAN, LanguageProfile
 from .rerank import DEFAULT_POOL
@@ -108,6 +108,14 @@ class Flows:
         **Read ``reason``**: no text is a normal answer here, not an error.
         """
         return await text_flow.text(self._repo, node_id, **kwargs)
+
+    async def accept_suggestion(self, node_id: str, suggestion_id: str) -> dict[str, Any]:
+        """Apply a proposal, read it back, then mark it. See ``suggest.accept_suggestion``.
+
+        **Read ``applied``**: marking alone writes nothing (measured), so this
+        writes first and marks only when the value is there.
+        """
+        return await suggest.accept_suggestion(self._repo, node_id, suggestion_id)
 
     async def related(self, node_id: str, **kwargs: Any) -> dict[str, Any]:
         """More material like this one. See ``find.related``.
@@ -208,6 +216,7 @@ class Flows:
         collection_id: str | None = None,
         properties: dict[str, Any] | None = None,
         publish: bool = False,
+        if_exists: str = "return",
         **aliases: Any,
     ) -> dict[str, Any]:
         """Create material, with vocabulary. See ``curate.add_material``.
@@ -223,7 +232,7 @@ class Flows:
             self._repo, title, url=url, parent_id=parent_id, name=name,
             description=description, keywords=keywords,
             collection_id=collection_id, properties=properties,
-            publish=publish, **aliases,
+            publish=publish, if_exists=if_exists, **aliases,
         )
 
     async def update_material(

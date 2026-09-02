@@ -16,6 +16,18 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Added
 
+- **`flows.accept_suggestion`** — apply a proposal, read it back, and only
+  then mark it `ACCEPTED`. Measured 2026-08-28: marking alone writes nothing,
+  so a proposal accepted by `decide()` was a record of something that never
+  happened. When the value does not arrive, nothing is marked and `failed`
+  says so.
+- **`add_material(url=…)` checks for an existing record first.** A second
+  record for the same address is a duplicate by definition; `if_exists`
+  (`"return"` by default, `"raise"`, `"create"`) decides, and the answer
+  carries `existing`, `created` and `warnings`. Measured 2026-09-02: `mds_oeh`
+  accepts `ccm:wwwurl` as a criterion, `-default-` does not — then the
+  default check is skipped and said so, while `"raise"` refuses to guess.
+  `flows.duplicates.find_by_url` is the building block.
 - **`flows.text`** — the full text of one material and why there is none:
   the repository's text first, then the file itself for a `text/*` upload
   (measured 2026-08-27: `/textContent` is empty for Markdown and JSON although
@@ -71,6 +83,9 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Fixed
 
+- **`REFERENCE(.de).md` documented `add_material(parent_id, title=…)`** — the
+  first positional argument is `title`; `parent_id` is a keyword. The
+  signature guard checks `repo.x(…)` rows only, which is how this one slipped.
 - **A listing id made the library answer "in no collection" — and write
   into the void.** Measured on staging, 2026-09-02: `/usage` answers a
   reference id with an empty list and the original with two collections;
