@@ -43,7 +43,7 @@ nur von Hand ausgeschrieben.
 | `vocabulary` | 1 | Kurzname auflösen → Werte holen (zwischengespeichert) |
 | `describe` | 1 | Knoten laden |
 | `text` | 1–3 | Knoten laden → gespeicherter Text → (die Datei, bei `text/*`) → (die verlinkte Seite, mit Dienst) |
-| `search_all` | 3–4, +2 mit `include_pages` | Materialsuche (+1 zum Auflösen eines Filters) + Sammlungssuche (ihre zwei Wege), parallel |
+| `search_all` | 3–4 (`include_pages` kostet keine) | Materialsuche (+1 zum Auflösen eines Filters) + Sammlungssuche (ihre zwei Wege), parallel |
 | `placement` | 3 | Knoten laden (Referenz auflösen) → Weg nach oben + Sammlungen des Originals, parallel |
 | `describe_many` | eine je verschiedener ID, parallel | jeden laden, die verschwundenen melden |
 | `related` | 2 (+1 je aufgelöstem Filter) | Ausgang beschreiben → mit seinen Feldern suchen → Ausgang herausnehmen |
@@ -54,7 +54,7 @@ nur von Hand ausgeschrieben.
 | `find_pages` | 2, parallel | beide Sammlungswege → die Treffer mit Seiten-Ref behalten |
 | `find_skills` | 1, oder eine je gelesener Sammlung | Suche mit der Inhaltsart → lokal reihen |
 | `skill` | 2–3 | Datensatz laden → Datei herunterladen → Ordner des Originals listen |
-| `skill_registry` | 2 + eine je Eintrag | Dateien der Sammlung listen → Registry herunterladen → jeden Kopf auflösen |
+| `skill_registry` | 1–2 + eine je Eintrag | Dateien der Sammlung listen → Registry herunterladen → jeden Kopf auflösen |
 | `pick_skill` | `find_skills` + `skill` | suchen → den besten laden |
 | `relations` | 1 | die Verknüpfungen des Knotens lesen |
 | `child_objects` | 2 | Hauptknoten laden → seine Kinder, gefiltert und sortiert |
@@ -284,8 +284,9 @@ unauflösbarer Filter gemeldet statt stillschweigend fallengelassen wird.
 ## `search_all` — Material *und* Sammlungen auf einmal
 
 **Seit dem 02.09.2026:** `include_pages=True` fügt einen dritten Topf hinzu,
-`pages` — die Sammlungstreffer mit redaktioneller Seite (`find_pages`), um den
-Preis einer zweiten Sammlungssuche. `properties=` wirkt auf beide Töpfe.
+`pages` — die Sammlungstreffer mit redaktioneller Seite (`find_pages`), gelesen
+aus den schon geholten Sammlungstreffern — keine weitere Anfrage. `properties=`
+wirkt auf beide Töpfe.
 
 Wer ein Repositorium nach einem Thema fragt, meint meist beides: die einzelnen
 Materialien und die Sammlungen, in denen jemand schon zusammengestellt hat, was
@@ -1272,10 +1273,12 @@ rahmen.
 
 ## `skill_registry` — welche Skills eine Sammlung freigegeben hat
 
-**Zwei Anfragen plus eine je Eintrag.** Das Dateilisting der Sammlung (nie
+**Eine Anfrage plus eine je Eintrag — zwei, wenn dem Listing die
+Download-Adresse fehlt.** Das Dateilisting der Sammlung (nie
 der Suchindex — ein Datensatz kann aus dem Index fallen und im Speicher
 liegen, vom MCP am 09.08.2026 gemessen), das Registry-Dokument per
-`download()`, dann je genanntem Skill der Datensatz für Beschreibung und
+`download()` direkt aus dem Listing-Eintrag (sein Datensatz wird nur gelesen,
+wenn dem Listing die Download-Adresse fehlt), dann je genanntem Skill der Datensatz für Beschreibung und
 Schlagwörter (`resolve=False` lässt das aus). Die `::: ki-skill`-Blöcke des
 Dokuments sind der Katalog, seine `##`/`###`-Überschriften die
 Arbeitszusammenhänge; `context="Unterricht vorbereiten"` verengt auf diese

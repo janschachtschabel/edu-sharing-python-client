@@ -366,3 +366,27 @@ async def test_describe_nennt_die_sichtbarkeit():
     async with instanz.repo() as repo:
         beschreibung = await repo.flows.describe("neu-1")
     assert beschreibung["public"] is False
+
+
+# --- Review B11: Loeschen an einer Referenz, offline ------------------------
+
+class MitReferenz(Instanz):
+    """ref-1 ist eine Referenz auf abc -- ein Sammlungs-Listing gibt solche IDs aus."""
+
+    def _antwort(self, node_id: str) -> dict:
+        antwort = super()._antwort(node_id)
+        if node_id == "ref-1":
+            antwort["node"].update({"originalId": "abc",
+                                    "aspects": ["ccm:collection_io_reference"]})
+        return antwort
+
+
+async def test_loeschen_einer_referenz_nennt_das_original_und_trifft_nur_die_referenz():
+    """Loeschen wird nicht umgeleitet (gemessen vom MCP): weg ist die Referenz,
+    der Datensatz dahinter bleibt -- und die Antwort sagt beides."""
+    instanz = MitReferenz()
+    instanz.knoten["ref-1"] = {"properties": {"cclom:title": ["Kopie"]}}
+    async with _repo(instanz) as repo:
+        ergebnis = await repo.flows.delete("ref-1")
+    assert ergebnis["is_reference"] is True and ergebnis["original_id"] == "abc"
+    assert instanz.geloescht == ["ref-1"]

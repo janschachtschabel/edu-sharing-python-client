@@ -625,3 +625,27 @@ async def test_pick_skill_als_dict():
     assert got["best"]["id"] == SB and got["reason"] == ""
     assert [a["id"] for a in got["alternatives"]] == [SA]
     assert leer == {"best": None, "alternatives": [], "reason": "no_match"}
+
+
+# --- Review A15: die Registry kommt aus dem Listing -------------------------
+
+async def test_die_registry_wird_aus_dem_listing_geladen():
+    """Das Listing traegt schon Download-Adresse und Inhalts-Hash -- der
+    Datensatz wurde trotzdem noch einmal gelesen."""
+    instanz = Instanz()
+    async with instanz.repo() as repo:
+        reg = await repo.skills.registry(COLL, resolve=False)
+    assert reg.entries
+    assert not any(r.url.path.endswith(f"/{REG}/metadata") for r in instanz.anfragen)
+
+
+async def test_ohne_downloadadresse_im_listing_wird_der_datensatz_gelesen():
+    """Ein Listing ohne downloadUrl (andere Instanz, andere Projektion): dann
+    kostet die Sicherheit die eine Anfrage."""
+    unvollstaendig = {k: v for k, v in _skill(REG, "Skill Registry", typ=REGISTRY).items()
+                      if k != "downloadUrl"}
+    instanz = Instanz(registry_docs=[unvollstaendig])
+    async with instanz.repo() as repo:
+        reg = await repo.skills.registry(COLL, resolve=False)
+    assert reg.entries
+    assert sum(r.url.path.endswith(f"/{REG}/metadata") for r in instanz.anfragen) == 1

@@ -177,3 +177,29 @@ async def test_scheitert_das_markieren_bleibt_der_wert_und_die_antwort_sagt_es()
     assert [f["part"] for f in got["failed"]] == ["mark"]
     assert "written" in got["failed"][0]["reason"]
     assert instanz.props["ccm:taxonid"] == ["x"]
+
+
+# --- Review B11: ein Vorschlag an einer Referenz, offline --------------------
+
+class MitReferenz(Instanz):
+    """ref-1 ist eine Referenz auf den Knoten NID."""
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        if request.method == "GET" and request.url.path.endswith("/ref-1/metadata"):
+            self.anfragen.append(request)
+            return httpx.Response(200, json={"node": {
+                "ref": {"id": "ref-1"}, "type": "ccm:io", "name": "k.txt",
+                "originalId": NID, "aspects": ["ccm:collection_io_reference"],
+                "properties": dict(self.props)}})
+        return super().handler(request)
+
+
+async def test_annehmen_an_einer_referenz_schreibt_ans_original():
+    """Ein Vorschlag an einer Listing-ID: der Wert geht ans Original, sonst
+    erreicht er den Datensatz nie (gemessen vom MCP, 17.08.2026)."""
+    instanz = MitReferenz([_vorschlag("s-1", "ccm:taxonid", "http://vocab.test/080")])
+    async with instanz.repo() as repo:
+        got = await repo.flows.accept_suggestion("ref-1", "s-1")
+    assert got["applied"] is True and got["id"] == "ref-1"
+    schreib = [r.url.path for r in instanz.anfragen if r.url.path.endswith("/property")]
+    assert schreib and all(f"/{NID}/" in p for p in schreib), schreib

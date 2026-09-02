@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from .errors import NotFoundError, PermissionDeniedError
+from .nodes import Node
 from .skills import WLO_SKILLS, SkillConventions, registry_mark
 from .skills_markdown import RegistryContext, RegistryGeneral, layout_contexts, parse_blocks
 from .urls import path_segment
@@ -141,7 +142,10 @@ async def load_registry(
         scan_truncated=scan_truncated,
     )
     try:
-        record = await repo.node(registry_id)
+        # The listing entry is a full record on this instance; only when it
+        # lacks what a download needs is the record read again.
+        record = (Node(chosen, repo.nodes) if _downloadable(chosen)
+                  else await repo.node(registry_id))
         markdown = (await record.content.download()).decode("utf-8", errors="replace")
     except (NotFoundError, PermissionDeniedError):
         return _with(base, reason="unreadable")
@@ -213,6 +217,13 @@ async def _read_heads(repo: AsyncRepository, ids: list[str]) -> list[dict[str, A
                 return None
 
     return list(await asyncio.gather(*(one(i) for i in ids)))
+
+
+def _downloadable(raw: dict[str, Any]) -> bool:
+    """Whether a listing entry carries what ``download()`` needs: the address,
+    and a content hash that says there is a file."""
+    has_hash = (raw.get("content") or {}).get("hash") is not None
+    return bool(raw.get("downloadUrl")) and has_hash
 
 
 def _is_registry_candidate(raw: dict[str, Any], conventions: SkillConventions) -> bool:

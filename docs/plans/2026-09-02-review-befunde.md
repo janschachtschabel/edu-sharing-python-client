@@ -50,13 +50,12 @@ Status: `[ ]` offen · `[x]` erledigt · `[-]` bewusst nicht (Begründung).
   verworfen. → `asdict(doc)`; `range` mit Kommentar entfernen.
 - [x] A14 NIT — `pick(text, include_files=False)` wirft. → `include_files`
   durchreichen.
-- [x] A15 NIT (teils) — Kommentar an `registry_mark` falsch; `SKILL_DEPTH_MAX` fehlt
+- [x] A15 NIT — Kommentar an `registry_mark` falsch; `SKILL_DEPTH_MAX` fehlt
   in `__all__`; `SyncSkills` fehlt in `_sync.__all__`; Registry-Knoten wird
   nach dem Listing erneut gelesen; Fassaden-Docstring behauptet „kein
   `**kwargs`"; Beispiel 21 behauptet, `mds_oeh` sei für die Registry nötig.
-  Bleibt: der zweite Lesezugriff auf den Registry-Knoten — `download()`
-  braucht `downloadUrl` und `content` aus dem Datensatz, die ein Listing
-  nicht auf jeder Instanz trägt; eine Anfrage ist der Preis der Sicherheit.
+  Der Registry-Knoten wird jetzt aus dem Listing-Eintrag geladen; nur wenn
+  dem Listing die Download-Adresse fehlt, wird der Datensatz gelesen.
   Fassade, `_sync.__all__` und Beispiel 21: erledigt.
 
 ## C — Suche, Konfiguration, Sync (`flows/find.py`, `flows/collections.py`, `flows/serialize.py`, `_sync.py`, Wächter)
@@ -87,11 +86,10 @@ Status: `[ ]` offen · `[x]` erledigt · `[-]` bewusst nicht (Begründung).
   → alles passt. → Teilstring-Rückfall oder Warnung.
 - [x] C10 MINOR — `hit_as_dict`: `list(values)` zerlegt einen String in
   Zeichen, ein `int` wirft. → Liste erzwingen.
-- [x] C11 MINOR (teils) — `find_pages` läuft sequenziell nach dem `gather` und sendet
+- [x] C11 MINOR — `find_pages` läuft sequenziell nach dem `gather` und sendet
   dieselben zwei Sammlungsanfragen erneut. → in den `gather` (mit C2).
-  Bleibt: die zwei Sammlungsanfragen werden weiterhin doppelt gesendet —
-  parallel, nicht mehr nacheinander; sie aus dem Sammlungskorb abzuleiten
-  hieße `find_pages` umzubauen, ein eigener Schritt.
+  Die Seiten werden jetzt aus dem Sammlungskorb gelesen (`pages_among`
+  hinter `find_pages` und `search_all`): keine zweite Sammlungssuche.
 - [x] C12 MINOR — (a) `search_all` reicht `**aliases` nicht an
   `find_collections` durch, meldet sie aber als `filters_ignored`; (b)
   `_carries` doppelt (`collections.py`, `skills.py`); (c) `query.filters` hat
@@ -150,7 +148,7 @@ geprüft); die Befunde betreffen Verhalten, das schon vorher so war.
 - [x] B10 MINOR — FLOWS: `placement` „2 Anfragen, nicht drei" (es sind drei),
   `accept_suggestion` „vier" (sechs), `add_material` „2–4" ohne
   Adressprüfung, doppelter „Behind it"-Block. Beide Sprachen.
-- [x] B11 MINOR (Löschen einer Referenz und `accept_suggestion` an einer Referenz sind heute live belegt, 61 Schreibbeweise) — Tests: `set_property(None)` bei behaltener Eigenschaft;
+- [x] B11 MINOR — Tests: `set_property(None)` bei behaltener Eigenschaft;
   `verify=False` über Referenz; `create` mit Umbenennung; `placement` mit
   scheiterndem Knotenlesen; `flows.delete` an einer Referenz;
   `accept_suggestion` an Referenz und mit scheiterndem `decide`;
@@ -173,10 +171,8 @@ steht sie am Befund.
 
 ## Stand am Abend des 02.09.2026
 
-Alle 45 Befunde sind bearbeitet: 41 umgesetzt, drei bewusst teilweise
-(A15: der zweite Lesezugriff auf den Registry-Knoten bleibt; C11: die
-Seitensuche läuft parallel, sendet aber weiterhin ihre zwei Anfragen; B11: das
-Löschen einer Referenz und `accept_suggestion` an einer Referenz sind live
-belegt, nicht offline), einer unverändert mit Begründung (B14). Dreizehn
-Commits, jeder hinter dem Gate (ruff, mypy --strict, 1280 Tests); die
-betroffenen Pfade danach noch einmal live gegen Staging gelaufen.
+Alle 45 Befunde sind bearbeitet: 44 umgesetzt, einer unverändert mit
+Begründung (B14 — der Review selbst empfahl keine Änderung; die drei
+Anfragen von `placement` sind der richtige Kompromiss). Fünfzehn Commits,
+jeder hinter dem Gate (ruff, mypy --strict, die Gesamtsuite); die betroffenen
+Pfade danach noch einmal live gegen Staging gelaufen.

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Sequence
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
 from ..errors import EduSharingError, ValidationError
@@ -20,7 +20,7 @@ from ..results import SearchHit, SearchResult
 from .fields import carries, resolve_vocabulary
 from .find import search
 from .language import GERMAN, LanguageProfile
-from .pages import find_pages
+from .pages import pages_among
 from .ranking import query_terms, term_matches
 from .rerank import DEFAULT_POOL
 from .serialize import result_as_dict
@@ -91,6 +91,27 @@ async def find_collections(
         ValidationError: for an unknown short name.
         EduSharingError: for anything the repository refuses.
     """
+    found = await _collections(repo, text, limit=limit, parent_id=parent_id, aliases=aliases)
+    return _answer(repo, found.result, found.query, properties, found.unresolved,
+                   found.unjudged)
+
+
+@dataclass(frozen=True)
+class _Found:
+    """A collection search before serialisation -- the hits still carry their
+    records, which is what the pages bucket reads."""
+
+    result: SearchResult
+    query: dict[str, Any]
+    unresolved: list[dict[str, Any]]
+    unjudged: int
+
+
+async def _collections(
+    repo: AsyncRepository, text: str, *, limit: int, parent_id: str | None,
+    aliases: dict[str, Any],
+) -> _Found:
+    """``find_collections`` up to the answer: the filtered, cut result."""
     wanted, unresolved = await resolve_vocabulary(repo, aliases, every_value=True)
     query = _query(repo, text, limit, aliases, parent_id)
     # With a local filter the page must hold candidates, not answers.
@@ -124,7 +145,7 @@ async def find_collections(
             total_is_lower_bound=result.total_is_lower_bound or beyond, warnings=warnings,
         )
 
-    return _answer(repo, result, query, properties, unresolved, unjudged)
+    return _Found(result, query, unresolved, unjudged)
 
 
 def _query(
@@ -226,11 +247,12 @@ async def search_all(
         filters, facets, limit, rerank, pool, language, deduplicate, aliases:
             as in ``search``. ``limit`` applies **per bucket**, so neither
             crowds out the other.
-        include_pages: also ask which of the collection hits carry a
-            curated page (``find_pages``) and add them as ``pages``. Off by
-            default: it costs the collection search a second time -- sent
-            along with the other two, and answered empty with ``error`` set
-            when that search fails, like the collection bucket.
+        include_pages: also say which of the collection hits carry a
+            curated page and add them as ``pages`` -- read off the collection
+            hits already fetched, so it costs no further request. Off by
+            default so the answer stays small unless asked. When the
+            collection search fails, ``pages`` comes back empty with
+            ``error`` set, like the collection bucket.
         properties: further properties under ``fields``, as stored.
 
     Returns:
@@ -260,24 +282,25 @@ async def search_all(
 
     # As in ``search()``: the short names are configured, not declarable.
     forwarded: dict[str, Any] = dict(aliases)
-    tasks = [
+    # ``return_exceptions=True``: each slot is a result OR the exception that
+    # ended it; the annotations say so, because a checker cannot read it out
+    # of ``gather``. Only what the repository refused is a partial answer -- a
+    # bug in either bucket raises, or it would hide in an ``error`` field.
+    material_outcome: dict[str, Any] | BaseException
+    collection_outcome: _Found | BaseException
+    material_outcome, collection_outcome = await asyncio.gather(
         search(repo, text, filters=filters, facets=facets, limit=limit,
                rerank=rerank, pool=pool, language=language,
                deduplicate=deduplicate, properties=properties, **forwarded),
         # The short names go along: ``find_collections`` applies them locally,
-        # so only raw ``filters`` stay out of that bucket.
-        find_collections(repo, text, limit=limit, properties=properties, **forwarded),
-    ]
-    if include_pages:
-        tasks.append(find_pages(repo, text, limit=limit))
-    # ``return_exceptions=True``: each slot is a result OR the exception that
-    # ended it. Only what the repository refused is a partial answer -- a bug
-    # in any bucket raises, or it would hide in an ``error`` field.
-    outcomes = await asyncio.gather(*tasks, return_exceptions=True)
-    for outcome in outcomes:
+        # so only raw ``filters`` stay out of that bucket. Before
+        # serialisation, because the pages bucket reads the records.
+        _collections(repo, text, limit=limit, parent_id=None, aliases=forwarded),
+        return_exceptions=True,
+    )
+    for outcome in (material_outcome, collection_outcome):
         if isinstance(outcome, BaseException) and not isinstance(outcome, EduSharingError):
             raise outcome
-    material_outcome, collection_outcome = outcomes[0], outcomes[1]
     if isinstance(material_outcome, BaseException):
         # The material bucket is the main question. Handing it back empty would
         # claim there is nothing, which is a different statement from "the
@@ -286,6 +309,7 @@ async def search_all(
     materials: dict[str, Any] = material_outcome
 
     collections: dict[str, Any]
+    pages: dict[str, Any]
     if isinstance(collection_outcome, BaseException):
         # ``collections.find`` already says one level down that half a result
         # is usable and a faked empty one is not. Between the two buckets a
@@ -293,8 +317,14 @@ async def search_all(
         failure = f"{type(collection_outcome).__name__}: {collection_outcome}"
         collections = empty_collections(repo, text, limit, failure, aliases)
         collections["error"] = failure
+        pages = {"query": text, "hits": [], "checked": 0, "total": 0,
+                 "total_is_lower_bound": True, "reason": failure, "error": failure}
     else:
-        collections = collection_outcome
+        found: _Found = collection_outcome
+        collections = _answer(repo, found.result, found.query, properties,
+                              found.unresolved, found.unjudged)
+        # Read off the hits already fetched: the same search, no second one.
+        pages = {**pages_among(found.result, text), "error": ""}
     collections.setdefault("error", "")
     collections["filters_ignored"] = list(filters or {})
     answer = {
@@ -303,16 +333,5 @@ async def search_all(
         "collections": collections,
     }
     if include_pages:
-        answer["pages"] = _pages_bucket(outcomes[2], text)
+        answer["pages"] = pages
     return answer
-
-
-def _pages_bucket(outcome: Any, text: str) -> dict[str, Any]:
-    """The pages bucket, or its empty twin naming the failure -- same keys."""
-    if isinstance(outcome, BaseException):
-        failure = f"{type(outcome).__name__}: {outcome}"
-        return {"query": text, "hits": [], "checked": 0, "total": 0,
-                "total_is_lower_bound": True, "reason": failure, "error": failure}
-    pages: dict[str, Any] = outcome
-    pages.setdefault("error", "")
-    return pages

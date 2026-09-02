@@ -131,6 +131,14 @@ and in [`docs/audits/`](docs/audits/).
   `search_all` shows calls `collections.find_collections`; a block that
   repeated `update_material` inside `add_material` is gone; the facade
   docstring no longer claims that nothing forwards `**kwargs`.
+- **`include_pages` costs nothing more, and the registry is downloaded
+  from the listing.** `search_all` read the pages off a second collection
+  search; it now reads them off the collection hits it already has (one
+  `pages_among` behind `find_pages` and `search_all`). `skill_registry`
+  read the registry record again after the listing that already carried
+  it; it downloads from the listing entry and reads the record only when
+  the listing lacks the download address. Deleting a reference and
+  accepting a proposal at a reference are pinned offline as well.
 
 ## [0.1.0] — 2026-09-02
 

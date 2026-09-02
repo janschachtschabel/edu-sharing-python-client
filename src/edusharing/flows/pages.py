@@ -42,6 +42,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..errors import EduSharingError
 from ..pages import PAGE_REF, CuratedPage, PageVariant
+from ..results import SearchResult
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..repository import AsyncRepository
@@ -164,6 +165,15 @@ async def find_pages(
             "answer would say 'no page found' about a search never run."
         )
     found = await repo.find_collections(text, limit=limit)
+    return pages_among(found, text)
+
+
+def pages_among(found: SearchResult, text: str) -> dict[str, Any]:
+    """The curated pages among collection hits already fetched.
+
+    What ``find_pages`` reads off its own search, and ``search_all`` off its
+    collection bucket -- so asking for pages there costs no second search.
+    """
     checked = [hit for hit in found.hits if hit.properties()]
     hits = [
         {"id": hit.id, "title": hit.title, "url": hit.url,

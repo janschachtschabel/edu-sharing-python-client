@@ -290,3 +290,13 @@ async def test_seiten_kommen_nur_auf_wunsch():
     assert "pages" not in ohne
     assert [h["id"] for h in mit["pages"]["hits"]] == ["s-2"]
     assert mit["pages"]["hits"][0]["folder_id"] == "ordner-2"
+
+
+async def test_seiten_kosten_keine_weitere_anfrage():
+    """Review C11: find_pages suchte die Sammlungen ein zweites Mal. Die Seiten
+    werden jetzt aus den schon geholten Sammlungstreffern gelesen."""
+    instanz = MitSeiten()
+    async with instanz.repo() as repo:
+        mit = await repo.flows.search_all("Zelle", include_pages=True)
+    assert [h["id"] for h in mit["pages"]["hits"]] == ["s-2"]
+    assert len(instanz.anfragen) == 3, instanz.anfragen

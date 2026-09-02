@@ -42,7 +42,7 @@ out by hand.
 | `vocabulary` | 1 | resolve short name → fetch values (cached) |
 | `describe` | 1 | load node |
 | `text` | 1–3 | load node → stored text → (the file, for `text/*`) → (the linked page, with a service) |
-| `search_all` | 3–4, +2 with `include_pages` | material search (+1 to resolve a filter) + collection search (its two routes), in parallel |
+| `search_all` | 3–4 (`include_pages` adds none) | material search (+1 to resolve a filter) + collection search (its two routes), in parallel |
 | `placement` | 3 | load node (to resolve a reference) → way up + collections of the original, in parallel |
 | `describe_many` | one per distinct id, in parallel | load each, report the ones that are gone |
 | `related` | 2 (+1 per filter resolved) | describe the seed → search with its fields → drop the seed |
@@ -53,7 +53,7 @@ out by hand.
 | `find_pages` | 2, parallel | both collection routes → keep the hits carrying a page ref |
 | `find_skills` | 1, or one per collection read | search with the content type → rank locally |
 | `skill` | 2–3 | load record → download the file → list the original's folder |
-| `skill_registry` | 2 + one per entry | list the collection's files → download the registry → resolve each head |
+| `skill_registry` | 1–2 + one per entry | list the collection's files → download the registry → resolve each head |
 | `pick_skill` | `find_skills` + `skill` | search → load the best |
 | `relations` | 1 | read the node's links |
 | `child_objects` | 2 | load parent → its children, filtered and sorted |
@@ -275,8 +275,9 @@ unresolvable filter is reported rather than silently dropped.
 ## `search_all` — material *and* collections at once
 
 **Since 2026-09-02:** `include_pages=True` adds a third bucket, `pages` — the
-collection hits that carry a curated page (`find_pages`), at the cost of the
-collection search a second time. `properties=` reaches both buckets.
+collection hits that carry a curated page (`find_pages`), read off the
+collection hits already fetched — no further request. `properties=` reaches
+both buckets.
 
 Asking a repository about a topic usually means both questions: the individual
 resources, and the collections in which somebody has already put together what
@@ -327,8 +328,8 @@ is not. `limit` applies per bucket, so neither crowds out the other.
 > claim there is nothing.
 
 **Behind it** — 3 requests, sent together (4 when a filter has to be resolved,
-5 with `include_pages`, whose collection search rides in the same gather and
-comes back as an empty `pages` bucket with `error` when it fails):
+none more with `include_pages`, whose bucket is read off the collection hits
+and comes back empty with `error` when that search fails):
 
 ```python
 # what repo.flows.search_all("Zellteilung", subject="Biologie") does
@@ -1240,10 +1241,12 @@ reaches a prompt.
 
 ## `skill_registry` — which skills one collection approved
 
-**Two requests plus one per entry.** The collection's file listing (never the
+**One request plus one per entry — two when the listing lacks the download
+address.** The collection's file listing (never the
 search index — a record can fall out of the index while sitting in the store,
-measured by the MCP on 2026-08-09), the registry document with `download()`,
-then each named skill's record for description and keywords (`resolve=False`
+measured by the MCP on 2026-08-09), the registry document with `download()`
+straight from the listing entry (its record is read separately only when the
+listing lacks the download address), then each named skill's record for description and keywords (`resolve=False`
 skips those). The document's `::: ki-skill` blocks are the catalogue, its
 `##`/`###` headings the working contexts; `context="Unterricht vorbereiten"`
 narrows to that group plus the general part, and **a name that does not match
