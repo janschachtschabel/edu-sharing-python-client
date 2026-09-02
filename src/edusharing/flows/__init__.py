@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING, Any
 from ..search import DEFAULT_FACET_LIMIT
 from . import collections as collection_search
 from . import contents, curate, describe, find, pages, suggest, tree
+from . import skills as skill_flows
 from . import text as text_flow
 from .language import GERMAN, LanguageProfile
 from .rerank import DEFAULT_POOL
@@ -123,6 +124,24 @@ class Flows:
         writes first and marks only when the value is there.
         """
         return await suggest.accept_suggestion(self._repo, node_id, suggestion_id)
+
+    # --- skills -----------------------------------------------------------
+
+    async def find_skills(self, text: str = "", **kwargs: Any) -> dict[str, Any]:
+        """Skills for a task, ranked. See ``skills.find_skills``."""
+        return await skill_flows.find_skills(self._repo, text, **kwargs)
+
+    async def skill(self, node_id: str, **kwargs: Any) -> dict[str, Any]:
+        """One skill with its instruction and companions. See ``skills.skill``."""
+        return await skill_flows.skill(self._repo, node_id, **kwargs)
+
+    async def skill_registry(self, collection_id: str, **kwargs: Any) -> dict[str, Any]:
+        """Which skills one collection approved. See ``skills.skill_registry``."""
+        return await skill_flows.skill_registry(self._repo, collection_id, **kwargs)
+
+    async def pick_skill(self, text: str, **kwargs: Any) -> dict[str, Any]:
+        """The best match, loaded, plus the runners-up. See ``skills.pick_skill``."""
+        return await skill_flows.pick_skill(self._repo, text, **kwargs)
 
     async def related(self, node_id: str, **kwargs: Any) -> dict[str, Any]:
         """More material like this one. See ``find.related``.

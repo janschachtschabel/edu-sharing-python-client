@@ -100,6 +100,8 @@ table.
 | search material | `repo.flows.search(text, subject=…, limit=…, exclude_ids=…, properties=…)` |
 | search material *and* collections at once | `repo.flows.search_all(text)` |
 | find collections only — by subject, or below one collection | `repo.flows.find_collections(text, subject=…, parent_id=…)` → read `unjudged` |
+| which **skills** fit a task, or are filed in a collection | `repo.flows.find_skills(text, subject=…, collection_id=…)` — needs the metadata set that knows the content type |
+| the best skill, loaded, with the runners-up | `repo.flows.pick_skill(text)` → read `reason` |
 | more like this node | `repo.flows.related(node_id, on=["subject", "level"])` |
 | which values does a field allow | `repo.flows.vocabulary("subject")` |
 | every value of a field, or a substring of one | `repo.vocab.values(prop)` / `repo.vocab.suggest(prop, "ysik")` |
@@ -122,6 +124,8 @@ table.
 | how much is in there | `repo.flows.collection_stats(id)` |
 | the curated landing page | `repo.flows.page(collection_id)` |
 | the text of a material, wherever it is — and *why* there is none | `repo.flows.text(node_id, extraction=…)` → read `source`, `reason` |
+| a skill's instruction, its references and companion files | `repo.flows.skill(node_id)` → read `files_reason` |
+| which skills a collection has approved, by working context | `repo.flows.skill_registry(collection_id, context=…)` → read `reason`, `context_match` |
 | the file itself | `node.content.download()` / `node.content.text()` |
 | the curated page as objects | `node.page.get()` / `node.page.render(variant)` |
 | one page of a node's children | `repo.nodes.children(node_id, limit=…)` |
@@ -226,6 +230,10 @@ has to be guessed — argument and return shapes are in `docs/REFERENCE.md`.
 | `Search` | `repo.searcher` — **async only** | `.search()` |
 | `Vocabulary` | `repo.vocab` — **async only** | `.values()` `.suggest()` `.resolve()` `.resolve_all()` `.clear_cache()`; `VocabularyValue`: `.uri` `.label` |
 | `People` | `repo.people` | `.memberships()` `.group()` `.members()` `.create_group()` `.delete_group()` `.add_member()` `.remove_member()`; `Group`: `.name` `.short_name` `.display_name` `.type` `.signup`; `Member`: `.name` `.is_group` |
+| `Skills` | `repo.skills` | `.search()` `.get()` `.registry()` `.pick()`; `SkillConventions`: `.type_property` `.skill_type` `.registry_type` `.registry_mark` `.markdown_mimetypes` `.block_kinds`; `WLO_SKILLS` |
+| `SkillSummary` / `SkillDocument` | `.search().hits` / `.get()` | `.id` `.original_id` `.title` `.description` `.keywords` `.url` `.download_url`; the document adds `.content` `.references` `.files` `.files_reason` `.folder_file_count`; `SkillFile`: `.id` `.title` `.mimetype` `.size` `.download_url`; `SkillSearch`: `.hits` `.unresolved` `.truncated` |
+| `SkillRegistry` | `repo.skills.registry(collection_id)` | `.collection_id` `.registry_id` `.registry_title` `.markdown` `.entries` `.unresolved` `.contexts` `.general` `.ambiguous` `.truncated` `.contexts_truncated` `.reason` `.context_match` `.scan_truncated`; `RegistryEntry`: `.node_id` `.title` `.description` `.keywords` `.context` |
+| `SkillReference` / `MarkdownSection` / `RegistryContext` / `RegistryGeneral` / `ContextLayout` | `parse_blocks(text)` / `parse_sections(text)` / `layout_contexts(text, blocks)` | `.kind` `.title` `.url` `.node_id` `.offset` / `.level` `.title` `.heading_start` `.body_start` `.end` / `.title` `.level` `.path` `.instruction` `.skills` `.range` / `.instruction` `.skills` / `.contexts` `.general` `.paths` `.truncated` |
 | `Relations` | `repo.relations` | `.of()` `.create()` `.delete()` `.approve()`; `Relation`: `.type` `.from_id` `.to_id` `.from_title` `.to_title` `.ai_generated` `.approved` `.created_by` `.created_at` `.opposite_of()`; `RELATION_TYPES` lists the accepted kinds |
 
 **What comes back from a search**
@@ -268,6 +276,8 @@ has to be guessed — argument and return shapes are in `docs/REFERENCE.md`.
 |---|---|
 | turn a title into a legal `cm:name` | `name_from_title(title)` |
 | turn short names into properties, labels resolved | `resolve_vocabulary(repo, aliases)` → `(properties, unresolved)` |
+| read a skill document without I/O | `parse_blocks(text)` / `parse_sections(text)` / `layout_contexts(text, blocks)` |
+| a collection's registry, outside the accessor | `load_registry(repo, collection_id)` |
 | widen a weak query | `expand_query(query)` → `QueryVariant`: `.label` `.weight` `.text` |
 | score a hit against a query yourself | `score_hit(hit, query, aliases)` / `query_terms(query)` / `term_matches(…)` |
 | fold duplicates | `deduplicate(hits)` |
@@ -306,6 +316,8 @@ so the value has a name instead of being buried in a signature.
 | `DEFAULT_MAX_TOKENS` / `DEFAULT_MAX_OUTPUT_TOKENS` | `1000` | the cap on a chat answer / on a responses answer |
 | `DEFAULT_HIT_CHARS` / `DEFAULT_RESULT_CHARS` | `400` / `4000` | how much `format_hit` / `format_results` hands a model |
 | `DEFAULT_MAX_CHARS` | `200000` | where `flows.text` cuts, at a word boundary |
+| `SKILL_SEARCH_PAGE` / `SKILL_BUNDLE_MAX` / `SKILL_VISIT_MAX` | `50` / `50` / `30` | skill hits pooled · companion files listed before a folder counts as an inbox · collections a scoped walk may read |
+| `REGISTRY_SCAN_MAX` / `REGISTRY_MAX` / `REGISTRY_POOL` / `REGISTRY_CONTEXT_MAX` | `50` / `100` / `10` / `50` | files scanned for a registry · entries per answer · heads resolved at once · contexts per answer |
 | `DUPLICATE_SCAN_LIMIT` | `20` | hits `find_by_url` compares before `add_material` creates; `check_before_create` applies `if_exists` |
 | `EXCLUSION_MAX` | `200` | the largest page `search` refills to after `exclude_ids` |
 | `DEFAULT_POOL` | `25` | how many hits `search(rerank=True)` fetches before reranking |
@@ -669,6 +681,35 @@ node.is_reference            # True
 changed = await node.update(title="…")
 changed.id                   # the original's id, not listing_id
 changed.redirected_from      # listing_id -- the write was redirected
+```
+
+---
+
+### 5.14 A skill is a record with a content type — and the metadata set decides whether you can filter on it
+
+Skills are ordinary records whose content type says "instruction" and whose
+attached file is the `SKILL.md`. Measured on staging (2026-09-02): with
+`mds_oeh` the content type is a search criterion and 34 skills answer; with
+`-default-` the repository refuses the criterion (`ValidationError`, and the
+message says why). Set `EDU_SHARING_METADATASET=mds_oeh` or pass
+`metadataset=` — `from_env()` reads the variable since 2026-09-02.
+
+Two more measured traps: the `SKILL.md` is read with `download()`, because
+`/textContent` is empty for Markdown; and a skill's folder (its companion
+files) answered 403 anonymously — `files_reason` says so instead of showing
+an empty list as "travels alone".
+
+Everything that names a convention — the content-type URIs, how a registry
+document gives itself away, the block kinds — is `SkillConventions`, a
+parameter whose default is WLO's `WLO_SKILLS`. Another repository passes its
+own. And the Markdown that comes back is uploaded content: frame it with
+`as_untrusted` before it reaches a prompt.
+
+```python
+repo = AsyncRepository(url, metadataset="mds_oeh")
+found = await repo.flows.find_skills("Fragen generieren")
+doc = await repo.flows.skill(found["hits"][0]["id"])
+doc["files_reason"]          # "folder_unreadable" anonymously
 ```
 
 ---

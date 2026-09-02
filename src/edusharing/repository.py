@@ -25,6 +25,7 @@ from ._sync import (
     SyncNode,
     SyncPeople,
     SyncRelations,
+    SyncSkills,
     SyncTransport,
 )
 from .auth import ANONYMOUS, BasicCredential, Credential, credential_from
@@ -37,6 +38,7 @@ from .people import People
 from .relations import Relations
 from .results import SearchResult
 from .search import Search
+from .skills import Skills
 from .transport import (
     DEFAULT_BACKOFF_BASE,
     DEFAULT_MAX_CONCURRENCY,
@@ -48,6 +50,18 @@ from .vocab import DEFAULT_METADATASET, DEFAULT_QUERY, Vocabulary
 __all__ = ["AsyncRepository", "Repository"]
 
 ENV_URL = "EDU_SHARING_URL"
+#: Which metadata set to use. It decides what can be filtered on -- measured
+#: 2026-09-02, ``mds_oeh`` accepts ``ccm:oeh_extendedType`` and ``-default-``
+#: does not -- so a deployment needs to say it once, next to the address.
+ENV_METADATASET = "EDU_SHARING_METADATASET"
+
+
+def _metadataset_from_env(kwargs: dict[str, Any]) -> dict[str, Any]:
+    """``EDU_SHARING_METADATASET`` fills ``metadataset`` unless the caller passed one."""
+    from_env = os.environ.get(ENV_METADATASET)
+    if from_env and "metadataset" not in kwargs:
+        return {**kwargs, "metadataset": from_env}
+    return kwargs
 
 
 def _url_from_env(cls: type) -> str:
@@ -127,17 +141,22 @@ class AsyncRepository:
         self._nodes = Nodes(self._transport)
         self._relations = Relations(self._transport)
         self._people = People(self._transport)
+        self._skills = Skills(self)
         self._flows = Flows(self)
 
     @classmethod
     def from_env(cls, **kwargs: Any) -> AsyncRepository:
         """Build a connection from ``EDU_SHARING_URL`` and the credentials.
 
+        ``EDU_SHARING_METADATASET`` sets the metadata set unless ``metadataset=``
+        is passed; without either, ``-default-`` applies.
+
         Raises:
             EduSharingError: when ``EDU_SHARING_URL`` is missing, or when only
                 one of username and password is set.
         """
-        return cls(_url_from_env(cls), auth=BasicCredential.from_env(), **kwargs)
+        return cls(_url_from_env(cls), auth=BasicCredential.from_env(),
+                   **_metadataset_from_env(kwargs))
 
     # --- State ------------------------------------------------------------
 
@@ -201,6 +220,15 @@ class AsyncRepository:
         ``await repo.people.memberships()``
         """
         return self._people
+
+    @property
+    def skills(self) -> Skills:
+        """Skills -- records whose file is an instruction, and the registry of
+        a collection. The conventions are a parameter with WLO's defaults.
+
+        ``await repo.skills.search("Fragen generieren")``
+        """
+        return self._skills
 
     # --- Searching --------------------------------------------------------
 
@@ -306,7 +334,8 @@ class Repository:
     @classmethod
     def from_env(cls, **kwargs: Any) -> Repository:
         """As ``AsyncRepository.from_env``."""
-        return cls(_url_from_env(cls), auth=BasicCredential.from_env(), **kwargs)
+        return cls(_url_from_env(cls), auth=BasicCredential.from_env(),
+                   **_metadataset_from_env(kwargs))
 
     @property
     def url(self) -> str:
@@ -354,6 +383,11 @@ class Repository:
         ``repo.people.memberships()``
         """
         return SyncPeople(self._async.people, self._loop)
+
+    @property
+    def skills(self) -> SyncSkills:
+        """Skills and a collection's registry, blocking."""
+        return SyncSkills(self._async.skills, self._loop)
 
     @property
     def flows(self) -> SyncFlows:

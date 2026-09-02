@@ -52,6 +52,10 @@ nur von Hand ausgeschrieben.
 | `collection_stats` | 2, parallel | Materialliste + Untersammlungsliste → lokal auszählen |
 | `page` | 3 (+1 je Widget mit `resolve_widgets`) | Sammlung laden → ihren Seiten-Ordner → dessen Varianten |
 | `find_pages` | 2, parallel | beide Sammlungswege → die Treffer mit Seiten-Ref behalten |
+| `find_skills` | 1, oder eine je gelesener Sammlung | Suche mit der Inhaltsart → lokal reihen |
+| `skill` | 2–3 | Datensatz laden → Datei herunterladen → Ordner des Originals listen |
+| `skill_registry` | 2 + eine je Eintrag | Dateien der Sammlung listen → Registry herunterladen → jeden Kopf auflösen |
+| `pick_skill` | `find_skills` + `skill` | suchen → den besten laden |
 | `relations` | 1 | die Verknüpfungen des Knotens lesen |
 | `child_objects` | 2 | Hauptknoten laden → seine Kinder, gefiltert und sortiert |
 | `find_collections` | 2, parallel; mit `parent_id` eine je geöffneter Sammlung | beide Sammlungswege → über die ID zusammenlegen → lokal filtern |
@@ -1171,6 +1175,125 @@ treffer = await repo.find_collections("Deutsch", limit=25)   # beide Wege zuglei
 Auf der API-Ebene ist dasselbe Erkennen eine Zeile:
 `hit.properties().get("ccm:page_config_ref")`. Die Seite dahinter liest
 `node.page.get()`.
+
+---
+
+## `find_skills` — welche Skills zu einer Aufgabe passen
+
+**Eine Anfrage** repositoriumsweit (die Inhaltsart reist als Kriterium, die
+Kurznamen mit ihr) oder **eine je gelesener Sammlung** mit `collection_id`
+(das Listing nimmt keine Kriterien; Inhaltsart und Kurznamen werden lokal
+geprüft). Gereiht: ein Begriff im Titel zählt 3, in den Schlagwörtern 2, in
+der Beschreibung 1. Ein Skill, der Original und zugleich Referenz in einer
+Sammlung ist, kommt einmal — als Original, die ID, an die geschrieben wird.
+
+```python
+repo.flows.find_skills("Fragen generieren", subject="Physik")
+```
+
+```json
+{
+  "query": {"text": "Fragen generieren", "collection_id": null, "metadataset": "mds_oeh"},
+  "hits": [{"id": "…", "original_id": "…", "title": "Fragen generieren",
+            "description": "…", "keywords": ["Fragen", "Quiz"], "url": "…",
+            "download_url": "…"}],
+  "unresolved": [],
+  "truncated": false
+}
+```
+
+Die Konventionen — welche Inhaltsart einen Skill kennzeichnet, wie eine
+Registry sich nennt — sind `SkillConventions`, ein Parameter mit WLOs Werten
+als Vorgabe. **Gemessen (02.09.2026): `mds_oeh` nimmt die Inhaltsart als
+Kriterium, `-default-` weist sie zurück** — `EDU_SHARING_METADATASET` setzen
+oder `metadataset=` übergeben, sonst wird kein Skill gefunden.
+
+---
+
+## `skill` — die Anleitung eines Skills, und was dazugehört
+
+**Zwei bis drei Anfragen.** Der Datensatz, seine Datei per `download()` —
+gemessen ist `/textContent` für Markdown leer — und mit `include_files` der
+Ordner daneben: der Ordner des ORIGINALS, über eine Anfrage mehr gelesen, wenn
+die ID eine Referenz war. **`files_reason` lesen**: `folder_unreadable` (403
+anonym, gemessen), `no_folder` oder `too_many` mit `folder_file_count` — ein
+leeres `files` heißt nicht „der Skill reist allein".
+
+```python
+repo.flows.skill(node_id)
+```
+
+```json
+{
+  "id": "…", "original_id": "…", "title": "Fragen generieren", "…": "…",
+  "content": "# Fragen generieren\n\n…",
+  "references": [{"kind": "ki-skill", "title": "Lehrprofil auswerten",
+                  "url": "…/components/render/…", "node_id": "…", "offset": 412}],
+  "files": [{"id": "…", "title": "vorlage.docx", "mimetype": "application/msword",
+             "size": 18342, "download_url": "…"}],
+  "files_reason": "",
+  "folder_file_count": null
+}
+```
+
+`content` ist hochgeladener Inhalt — Daten, die ein Modell abwägt, nie eine
+Anweisung, der diese Bibliothek folgt. Vor dem Prompt mit `as_untrusted`
+rahmen.
+
+---
+
+## `skill_registry` — welche Skills eine Sammlung freigegeben hat
+
+**Zwei Anfragen plus eine je Eintrag.** Das Dateilisting der Sammlung (nie
+der Suchindex — ein Datensatz kann aus dem Index fallen und im Speicher
+liegen, vom MCP am 09.08.2026 gemessen), das Registry-Dokument per
+`download()`, dann je genanntem Skill der Datensatz für Beschreibung und
+Schlagwörter (`resolve=False` lässt das aus). Die `::: ki-skill`-Blöcke des
+Dokuments sind der Katalog, seine `##`/`###`-Überschriften die
+Arbeitszusammenhänge; `context="Unterricht vorbereiten"` verengt auf diese
+Gruppe plus das Allgemeine, und **ein Name, der nicht passt, verengt nichts**
+— `context_match` sagt `missing`, und `contexts` nennt, was es gibt.
+
+```python
+repo.flows.skill_registry(collection_id, context="Unterricht vorbereiten")
+```
+
+```json
+{
+  "collection_id": "…", "registry_id": "…", "registry_title": "Skill Registry",
+  "markdown": "# Skills für die Sammlung Optik\n\n…",
+  "entries": [{"node_id": "…", "title": "Fragen generieren", "description": "…",
+               "keywords": ["Fragen"], "context": "Unterricht vorbereiten"}],
+  "unresolved": [],
+  "contexts": [{"title": "Unterricht vorbereiten", "level": 2,
+                "path": "Unterricht vorbereiten", "instruction": "…", "skills": ["…"]}],
+  "general": {"instruction": "Erst den Bestand sichten.", "skills": ["…"]},
+  "ambiguous": 0, "truncated": null, "contexts_truncated": null,
+  "reason": "", "context_match": "exact", "scan_truncated": null
+}
+```
+
+**`reason` vor `entries` lesen**: `collection_not_found`, `no_registry` oder
+`unreadable`. `no_registry` mit `scan_truncated` ist kein Befund der
+Abwesenheit — das Listing wurde bei 50 Dateien abgeschnitten. Zwei
+Kandidaten in einer Sammlung unterscheidet der Name oder Titel
+(`skill_registry.md`, „Skillkatalog …"); entscheidet das nicht, gewinnt die
+kleinste ID, und `ambiguous` sagt, wie viele es waren.
+
+---
+
+## `pick_skill` — suchen, reihen, laden
+
+**`find_skills` plus ein `skill`.** Der beste Treffer mit Anleitung, die
+Übrigen nach Titel und ID — damit ein Fehlgriff sichtbar bleibt.
+
+```json
+{"best": {"id": "…", "title": "…", "content": "…", "…": "…"},
+ "alternatives": [{"id": "…", "title": "…", "…": "…"}],
+ "reason": ""}
+```
+
+`reason` ist `no_match`, wenn nichts passte; dann ist `best` `null`.
 
 ---
 

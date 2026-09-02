@@ -44,6 +44,7 @@ LESEND = frozenset({
     "18_video_recommendation.py",
     "19_collection_audit.py",
     "20_provider_load.py",
+    "21_skills.py",
 })
 
 #: Legen etwas an -- jedes einen eigenen Wegwerf-Ordner, den es selbst wieder

@@ -110,7 +110,7 @@ with Repository("https://repository.staging.openeduhub.net") as repo:
 Zugang funktioniert auch im Notebook, wo bereits ein Event-Loop läuft.
 
 Zugangsdaten kommen aus der Umgebung (`EDU_SHARING_URL`, `EDU_SHARING_USER`,
-`EDU_SHARING_PASSWORD`) oder direkt:
+`EDU_SHARING_PASSWORD`, optional `EDU_SHARING_METADATASET`) oder direkt:
 
 ```python
 repo = Repository(url, auth=("benutzer", "passwort"))

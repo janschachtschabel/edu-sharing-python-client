@@ -40,7 +40,7 @@ Ereignisschleife in einem Thread für Sie.
 |---|---|
 | `edusharing.__version__` | `str` — `"0.0.1"`, aus den Paketdaten gelesen |
 | `Repository(url, auth=(user, password))` | die Verbindung |
-| `Repository.from_env()` | liest `EDU_SHARING_URL`, `EDU_SHARING_USER`, `EDU_SHARING_PASSWORD` |
+| `Repository.from_env()` | liest `EDU_SHARING_URL`, `EDU_SHARING_USER`, `EDU_SHARING_PASSWORD`, optional `EDU_SHARING_METADATASET` |
 | `AsyncRepository(url, ...)` | dasselbe, `async` |
 | `repo.url` | `str` — die Instanz, normalisiert |
 | `repo.credential` | `Credential` — was gesendet wird |
@@ -524,6 +524,60 @@ lassen.
 
 ---
 
+## Skills
+
+Ein Skill ist ein Datensatz, dessen Inhaltsart „Anleitung" sagt und dessen
+angehängte Datei die `SKILL.md` ist. Welche Werte einen kennzeichnen, ist eine
+Konvention der Instanz und darum ein Parameter: `SkillConventions`, mit WLOs
+Werten als `WLO_SKILLS`. Gemessen auf Staging (02.09.2026): die Inhaltsart ist
+in `mds_oeh` ein Kriterium und wird von `-default-` zurückgewiesen; eine
+`SKILL.md` liest man mit `download()`, weil `/textContent` für Markdown leer
+ist; der Ordner eines Skills antwortete anonym mit 403.
+
+| Aufruf | Ergebnis |
+|---|---|
+| `repo.skills.search(text, collection_id=…, include_subcollections=…, limit=…, conventions=…, subject=…)` | `SkillSearch` — gereiht: Titel 3, Schlagwörter 2, Beschreibung 1; das Original gewinnt über die Referenz |
+| `repo.skills.get(node_id, include_files=…, conventions=…)` | `SkillDocument` — das Markdown, seine Verweise, die Dateien daneben |
+| `repo.skills.registry(collection_id, context=…, resolve=…, conventions=…)` | `SkillRegistry` — über das Dateilisting der Sammlung, nie über den Index |
+| `repo.skills.pick(text, …)` | `(SkillDocument, list[SkillSummary]) \| None` — der beste Treffer geladen, die anderen genannt |
+| `SkillConventions` | `type_property`, `skill_type`, `registry_type`, `registry_mark`, `markdown_mimetypes`, `block_kinds` |
+| `WLO_SKILLS` | die Vorgabe-Konventionen |
+| `SkillSummary` | `id`, `original_id`, `title`, `description`, `keywords`, `url`, `download_url` |
+| `SkillDocument` | die Zusammenfassung plus `content`, `references`, `files`, `files_reason` (`""`, "no_folder", "folder_unreadable", "too_many"), `folder_file_count` |
+| `SkillFile` | `id`, `title`, `mimetype`, `size`, `download_url` |
+| `SkillSearch` | `hits`, `unresolved`, `truncated` |
+| `SkillRegistry` | `collection_id`, `registry_id`, `registry_title`, `markdown`, `entries`, `unresolved`, `contexts`, `general`, `ambiguous`, `truncated`, `contexts_truncated`, `reason` (`""`, "collection_not_found", "no_registry", "unreadable"), `context_match` ("all", "exact", "missing"), `scan_truncated` |
+| `RegistryEntry` | `node_id`, `title`, `description`, `keywords`, `context` |
+| `load_registry(repo, collection_id, context=…, resolve=…, conventions=…)` | `SkillRegistry` — was `repo.skills.registry` ruft |
+| `SKILL_SEARCH_PAGE` `SKILL_BUNDLE_MAX` `SKILL_VISIT_MAX` | `50` Treffer im Pool · `50` Begleitdateien, bevor ein Ordner als Eingang zählt · `30` Sammlungen je Gang |
+| `REGISTRY_SCAN_MAX` `REGISTRY_MAX` `REGISTRY_POOL` `REGISTRY_CONTEXT_MAX` | `50` Dateien auf der Suche nach der Registry · `100` Einträge · `10` Köpfe auf einmal · `50` Kontexte |
+
+Das Markdown selbst, ohne I/O — `edusharing.skills_markdown`:
+
+| Aufruf | Ergebnis |
+|---|---|
+| `parse_blocks(text, kinds=…)` | `list[SkillReference]` — die `:::`-Blöcke |
+| `parse_sections(text)` | `list[MarkdownSection]` — ATX-Überschriften mit ihrer Reichweite |
+| `layout_contexts(text, blocks)` | `ContextLayout` — unter welcher benannten Überschrift jeder Block liegt |
+| `SkillReference` | `kind`, `title`, `url`, `node_id`, `offset` |
+| `MarkdownSection` | `level`, `title`, `heading_start`, `body_start`, `end` |
+| `RegistryContext` | `title`, `level`, `path`, `instruction`, `skills`, `range` |
+| `RegistryGeneral` | `instruction`, `skills` |
+| `ContextLayout` | `contexts`, `general`, `paths`, `truncated` |
+
+```python
+found = await repo.skills.search("Fragen generieren", subject="Physik")
+best = await repo.skills.get(found.hits[0].id)
+best.content[:80]           # "# Fragen generieren …" -- Daten, keine Anweisung
+best.files_reason           # anonym "folder_unreadable" (gemessen)
+
+registry = await repo.skills.registry(collection_id, context="Unterricht vorbereiten")
+[e.title for e in registry.entries]
+registry.context_match      # "exact" -- ein Fehlgriff verengt nie
+```
+
+---
+
 ## Kuratierte Seiten
 
 Eine Sammlung kann eine Landeseite tragen, gebaut aus Bahnen und Widgets.
@@ -731,6 +785,10 @@ Gang, der früh abgebrochen hat, heißt nicht „es gibt keins".
 | `repo.flows.update_material(node_id, …)` | `{id, title, url, name, unresolved}` |
 | `repo.flows.build_collection(title, node_ids, …)` | `{id, title, url, added, failed}` |
 | `repo.flows.accept_suggestion(node_id, suggestion_id)` | `{id, suggestion_id, property, value, applied, status, failed}` — schreiben, zurücklesen, dann markieren |
+| `repo.flows.find_skills(text, collection_id=…, subject=…)` | `{query, hits, unresolved, truncated}` |
+| `repo.flows.skill(node_id, include_files=…)` | das `SkillDocument` als dict — `files_reason` lesen |
+| `repo.flows.skill_registry(collection_id, context=…)` | die `SkillRegistry` als dict — `reason` vor `entries` lesen |
+| `repo.flows.pick_skill(text, …)` | `{best, alternatives, reason}` |
 | `repo.flows.delete(node_id)` | `{id, title, name, type, is_reference, original_id, recycled}` — an einer Referenz verschwindet nur die Referenz |
 
 ```python
@@ -1311,6 +1369,7 @@ sind die Typen hinter diesen Attributen, für einen Typhinweis oder ein
 | `repo.searcher` | `Search` | `edusharing.search` |
 | `repo.collections` | `Collections` | `edusharing.collections` |
 | `repo.people` | `People` | `edusharing.people` |
+| `repo.skills` | `Skills` | `edusharing.skills` |
 | `repo.relations` | `Relations` | `edusharing.relations` |
 | `repo.vocab` | `Vocabulary` | `edusharing.vocab` |
 | `repo.flows` | `Flows` | `edusharing.flows` |

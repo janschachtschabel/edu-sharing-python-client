@@ -110,7 +110,7 @@ with Repository("https://repository.staging.openeduhub.net") as repo:
 also works inside a notebook, where an event loop is already running.
 
 Credentials come from the environment (`EDU_SHARING_URL`, `EDU_SHARING_USER`,
-`EDU_SHARING_PASSWORD`) or directly:
+`EDU_SHARING_PASSWORD`, optionally `EDU_SHARING_METADATASET`) or directly:
 
 ```python
 repo = Repository(url, auth=("user", "password"))

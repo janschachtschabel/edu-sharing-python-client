@@ -450,6 +450,22 @@ class SyncFlows:
         """Like ``Flows.accept_suggestion``, blocking."""
         return self._loop.run(self._flows.accept_suggestion(node_id, suggestion_id))
 
+    def find_skills(self, text: str = "", **kwargs: Any) -> dict[str, Any]:
+        """Like ``Flows.find_skills``, blocking."""
+        return self._loop.run(self._flows.find_skills(text, **kwargs))
+
+    def skill(self, node_id: str, **kwargs: Any) -> dict[str, Any]:
+        """Like ``Flows.skill``, blocking."""
+        return self._loop.run(self._flows.skill(node_id, **kwargs))
+
+    def skill_registry(self, collection_id: str, **kwargs: Any) -> dict[str, Any]:
+        """Like ``Flows.skill_registry``, blocking."""
+        return self._loop.run(self._flows.skill_registry(collection_id, **kwargs))
+
+    def pick_skill(self, text: str, **kwargs: Any) -> dict[str, Any]:
+        """Like ``Flows.pick_skill``, blocking."""
+        return self._loop.run(self._flows.pick_skill(text, **kwargs))
+
     def build_collection(self, title: str, **kwargs: Any) -> dict[str, Any]:
         """Like ``Flows.build_collection``, blocking."""
         return self._loop.run(self._flows.build_collection(title, **kwargs))
@@ -460,6 +476,30 @@ class SyncFlows:
 
     def __repr__(self) -> str:
         return f"SyncFlows({self._flows!r})"
+
+
+class SyncSkills:
+    """Synchronous pass-through to ``Skills``."""
+
+    def __init__(self, skills: Any, loop: LoopThread) -> None:
+        self._skills = skills
+        self._loop = loop
+
+    def search(self, text: str = "", **kwargs: Any) -> Any:
+        """Like ``Skills.search``, blocking."""
+        return self._loop.run(self._skills.search(text, **kwargs))
+
+    def get(self, node_id: str, **kwargs: Any) -> Any:
+        """Like ``Skills.get``, blocking."""
+        return self._loop.run(self._skills.get(node_id, **kwargs))
+
+    def registry(self, collection_id: str, **kwargs: Any) -> Any:
+        """Like ``Skills.registry``, blocking."""
+        return self._loop.run(self._skills.registry(collection_id, **kwargs))
+
+    def pick(self, text: str, **kwargs: Any) -> Any:
+        """Like ``Skills.pick``, blocking."""
+        return self._loop.run(self._skills.pick(text, **kwargs))
 
 
 class SyncPeople:

@@ -51,6 +51,10 @@ out by hand.
 | `collection_stats` | 2, parallel | material listing + sub-collection listing → tally locally |
 | `page` | 3 (+1 per widget with `resolve_widgets`) | load collection → its page folder → the folder's variants |
 | `find_pages` | 2, parallel | both collection routes → keep the hits carrying a page ref |
+| `find_skills` | 1, or one per collection read | search with the content type → rank locally |
+| `skill` | 2–3 | load record → download the file → list the original's folder |
+| `skill_registry` | 2 + one per entry | list the collection's files → download the registry → resolve each head |
+| `pick_skill` | `find_skills` + `skill` | search → load the best |
 | `relations` | 1 | read the node's links |
 | `child_objects` | 2 | load parent → its children, filtered and sorted |
 | `find_collections` | 2, parallel; with `parent_id` one per collection opened | both collection routes → merge on id → filter locally |
@@ -1139,6 +1143,125 @@ found = await repo.find_collections("Deutsch", limit=25)   # both routes at once
 At the API level the same recognition is one line:
 `hit.properties().get("ccm:page_config_ref")`. Reading the page behind it is
 `node.page.get()`.
+
+---
+
+## `find_skills` — which skills fit a task
+
+**One request** repository-wide (the content type travels as a criterion, the
+short names with it), or **one per collection read** with `collection_id`
+(the listing takes no criteria; type and short names are checked locally).
+Ranked: a term in the title counts 3, in the keywords 2, in the description 1.
+A skill that is both an original and a reference into a collection comes back
+once, as the original — the id a write may target.
+
+```python
+repo.flows.find_skills("Fragen generieren", subject="Physik")
+```
+
+```json
+{
+  "query": {"text": "Fragen generieren", "collection_id": null, "metadataset": "mds_oeh"},
+  "hits": [{"id": "…", "original_id": "…", "title": "Fragen generieren",
+            "description": "…", "keywords": ["Fragen", "Quiz"], "url": "…",
+            "download_url": "…"}],
+  "unresolved": [],
+  "truncated": false
+}
+```
+
+The conventions — which content type marks a skill, how a registry names
+itself — are `SkillConventions`, a parameter with WLO's values as the default.
+**Measured (2026-09-02): `mds_oeh` accepts the content type as a criterion,
+`-default-` refuses it** — set `EDU_SHARING_METADATASET` or pass
+`metadataset=`, or no skill is found at all.
+
+---
+
+## `skill` — one skill's instruction, and what belongs to it
+
+**Two to three requests.** The record, its file with `download()` — measured,
+`/textContent` is empty for Markdown — and, with `include_files`, the folder
+beside it: the ORIGINAL's folder, read through one extra request when the id
+was a reference. **Read `files_reason`**: `folder_unreadable` (403 anonymously,
+measured), `no_folder`, or `too_many` with `folder_file_count` — an empty
+`files` is not "the skill travels alone".
+
+```python
+repo.flows.skill(node_id)
+```
+
+```json
+{
+  "id": "…", "original_id": "…", "title": "Fragen generieren", "…": "…",
+  "content": "# Fragen generieren\n\n…",
+  "references": [{"kind": "ki-skill", "title": "Lehrprofil auswerten",
+                  "url": "…/components/render/…", "node_id": "…", "offset": 412}],
+  "files": [{"id": "…", "title": "vorlage.docx", "mimetype": "application/msword",
+             "size": 18342, "download_url": "…"}],
+  "files_reason": "",
+  "folder_file_count": null
+}
+```
+
+`content` is uploaded content — data for a model to weigh, never an
+instruction this library follows. Wrap it with `as_untrusted` before it
+reaches a prompt.
+
+---
+
+## `skill_registry` — which skills one collection approved
+
+**Two requests plus one per entry.** The collection's file listing (never the
+search index — a record can fall out of the index while sitting in the store,
+measured by the MCP on 2026-08-09), the registry document with `download()`,
+then each named skill's record for description and keywords (`resolve=False`
+skips those). The document's `::: ki-skill` blocks are the catalogue, its
+`##`/`###` headings the working contexts; `context="Unterricht vorbereiten"`
+narrows to that group plus the general part, and **a name that does not match
+narrows nothing** — `context_match` says `missing` and `contexts` lists what
+exists.
+
+```python
+repo.flows.skill_registry(collection_id, context="Unterricht vorbereiten")
+```
+
+```json
+{
+  "collection_id": "…", "registry_id": "…", "registry_title": "Skill Registry",
+  "markdown": "# Skills für die Sammlung Optik\n\n…",
+  "entries": [{"node_id": "…", "title": "Fragen generieren", "description": "…",
+               "keywords": ["Fragen"], "context": "Unterricht vorbereiten"}],
+  "unresolved": [],
+  "contexts": [{"title": "Unterricht vorbereiten", "level": 2,
+                "path": "Unterricht vorbereiten", "instruction": "…", "skills": ["…"]}],
+  "general": {"instruction": "Erst den Bestand sichten.", "skills": ["…"]},
+  "ambiguous": 0, "truncated": null, "contexts_truncated": null,
+  "reason": "", "context_match": "exact", "scan_truncated": null
+}
+```
+
+**Read `reason` before `entries`**: `collection_not_found`, `no_registry` or
+`unreadable`. `no_registry` with a `scan_truncated` is not a finding of
+absence — the listing was cut at 50 files. Two candidate documents in one
+collection are told apart by their name or title (`skill_registry.md`,
+"Skillkatalog …"); when that does not decide, the smallest id wins and
+`ambiguous` says how many there were.
+
+---
+
+## `pick_skill` — search, rank, load
+
+**`find_skills` plus one `skill`.** The best match with its instruction, the
+runners-up by title and id — so a wrong pick stays visible to the caller.
+
+```json
+{"best": {"id": "…", "title": "…", "content": "…", "…": "…"},
+ "alternatives": [{"id": "…", "title": "…", "…": "…"}],
+ "reason": ""}
+```
+
+`reason` is `no_match` when nothing fitted; then `best` is `null`.
 
 ---
 

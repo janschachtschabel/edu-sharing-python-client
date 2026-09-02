@@ -491,3 +491,36 @@ async def test_search_all_mit_seiten_und_eigenschaften():
     assert got["materials"]["hits"], "Material zu Optik"
     assert any("ccm:wwwurl" in h["fields"] for h in got["materials"]["hits"]), \
         "die gewuenschte Eigenschaft erscheint unter fields"
+
+
+# --- Paket 6, live: Skills --------------------------------------------------
+
+@pytest.mark.live
+async def test_skills_werden_gefunden_und_gelesen():
+    """Gemessen 02.09.2026: 34 Skills mit mds_oeh; die SKILL.md kommt per
+    download(); der Arbeitsordner ist anonym gesperrt -- ein Grund, kein Fehler."""
+    async with AsyncRepository.from_env(metadataset="mds_oeh") as repo:
+        found = await repo.flows.find_skills("Lehrkontext")
+        assert found["hits"], found
+        doc = await repo.flows.skill(found["hits"][0]["id"])
+        assert doc["content"] and len(doc["content"]) > 1000
+        assert doc["files_reason"] in ("folder_unreadable", "", "no_folder", "too_many")
+        if repo.credential.is_anonymous:
+            assert doc["files_reason"] == "folder_unreadable", doc["files_reason"]
+
+
+@pytest.mark.live
+async def test_die_registry_einer_sammlung_wird_gelesen():
+    """Sammlung "Geometrische Optik" traegt ein ai_prompt-Markdown (gemessen)."""
+    async with AsyncRepository.from_env(metadataset="mds_oeh") as repo:
+        reg = await repo.flows.skill_registry("f35c17d1-a29e-4b26-9d22-802682fad43d")
+    assert reg["reason"] == "", reg
+    assert reg["registry_id"]
+    assert reg["entries"] or reg["unresolved"], "ein Registry-Dokument ohne einen Block"
+
+
+@pytest.mark.live
+async def test_der_vorgabe_metadatensatz_kennt_die_inhaltsart_nicht():
+    async with AsyncRepository.from_env() as repo:
+        with pytest.raises(ValidationError):
+            await repo.flows.find_skills("x")

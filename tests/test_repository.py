@@ -383,3 +383,34 @@ def test_raw_gibt_es_auch_synchron():
             transport=httpx.MockTransport(_handler({"/config/v1/values": {"a": 1}}))),
     ) as repo:
         assert repo.raw.json("GET", "/config/v1/values") == {"a": 1}
+
+
+# --- Paket 6: der Metadatensatz aus der Umgebung ---------------------------
+#
+# Gemessen am 02.09.2026: ob man nach der Inhaltsart filtern kann, entscheidet
+# der Metadatensatz -- mds_oeh nimmt ccm:oeh_extendedType an, -default- weist
+# es zurueck. from_env() kannte dafuer keine Variable, und ein Skript, das die
+# Verbindung aus der Umgebung baut, fand auf WLO keinen einzigen Skill.
+
+def test_from_env_liest_den_metadatensatz(monkeypatch):
+    monkeypatch.setenv("EDU_SHARING_URL", REPO)
+    monkeypatch.setenv("EDU_SHARING_METADATASET", "mds_oeh")
+    monkeypatch.delenv("EDU_SHARING_USER", raising=False)
+    monkeypatch.delenv("EDU_SHARING_PASSWORD", raising=False)
+    assert AsyncRepository.from_env().metadataset == "mds_oeh"
+
+
+def test_ein_uebergebener_metadatensatz_schlaegt_die_variable(monkeypatch):
+    monkeypatch.setenv("EDU_SHARING_URL", REPO)
+    monkeypatch.setenv("EDU_SHARING_METADATASET", "mds_oeh")
+    monkeypatch.delenv("EDU_SHARING_USER", raising=False)
+    monkeypatch.delenv("EDU_SHARING_PASSWORD", raising=False)
+    assert AsyncRepository.from_env(metadataset="-default-").metadataset == "-default-"
+
+
+def test_ohne_variable_bleibt_die_vorgabe(monkeypatch):
+    monkeypatch.setenv("EDU_SHARING_URL", REPO)
+    monkeypatch.delenv("EDU_SHARING_METADATASET", raising=False)
+    monkeypatch.delenv("EDU_SHARING_USER", raising=False)
+    monkeypatch.delenv("EDU_SHARING_PASSWORD", raising=False)
+    assert AsyncRepository.from_env().metadataset == "-default-"

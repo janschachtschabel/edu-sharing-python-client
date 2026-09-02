@@ -16,6 +16,19 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Added
 
+- **Skills** — `repo.skills` and four flows (`find_skills`, `skill`,
+  `skill_registry`, `pick_skill`): records whose content type says
+  "instruction" and whose file is the `SKILL.md`, and the registry document a
+  collection files to approve them, parsed into a catalogue with working
+  contexts. Every convention — the content-type URIs, how a registry names
+  itself, the block kinds — is `SkillConventions`, a parameter with WLO's
+  `WLO_SKILLS` as the default. Measured on staging: 34 skills with `mds_oeh`
+  and a refusal from `-default-`; the `SKILL.md` read with `download()`
+  because `/textContent` is empty for Markdown; a skill's folder 403
+  anonymously, reported as `files_reason`. The Markdown parsers
+  (`edusharing.skills_markdown`) are pure and follow the MCP's rules.
+- **`EDU_SHARING_METADATASET`** — `from_env()` reads the metadata set, because
+  it decides what can be filtered on and a deployment has to say it once.
 - **Search parity with the MCP.** `search(exclude_ids=…)` leaves out hits
   already shown and refills the page; `facet_limit` raises the 20 values per
   facet; `properties=[…]` carries any further property under `fields`, as

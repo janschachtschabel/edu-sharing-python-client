@@ -111,6 +111,8 @@ der Platte.)*
 | Material suchen | `repo.flows.search(text, subject=…, limit=…, exclude_ids=…, properties=…)` |
 | Material *und* Sammlungen auf einmal | `repo.flows.search_all(text)` |
 | nur Sammlungen finden — nach Fach, oder unterhalb einer Sammlung | `repo.flows.find_collections(text, subject=…, parent_id=…)` → `unjudged` lesen |
+| welche **Skills** zu einer Aufgabe passen oder in einer Sammlung liegen | `repo.flows.find_skills(text, subject=…, collection_id=…)` — braucht den Metadatensatz, der die Inhaltsart kennt |
+| der beste Skill, geladen, mit den Übrigen | `repo.flows.pick_skill(text)` → `reason` lesen |
 | mehr wie dieser Knoten | `repo.flows.related(node_id, on=["subject", "level"])` |
 | welche Werte lässt ein Feld zu | `repo.flows.vocabulary("subject")` |
 | alle Werte eines Feldes, oder eine Teilzeichenkette | `repo.vocab.values(prop)` / `repo.vocab.suggest(prop, "ysik")` |
@@ -133,6 +135,8 @@ der Platte.)*
 | wie viel ist darin | `repo.flows.collection_stats(id)` |
 | die kuratierte Landeseite | `repo.flows.page(collection_id)` |
 | der Text eines Materials, wo immer er liegt — und *warum* keiner da ist | `repo.flows.text(node_id, extraction=…)` → `source`, `reason` lesen |
+| die Anleitung eines Skills, seine Verweise und Begleitdateien | `repo.flows.skill(node_id)` → `files_reason` lesen |
+| welche Skills eine Sammlung freigegeben hat, nach Arbeitszusammenhang | `repo.flows.skill_registry(collection_id, context=…)` → `reason`, `context_match` lesen |
 | die Datei selbst | `node.content.download()` / `node.content.text()` |
 | die kuratierte Seite als Objekte | `node.page.get()` / `node.page.render(variant)` |
 | eine Seite der Kinder eines Knotens | `repo.nodes.children(node_id, limit=…)` |
@@ -238,6 +242,10 @@ muss — die Argument- und Rückgabeformen stehen in `docs/REFERENCE.de.md`.
 | `Search` | `repo.searcher` — **nur asynchron** | `.search()` |
 | `Vocabulary` | `repo.vocab` — **nur asynchron** | `.values()` `.suggest()` `.resolve()` `.resolve_all()` `.clear_cache()`; `VocabularyValue`: `.uri` `.label` |
 | `People` | `repo.people` | `.memberships()` `.group()` `.members()` `.create_group()` `.delete_group()` `.add_member()` `.remove_member()`; `Group`: `.name` `.short_name` `.display_name` `.type` `.signup`; `Member`: `.name` `.is_group` |
+| `Skills` | `repo.skills` | `.search()` `.get()` `.registry()` `.pick()`; `SkillConventions`: `.type_property` `.skill_type` `.registry_type` `.registry_mark` `.markdown_mimetypes` `.block_kinds`; `WLO_SKILLS` |
+| `SkillSummary` / `SkillDocument` | `.search().hits` / `.get()` | `.id` `.original_id` `.title` `.description` `.keywords` `.url` `.download_url`; das Dokument dazu `.content` `.references` `.files` `.files_reason` `.folder_file_count`; `SkillFile`: `.id` `.title` `.mimetype` `.size` `.download_url`; `SkillSearch`: `.hits` `.unresolved` `.truncated` |
+| `SkillRegistry` | `repo.skills.registry(collection_id)` | `.collection_id` `.registry_id` `.registry_title` `.markdown` `.entries` `.unresolved` `.contexts` `.general` `.ambiguous` `.truncated` `.contexts_truncated` `.reason` `.context_match` `.scan_truncated`; `RegistryEntry`: `.node_id` `.title` `.description` `.keywords` `.context` |
+| `SkillReference` / `MarkdownSection` / `RegistryContext` / `RegistryGeneral` / `ContextLayout` | `parse_blocks(text)` / `parse_sections(text)` / `layout_contexts(text, blocks)` | `.kind` `.title` `.url` `.node_id` `.offset` / `.level` `.title` `.heading_start` `.body_start` `.end` / `.title` `.level` `.path` `.instruction` `.skills` `.range` / `.instruction` `.skills` / `.contexts` `.general` `.paths` `.truncated` |
 | `Relations` | `repo.relations` | `.of()` `.create()` `.delete()` `.approve()`; `Relation`: `.type` `.from_id` `.to_id` `.from_title` `.to_title` `.ai_generated` `.approved` `.created_by` `.created_at` `.opposite_of()`; `RELATION_TYPES` nennt die zulässigen Arten |
 
 **Was eine Suche zurückgibt**
@@ -280,6 +288,8 @@ muss — die Argument- und Rückgabeformen stehen in `docs/REFERENCE.de.md`.
 |---|---|
 | aus einem Titel einen zulässigen `cm:name` machen | `name_from_title(title)` |
 | Kurznamen zu Eigenschaften machen, Labels aufgelöst | `resolve_vocabulary(repo, aliases)` → `(properties, unresolved)` |
+| ein Skill-Dokument ohne I/O lesen | `parse_blocks(text)` / `parse_sections(text)` / `layout_contexts(text, blocks)` |
+| die Registry einer Sammlung, außerhalb des Zugriffsobjekts | `load_registry(repo, collection_id)` |
 | eine schwache Anfrage verbreitern | `expand_query(query)` → `QueryVariant`: `.label` `.weight` `.text` |
 | einen Treffer selbst gegen die Anfrage bewerten | `score_hit(hit, query, aliases)` / `query_terms(query)` / `term_matches(…)` |
 | Doppelte zusammenfalten | `deduplicate(hits)` |
@@ -320,6 +330,8 @@ zu verschwinden.
 | `DEFAULT_MAX_TOKENS` / `DEFAULT_MAX_OUTPUT_TOKENS` | `1000` | die Grenze einer Chat-Antwort / einer Responses-Antwort |
 | `DEFAULT_HIT_CHARS` / `DEFAULT_RESULT_CHARS` | `400` / `4000` | wie viel `format_hit` / `format_results` einem Modell reicht |
 | `DEFAULT_MAX_CHARS` | `200000` | wo `flows.text` kürzt, an einer Wortgrenze |
+| `SKILL_SEARCH_PAGE` / `SKILL_BUNDLE_MAX` / `SKILL_VISIT_MAX` | `50` / `50` / `30` | Skill-Treffer im Pool · Begleitdateien, bevor ein Ordner als Eingang zählt · Sammlungen je Gang |
+| `REGISTRY_SCAN_MAX` / `REGISTRY_MAX` / `REGISTRY_POOL` / `REGISTRY_CONTEXT_MAX` | `50` / `100` / `10` / `50` | Dateien auf der Suche nach der Registry · Einträge je Antwort · Köpfe auf einmal · Kontexte je Antwort |
 | `DUPLICATE_SCAN_LIMIT` | `20` | Treffer, die `find_by_url` vergleicht, bevor `add_material` anlegt; `check_before_create` wendet `if_exists` an |
 | `EXCLUSION_MAX` | `200` | die größte Seite, die `search` nach `exclude_ids` nachfüllt |
 | `DEFAULT_POOL` | `25` | wie viele Treffer `search(rerank=True)` vor dem Neuordnen holt |
@@ -702,6 +714,36 @@ node.is_reference            # True
 changed = await node.update(title="…")
 changed.id                   # die ID des Originals, nicht listing_id
 changed.redirected_from      # listing_id -- der Schreibvorgang wurde umgeleitet
+```
+
+---
+
+### 5.14 Ein Skill ist ein Datensatz mit Inhaltsart — und der Metadatensatz entscheidet, ob man danach filtern kann
+
+Skills sind gewöhnliche Datensätze, deren Inhaltsart „Anleitung" sagt und
+deren angehängte Datei die `SKILL.md` ist. Gegen Staging gemessen
+(02.09.2026): mit `mds_oeh` ist die Inhaltsart ein Suchkriterium und 34
+Skills antworten; mit `-default-` weist das Repositorium das Kriterium zurück
+(`ValidationError`, und die Meldung sagt warum). `EDU_SHARING_METADATASET=
+mds_oeh` setzen oder `metadataset=` übergeben — `from_env()` liest die
+Variable seit dem 02.09.2026.
+
+Zwei weitere gemessene Fallen: die `SKILL.md` liest man mit `download()`,
+weil `/textContent` für Markdown leer ist; und der Ordner eines Skills (seine
+Begleitdateien) antwortete anonym mit 403 — `files_reason` sagt es, statt eine
+leere Liste als „reist allein" auszugeben.
+
+Alles, was eine Konvention benennt — die URIs der Inhaltsarten, wie ein
+Registry-Dokument sich zu erkennen gibt, die Blockarten — ist
+`SkillConventions`, ein Parameter mit WLOs `WLO_SKILLS` als Vorgabe. Ein
+anderes Repositorium übergibt seine eigenen. Und das zurückkommende Markdown
+ist hochgeladener Inhalt: vor dem Prompt mit `as_untrusted` rahmen.
+
+```python
+repo = AsyncRepository(url, metadataset="mds_oeh")
+found = await repo.flows.find_skills("Fragen generieren")
+doc = await repo.flows.skill(found["hits"][0]["id"])
+doc["files_reason"]          # anonym "folder_unreadable"
 ```
 
 ---
