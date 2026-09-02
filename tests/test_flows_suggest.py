@@ -33,8 +33,10 @@ def _vorschlag(sid: str, prop: str, wert: str, *, status: str = "PENDING") -> di
 class Instanz:
     """Vorschlaege und ein Knoten mit Gedaechtnis; ``stumm`` wird nie gespeichert."""
 
-    def __init__(self, vorschlaege: list[dict], *, stumm: tuple[str, ...] = ()) -> None:
+    def __init__(self, vorschlaege: list[dict], *, stumm: tuple[str, ...] = (),
+                 markieren_status: int = 200) -> None:
         self.vorschlaege = list(vorschlaege)
+        self.markieren_status = markieren_status   # was PATCH antwortet
         self.props: dict[str, list[str]] = {"cclom:title": ["Probe"]}
         self.stumm = stumm
         self.anfragen: list[httpx.Request] = []
@@ -49,6 +51,9 @@ class Instanz:
                     nach_property.setdefault(v["propertyId"], []).append(v)
                 return httpx.Response(200, json={"nodeId": NID, "suggestions": nach_property})
             if methode == "PATCH":
+                if self.markieren_status != 200:
+                    return httpx.Response(self.markieren_status,
+                                          json={"error": "Kaputt", "message": "nein"})
                 for sid in request.url.params.get_list("id"):
                     for v in self.vorschlaege:
                         if v["id"] == sid:
@@ -59,6 +64,13 @@ class Instanz:
             if prop not in self.stumm:
                 self.props[prop] = json.loads(request.content)
             return httpx.Response(200, content=b"")
+        if methode == "PUT" and pfad.endswith("/metadata"):
+            for k, v in json.loads(request.content).items():
+                if k not in self.stumm:
+                    self.props[k] = v
+            return httpx.Response(200, json={"node": {
+                "ref": {"id": NID}, "type": "ccm:io", "name": "k.txt",
+                "properties": dict(self.props)}})
         if methode == "GET" and pfad.endswith("/metadata"):
             return httpx.Response(200, json={"node": {
                 "ref": {"id": NID}, "type": "ccm:io", "name": "k.txt",
@@ -128,4 +140,40 @@ async def test_die_schluessel_sind_immer_dieselben():
         zwei = await b.flows.accept_suggestion(NID, "s-1")
     assert set(eins) == set(zwei) == {
         "id", "suggestion_id", "property", "value", "applied", "status", "failed",
+        "replaced",
     }
+
+
+async def test_ein_schlagwort_vorschlag_ergaenzt_die_liste_statt_sie_zu_ersetzen():
+    """cclom:general_keyword ist eine geteilte Liste. Bis heute schrieb der
+    Ablauf den Vorschlag mit set_property -- und loeschte damit jedes andere
+    Schlagwort, ohne ein Wort."""
+    instanz = Instanz([_vorschlag("s-1", "cclom:general_keyword", "neu")])
+    instanz.props["cclom:general_keyword"] = ["bleibt", "auch"]
+    async with instanz.repo() as repo:
+        got = await repo.flows.accept_suggestion(NID, "s-1")
+    assert got["applied"] is True
+    assert instanz.props["cclom:general_keyword"] == ["bleibt", "auch", "neu"]
+    assert got["replaced"] == []
+
+
+async def test_ein_ersetzter_wert_wird_genannt():
+    instanz = Instanz([_vorschlag("s-1", "ccm:taxonid", "http://vocab.test/neu")])
+    instanz.props["ccm:taxonid"] = ["http://vocab.test/alt"]
+    async with instanz.repo() as repo:
+        got = await repo.flows.accept_suggestion(NID, "s-1")
+    assert got["applied"] is True
+    assert got["replaced"] == ["http://vocab.test/alt"]
+    assert instanz.props["ccm:taxonid"] == ["http://vocab.test/neu"]
+
+
+async def test_scheitert_das_markieren_bleibt_der_wert_und_die_antwort_sagt_es():
+    """Der Wert ist geschrieben und zurueckgelesen; nur das Markieren ging
+    schief. Ein Fehler an dieser Stelle darf das Ergebnis nicht verschlucken."""
+    instanz = Instanz([_vorschlag("s-1", "ccm:taxonid", "x")], markieren_status=500)
+    async with instanz.repo() as repo:
+        got = await repo.flows.accept_suggestion(NID, "s-1")
+    assert got["applied"] is False and got["status"] == "PENDING"
+    assert [f["part"] for f in got["failed"]] == ["mark"]
+    assert "written" in got["failed"][0]["reason"]
+    assert instanz.props["ccm:taxonid"] == ["x"]

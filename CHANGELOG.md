@@ -34,6 +34,12 @@ and in [`docs/audits/`](docs/audits/).
   is read (the check alone is skipped) and comes back stamped with
   `redirected_from`; an error raised at the original carries a note naming
   the reference the caller actually used.
+- **`accept_suggestion` no longer wipes the keyword list.** A proposal for
+  `cclom:general_keyword` was written with `set_property`, which replaces
+  the whole list -- every other keyword went, silently. Keywords are now
+  added; for other properties the displaced values come back as
+  `replaced`. A failure while marking the proposal no longer loses the
+  answer: `failed` carries a `mark` part and the value stays written.
 
 ## [0.1.0] — 2026-09-02
 

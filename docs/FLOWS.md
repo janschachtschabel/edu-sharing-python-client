@@ -63,7 +63,7 @@ out by hand.
 | `update_material` | 3–4 | resolve vocabulary → load → write → read back |
 | `build_collection` | 1 + one per node (+2 to publish) | create → add each, catching failures → publish (if asked) |
 | `delete` | 2 | load (to name it) → delete |
-| `accept_suggestion` | 4 | load node → list proposals → write and read back → mark |
+| `accept_suggestion` | 6–7 | load node → list proposals → write and read back → mark |
 
 Three of them — `search`, `vocabulary`, `describe` — send exactly what the API
 level sends. They save no round trip at all: their gain is the JSON shape and
@@ -1308,9 +1308,10 @@ The read-back is not the flow's doing — `node.update()` carries it either way.
 
 ## `accept_suggestion` — apply a proposal, read it back, then mark it
 
-**Four requests.** Load the node, list its proposals, write the proposed value
-with `set_property` and read it back, and only then mark the proposal
-`ACCEPTED`. Measured on 2026-08-28: marking alone writes **nothing** into the
+**Six requests, seven for a keyword.** Load the node, list its proposals,
+write the proposed value and read it back — a keyword through
+`add_keywords`, everything else with `set_property` — and only then mark
+the proposal `ACCEPTED` and read its status back. Measured on 2026-08-28: marking alone writes **nothing** into the
 node — a proposal accepted by `decide()` leaves the property as it was, so
 "accepted" on its own is a record of something that never happened.
 
@@ -1330,7 +1331,8 @@ repo.flows.accept_suggestion(node_id, suggestion_id)
   "value": "http://w3id.org/openeduhub/vocabs/discipline/080",
   "applied": true,
   "status": "ACCEPTED",
-  "failed": []
+  "failed": [],
+  "replaced": []
 }
 ```
 
@@ -1339,6 +1341,13 @@ is marked, `status` stays `PENDING` and `failed` carries `{part: "apply"}`;
 a proposal already decided comes back with `{part: "status"}` and is not
 applied again. Declining needs no flow — `node.suggestions.decide(ids,
 accept=False)` touches nothing but the proposal, which is what declining means.
+
+**A keyword proposal is added, not written over.** `cclom:general_keyword`
+is a shared list; the value goes in through `add_keywords`, and the other
+keywords stay. For any other property the values the proposal displaced
+come back as `replaced`. And when the value is on the node but marking the
+proposal fails, `failed` carries a `mark` part that says so — the value is
+not lost with the error.
 
 ---
 

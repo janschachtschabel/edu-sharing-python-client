@@ -64,7 +64,7 @@ nur von Hand ausgeschrieben.
 | `update_material` | 3–4 | Vokabular auflösen → laden → schreiben → zurücklesen |
 | `build_collection` | 1 + eine je Knoten (+2 zum Veröffentlichen) | anlegen → jeden einlegen, Fehlschläge auffangen → veröffentlichen (auf Wunsch) |
 | `delete` | 2 | laden (um ihn zu benennen) → löschen |
-| `accept_suggestion` | 4 | Knoten laden → Vorschläge auflisten → schreiben und zurücklesen → markieren |
+| `accept_suggestion` | 6–7 | Knoten laden → Vorschläge auflisten → schreiben und zurücklesen → markieren |
 
 Drei davon — `search`, `vocabulary`, `describe` — schicken exakt das, was die
 API-Ebene schickt. Sie sparen keinen einzigen Umlauf: ihr Gewinn ist die
@@ -1342,9 +1342,10 @@ sie ohnehin mit.
 
 ## `accept_suggestion` — einen Vorschlag anwenden, zurücklesen, dann markieren
 
-**Vier Anfragen.** Den Knoten laden, seine Vorschläge auflisten, den
-vorgeschlagenen Wert mit `set_property` schreiben und zurücklesen, und erst
-dann den Vorschlag als `ACCEPTED` markieren. Gemessen am 28.08.2026: Markieren
+**Sechs Anfragen, sieben bei einem Schlagwort.** Den Knoten laden, seine
+Vorschläge auflisten, den vorgeschlagenen Wert schreiben und zurücklesen —
+ein Schlagwort über `add_keywords`, alles andere mit `set_property` — und
+erst dann den Vorschlag als `ACCEPTED` markieren und den Status zurücklesen. Gemessen am 28.08.2026: Markieren
 allein schreibt **nichts** in den Knoten — ein mit `decide()` angenommener
 Vorschlag lässt die Eigenschaft, wie sie war; „angenommen" allein ist damit
 das Protokoll von etwas, das nie passiert ist.
@@ -1365,7 +1366,8 @@ repo.flows.accept_suggestion(node_id, suggestion_id)
   "value": "http://w3id.org/openeduhub/vocabs/discipline/080",
   "applied": true,
   "status": "ACCEPTED",
-  "failed": []
+  "failed": [],
+  "replaced": []
 }
 ```
 
@@ -1375,6 +1377,13 @@ schon entschiedener Vorschlag kommt mit `{part: "status"}` zurück und wird
 nicht erneut angewandt. Ablehnen braucht keinen Ablauf —
 `node.suggestions.decide(ids, accept=False)` rührt nur den Vorschlag an, und
 genau das heißt Ablehnen.
+
+**Ein Schlagwort-Vorschlag wird ergänzt, nicht überschrieben.**
+`cclom:general_keyword` ist eine geteilte Liste; der Wert geht über
+`add_keywords` hinein, die übrigen Schlagwörter bleiben. Bei jeder anderen
+Eigenschaft kommen die verdrängten Werte als `replaced` zurück. Und wenn der
+Wert auf dem Knoten ist, das Markieren aber scheitert, trägt `failed` einen
+Teil `mark`, der das sagt — der Wert geht mit dem Fehler nicht verloren.
 
 ---
 
