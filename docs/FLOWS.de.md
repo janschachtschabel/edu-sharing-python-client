@@ -43,7 +43,7 @@ nur von Hand ausgeschrieben.
 | `vocabulary` | 1 | Kurzname auflösen → Werte holen (zwischengespeichert) |
 | `describe` | 1 | Knoten laden |
 | `text` | 1–3 | Knoten laden → gespeicherter Text → (die Datei, bei `text/*`) → (die verlinkte Seite, mit Dienst) |
-| `search_all` | 3–4 | Materialsuche (+1 zum Auflösen eines Filters) + Sammlungssuche (ihre zwei Wege), parallel |
+| `search_all` | 3–4, +2 mit `include_pages` | Materialsuche (+1 zum Auflösen eines Filters) + Sammlungssuche (ihre zwei Wege), parallel |
 | `placement` | 3 | Knoten laden (Referenz auflösen) → Weg nach oben + Sammlungen des Originals, parallel |
 | `describe_many` | eine je verschiedener ID, parallel | jeden laden, die verschwundenen melden |
 | `related` | 2 (+1 je aufgelöstem Filter) | Ausgang beschreiben → mit seinen Feldern suchen → Ausgang herausnehmen |
@@ -318,10 +318,11 @@ den anderen verdrängt.
 
 > **`collections.filters_ignored` lesen.** Die Sammlungsabfrage akzeptiert
 > `ngsearchword` und sonst nichts — jedes weitere Kriterium endet in
-> `400 DAOValidationException`. Ein Filter verengt also den Material-Korb und
-> **nicht** den anderen. Ihn auf die eine Seite anzuwenden und stillschweigend
-> nicht auf die andere hieße, eine Einschränkung zu behaupten, die es nie gab —
-> deshalb werden die Namen der nicht angewandten Filter gemeldet.
+> `400 DAOValidationException`. Kurznamen (`subject=…`) erreichen trotzdem
+> beide Körbe, weil `find_collections` sie lokal anwendet; rohe `filters`
+> haben dort kein lokales Gegenstück und werden hier genannt. Einen Filter
+> auf der einen Seite anzuwenden und auf der anderen stillschweigend nicht,
+> behauptete eine Verengung, die nie stattfand.
 >
 > **Und `collections.error` lesen.** Fällt die Sammlungssuche ganz aus,
 > kommt der Korb leer zurück und nennt dort den Grund — die Materialtreffer
@@ -338,7 +339,7 @@ aufgelöst werden muss):
 # was repo.flows.search_all("Zellteilung") tut
 materials, collections = await asyncio.gather(
     find.search(repo, "Zellteilung"),            # 1. ngsearch
-    find.find_collections(repo, "Zellteilung"),  # 2.+3. ihre beiden Wege
+    collections.find_collections(repo, "Zellteilung"),  # 2.+3. ihre beiden Wege
 )
 ```
 

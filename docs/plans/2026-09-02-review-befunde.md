@@ -65,7 +65,7 @@ Status: `[ ]` offen · `[x]` erledigt · `[-]` bewusst nicht (Begründung).
   kappt JEDE Anfrage auf 200 (auch `limit=250` ohne Ausschlüsse) und meldet
   einen nicht auffüllbaren Rest nicht. → `ask = limit + min(len(excluded), MAX)`;
   Warnungen bei Überschuss und bei kurzer Seite; unter `rerank` `pool` anheben.
-- [ ] C2 MAJOR — `search_all(include_pages=True)`: `find_pages` läuft außerhalb
+- [x] C2 MAJOR — `search_all(include_pages=True)`: `find_pages` läuft außerhalb
   der Ausfallbehandlung — ein 503 der Sammlungsrouten wirft und verliert die
   Materialtreffer (Audit A9, wieder eingebaut). → in denselben `gather`.
 - [x] C3 MAJOR — `find_collections`: Kurznamen-Filter werden NACH dem
@@ -73,7 +73,7 @@ Status: `[ ]` offen · `[x]` erledigt · `[-]` bewusst nicht (Begründung).
   → mit Filter mehr holen (gekappt), `total=len(kept)` als Untergrenze,
   Warnung mit der Zahl der beurteilten Kandidaten.
 - [x] C4 MAJOR — `resolve_vocabulary` löst nur die erste URI auf (siehe A2).
-- [ ] C5 MAJOR — Der Ausfall-Eimer von `search_all` hat andere Schlüssel als
+- [x] C5 MAJOR — Der Ausfall-Eimer von `search_all` hat andere Schlüssel als
   der Erfolgs-Eimer (`unjudged`, `query.filters`, `query.parent_id` fehlen).
   → eine `_empty`-Form für beide Wege; Test auf gleiche Schlüsselmenge.
 - [ ] C6 MINOR — `SyncFlows.find_collections(text)` ohne Vorgabe, asynchron
@@ -87,9 +87,12 @@ Status: `[ ]` offen · `[x]` erledigt · `[-]` bewusst nicht (Begründung).
   → alles passt. → Teilstring-Rückfall oder Warnung.
 - [x] C10 MINOR — `hit_as_dict`: `list(values)` zerlegt einen String in
   Zeichen, ein `int` wirft. → Liste erzwingen.
-- [ ] C11 MINOR — `find_pages` läuft sequenziell nach dem `gather` und sendet
+- [x] C11 MINOR (teils) — `find_pages` läuft sequenziell nach dem `gather` und sendet
   dieselben zwei Sammlungsanfragen erneut. → in den `gather` (mit C2).
-- [x] C12 MINOR (b, c erledigt; a im search_all-Commit) — (a) `search_all` reicht `**aliases` nicht an
+  Bleibt: die zwei Sammlungsanfragen werden weiterhin doppelt gesendet —
+  parallel, nicht mehr nacheinander; sie aus dem Sammlungskorb abzuleiten
+  hieße `find_pages` umzubauen, ein eigener Schritt.
+- [x] C12 MINOR — (a) `search_all` reicht `**aliases` nicht an
   `find_collections` durch, meldet sie aber als `filters_ignored`; (b)
   `_carries` doppelt (`collections.py`, `skills.py`); (c) `query.filters` hat
   zwei Formen. → (a) prüfen und angleichen, (b) eine Fassung, (c) die Worte

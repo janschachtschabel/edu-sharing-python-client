@@ -42,7 +42,7 @@ out by hand.
 | `vocabulary` | 1 | resolve short name → fetch values (cached) |
 | `describe` | 1 | load node |
 | `text` | 1–3 | load node → stored text → (the file, for `text/*`) → (the linked page, with a service) |
-| `search_all` | 3–4 | material search (+1 to resolve a filter) + collection search (its two routes), in parallel |
+| `search_all` | 3–4, +2 with `include_pages` | material search (+1 to resolve a filter) + collection search (its two routes), in parallel |
 | `placement` | 3 | load node (to resolve a reference) → way up + collections of the original, in parallel |
 | `describe_many` | one per distinct id, in parallel | load each, report the ones that are gone |
 | `related` | 2 (+1 per filter resolved) | describe the seed → search with its fields → drop the seed |
@@ -308,10 +308,11 @@ is not. `limit` applies per bucket, so neither crowds out the other.
 
 > **Read `collections.filters_ignored`.** The collection query accepts
 > `ngsearchword` and nothing else — any further criterion ends in
-> `400 DAOValidationException`. So a filter narrows the material bucket and
-> **not** the other one. Applying it to one side and silently not to the other
-> would claim a narrowing that never happened, which is why the names of the
-> dropped filters are reported.
+> `400 DAOValidationException`. Short names (`subject=…`) still reach both
+> buckets, because `find_collections` applies them locally; raw `filters`
+> have no local counterpart there and are named here. Applying a filter to
+> one side and silently not to the other would claim a narrowing that never
+> happened.
 >
 > **And read `collections.error`.** If the collection search fails
 > entirely, the bucket comes back empty with the failure named there, and
@@ -321,13 +322,15 @@ is not. `limit` applies per bucket, so neither crowds out the other.
 > **material** search does raise: handing that bucket back empty would
 > claim there is nothing.
 
-**Behind it** — 3 requests, sent together (4 when a filter has to be resolved):
+**Behind it** — 3 requests, sent together (4 when a filter has to be resolved,
+5 with `include_pages`, whose collection search rides in the same gather and
+comes back as an empty `pages` bucket with `error` when it fails):
 
 ```python
-# what repo.flows.search_all("Zellteilung") does
+# what repo.flows.search_all("Zellteilung", subject="Biologie") does
 materials, collections = await asyncio.gather(
-    find.search(repo, "Zellteilung"),            # 1. ngsearch
-    find.find_collections(repo, "Zellteilung"),  # 2.+3. its two routes
+    find.search(repo, "Zellteilung", subject="Biologie"),         # 1. ngsearch
+    collections.find_collections(repo, "Zellteilung", subject="Biologie"),  # 2.+3.
 )
 ```
 

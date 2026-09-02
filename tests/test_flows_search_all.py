@@ -100,13 +100,16 @@ async def test_leere_treffer_sind_kein_fehler():
 
 # --- Der Haken ------------------------------------------------------------
 
-async def test_filter_gelten_nur_fuer_das_material():
-    """Und der Ablauf sagt es. Gemessen: die Sammlungsabfrage nimmt nur
-    ngsearchword, jedes weitere Kriterium endet in 400."""
+async def test_kurznamen_gelten_fuer_beide_koerbe():
+    """Gemessen nimmt die Sammlungsabfrage nur ngsearchword -- aber
+    find_collections wendet Kurznamen seit dem 02.09.2026 lokal an. Also gilt
+    subject= fuer beide Koerbe; nur rohe filters bleiben den Sammlungen fremd."""
     instanz = Instanz()
     async with instanz.repo() as repo:
         ergebnis = await repo.flows.search_all("Zelle", subject="Biologie")
-    assert ergebnis["collections"]["filters_ignored"] == ["subject"]
+    assert ergebnis["collections"]["filters_ignored"] == []
+    assert ergebnis["collections"]["hits"] == [], "die Sammlung traegt kein Fach"
+    assert ergebnis["collections"]["query"]["filters"] == {"subject": "Biologie"}
 
 
 async def test_ohne_filter_ist_nichts_zu_melden():
@@ -132,6 +135,55 @@ async def test_der_filter_erreicht_das_material_wirklich():
         ergebnis = await repo.flows.search_all("Zelle", subject="Biologie")
     assert ergebnis["materials"]["unresolved"] == []
     assert any("/values" in p for p in instanz.anfragen), "Vokabular wurde gefragt"
+
+
+async def test_beide_koerbe_haben_im_ausfall_dieselben_schluessel():
+    """Die dokumentierte Form gilt auch, wenn die Sammlungssuche ausfaellt --
+    sonst ist answer["collections"]["unjudged"] nur in Produktion ein KeyError."""
+    heil = Instanz()
+    kaputt = Instanz()
+    urspruenglich = kaputt.handler
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "collection" in str(request.url).lower():
+            return httpx.Response(503, json={"error": "x", "message": "Dienst weg"})
+        return urspruenglich(request)
+
+    kaputt.handler = handler
+    async with heil.repo() as a, kaputt.repo() as b:
+        gut = await a.flows.search_all("Zelle", subject="Biologie")
+        leer = await b.flows.search_all("Zelle", subject="Biologie")
+    assert set(gut["collections"]) == set(leer["collections"])
+    assert set(gut["collections"]["query"]) == set(leer["collections"]["query"])
+    assert leer["collections"]["unjudged"] == 0 and leer["collections"]["unresolved"] == []
+
+
+async def test_ein_ausfall_der_sammlungen_kostet_auch_mit_seiten_nicht_das_material():
+    """Audit A9, mit include_pages wieder eingebaut: find_pages lief ausserhalb
+    der Ausfallbehandlung, ein 503 der Sammlungsrouten warf und verlor die
+    Materialtreffer."""
+    instanz = Instanz()
+    urspruenglich = instanz.handler
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "collection" in str(request.url).lower():
+            return httpx.Response(503, json={"error": "x", "message": "Dienst weg"})
+        return urspruenglich(request)
+
+    instanz.handler = handler
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.search_all("Zelle", include_pages=True)
+    assert [h["id"] for h in ergebnis["materials"]["hits"]] == ["m-1"]
+    assert ergebnis["pages"]["hits"] == [] and "503" in ergebnis["pages"]["error"]
+    assert ergebnis["collections"]["hits"] == []
+    json.dumps(ergebnis)
+
+
+async def test_der_seitenkorb_traegt_ohne_ausfall_ein_leeres_error():
+    instanz = MitSeiten()
+    async with instanz.repo() as repo:
+        mit = await repo.flows.search_all("Zelle", include_pages=True)
+    assert mit["pages"]["error"] == ""
 
 
 # --- Kosten ---------------------------------------------------------------

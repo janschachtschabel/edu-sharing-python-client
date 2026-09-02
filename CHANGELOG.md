@@ -108,6 +108,15 @@ and in [`docs/audits/`](docs/audits/).
   `truncated`; a query of stopwords only is matched as typed instead of
   matching everything; `query.filters` echoes the caller's words as `search`
   does; one `carries` serves collections and skills.
+- **`search_all` keeps the material when the page search fails, and its
+  empty collection bucket has the documented keys.** `find_pages` ran
+  outside the outage handling built for audit A9, so with `include_pages`
+  a 503 of the collection routes raised and lost the material hits; it now
+  rides in the same gather and comes back as an empty `pages` bucket with
+  `error`. The empty collection bucket lacked `unjudged` and two `query`
+  keys -- a `KeyError` in production only; both buckets are built through
+  one path now. Short names reach the collection bucket (applied locally);
+  `filters_ignored` names raw `filters` only.
 
 ## [0.1.0] — 2026-09-02
 
