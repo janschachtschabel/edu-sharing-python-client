@@ -311,7 +311,8 @@ class Node:
                 missing afterwards.
             ValidationError: for an unknown short name.
         """
-        return await nodes_write.update(self, properties, verify, aliases)
+        return await nodes_write.update(
+            self, properties=properties, verify=verify, aliases=aliases)
 
     async def set_property(self, prop: str, value: Any, *, verify: bool = True) -> Node:
         """Set a single property past the metadata set.
@@ -439,7 +440,7 @@ class Nodes:
                 predictable.
             type: node type, ``ccm:io`` for material, ``cm:folder`` for folders.
             rename_if_exists: appends a counter on a name collision instead of
-                failing with 409.
+                failing with 409; ``node.name`` then carries the stored name.
             verify: check the response against what was sent. Costs nothing --
                 the response carries the created node -- and catches the case
                 where the repository answers 200 and stores less than it was
@@ -476,7 +477,11 @@ class Nodes:
             # Against the response, not a fresh read: measured, the response
             # already shows what was dropped, and a second request would only
             # cost a round trip.
-            nodes_write.check(node, fields, route="create")
+            # ``cm:name`` is left out: with ``rename_if_exists`` a collision
+            # comes back with a counter appended -- the repository keeping its
+            # promise, not dropping a value. ``node.name`` carries the result.
+            stored = {k: v for k, v in fields.items() if k != "cm:name"}
+            nodes_write.check(node, stored, route="create")
         return node
 
     async def children(

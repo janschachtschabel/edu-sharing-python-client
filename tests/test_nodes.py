@@ -17,7 +17,7 @@ import json
 import httpx
 import pytest
 
-from edusharing.errors import SilentDropError
+from edusharing.errors import PermissionDeniedError, SilentDropError
 from edusharing.nodes import Node, Nodes
 from edusharing.transport import Transport
 
@@ -28,7 +28,7 @@ NID = "c2eac649-8e3d-4ed2-aac6-498e3d7ed2d9"
 def _node_antwort(properties: dict) -> dict:
     return {"node": {
         "ref": {"id": NID, "repo": "local"},
-        "name": "material.txt",
+        "name": (properties.get("cm:name") or ["material.txt"])[0],
         "title": (properties.get("cclom:title") or [""])[0],
         "type": "ccm:io",
         "access": ["Read", "Write", "Delete"],
@@ -44,9 +44,12 @@ class Server:
     nicht kennt oder selbst ableitet.
     """
 
-    def __init__(self, properties: dict | None = None, stumm: tuple[str, ...] = ()):
+    def __init__(self, properties: dict | None = None, stumm: tuple[str, ...] = (),
+                 behaelt: tuple[str, ...] = (), umbenennung: bool = False):
         self.props = dict(properties or {"cclom:title": ["Alt"]})
         self.stumm = stumm
+        self.behaelt = behaelt            # Loeschungen, die 200 sagen und nichts tun
+        self.umbenennung = umbenennung    # renameIfExists haengt einen Zaehler an
         self.aufrufe: list[httpx.Request] = []
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
@@ -66,7 +69,8 @@ class Server:
             prop = request.url.params.get("property")
             wert = json.loads(request.content)
             if wert is None:
-                self.props.pop(prop, None)
+                if prop not in self.behaelt:
+                    self.props.pop(prop, None)
             else:
                 self.props[prop] = wert          # umgeht die MDS-Filterung
             return httpx.Response(200, content=b"")
@@ -74,6 +78,8 @@ class Server:
         if methode == "POST" and pfad.endswith("/children"):
             gesendet = json.loads(request.content)
             behalten = {k: v for k, v in gesendet.items() if k not in self.stumm}
+            if self.umbenennung and "cm:name" in behalten:
+                behalten["cm:name"] = [behalten["cm:name"][0] + "-1"]
             self.props.update(behalten)
             # Ein neuer Knoten traegt nur, was angekommen ist -- gemessen zeigt
             # die POST-Antwort den Verlust bereits.
@@ -83,6 +89,10 @@ class Server:
             return httpx.Response(200, content=b"")
 
         return httpx.Response(404, json={"error": "x", "message": f"{methode} {pfad}"})
+
+
+def _fehler(name: str) -> dict[str, str]:
+    return {"error": name, "message": "abgelehnt"}
 
 
 def _nodes(server: Server) -> Nodes:
@@ -214,6 +224,17 @@ async def test_set_property_kann_loeschen():
     node = await _nodes(server).get(NID)
     aktualisiert = await node.set_property("ccm:foo", None)
     assert aktualisiert.get("ccm:foo") is None
+
+
+async def test_set_property_none_prueft_die_loeschung_nach():
+    """Gemessen ist nur, dass "null" loescht. Eine Instanz, die 200 sagt und die
+    Eigenschaft behaelt, darf nicht als geloescht gelten -- sonst waere die
+    Rueckleseprobe hier eine Anfrage fuer nichts."""
+    server = Server({"cclom:title": ["Alt"], "ccm:foo": ["bleibt"]}, behaelt=("ccm:foo",))
+    node = await _nodes(server).get(NID)
+    with pytest.raises(SilentDropError) as fehler:
+        await node.set_property("ccm:foo", None)
+    assert "ccm:foo" in str(fehler.value) and fehler.value.dropped == ["ccm:foo"]
 
 
 # --- Feld-Aliase ----------------------------------------------------------
@@ -497,6 +518,16 @@ async def test_anlegen_ohne_pruefung_bleibt_moeglich():
     assert node.id == NID
 
 
+async def test_anlegen_mit_umbenennung_ist_kein_verlust():
+    """renameIfExists loest eine Namenskollision mit einem Zaehler. Der neue
+    cm:name weicht dann vom gesendeten ab -- das Repositorium haelt sein
+    Versprechen, es verwirft nichts. Bis heute meldete die Probe das als
+    stillen Verlust, mit falscher Diagnose."""
+    server = Server(umbenennung=True)
+    node = await _nodes(server).create("eltern", name="x.txt", title="T")
+    assert node.name == "x.txt-1" and node.get("cm:name") == "x.txt-1"
+
+
 async def test_anlegen_prueft_ohne_zusaetzliche_anfrage():
     """Die POST-Antwort traegt den angelegten Knoten -- ein zweiter Zugriff
     waere Verschwendung."""
@@ -659,6 +690,40 @@ async def test_loeschen_an_einer_referenz_wird_nicht_umgeleitet():
     node = await _nodes(server).get(REF)
     await node.delete()
     assert server.pfade("DELETE") == [f"/edu-sharing/rest/node/v1/nodes/-home-/{REF}"]
+
+
+async def test_ohne_probe_weist_eine_umleitung_trotzdem_das_original_aus():
+    """verify=False spart die Probe, nicht die Auskunft: wer an eine Referenz
+    schreibt, bekommt das Original zurueck -- gestempelt."""
+    server = ZweiKnoten()
+    node = await _nodes(server).get(REF)
+    neu = await node.update(title="Neu", verify=False)
+    assert neu.id == ORIG and neu.redirected_from == REF
+    assert server.props[ORIG]["cclom:title"] == ["Neu"]
+    assert len(server.pfade("GET")) == 2, "einmal laden, einmal das Original lesen"
+
+
+async def test_ohne_probe_und_ohne_umleitung_wird_nicht_gelesen():
+    server = ZweiKnoten()
+    node = await _nodes(server).get(ORIG)
+    neu = await node.update(title="Neu", verify=False)
+    assert neu is node and len(server.pfade("GET")) == 1
+
+
+async def test_ein_fehler_des_originals_nennt_die_umleitung():
+    """Der Aufrufer hatte die ID der Referenz; ein 403 des Originals nennt eine
+    URL, die er nie benutzt hat. Die Notiz stellt den Zusammenhang her."""
+    class Verweigert(ZweiKnoten):
+        def __call__(self, request: httpx.Request) -> httpx.Response:
+            if request.method == "PUT" and f"/{ORIG}/" in request.url.path:
+                self.aufrufe.append(request)
+                return httpx.Response(403, json=_fehler("DAOSecurityException"))
+            return super().__call__(request)
+
+    node = await _nodes(Verweigert()).get(REF)
+    with pytest.raises(PermissionDeniedError) as fehler:
+        await node.update(title="Neu")
+    assert any(REF in note and ORIG in note for note in fehler.value.__notes__)
 
 
 # --- Auch ein Treffer kennt sein Original -----------------------------------

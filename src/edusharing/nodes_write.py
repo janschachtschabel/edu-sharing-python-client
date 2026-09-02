@@ -34,15 +34,20 @@ become two reasons to change one file.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+import contextlib
+from collections.abc import Iterator
+from typing import TYPE_CHECKING, Any, Literal
 
-from .errors import SilentDropError, ValidationError
+from .errors import EduSharingError, SilentDropError, ValidationError
 from .urls import path_segment
 
 if TYPE_CHECKING:  # pragma: no cover
     from .nodes import Node
 
 __all__ = ["WRITE_FIELD_ALIASES", "KEYWORD_PROPERTY"]
+
+#: Which write a read-back check follows -- the way out differs per route.
+WriteRoute = Literal["update", "create", "set_property"]
 
 #: Short names for write fields. Title and description deliberately go into
 #: **both** namespaces: the edu-sharing interface renders ``cm:*`` and
@@ -95,7 +100,7 @@ def fields_of(
     return fields
 
 
-def check(node: Node, expected: dict[str, list[str]], *, route: str) -> None:
+def check(node: Node, expected: dict[str, list[str]], *, route: WriteRoute) -> None:
     """Compare the read-back state of ``node`` against what was written."""
     lost = [
         prop for prop, values in expected.items()
@@ -129,7 +134,7 @@ def check(node: Node, expected: dict[str, list[str]], *, route: str) -> None:
 
 
 async def update(
-    node: Node, properties: dict[str, Any] | None, verify: bool, aliases: dict[str, Any]
+    node: Node, *, properties: dict[str, Any] | None, verify: bool, aliases: dict[str, Any]
 ) -> Node:
     """``Node.update``: write, then read back -- at the original of a reference."""
     fields = fields_of(properties, aliases)
@@ -137,14 +142,18 @@ async def update(
         return node
 
     target = node.original_id or node.id
-    await node._nodes.transport.json(
-        "PUT", f"/node/v1/nodes/-home-/{path_segment(target)}/metadata", json=fields
-    )
-    if not verify:
+    with _naming_redirection(node, target):
+        await node._nodes.transport.json(
+            "PUT", f"/node/v1/nodes/-home-/{path_segment(target)}/metadata", json=fields
+        )
+    if not verify and target == node.id:
         return node
 
+    # A redirected write is read back even without the check: the caller must
+    # get the original, stamped, or the redirection goes unnoticed.
     fresh = await node._nodes.get(target)
-    check(fresh, fields, route="update")
+    if verify:
+        check(fresh, fields, route="update")
     return node._redirected(fresh)
 
 
@@ -153,24 +162,30 @@ async def set_property(node: Node, prop: str, value: Any, *, verify: bool) -> No
     # Same rule as ``update``: a reference is written through to its original.
     target = node.original_id or node.id
     route = f"/node/v1/nodes/-home-/{path_segment(target)}/property"
-    if value is None:
-        # Measured: both a "null" body and no body at all delete the
-        # property. The explicit "null" is sent -- it is the documented
-        # route, and an omission is something another version may read
-        # differently.
-        await node._nodes.transport.request(
-            "POST", route, params={"property": prop},
-            content=b"null", headers={"Content-Type": "application/json"},
-        )
-    else:
-        await node._nodes.transport.request(
-            "POST", route, params={"property": prop}, json=as_list(value)
-        )
-    if not verify:
+    # Measured: both a "null" body and no body at all delete the property. The
+    # explicit "null" is sent -- it is the documented route, and an omission
+    # is something another version may read differently.
+    body: dict[str, Any] = (
+        {"content": b"null", "headers": {"Content-Type": "application/json"}}
+        if value is None else {"json": as_list(value)}
+    )
+    with _naming_redirection(node, target):
+        await node._nodes.transport.request("POST", route, params={"property": prop}, **body)
+    if not verify and target == node.id:
         return node
 
     fresh = await node._nodes.get(target)
-    if value is not None:
+    if verify and value is None and fresh.get_all(prop):
+        # The 200 that proves nothing for a write proves nothing for a
+        # deletion either: the property has to be gone after reading back.
+        raise SilentDropError(
+            f"Still present after deletion: {prop} (HTTP 200, value unchanged after "
+            "reading back). A derived property cannot be removed this way; without "
+            "write permission neither can any other.",
+            dropped=[prop],
+            url=fresh.url,
+        )
+    if verify and value is not None:
         check(fresh, {prop: as_list(value)}, route="set_property")
     return node._redirected(fresh)
 
@@ -198,3 +213,14 @@ async def change_keywords(
     if merged == existing:
         return node._redirected(fresh)
     return node._redirected(await fresh.update(properties={KEYWORD_PROPERTY: merged}))
+
+
+@contextlib.contextmanager
+def _naming_redirection(node: Node, target: str) -> Iterator[None]:
+    """A failure at the original must say that the caller never held that id."""
+    try:
+        yield
+    except EduSharingError as exc:
+        if target != node.id:
+            exc.add_note(f"write redirected from {node.id} to its original {target}")
+        raise

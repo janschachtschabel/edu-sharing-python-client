@@ -21,6 +21,19 @@ and in [`docs/audits/`](docs/audits/).
   seconds (measured on staging, 2026-09-02: findable after 5.3 s). The write
   proof that assumed an instant index now waits for it; the flow, the
   documentation and the skill say so.
+- **`set_property(prop, None)` reads back that the property is gone.** Until
+  now the read-back after a deletion was made and not looked at; an instance
+  answering 200 and keeping the value passed as deleted. `SilentDropError`
+  now, like every other lost write.
+- **A renamed node is not a lost write.** `Nodes.create` compared `cm:name`
+  too, so a collision that `rename_if_exists` resolved with a counter raised
+  `SilentDropError` with a wrong diagnosis -- every re-run of `add_material`
+  with the same title in the same folder failed. `node.name` carries the
+  stored name.
+- **A redirected write is disclosed even with `verify=False`.** The original
+  is read (the check alone is skipped) and comes back stamped with
+  `redirected_from`; an error raised at the original carries a note naming
+  the reference the caller actually used.
 
 ## [0.1.0] — 2026-09-02
 
