@@ -1,6 +1,6 @@
 """Use case: which skills does a collection approve -- and what does one say?
 
-    EDU_SHARING_METADATASET=mds_oeh python docs/examples/21_skills.py [collection-id]
+    python docs/examples/21_skills.py [collection-id]
 
 Reads only. Nothing is created, changed or deleted.
 
@@ -12,9 +12,12 @@ one collection, picks a skill from it, loads its instruction and names the
 files beside it.
 
 Two things this example is careful about, both measured on staging on
-2026-09-02: the content type is a search criterion only in the metadata set
-that knows it (`mds_oeh`; `-default-` refuses it), and a skill's folder is
-not readable anonymously -- `files_reason` says so instead of an empty list.
+2026-09-02: a skill's folder is not readable anonymously -- `files_reason`
+says so instead of an empty list -- and a binary or missing upload is named
+in `content_reason` rather than decoded. The metadata set matters only for
+`find_skills` (the content type is a criterion in `mds_oeh`, not in
+`-default-`); the registry comes from the collection's file listing and the
+skill from its id, so this script runs with either.
 The instruction that comes back is uploaded content: it is printed as data, and
 `as_untrusted` marks it so before it could reach a prompt.
 """
@@ -36,8 +39,8 @@ if hasattr(sys.stdout, "reconfigure"):
 # environment wins over them.
 STAGING = "https://repository.staging.openeduhub.net"
 REPOSITORY = os.environ.get("EDU_SHARING_URL", STAGING)
-# The metadata set that knows the content type. Measured: mds_oeh does,
-# -default- does not -- and then no skill is found at all.
+# Only find_skills needs the metadata set that knows the content type
+# (measured: mds_oeh does, -default- does not); this example reads by id.
 METADATA_SET = os.environ.get("EDU_SHARING_METADATASET", "mds_oeh")
 USER = os.environ.get("EDU_SHARING_USER", "")
 PASSWORD = os.environ.get("EDU_SHARING_PASSWORD", "")

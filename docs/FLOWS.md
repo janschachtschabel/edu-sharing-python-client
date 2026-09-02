@@ -134,6 +134,10 @@ repo.flows.search(
       "source_url": "https://example.org/material",
       "mimetype": "text/html",
       "mediatype": "link",
+      "preview_url": "https://…/preview?nodeId=1f71f84a-…",
+      "download_url": null,
+      "license": "CC BY 4.0",
+      "size": null,
       "fields": {"subject": ["Biologie"], "level": ["Sekundarstufe II"]},
       "original_id": null,
       "duplicate_ids": []
@@ -673,19 +677,21 @@ Measured live: `WLO > Biologie > Pflanzen: Form & Funktion`.
 > does not ask for it, and reports how far the answer reaches instead of
 > letting a truncated path pass as a complete one.
 
-**Behind it** — 2 requests, sent together:
+**Behind it** — 3 requests: one read, then two sent together:
 
 ```python
 # what repo.flows.placement("abc") does
+node = await repo.nodes.get("abc")                    # 1. a listing id is a reference
 ancestry, collections = await asyncio.gather(
-    placement.ancestry_of(repo.nodes, "abc"),   # 1. GET …/parents
-    placement.collections_of(repo.nodes, "abc"),  # 2. GET /usage/v1/…/collections
+    placement.ancestry_of(repo, "abc"),                # 2. GET …/parents
+    placement.collections_of(repo, "abc", original_id=node.original_id),  # 3. /usage
 )
 ```
 
-Not three: the parents answer carries the node itself as its first entry, so the
-title comes with it. The library drops that entry from `path` — a node is not
-its own ancestor.
+The read comes first because `/usage` knows only originals: asked with a
+reference id it answers an empty list, and "this node sits in no collection"
+would be wrong. The parents answer carries the node itself as its first entry;
+the library drops it from `path` — a node is not its own ancestor.
 
 At the API level the same two, as objects:
 
@@ -733,7 +739,8 @@ repo.flows.find_collections("Physik", limit=10)
 **Output** — the same shape as `search`, with `query.kind` set to
 `"collections"`.
 
-> **`total_is_lower_bound` is always true here.** The collection search asks two
+> **`total_is_lower_bound` is true for a search — and below a `parent_id`
+> only when the walk was cut short.** The collection search asks two
 > routes and merges them, so the figure counts at least this many, possibly more.
 >
 > **`limit` caps what comes back, and both routes get through it.** Each route
@@ -1454,10 +1461,11 @@ appends a counter rather than failing.
 *Example: [`examples/06_flow_create.py`](examples/06_flow_create.py)*
 
 
-**Behind it** — 2 to 4 requests:
+**Behind it** — 3 to 6 requests:
 
 ```python
-# what repo.flows.add_material("T", subject="Biologie") does
+# what repo.flows.add_material("T", url=url, subject="Biologie") does
+await duplicates.find_by_url(repo, url)          # 0. only with url: the address check
 who = await repo.whoami()                        # 1. only when parent_id is None
 uri = await repo.vocab.resolve("ccm:taxonid", "Biologie")   # 2. per vocab field
 node = await repo.nodes.create(                  # 3. the creation itself
@@ -1469,17 +1477,6 @@ await repo.collections.add(collection_id, node.id)          # 4. only if asked
 The name is derived from the title; a collision appends a counter instead of
 failing.
 
-
-**Behind it** — 3 to 4 requests:
-
-```python
-# what repo.flows.update_material("n1", subject="Biologie") does
-uri = await repo.vocab.resolve("ccm:taxonid", "Biologie")   # 1. per vocab field
-node = await repo.nodes.get("n1")                            # 2. load
-await node.update(properties={"ccm:taxonid": [uri]})         # 3. PUT
-#     which reads the node back itself (4.) and raises SilentDropError when
-#     edu-sharing accepted the write and did not store it.
-```
 
 ---
 

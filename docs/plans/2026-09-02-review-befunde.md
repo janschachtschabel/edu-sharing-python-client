@@ -57,7 +57,7 @@ Status: `[ ]` offen · `[x]` erledigt · `[-]` bewusst nicht (Begründung).
   Bleibt: der zweite Lesezugriff auf den Registry-Knoten — `download()`
   braucht `downloadUrl` und `content` aus dem Datensatz, die ein Listing
   nicht auf jeder Instanz trägt; eine Anfrage ist der Preis der Sicherheit.
-  Fassade, `_sync.__all__` und Beispiel 21 folgen im Doku-Commit.
+  Fassade, `_sync.__all__` und Beispiel 21: erledigt.
 
 ## C — Suche, Konfiguration, Sync (`flows/find.py`, `flows/collections.py`, `flows/serialize.py`, `_sync.py`, Wächter)
 
@@ -103,7 +103,7 @@ Status: `[ ]` offen · `[x]` erledigt · `[-]` bewusst nicht (Begründung).
 - [x] C14 MINOR — Wächter-Lücken: `repo.flows.x(...)` (57 Aufrufe) entgeht dem
   Signatur-Wächter; Schlüssel-Wächter überspringt Abläufe, die einen Helfer
   zurückgeben; `_sync.__all__` nennt 7 von 14 Klassen.
-- [ ] C15 MINOR — Falsche Aussagen: FLOWS „`find.find_collections`" (liegt in
+- [x] C15 MINOR — Falsche Aussagen: FLOWS „`find.find_collections`" (liegt in
   `flows.collections`); „`total_is_lower_bound` immer wahr" (mit `parent_id`
   nicht); Fassaden-Docstring zu `**kwargs`; Trefferbeispiel ohne die vier
   neuen Felder.
@@ -147,7 +147,7 @@ geprüft); die Befunde betreffen Verhalten, das schon vorher so war.
   zurück; `text()`/`download()` ungeschützt (5xx wirft aus einem Ablauf,
   dessen Vertrag „kein Text ist eine Antwort" ist). → JSON in den Rückfall;
   fangen, Grund `repository_failed` mit `detail`.
-- [ ] B10 MINOR — FLOWS: `placement` „2 Anfragen, nicht drei" (es sind drei),
+- [x] B10 MINOR — FLOWS: `placement` „2 Anfragen, nicht drei" (es sind drei),
   `accept_suggestion` „vier" (sechs), `add_material` „2–4" ohne
   Adressprüfung, doppelter „Behind it"-Block. Beide Sprachen.
 - [x] B11 MINOR (Löschen einer Referenz und `accept_suggestion` an einer Referenz sind heute live belegt, 61 Schreibbeweise) — Tests: `set_property(None)` bei behaltener Eigenschaft;

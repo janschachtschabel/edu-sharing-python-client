@@ -122,6 +122,15 @@ and in [`docs/audits/`](docs/audits/).
   method's defaults between the two, and the documentation guard checks
   `repo.flows.x(...)` calls against the real signatures -- 57 of them had
   escaped it.
+- **Docs corrected where they had drifted from the code.** `placement` costs
+  three requests (the node is read first to resolve a reference), not two;
+  `add_material` three to six, with the address check; `accept_suggestion`
+  six; the `search` example carries `preview_url`, `download_url`,
+  `license` and `size`; `total_is_lower_bound` is true for a search and
+  below a `parent_id` only when the walk was cut short; the block
+  `search_all` shows calls `collections.find_collections`; a block that
+  repeated `update_material` inside `add_material` is gone; the facade
+  docstring no longer claims that nothing forwards `**kwargs`.
 
 ## [0.1.0] — 2026-09-02
 

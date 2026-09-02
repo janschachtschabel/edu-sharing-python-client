@@ -137,6 +137,10 @@ repo.flows.search(
       "source_url": "https://beispiel.org/material",
       "mimetype": "text/html",
       "mediatype": "link",
+      "preview_url": "https://…/preview?nodeId=1f71f84a-…",
+      "download_url": null,
+      "license": "CC BY 4.0",
+      "size": null,
       "fields": {"subject": ["Biologie"], "level": ["Sekundarstufe II"]},
       "original_id": null,
       "duplicate_ids": []
@@ -689,19 +693,22 @@ gibt. Live gemessen: `WLO > Biologie > Pflanzen: Form & Funktion`.
 > Antwort reicht — statt einen abgeschnittenen Pfad als vollständigen
 > durchgehen zu lassen.
 
-**Was dahinter läuft** — 2 Anfragen, gemeinsam gesendet:
+**Was dahinter läuft** — 3 Anfragen: einmal lesen, dann zwei gemeinsam:
 
 ```python
 # was repo.flows.placement("abc") tut
+node = await repo.nodes.get("abc")                    # 1. eine Listing-ID ist eine Referenz
 ancestry, collections = await asyncio.gather(
-    placement.ancestry_of(repo.nodes, "abc"),     # 1. GET …/parents
-    placement.collections_of(repo.nodes, "abc"),  # 2. GET /usage/v1/…/collections
+    placement.ancestry_of(repo, "abc"),                # 2. GET …/parents
+    placement.collections_of(repo, "abc", original_id=node.original_id),  # 3. /usage
 )
 ```
 
-Nicht drei: die parents-Antwort trägt den Knoten selbst als ersten Eintrag, der
-Titel kommt also mit. Die Bibliothek nimmt diesen Eintrag aus `path` heraus — ein
-Knoten ist nicht sein eigener Vorfahre.
+Das Lesen kommt zuerst, weil `/usage` nur Originale kennt: mit einer Referenz-ID
+gefragt antwortet es mit einer leeren Liste, und „dieser Knoten liegt in keiner
+Sammlung" wäre falsch. Die parents-Antwort trägt den Knoten selbst als ersten
+Eintrag; die Bibliothek nimmt ihn aus `path` heraus — ein Knoten ist nicht sein
+eigener Vorfahre.
 
 Auf der API-Ebene dieselben zwei, als Objekte:
 
@@ -751,7 +758,8 @@ repo.flows.find_collections("Physik", limit=10)
 
 **Ausgabe** — dieselbe Form wie `search`, mit `query.kind` auf `"collections"`.
 
-> **`total_is_lower_bound` ist hier immer wahr.** Die Sammlungssuche fragt zwei
+> **`total_is_lower_bound` ist bei einer Suche wahr — unter einer `parent_id`
+> nur, wenn der Gang abgeschnitten wurde.** Die Sammlungssuche fragt zwei
 > Wege ab und legt sie zusammen; die Zahl zählt mindestens so viele, womöglich
 > mehr.
 >
@@ -1492,10 +1500,11 @@ einer Namenskollision wird ein Zähler angehängt statt abzubrechen.
 *Beispiel: [`examples/06_flow_create.py`](examples/06_flow_create.py)*
 
 
-**Was dahinter läuft** — 2 bis 4 Anfragen:
+**Was dahinter läuft** — 3 bis 6 Anfragen:
 
 ```python
-# was repo.flows.add_material("T", subject="Biologie") tut
+# was repo.flows.add_material("T", url=url, subject="Biologie") tut
+await duplicates.find_by_url(repo, url)          # 0. nur mit url: die Adressprüfung
 wer = await repo.whoami()                        # 1. nur wenn parent_id fehlt
 uri = await repo.vocab.resolve("ccm:taxonid", "Biologie")   # 2. je Vokabularfeld
 node = await repo.nodes.create(                  # 3. das Anlegen selbst
@@ -1507,17 +1516,6 @@ await repo.collections.add(collection_id, node.id)          # 4. nur auf Wunsch
 Der Name wird aus dem Titel abgeleitet; bei einer Namenskollision wird ein
 Zähler angehängt statt abzubrechen.
 
-
-**Was dahinter läuft** — 3 bis 4 Anfragen:
-
-```python
-# was repo.flows.update_material("n1", subject="Biologie") tut
-uri = await repo.vocab.resolve("ccm:taxonid", "Biologie")   # 1. je Vokabularfeld
-node = await repo.nodes.get("n1")                            # 2. laden
-await node.update(properties={"ccm:taxonid": [uri]})         # 3. PUT
-#     was selbst noch einmal zurückliest (4.) und einen SilentDropError wirft,
-#     wenn edu-sharing den Schreibvorgang annahm und nicht speicherte.
-```
 
 ---
 

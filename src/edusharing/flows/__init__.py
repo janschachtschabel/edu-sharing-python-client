@@ -17,11 +17,13 @@ at an object. Everything they do can be done at the API level -- with more code.
     hits = await repo.flows.search("Photosynthese", subject="Biologie")
     json.dumps(hits)   # works, that is the point
 
-The facade below repeats the signatures of the functions in ``find``,
+The facade below repeats the signatures of the older functions in ``find``,
 ``describe``, ``contents`` and ``curate`` rather than forwarding
 ``*args, **kwargs``. That is duplication, and it is deliberate: the signature is
 half the documentation, and ``repo.flows.`` should complete properly in an
-editor.
+editor. The flows added on 2026-09-02 forward ``**kwargs`` to their function
+and document the parameters there; the signature guard in the tests checks
+every documented ``repo.flows.x(...)`` against the real one either way.
 """
 
 from __future__ import annotations
