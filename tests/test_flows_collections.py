@@ -279,6 +279,36 @@ class Gefiltert(Instanz):
         return httpx.Response(200, json={"node": self._stand("m1")})
 
 
+class ZweiVokabulare(Gefiltert):
+    """Physik steht in zwei Vokabularen (gemessen: 25 Faecher tun das); eine
+    Sammlung traegt nur die zweite URI."""
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        if "/values" in request.url.path:
+            return httpx.Response(200, json={"values": [
+                *FAECHER["values"],
+                {"key": "http://x/hochschule/460", "displayString": "Physik"},
+            ]})
+        if "queries" in request.url.path:
+            return httpx.Response(200, json={"nodes": [
+                _knoten("c-schule", "Physik AG", **{"ccm:taxonid": ["http://x/460"]}),
+                _knoten("c-uni", "Physik Uni",
+                        **{"ccm:taxonid": ["http://x/hochschule/460"]}),
+            ], "pagination": {"total": 2, "from": 0, "count": 2}})
+        return super().__call__(request)
+
+
+async def test_ein_lesefilter_nimmt_jede_uri_eines_labels():
+    """Schreiben nimmt EINE URI (eine Behauptung); Lesen muss beide nehmen,
+    sonst findet der Filter die Haelfte und sieht vollstaendig aus."""
+    instanz = ZweiVokabulare()
+    async with _repo(instanz) as repo:
+        got = await repo.flows.find_collections("Physik", subject="Physik")
+    assert [h["id"] for h in got["hits"]] == ["c-schule", "c-uni"]
+    assert sorted(got["query"]["filters"]["ccm:taxonid"]) == [
+        "http://x/460", "http://x/hochschule/460"]
+
+
 async def test_ein_fachfilter_wirkt_auf_die_sammlungen_lokal():
     instanz = Gefiltert()
     async with _repo(instanz) as repo:

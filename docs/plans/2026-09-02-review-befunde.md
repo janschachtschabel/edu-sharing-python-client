@@ -14,7 +14,7 @@ Status: `[ ]` offen · `[x]` erledigt · `[-]` bewusst nicht (Begründung).
 - [x] A1 MAJOR — Blockart `ki-skill` steht wörtlich in `load_registry` und
   `layout_contexts`, obwohl `SkillConventions.block_kinds` der Parameter ist.
   → `SkillConventions.skill_kind` (Vorgabe `ki-skill`), `layout_contexts(..., skill_kind=)`.
-- [ ] A2 MAJOR — Kurznamen werden in `Skills.search` über `resolve_vocabulary`
+- [x] A2 MAJOR — Kurznamen werden in `Skills.search` über `resolve_vocabulary`
   auf EINE URI aufgelöst; `repo.search` nimmt alle URIs eines Labels
   (`resolve_all`). Gleiches Muster in `find_collections` (C4). → ein
   Lese-Resolver mit allen Werten je Label.
@@ -72,7 +72,7 @@ Status: `[ ]` offen · `[x]` erledigt · `[-]` bewusst nicht (Begründung).
   Server-Schnitt bei `limit` angewandt; `total` bleibt die ungefilterte Zahl.
   → mit Filter mehr holen (gekappt), `total=len(kept)` als Untergrenze,
   Warnung mit der Zahl der beurteilten Kandidaten.
-- [ ] C4 MAJOR — `resolve_vocabulary` löst nur die erste URI auf (siehe A2).
+- [x] C4 MAJOR — `resolve_vocabulary` löst nur die erste URI auf (siehe A2).
 - [ ] C5 MAJOR — Der Ausfall-Eimer von `search_all` hat andere Schlüssel als
   der Erfolgs-Eimer (`unjudged`, `query.filters`, `query.parent_id` fehlen).
   → eine `_empty`-Form für beide Wege; Test auf gleiche Schlüsselmenge.

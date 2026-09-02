@@ -80,7 +80,7 @@ async def find_collections(
         ValidationError: for an unknown short name.
         EduSharingError: for anything the repository refuses.
     """
-    wanted, unresolved = await resolve_vocabulary(repo, aliases)
+    wanted, unresolved = await resolve_vocabulary(repo, aliases, every_value=True)
     query: dict[str, Any] = {
         "text": text,
         "metadataset": repo.metadataset,

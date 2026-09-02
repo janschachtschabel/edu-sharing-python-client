@@ -35,7 +35,7 @@ def name_from_title(title: str) -> str:
 
 
 async def resolve_vocabulary(
-    repo: AsyncRepository, aliases: dict[str, Any]
+    repo: AsyncRepository, aliases: dict[str, Any], *, every_value: bool = False
 ) -> tuple[dict[str, list[str]], list[dict[str, Any]]]:
     """Turn ``{"subject": "Biologie"}`` into ``{"ccm:taxonid": ["<uri>"]}``.
 
@@ -52,6 +52,10 @@ async def resolve_vocabulary(
     first, because writing both would *assert* both: tagging a year 6 worksheet
     as a university subject is a claim, not a widening. A caller who wants the
     other one passes its URI, which goes through untouched.
+
+    ``every_value=True`` is the reading rule: a filter applied locally, or
+    sent as a criterion, must carry every URI the label has -- the same rule
+    ``Search`` applies -- or it finds half the records while looking complete.
     """
     resolved: dict[str, list[str]] = {}
     unresolved: list[dict[str, Any]] = []
@@ -67,15 +71,25 @@ async def resolve_vocabulary(
             if text.startswith(("http://", "https://")):
                 uris.append(text)
                 continue
-            uri = await repo.vocab.resolve(prop, text)
-            if uri is None:
+            found = await _resolve(repo, prop, text, every_value)
+            if not found:
                 suggestions = [v.label for v in await repo.vocab.suggest(prop, text)][:5]
                 unresolved.append(
                     {"field": short_name, "value": text, "suggestions": suggestions}
                 )
                 continue
-            uris.append(uri)
+            uris.extend(found)
         if uris:
             resolved[prop] = uris
 
     return resolved, unresolved
+
+
+async def _resolve(
+    repo: AsyncRepository, prop: str, text: str, every_value: bool
+) -> list[str]:
+    """Every URI for a read filter; the first for a write -- see above."""
+    if every_value:
+        return await repo.vocab.resolve_all(prop, text)
+    uri = await repo.vocab.resolve(prop, text)
+    return [uri] if uri else []

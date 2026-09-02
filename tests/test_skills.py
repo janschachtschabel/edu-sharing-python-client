@@ -215,6 +215,25 @@ async def test_ein_unaufloesbarer_kurzname_wird_gemeldet():
     assert got.unresolved and got.unresolved[0]["value"] == "Phsyik"
 
 
+async def test_ein_kurzname_sendet_jede_uri_seines_labels():
+    """Wie repo.search: ein Label in zwei Vokabularen sind zwei Kriterienwerte."""
+    instanz = Instanz()
+    urspruenglich = instanz.handler
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "/values" in request.url.path:
+            return httpx.Response(200, json={"values": [
+                {"key": "http://x/460", "displayString": "Physik"},
+                {"key": "http://x/hochschule/460", "displayString": "Physik"}]})
+        return urspruenglich(request)
+
+    instanz.handler = handler
+    async with instanz.repo() as repo:
+        await repo.skills.search("", subject="Physik")
+    fach = [k["values"] for k in instanz.suchkriterien() if k["property"] == "ccm:taxonid"]
+    assert sorted(fach[0]) == ["http://x/460", "http://x/hochschule/460"]
+
+
 async def test_eigene_konventionen_ersetzen_die_vorgabe():
     eigene = SkillConventions(skill_type="http://andere.test/skill")
     instanz = Instanz()

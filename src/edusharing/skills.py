@@ -200,7 +200,7 @@ class Skills:
             conventions: which values mark a skill here.
             **aliases: configured short names, resolved against the vocabulary.
         """
-        wanted, unresolved = await resolve_vocabulary(self._repo, aliases)
+        wanted, unresolved = await resolve_vocabulary(self._repo, aliases, every_value=True)
         unreadable = 0
         if collection_id:
             raw_nodes, truncated, unreadable = await self._walk(

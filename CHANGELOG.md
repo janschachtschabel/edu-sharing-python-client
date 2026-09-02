@@ -92,6 +92,12 @@ and in [`docs/audits/`](docs/audits/).
   applies to the refill only; both shortfalls are named in `warnings`;
   under `rerank` the pool grows with the refill. A stored property that is
   not a list is wrapped under `fields`, not splatted into characters.
+- **A read-side filter takes every URI a label carries.** `find_collections`
+  and `Skills.search` resolved `subject="Physik"` to the first URI only,
+  while `search` sends both (measured: 25 subject labels live in two
+  vocabularies) -- so the same short name narrowed collections and skills
+  differently from material, silently. `resolve_vocabulary(...,
+  every_value=True)` is the reading rule; writing keeps the first.
 
 ## [0.1.0] — 2026-09-02
 
