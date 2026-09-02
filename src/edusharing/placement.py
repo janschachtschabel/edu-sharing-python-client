@@ -56,17 +56,18 @@ class Ancestry:
         return f"Ancestry(parents={len(self.parents)}, scope={self.scope!r})"
 
 
-def _nodes_of(repo_or_nodes: Any) -> Nodes:
+def _nodes_of(repo: Any) -> Nodes:
     """Accept the connection or its ``nodes`` accessor.
 
     Every other free function takes the connection; these two took ``Nodes``
     and the reference documented ``repo`` -- so both are accepted, and the
     documented form is the one that works.
     """
-    return getattr(repo_or_nodes, "nodes", repo_or_nodes)
+    nodes: Nodes = getattr(repo, "nodes", repo)
+    return nodes
 
 
-async def ancestry_of(repo_or_nodes: Any, node_id: str) -> Ancestry:
+async def ancestry_of(repo: Any, node_id: str) -> Ancestry:
     """Read the way up from a node.
 
     ``fullPath`` is deliberately not sent: measured, asking for the complete
@@ -75,7 +76,7 @@ async def ancestry_of(repo_or_nodes: Any, node_id: str) -> Ancestry:
     allowed, and ``Ancestry.scope`` says how far that was.
 
     Args:
-        repo_or_nodes: the connection, or its ``nodes`` accessor.
+        repo: the connection -- or its ``nodes`` accessor, which is also accepted.
         node_id: the node's id.
 
     Raises:
@@ -85,7 +86,7 @@ async def ancestry_of(repo_or_nodes: Any, node_id: str) -> Ancestry:
     """
     from .nodes import Node as _Node  # local: nodes imports this module
 
-    nodes = _nodes_of(repo_or_nodes)
+    nodes = _nodes_of(repo)
     response = await nodes.transport.json(
         "GET",
         f"/node/v1/nodes/-home-/{path_segment(node_id)}/parents",
@@ -103,7 +104,7 @@ async def ancestry_of(repo_or_nodes: Any, node_id: str) -> Ancestry:
 
 
 async def collections_of(
-    repo_or_nodes: Any, node_id: str, *, original_id: str | None = None
+    repo: Any, node_id: str, *, original_id: str | None = None
 ) -> list[Node]:
     """The collections holding a reference to this node.
 
@@ -123,7 +124,7 @@ async def collections_of(
     and ``isPublic`` -- so nothing has to be read a second time.
 
     Args:
-        repo_or_nodes: the connection, or its ``nodes`` accessor.
+        repo: the connection -- or its ``nodes`` accessor, which is also accepted.
         node_id: the node's id -- an original's or a reference's.
         original_id: the id to ask for, when the caller has already resolved
             it (``node.original_id or node.id``). ``None`` reads the node.
@@ -134,7 +135,7 @@ async def collections_of(
     """
     from .nodes import Node as _Node  # local: nodes imports this module
 
-    nodes = _nodes_of(repo_or_nodes)
+    nodes = _nodes_of(repo)
     if original_id is None:
         node = await nodes.get(node_id)
         original_id = node.original_id or node.id

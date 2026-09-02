@@ -643,3 +643,67 @@ def test_jedes_feld_jeder_klasse_steht_in_der_referenz(datei):
     assert not fehlend, (
         f"{datei}: {anzahl} Felder aus {len(fehlend)} Klassen fehlen:\n  "
         + "\n  ".join(f"{kl}: {', '.join(fs)}" for kl, fs in fehlend))
+
+
+# --- Und die freien Funktionen? --------------------------------------------
+#
+# ``ancestry_of(repo, node_id)`` stand in der Referenz, die Funktion nahm ein
+# ``Nodes``-Objekt. Der Waechter darueber prueft nur ``repo.x(...)``-Zeilen --
+# so kam es durch. Dieselbe Pruefung fuer jede Zeile `name(a, b=...)`, deren
+# Name eine oeffentliche freie Funktion ist: positionelle Argumente nach Name
+# und Reihenfolge, Schluesselwoerter gegen die Parameterliste.
+
+_FREIER_AUFRUF = re.compile(r"`([a-z_][a-z_0-9]*)\(([^`)]*)\)`")
+
+
+def _freie_funktion(name: str):
+    """Die oeffentliche Funktion dieses Namens, oder None fuer alles andere."""
+    import importlib
+    import inspect
+    herkunft = oeffentliche_namen().get(name)
+    if not herkunft or ":" in herkunft:        # Felder und Methoden: andere Waechter
+        return None
+    modul = "edusharing." + herkunft.replace("\\", "/")[:-3].replace("/", ".")
+    try:
+        ziel = getattr(importlib.import_module(modul), name, None)
+    except Exception:  # ein Modul, das nicht laedt, faellt anderswo auf
+        return None
+    return ziel if inspect.isfunction(ziel) else None
+
+
+def _argumente_pruefen(ziel, roh: str, wer: str) -> list[str]:
+    """Die Beschwerden ueber `wer(roh)` gegen die echte Signatur von ``ziel``."""
+    import inspect
+    parameter = inspect.signature(ziel).parameters
+    offen = any(p.kind is inspect.Parameter.VAR_KEYWORD for p in parameter.values())
+    positionell = _positionelle(ziel)
+    falsch: list[str] = []
+    stelle = 0
+    for stueck in (s.strip() for s in roh.split(",") if s.strip()):
+        if "=" in stueck:
+            name = stueck.split("=")[0].strip()
+            if _BEZEICHNER.fullmatch(name) and name not in parameter and not offen:
+                falsch.append(f"{wer}() hat kein Argument {name!r}")
+            continue
+        if _BEZEICHNER.fullmatch(stueck):
+            echt = positionell[stelle] if stelle < len(positionell) else None
+            if echt != stueck:
+                falsch.append(f"{wer}() nennt an Stelle {stelle + 1} {stueck!r}, "
+                              f"die Funktion nennt es {echt!r}")
+        stelle += 1
+    return falsch
+
+
+def test_jeder_dokumentierte_freie_aufruf_nennt_echte_parameter():
+    """`name(a, b=...)` in jeder behauptenden Datei -- mit den echten Namen."""
+    falsch: list[str] = []
+    for datei in BEHAUPTEND:
+        pfad = WURZEL / datei
+        if not pfad.exists():
+            continue
+        for name, roh in _FREIER_AUFRUF.findall(pfad.read_text(encoding="utf-8")):
+            ziel = _freie_funktion(name)
+            if ziel is None:
+                continue
+            falsch.extend(f"{datei}: {f}" for f in _argumente_pruefen(ziel, roh, name))
+    assert not falsch, "\n  " + "\n  ".join(sorted(set(falsch)))

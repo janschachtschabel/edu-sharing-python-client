@@ -373,7 +373,7 @@ Systems keine Sammlung.
 | `node.rating` | `Rating \| None` — Durchschnitt, Anzahl, die eigene |
 | `node.rate(4)` | `Rating` |
 | `node.unrate()` | `Rating` |
-| `rating_of(repo, node_id)` | `Rating \| None` |
+| `rating_of(node)` | `Rating \| None` — dasselbe Lesen wie `node.rating`, für einen `Node`, den man hält |
 | `node.comments.list()` | `list[Comment]` |
 | `Comment` | `author`, `created`, `id`, `reply_to`, `text` |
 | `node.comments.add(text, reply_to=…)` | `Comment` |
@@ -763,7 +763,7 @@ Diese sind für alle da, die sich einen eigenen Ablauf bauen.
 | `field_property(repo, "subject")` | Kurzname → Eigenschaft, sonst `ValidationError` |
 | `RELATED_ON` | die Felder, nach denen `related()` standardmäßig vergleicht |
 | `hit_as_dict(hit, aliases)` / `result_as_dict(result, …)` | die überall genutzte JSON-Form |
-| `expand_query(text, profile=GERMAN)` | `list[QueryVariant]` — Umformulierungen fürs Umsortieren |
+| `expand_query(query, profile=GERMAN)` | `list[QueryVariant]` — Umformulierungen fürs Umsortieren |
 | `QueryVariant` | `label`, `text`, `weight` |
 | `MAX_VARIANTS` | wie viele höchstens |
 | `search_reranked(repo, text, pool=…)` | die gepoolte, neu bewertete Suche |
@@ -773,7 +773,7 @@ Diese sind für alle da, die sich einen eigenen Ablauf bauen.
 | `term_matches(term, text)` / `query_terms(query, profile)` | der Vergleicher und der Zerleger |
 | `deduplicate(hits)` | wirft Wiederholungen über Varianten hinweg weg |
 | `name_from_title(title)` | ein dateisystemtauglicher Knotenname |
-| `resolve_vocabulary(repo, field, value)` | Label → URI, mit Vorschlägen bei Fehlschlag |
+| `resolve_vocabulary(repo, aliases)` | `(properties, unresolved)` — Kurznamen zu Eigenschaften, Labels aufgelöst; was nicht auflöst, wird genannt, nicht gesendet |
 | `LanguageProfile` / `GERMAN` | Stoppwörter und Rahmenwörter; Deutsch ist das einzige mitgelieferte Profil |
 | `LanguageProfile` | `framing`, `stopwords`, `synonyms` |
 
@@ -1249,7 +1249,7 @@ dieser Bibliothek liest zurück und wirft ihn, statt Erfolg zu melden.
 |---|---|
 | `error_from_response(status, url, body)` | wählt die Klasse zu einem Statuscode |
 | `details_withheld(error)` | `bool` — die Instanz verschweigt ihre Fehlerdetails |
-| `at_least(value, minimum)` | eine kleine Grenzprüfung, die die Clients nutzen |
+| `at_least(name, value, limit)` | die Grenzprüfung, die die Clients auf ihre Einstellungen anwenden; wirft `EduSharingError` mit dem Namen der Einstellung |
 
 ---
 
@@ -1260,8 +1260,8 @@ sind.
 
 | Aufruf | Ergebnis |
 |---|---|
-| `normalize_repository_url(url)` | `str` — Schrägstriche am Ende, Umgang mit `/edu-sharing` |
-| `rest_base(url)` | `str` — die REST-Wurzel darunter |
+| `normalize_repository_url(raw)` | `str` — Schrägstriche am Ende, Umgang mit `/edu-sharing` |
+| `rest_base(repository_url)` | `str` — die REST-Wurzel darunter |
 | `path_segment(value)` | `str` — prozentkodiert einen Bezeichner, `/` eingeschlossen |
 | `is_unroutable_host(host)` | `bool` — Loopback, Link-Local, private Bereiche |
 | `Transport` | die HTTP-Schicht: Wiederholungen, Wartezeiten, Zugangsdaten-Grenze |

@@ -65,7 +65,7 @@ async def collection_contents(
     segment = path_segment(collection_id)
 
     async def material() -> dict[str, Any]:
-        return await repo.raw.json(
+        response: dict[str, Any] = await repo.raw.json(
             "GET", f"/node/v1/nodes/-home-/{segment}/children",
             params={
                 "maxItems": limit, "skipCount": offset, "filter": "files",
@@ -76,12 +76,14 @@ async def collection_contents(
                 "propertyFilter": "-all-",
             },
         )
+        return response
 
     async def sub_collections() -> dict[str, Any]:
-        return await repo.raw.json(
+        response: dict[str, Any] = await repo.raw.json(
             "GET", f"/collection/v1/collections/-home-/{segment}/children/collections",
             params={"maxItems": limit},
         )
+        return response
 
     nodes_response, collections_response = await asyncio.gather(
         material(), sub_collections()

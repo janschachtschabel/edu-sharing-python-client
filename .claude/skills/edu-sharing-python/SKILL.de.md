@@ -279,17 +279,17 @@ muss — die Argument- und Rückgabeformen stehen in `docs/REFERENCE.de.md`.
 | Die Aufgabe | Der Aufruf |
 |---|---|
 | aus einem Titel einen zulässigen `cm:name` machen | `name_from_title(title)` |
-| aus einem Label die URIs des Feldes machen | `resolve_vocabulary(repo, field, label)` |
-| eine schwache Anfrage verbreitern | `expand_query(text)` → `QueryVariant`: `.label` `.weight` `.text` |
-| einen Treffer selbst gegen die Anfrage bewerten | `score_hit(hit, terms)` / `query_terms(text)` / `term_matches(…)` |
+| Kurznamen zu Eigenschaften machen, Labels aufgelöst | `resolve_vocabulary(repo, aliases)` → `(properties, unresolved)` |
+| eine schwache Anfrage verbreitern | `expand_query(query)` → `QueryVariant`: `.label` `.weight` `.text` |
+| einen Treffer selbst gegen die Anfrage bewerten | `score_hit(hit, query, aliases)` / `query_terms(query)` / `term_matches(…)` |
 | Doppelte zusammenfalten | `deduplicate(hits)` |
 | ein Ergebnis als schlichtes JSON | `result_as_dict(result)` / `hit_as_dict(hit)` |
 | die Stoppwort- und Synonymlisten | `LanguageProfile`: `.stopwords` `.framing` `.synonyms`; `GERMAN_SYNONYMS` |
-| eine Instanz-URL normalisieren | `normalize_repository_url(url)` / `rest_base(url)` / `path_segment(id)` / `is_unroutable_host(host)` |
+| eine Instanz-URL normalisieren | `normalize_repository_url(raw)` / `rest_base(repository_url)` / `path_segment(value)` / `is_unroutable_host(host)` |
 | eine Suche, die neu ordnet und beide Hälften meldet | `search_reranked(repo, text)` |
 | jede Untersammlung einer Sammlung | `sub_collections(repo, id)` |
-| die Bewertung eines Knotens, ohne ihn zu halten | `rating_of(repo, id)` / `rate(…)` / `unrate(…)` |
-| Text kürzen, bevor er ein Modell erreicht | `cap_text(text, limit)` |
+| die Bewertung eines Knotens, den man hält | `rating_of(node)` / `rate(…)` / `unrate(…)` |
+| Text kürzen, bevor er ein Modell erreicht | `cap_text(text, max_chars)` |
 
 **Fehler** — alle erben von `EduSharingError`; ein einziges
 `except EduSharingError` fängt daher alles, was diese Bibliothek wirft:
@@ -298,7 +298,7 @@ muss — die Argument- und Rückgabeformen stehen in `docs/REFERENCE.de.md`.
 `NotFoundError` · `ValidationError` · `ConflictError` · `SilentDropError` ·
 `ServerError` · `UnsafeUrlError`
 
-`at_least(error, …)` liest ein Teilergebnis aus einem Fehlschlag heraus;
+`at_least(name, value, limit)` ist die Grenzprüfung, die die Clients auf ihre Einstellungen anwenden;
 `details_withheld(…)` benennt, was ein Fehler bewusst nicht preisgibt.
 
 **Der Rest von `__all__`** ist Maschinerie, die man nur anfasst, wenn man die

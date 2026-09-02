@@ -159,7 +159,7 @@ class Collections:
 
     # --- Internals --------------------------------------------------------
 
-    def _as_hits(self, nodes: list[dict], seen: set[str]) -> list[SearchHit]:
+    def _as_hits(self, nodes: list[dict[str, Any]], seen: set[str]) -> list[SearchHit]:
         """Turn nodes into hits, skipping ids already seen."""
         fresh = []
         base = self._transport.repository_url
@@ -171,7 +171,7 @@ class Collections:
             fresh.append(SearchHit.from_node(n, base))
         return fresh
 
-    async def _mds_leg(self, text: str, limit: int) -> tuple[list[dict], int]:
+    async def _mds_leg(self, text: str, limit: int) -> tuple[list[dict[str, Any]], int]:
         """Leg A -- returns nodes and a real total.
 
         ``propertyFilter`` is not optional here. Without it the endpoint answers
@@ -202,7 +202,7 @@ class Collections:
         page = response.get("pagination") or {}
         return list(response.get("nodes") or []), int(page.get("total") or 0)
 
-    async def _rest_leg(self, text: str, limit: int) -> list[dict]:
+    async def _rest_leg(self, text: str, limit: int) -> list[dict[str, Any]]:
         """Leg B -- its own projection, without a total."""
         response = await self._transport.json(
             "GET",

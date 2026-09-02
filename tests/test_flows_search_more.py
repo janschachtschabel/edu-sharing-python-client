@@ -13,8 +13,11 @@ Riesenseite anfordert.
 import json
 
 import httpx
+import pytest
 
 from edusharing import AsyncRepository
+from edusharing.errors import ValidationError
+from edusharing.flows.rerank import search_reranked
 
 REPO = "https://repo.test/edu-sharing"
 
@@ -76,3 +79,21 @@ async def test_facet_limit_wird_durchgereicht():
     assert facetten and facetten[0]["property"] == "ccm:taxonid"
     assert instanz.koerper[0].get("facetLimit") == 100 or \
         any(f.get("count") == 100 or f.get("limit") == 100 for f in facetten), instanz.koerper[0]
+
+
+# --- Paket 5: der Reranker reicht Kurznamen als Filter weiter, nicht als Parameter
+
+async def test_rerank_weist_einen_fremden_parameter_ab():
+    """``offset`` ist kein Kurzname. Bisher landete er als Parameter in
+    ``Search.search`` -- ein Verhalten, das niemand bestellt hatte."""
+    instanz = Instanz(["n1"])
+    async with instanz.repo() as repo:
+        with pytest.raises(ValidationError):
+            await search_reranked(repo, "x", offset=3)
+
+
+async def test_rerank_reicht_einen_kurznamen_als_filter_weiter():
+    instanz = Instanz(["n1", "n2"])
+    async with instanz.repo() as repo:
+        await repo.flows.search("Bruch rechnen", rerank=True, subject="http://x/080")
+    assert any(k["property"] == "ccm:taxonid" for k in instanz.koerper[0]["criteria"])

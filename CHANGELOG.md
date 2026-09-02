@@ -93,6 +93,16 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Fixed
 
+- **Nine documented free-function signatures were wrong**, found by the new
+  guard that checks `name(a, b=…)` rows against the real functions:
+  `rating_of(repo, id)` takes a node, `resolve_vocabulary(repo, field, label)`
+  takes the short names, `at_least` is a bounds check and not a way to read a
+  partial result, and `cap_text`, `expand_query`, `query_terms`, `score_hit`,
+  `normalize_repository_url` and `rest_base` named parameters they do not have.
+- **`search_reranked` forwarded short names as keyword arguments into
+  `Search.search`**, where a name matching one of its own parameters
+  (`offset`, `content_type`) was taken as that parameter instead of refused.
+  Short names become properties in the reranker and travel as filters.
 - **`REFERENCE(.de).md` documented `add_material(parent_id, title=…)`** — the
   first positional argument is `title`; `parent_id` is a keyword. The
   signature guard checks `repo.x(…)` rows only, which is how this one slipped.

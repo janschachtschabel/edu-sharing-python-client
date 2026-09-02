@@ -30,10 +30,10 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, Any
 
-from ..errors import EduSharingError
+from ..errors import EduSharingError, ValidationError
 from ..results import SearchHit, SearchResult
 from ..search import DEFAULT_FACET_LIMIT
-from .expand import expand_query
+from .expand import QueryVariant, expand_query
 from .language import GERMAN, LanguageProfile
 from .ranking import score_hit
 
@@ -93,10 +93,24 @@ async def search_reranked(
     if not variants:
         raise EduSharingError("An empty query cannot be reranked.")
 
-    async def run(variant):
+    # Short names are turned into properties HERE and travel as filters. They
+    # used to be spread into ``Search.search`` as keywords, where a name that
+    # happens to match one of its own parameters (``offset``, ``content_type``)
+    # was taken as that parameter instead of refused as an unknown field.
+    known = repo.searcher.field_aliases
+    unknown = sorted(set(aliases) - set(known))
+    if unknown:
+        raise ValidationError(
+            f"Unknown search field(s) {', '.join(unknown)}. Known are: "
+            f"{', '.join(sorted(known)) or '(none)'}."
+        )
+    criteria: dict[str, str | list[str]] = {
+        **(filters or {}), **{known[name]: value for name, value in aliases.items()}}
+
+    async def run(variant: QueryVariant) -> SearchResult:
         return await repo.searcher.search(
-            variant.text, filters=filters, facets=facets, limit=pool,
-            facet_limit=facet_limit, **aliases
+            variant.text, filters=criteria or None, facets=facets, limit=pool,
+            facet_limit=facet_limit,
         )
 
     outcomes = await asyncio.gather(

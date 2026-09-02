@@ -221,20 +221,20 @@ class SyncNodePermissions:
 
     def grant(self, authority: str, *permissions: str, **kwargs: Any) -> bool:
         """Like ``NodePermissions.grant``, blocking."""
-        return self._loop.run(
-            self._permissions.grant(authority, *permissions, **kwargs))
+        return bool(self._loop.run(
+            self._permissions.grant(authority, *permissions, **kwargs)))
 
     def revoke(self, authority: str, *permissions: str) -> bool:
         """Like ``NodePermissions.revoke``, blocking."""
-        return self._loop.run(self._permissions.revoke(authority, *permissions))
+        return bool(self._loop.run(self._permissions.revoke(authority, *permissions)))
 
     def publish(self) -> bool:
         """Like ``NodePermissions.publish``, blocking."""
-        return self._loop.run(self._permissions.publish())
+        return bool(self._loop.run(self._permissions.publish()))
 
     def unpublish(self) -> bool:
         """Like ``NodePermissions.unpublish``, blocking."""
-        return self._loop.run(self._permissions.unpublish())
+        return bool(self._loop.run(self._permissions.unpublish()))
 
     def __repr__(self) -> str:
         return f"Sync{self._permissions!r}"
@@ -334,11 +334,11 @@ class SyncNodeContent:
 
     def download(self) -> bytes:
         """Like ``NodeContent.download``, blocking."""
-        return self._loop.run(self._content.download())
+        return bytes(self._loop.run(self._content.download()))
 
     def text(self, **kwargs: Any) -> str:
         """Like ``NodeContent.text``, blocking."""
-        return self._loop.run(self._content.text(**kwargs))
+        return str(self._loop.run(self._content.text(**kwargs)))
 
     def set_preview(self, data: bytes, mimetype: str = "image/png") -> Any:
         """Like ``NodeContent.set_preview``, blocking."""

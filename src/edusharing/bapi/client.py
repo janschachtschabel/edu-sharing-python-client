@@ -440,7 +440,7 @@ class BildungsAPI:
                     candidate.id, candidate.shutdown_date,
                 )
             self.last_model = candidate.id
-            return response
+            return dict(response)
 
         raise EduSharingError(
             "None of the models tried answered. " + " | ".join(failures)

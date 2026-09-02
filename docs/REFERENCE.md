@@ -365,7 +365,7 @@ system.
 | `node.rating` | `Rating \| None` — average, count, your own |
 | `node.rate(4)` | `Rating` |
 | `node.unrate()` | `Rating` |
-| `rating_of(repo, node_id)` | `Rating \| None` |
+| `rating_of(node)` | `Rating \| None` — the same reading `node.rating` does, for a `Node` you hold |
 | `node.comments.list()` | `list[Comment]` |
 | `Comment` | `author`, `created`, `id`, `reply_to`, `text` |
 | `node.comments.add(text, reply_to=…)` | `Comment` |
@@ -750,7 +750,7 @@ These are exported for anyone building their own flow.
 | `field_property(repo, "subject")` | short name → property, or `ValidationError` |
 | `RELATED_ON` | the fields `related()` compares by default |
 | `hit_as_dict(hit, aliases)` / `result_as_dict(result, …)` | the JSON shape used everywhere |
-| `expand_query(text, profile=GERMAN)` | `list[QueryVariant]` — rephrasings for reranking |
+| `expand_query(query, profile=GERMAN)` | `list[QueryVariant]` — rephrasings for reranking |
 | `QueryVariant` | `label`, `text`, `weight` |
 | `MAX_VARIANTS` | how many at most |
 | `search_reranked(repo, text, pool=…)` | the pooled, re-scored search |
@@ -760,7 +760,7 @@ These are exported for anyone building their own flow.
 | `term_matches(term, text)` / `query_terms(query, profile)` | the matcher and the tokeniser |
 | `deduplicate(hits)` | drops repeats across variants |
 | `name_from_title(title)` | a filesystem-safe node name |
-| `resolve_vocabulary(repo, field, value)` | label → URI, with suggestions on failure |
+| `resolve_vocabulary(repo, aliases)` | `(properties, unresolved)` — short names to properties, labels resolved; what did not resolve is listed, not sent |
 | `LanguageProfile` / `GERMAN` | stopwords and framing words; German is the only profile shipped |
 | `LanguageProfile` | `framing`, `stopwords`, `synonyms` |
 
@@ -1228,7 +1228,7 @@ rather than reporting success.
 |---|---|
 | `error_from_response(status, url, body)` | picks the class for a status code |
 | `details_withheld(error)` | `bool` — the instance hides its error details |
-| `at_least(value, minimum)` | a small bounds check used by the clients |
+| `at_least(name, value, limit)` | the bounds check the clients apply to their settings; raises `EduSharingError` naming the setting |
 
 ---
 
@@ -1238,8 +1238,8 @@ Not needed for ordinary use; documented because they are importable.
 
 | Call | Result |
 |---|---|
-| `normalize_repository_url(url)` | `str` — trailing slashes, `/edu-sharing` handling |
-| `rest_base(url)` | `str` — the REST root under it |
+| `normalize_repository_url(raw)` | `str` — trailing slashes, `/edu-sharing` handling |
+| `rest_base(repository_url)` | `str` — the REST root under it |
 | `path_segment(value)` | `str` — percent-encodes an identifier, `/` included |
 | `is_unroutable_host(host)` | `bool` — loopback, link-local, private ranges |
 | `Transport` | the HTTP layer: retries, backoff, the credential boundary |

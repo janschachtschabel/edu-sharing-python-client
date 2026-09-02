@@ -35,7 +35,8 @@ from .info import About, Identity, MetadataSet
 from .nodes import Node, Nodes
 from .people import People
 from .relations import Relations
-from .search import Search, SearchResult
+from .results import SearchResult
+from .search import Search
 from .transport import (
     DEFAULT_BACKOFF_BASE,
     DEFAULT_MAX_CONCURRENCY,

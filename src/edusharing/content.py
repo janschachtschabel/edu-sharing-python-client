@@ -186,7 +186,7 @@ class NodeContent:
                 "(node.get('ccm:wwwurl'))."
             )
         response = await self._transport.request("GET", url)
-        return response.content
+        return bytes(response.content)
 
     async def text(self, *, force_update: bool = False) -> str:
         """The extracted full text.

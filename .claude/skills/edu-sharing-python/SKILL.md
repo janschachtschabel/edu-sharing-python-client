@@ -267,17 +267,17 @@ has to be guessed — argument and return shapes are in `docs/REFERENCE.md`.
 | The job | The call |
 |---|---|
 | turn a title into a legal `cm:name` | `name_from_title(title)` |
-| turn a label into the field's URIs | `resolve_vocabulary(repo, field, label)` |
-| widen a weak query | `expand_query(text)` → `QueryVariant`: `.label` `.weight` `.text` |
-| score a hit against a query yourself | `score_hit(hit, terms)` / `query_terms(text)` / `term_matches(…)` |
+| turn short names into properties, labels resolved | `resolve_vocabulary(repo, aliases)` → `(properties, unresolved)` |
+| widen a weak query | `expand_query(query)` → `QueryVariant`: `.label` `.weight` `.text` |
+| score a hit against a query yourself | `score_hit(hit, query, aliases)` / `query_terms(query)` / `term_matches(…)` |
 | fold duplicates | `deduplicate(hits)` |
 | a result as plain JSON | `result_as_dict(result)` / `hit_as_dict(hit)` |
 | the stopword and synonym lists | `LanguageProfile`: `.stopwords` `.framing` `.synonyms`; `GERMAN_SYNONYMS` |
-| normalise an instance URL | `normalize_repository_url(url)` / `rest_base(url)` / `path_segment(id)` / `is_unroutable_host(host)` |
+| normalise an instance URL | `normalize_repository_url(raw)` / `rest_base(repository_url)` / `path_segment(value)` / `is_unroutable_host(host)` |
 | a search that reranks and reports both halves | `search_reranked(repo, text)` |
 | every sub-collection of one collection | `sub_collections(repo, id)` |
-| a node's rating without holding the node | `rating_of(repo, id)` / `rate(…)` / `unrate(…)` |
-| cap text before it reaches a model | `cap_text(text, limit)` |
+| a node's rating, from a node you hold | `rating_of(node)` / `rate(…)` / `unrate(…)` |
+| cap text before it reaches a model | `cap_text(text, max_chars)` |
 
 **Errors** — all inherit `EduSharingError`, so a single `except EduSharingError`
 catches everything this library raises:
@@ -286,7 +286,7 @@ catches everything this library raises:
 `NotFoundError` · `ValidationError` · `ConflictError` · `SilentDropError` ·
 `ServerError` · `UnsafeUrlError`
 
-`at_least(error, …)` reads a partial result out of a failure;
+`at_least(name, value, limit)` is the bounds check the clients apply to their settings;
 `details_withheld(…)` names what an error deliberately does not reveal.
 
 **The rest of `__all__`** is machinery you only touch when extending the

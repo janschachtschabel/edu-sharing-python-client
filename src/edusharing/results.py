@@ -7,6 +7,7 @@ there -- and the dependency would point the wrong way.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -183,7 +184,7 @@ class SearchResult:
     def __len__(self) -> int:
         return len(self.hits)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[SearchHit]:
         return iter(self.hits)
 
 
