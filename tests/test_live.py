@@ -406,4 +406,23 @@ async def test_eine_listing_id_ist_eine_referenz_und_die_sammlungen_kommen_trotz
             assert lage["original_id"] == eintrag["original_id"]
             assert any(c["id"] == sammlung for c in lage["collections"]), lage
             return
-    pytest.skip(f"kein anonym lesbares Material in {len(found['hits'])} Sammlungen ({geprueft} geprueft)")
+    pytest.skip(f"kein anonym lesbares Material in {len(found['hits'])} Sammlungen "
+                f"({geprueft} geprueft)")
+
+
+# --- Volltext, live --------------------------------------------------------
+
+@pytest.mark.live
+async def test_text_findet_den_text_eines_treffers(repo):
+    """Ohne Dienst: die ersten Treffer zu 'Bruchrechnung' muessen mindestens
+    einen Datensatz mit gespeichertem Text haben, und jede Antwort traegt
+    dieselben Schluessel -- auch die ohne Text, mit Grund."""
+    result = await repo.search("Bruchrechnung", limit=6)
+    quellen = []
+    for hit in result.hits:
+        got = await repo.flows.text(hit.id)
+        assert set(got) == {"id", "title", "text", "source", "source_url",
+                            "char_count", "truncated", "reason", "detail"}
+        assert (got["source"] != "none") == (got["reason"] == "")
+        quellen.append(got["source"])
+    assert "repository" in quellen, quellen

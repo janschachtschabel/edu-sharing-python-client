@@ -16,6 +16,12 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Added
 
+- **`flows.text`** — the full text of one material and why there is none:
+  the repository's text first, then the file itself for a `text/*` upload
+  (measured 2026-08-27: `/textContent` is empty for Markdown and JSON although
+  the file has text), then the linked page through a `TextExtraction` the
+  caller passes in. `source` and `reason` replace an empty string; no text is
+  an answer, not an error. Example 15 did this by hand in 215 lines.
 - **`Node.original_id`, `is_reference`, `aspects`, `redirected_from`; `SearchHit.original_id`.**
   A collection holds references, and a listing hands out their ids. The
   node now says which record it stands for, and a write through a reference

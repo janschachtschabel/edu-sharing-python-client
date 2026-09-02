@@ -640,6 +640,8 @@ als die gestellte.
 
 | Aufruf | Liefert |
 |---|---|
+| `repo.flows.text(node_id, extraction=…, max_chars=…)` | `{id, title, text, source, source_url, char_count, truncated, reason, detail}` — Repositorium → Datei → verlinkte Seite; `reason` sagt, warum keiner da ist |
+| `DEFAULT_MAX_CHARS` | `200000` — die Grenze des Ablaufs |
 | `repo.flows.describe(node_id)` | `{id, title, url, description, source_url, mimetype, mediatype, fields, name, type, aspects, original_id, access, public, has_content, keywords, properties}` |
 | `repo.flows.describe_many(ids)` | `{requested, found, nodes, failed}` — Reihenfolge bleibt |
 | `repo.flows.placement(node_id)` | `{id, original_id, title, path, collections, scope, failed}` — `path` liest sich **von oben nach unten** |

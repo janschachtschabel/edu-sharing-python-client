@@ -370,6 +370,10 @@ class SyncFlows:
         """Like ``Flows.search``, blocking."""
         return self._loop.run(self._flows.search(text, **kwargs))
 
+    def text(self, node_id: str, **kwargs: Any) -> dict[str, Any]:
+        """Like ``Flows.text``, blocking."""
+        return self._loop.run(self._flows.text(node_id, **kwargs))
+
     def search_all(self, text: str, **kwargs: Any) -> dict[str, Any]:
         """Like ``Flows.search_all``, blocking."""
         return self._loop.run(self._flows.search_all(text, **kwargs))

@@ -41,6 +41,7 @@ out by hand.
 | `search(rerank=True)` | 1 per variant (≤5), parallel | expand → query each → score and merge in memory |
 | `vocabulary` | 1 | resolve short name → fetch values (cached) |
 | `describe` | 1 | load node |
+| `text` | 1–3 | load node → stored text → (the file, for `text/*`) → (the linked page, with a service) |
 | `search_all` | 3–4 | material search (+1 to resolve a filter) + collection search (its two routes), in parallel |
 | `placement` | 3 | load node (to resolve a reference) → way up + collections of the original, in parallel |
 | `describe_many` | one per distinct id, in parallel | load each, report the ones that are gone |
@@ -412,6 +413,49 @@ node = await repo.node("abc")        # exactly the same single request
 
 This flow saves no round trip. What it changes is the shape of the answer —
 which is the whole point when the answer has to travel onwards.
+
+---
+
+## `text` — the full text of one material, and why there is none
+
+**One to three requests.** The repository's own text first (`/textContent`);
+then the file itself, when the record carries a `text/*` upload — measured on
+2026-08-27, `/textContent` returns nothing for Markdown and JSON although the
+file has text; then the linked page (`ccm:wwwurl`) through the text-extraction
+service, and only when you pass one: the library knows no service address.
+
+**Input**
+
+```python
+from edusharing.extraction import TextExtraction
+
+service = TextExtraction.from_env()          # EDU_SHARING_TEXT_EXTRACTION_URL
+repo.flows.text(node_id, extraction=service, max_chars=20_000)
+```
+
+**Output**
+
+```json
+{
+  "id": "1f71f84a-…",
+  "title": "Bruchrechnung — Arbeitsblatt",
+  "text": "Brüche addieren …",
+  "source": "repository",
+  "source_url": null,
+  "char_count": 4312,
+  "truncated": false,
+  "reason": "",
+  "detail": ""
+}
+```
+
+`source` is `repository`, `download`, `extraction` or `none`. **Read `reason`
+when it is `none`**: `node_not_found`, `access_denied`, `no_text_no_url`,
+`no_extraction_service` or `extraction_failed` — and `detail` carries the
+service's or the error's own words. No text is a normal answer, not an error,
+and a model told so can say so instead of inventing one. `source_url` names
+the linked page whenever there is one, so a caller without a service can still
+decide to fetch it. Example 15 did all of this by hand in 215 lines.
 
 ---
 

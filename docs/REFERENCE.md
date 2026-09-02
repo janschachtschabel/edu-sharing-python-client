@@ -629,6 +629,8 @@ applied — the search answered a wider question than you asked.
 
 | Call | Returns |
 |---|---|
+| `repo.flows.text(node_id, extraction=…, max_chars=…)` | `{id, title, text, source, source_url, char_count, truncated, reason, detail}` — repository → file → linked page; `reason` says why there is none |
+| `DEFAULT_MAX_CHARS` | `200000` — the flow's cap |
 | `repo.flows.describe(node_id)` | `{id, title, url, description, source_url, mimetype, mediatype, fields, name, type, aspects, original_id, access, public, has_content, keywords, properties}` |
 | `repo.flows.describe_many(ids)` | `{requested, found, nodes, failed}` — order preserved |
 | `repo.flows.placement(node_id)` | `{id, original_id, title, path, collections, scope, failed}` — `path` reads **top down** |

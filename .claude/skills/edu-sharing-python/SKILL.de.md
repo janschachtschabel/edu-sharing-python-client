@@ -132,6 +132,7 @@ der Platte.)*
 | was liegt darunter, rekursiv | `repo.flows.browse_tree(id, depth=2)` |
 | wie viel ist darin | `repo.flows.collection_stats(id)` |
 | die kuratierte Landeseite | `repo.flows.page(collection_id)` |
+| der Text eines Materials, wo immer er liegt — und *warum* keiner da ist | `repo.flows.text(node_id, extraction=…)` → `source`, `reason` lesen |
 | die Datei selbst | `node.content.download()` / `node.content.text()` |
 | die kuratierte Seite als Objekte | `node.page.get()` / `node.page.render(variant)` |
 | eine Seite der Kinder eines Knotens | `repo.nodes.children(node_id, limit=…)` |
@@ -317,6 +318,7 @@ zu verschwinden.
 | `DEFAULT_EFFORT` / `DEFAULT_VERBOSITY` | `"low"` | Denktiefe und Ausführlichkeit bei Modellen, die das können |
 | `DEFAULT_MAX_TOKENS` / `DEFAULT_MAX_OUTPUT_TOKENS` | `1000` | die Grenze einer Chat-Antwort / einer Responses-Antwort |
 | `DEFAULT_HIT_CHARS` / `DEFAULT_RESULT_CHARS` | `400` / `4000` | wie viel `format_hit` / `format_results` einem Modell reicht |
+| `DEFAULT_MAX_CHARS` | `200000` | wo `flows.text` kürzt, an einer Wortgrenze |
 | `DEFAULT_POOL` | `25` | wie viele Treffer `search(rerank=True)` vor dem Neuordnen holt |
 | `MAX_VARIANTS` | `5` | wie viele Umformulierungen `expand_query` erzeugt |
 | `DEFAULT_MAX_COLLECTIONS` / `DEFAULT_MAX_WIDGETS` | `50` / `24` | Obergrenzen für `browse_tree` und für eine gerenderte Seite |

@@ -29,6 +29,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from . import contents, curate, describe, find, pages, tree
+from . import text as text_flow
 from .language import GERMAN, LanguageProfile
 from .rerank import DEFAULT_POOL
 
@@ -98,6 +99,15 @@ class Flows:
         repository no longer has is reported there, not raised.
         """
         return await describe.describe_many(self._repo, node_ids)
+
+    async def text(self, node_id: str, **kwargs: Any) -> dict[str, Any]:
+        """The full text of one material, and why there is none. See ``text.text``.
+
+        Repository first, then the file itself for a ``text/*`` upload, then the
+        linked page -- the last only with an ``extraction=`` service passed in.
+        **Read ``reason``**: no text is a normal answer here, not an error.
+        """
+        return await text_flow.text(self._repo, node_id, **kwargs)
 
     async def related(self, node_id: str, **kwargs: Any) -> dict[str, Any]:
         """More material like this one. See ``find.related``.

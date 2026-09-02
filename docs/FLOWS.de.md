@@ -42,6 +42,7 @@ nur von Hand ausgeschrieben.
 | `search(rerank=True)` | 1 je Variante (≤5), parallel | expandieren → je Variante suchen → im Speicher bewerten und mischen |
 | `vocabulary` | 1 | Kurzname auflösen → Werte holen (zwischengespeichert) |
 | `describe` | 1 | Knoten laden |
+| `text` | 1–3 | Knoten laden → gespeicherter Text → (die Datei, bei `text/*`) → (die verlinkte Seite, mit Dienst) |
 | `search_all` | 3–4 | Materialsuche (+1 zum Auflösen eines Filters) + Sammlungssuche (ihre zwei Wege), parallel |
 | `placement` | 3 | Knoten laden (Referenz auflösen) → Weg nach oben + Sammlungen des Originals, parallel |
 | `describe_many` | eine je verschiedener ID, parallel | jeden laden, die verschwundenen melden |
@@ -423,6 +424,51 @@ node = await repo.node("abc")        # genau dieselbe eine Anfrage
 
 Dieser Ablauf spart keine Anfrage. Er ändert die Form der Antwort — und genau
 darum geht es, wenn die Antwort weiterreisen soll.
+
+---
+
+## `text` — der Volltext eines Materials, und warum es keinen gibt
+
+**Eine bis drei Anfragen.** Zuerst der eigene Text des Repositoriums
+(`/textContent`); dann die Datei selbst, wenn der Datensatz eine
+`text/*`-Datei trägt — gemessen am 27.08.2026 liefert `/textContent` für
+Markdown und JSON nichts, obwohl die Datei Text hat; dann die verlinkte Seite
+(`ccm:wwwurl`) über den Extraktionsdienst, und nur, wenn man einen übergibt:
+die Bibliothek kennt keine Dienstadresse.
+
+**Eingabe**
+
+```python
+from edusharing.extraction import TextExtraction
+
+service = TextExtraction.from_env()          # EDU_SHARING_TEXT_EXTRACTION_URL
+repo.flows.text(node_id, extraction=service, max_chars=20_000)
+```
+
+**Ausgabe**
+
+```json
+{
+  "id": "1f71f84a-…",
+  "title": "Bruchrechnung — Arbeitsblatt",
+  "text": "Brüche addieren …",
+  "source": "repository",
+  "source_url": null,
+  "char_count": 4312,
+  "truncated": false,
+  "reason": "",
+  "detail": ""
+}
+```
+
+`source` ist `repository`, `download`, `extraction` oder `none`. **Bei `none`
+`reason` lesen**: `node_not_found`, `access_denied`, `no_text_no_url`,
+`no_extraction_service` oder `extraction_failed` — und `detail` trägt die
+Worte des Dienstes oder des Fehlers. Kein Text ist eine normale Antwort, kein
+Fehler, und ein Modell, dem man das sagt, kann es weitersagen, statt einen zu
+erfinden. `source_url` nennt die verlinkte Seite, wann immer es eine gibt,
+damit ein Aufrufer ohne Dienst selbst entscheiden kann. Beispiel 15 hat das
+von Hand in 215 Zeilen gemacht.
 
 ---
 

@@ -7,16 +7,17 @@ Reads only. Nothing is created, changed or deleted. Without the extraction
 service everything but the fallback still runs, and the script says how many
 materials it could not have answered for.
 
-**Two sources, and neither covers the other.** A repository stores the full text
-of the files it *hosts*. For material that only links somewhere (`ccm:wwwurl`)
-it has nothing, because the page is not its file — that is what the extraction
-service beside it is for. Measured the other way round too: an edu-sharing
-download URL handed to the service answers 424. Each source knows what the
-other does not.
+**Three sources, and none covers the others.** A repository stores the full
+text of the files it *hosts*. For a Markdown or JSON upload it stores nothing
+(measured 2026-08-27) although the file has text -- the file itself does. For
+material that only links somewhere (`ccm:wwwurl`) it has nothing either,
+because the page is not its file -- that is what the extraction service beside
+it is for. Measured the other way round too: an edu-sharing download URL handed
+to the service answers 424. Each source knows what the others do not.
 
-There is no flow for this. A flow earns its place by composing several endpoint
-families; this composes one repository call with a second *service*, and which
-service that is, is the caller's configuration, not the repository's.
+`repo.flows.text` walks the three in that order and, when it finds nothing,
+says why -- `reason` -- instead of handing back an empty string. Until
+2026-09-02 this example did all of that by hand, in 215 lines.
 """
 
 import asyncio
@@ -24,12 +25,7 @@ import os
 import sys
 from typing import NamedTuple
 
-from edusharing import (
-    AsyncRepository,
-    EduSharingError,
-    NotFoundError,
-    PermissionDeniedError,
-)
+from edusharing import AsyncRepository, EduSharingError
 from edusharing.extraction import TextExtraction
 
 # The Windows console otherwise emits cp1252 and mangles umlauts.
@@ -66,10 +62,9 @@ LIMIT = 8
 
 
 class Tally(NamedTuple):
-    """What the table saw, for the two notes that follow it."""
-
+    """What the table saw, for the notes that follow it."""
     gaps: int
-    used_service: bool
+    sources: list[str]
     a_linked_url: str
 
 
@@ -85,65 +80,29 @@ def announce_missing_service() -> None:
 async def report_rows(
     repo: AsyncRepository, hits: list, service: TextExtraction | None
 ) -> Tally:
-    """One row per material: what the repository has, what the service adds."""
-    print(f"{'material':34s} {'repository':>10s} {'service':>18s}")
-    print("-" * 66)
+    """One row per material: where its text came from, or why there is none."""
+    print(f"{'material':34s} {'source':>12s} {'chars':>7s}  why not")
+    print("-" * 70)
     gaps = 0
-    used_service = False
+    sources: list[str] = []
     linked_seen = ""
     for hit in hits:
-        try:
-            node = await repo.nodes.get(hit.id)
-        except NotFoundError:
-            # The search index outlives its nodes -- measured, 4 of 25.
-            print(f"{hit.title[:32]:34s} {'gone':>10s}")
-            continue
-
-        try:
-            stored = await node.content.text()
-        except PermissionDeniedError:
-            # Measured 2026-08-28 against redaktion.openeduhub.net: an
-            # anonymous caller may *find* material whose content it may not
-            # *read*. Treated like "no stored text" -- the metadata came back,
-            # so the linked address is there and the service can still answer.
-            # Letting it raise would end the run over one refused row.
-            stored, refused = None, True
-        else:
-            refused = False
-
-        linked = node.get("ccm:wwwurl")
-        column = f"{'refused':>10s}" if refused else f"{len(stored or ''):>10d}"
-        linked_seen = linked_seen or (linked or "")
-
-        if stored or not linked:
-            print(f"{node.title[:32]:34s} {column}")
-            continue
-
-        if service is None:
+        # One call. Repository text, then the file for a text/* upload, then the
+        # linked page through the service -- and a reason when all three fail.
+        # A node the index still knows but the repository no longer has is a
+        # reason too (`node_not_found`), not an exception that ends the table.
+        got = await repo.flows.text(hit.id, extraction=service, max_chars=20_000)
+        sources.append(got["source"])
+        linked_seen = linked_seen or (got["source_url"] or "")
+        if got["reason"] == "no_extraction_service":
             gaps += 1
-            print(f"{node.title[:32]:34s} {column} {'(needs service)':>18s}")
-            continue
-
-        used_service = True
-        try:
-            got = await service.text_of(linked, max_chars=20_000)
-        except EduSharingError as exc:
-            # No text is one thing, a broken service another: `text_of` answers
-            # the first with a `reason` and raises for the second. Measured
-            # 2026-08-28, the service returned HTTP 500 for one address among
-            # eight. One bad row must not end the table.
-            print(f"{node.title[:32]:34s} {column} {'service failed':>18s}")
-            print(f"    {type(exc).__name__}: {str(exc)[:56]}")
-            continue
-
-        # No text is a normal outcome, not an error -- `reason` says which.
-        answer = f"{got.char_count} chars" if got.text else f"none: {got.reason}"
-        print(f"{node.title[:32]:34s} {column} {answer:>18s}")
-        if got.text:
-            print(f"    {got.lang}  “{got.text[:70].strip()}…”")
-        elif got.detail:
-            print(f"    {got.detail[:60]}")
-    return Tally(gaps, used_service, linked_seen)
+        title = (got["title"] or hit.title)[:32]
+        print(f"{title:34s} {got['source']:>12s} {got['char_count']:>7d}  {got['reason']}")
+        if got["text"]:
+            print(f"    “{got['text'][:70].strip()}…”")
+        elif got["detail"]:
+            print(f"    {got['detail'][:66]}")
+    return Tally(gaps, sources, linked_seen)
 
 
 async def demonstrate_service(service: TextExtraction, url: str) -> None:
@@ -169,18 +128,18 @@ async def demonstrate_service(service: TextExtraction, url: str) -> None:
     print()
 
 
-def closing_note(service: TextExtraction | None, gaps: int) -> None:
-    """What the zeros in the table do and do not mean."""
-    if service is None and gaps:
-        print(f"{gaps} of these carry no stored text and link elsewhere. Without the")
-        print("service this library cannot answer for them — and an empty")
-        print("`content.text()` would look like an empty page rather than a gap.")
+def closing_note(service: TextExtraction | None, tally: Tally) -> None:
+    """What `none` in the table does and does not mean."""
+    if service is None and tally.gaps:
+        print(f"{tally.gaps} of these carry no stored text and link elsewhere. Without")
+        print("the service this library cannot answer for them — and the flow says")
+        print("so (`no_extraction_service`) instead of showing an empty page.")
     elif service is None:
-        print("Every material here had stored text, so nothing was missed.")
+        print("Every material here had text of its own, so nothing was missed.")
     else:
-        print("A zero in the repository column is not an empty file: Markdown and")
-        print("JSON are not extracted at all (measured), and for linked material")
-        print("there is nothing to extract. `content.download()` still has the bytes.")
+        counted = {s: tally.sources.count(s) for s in sorted(set(tally.sources))}
+        print(f"Where the text came from: {counted}. `download` is the Markdown")
+        print("case: the repository extracts nothing from it, the file has it all.")
 
 
 async def main(topic: str = "Photosynthese") -> int:
@@ -198,9 +157,9 @@ async def main(topic: str = "Photosynthese") -> int:
         try:
             tally = await report_rows(repo, result.hits, service)
             print()
-            if service is not None and not tally.used_service and tally.a_linked_url:
+            if service is not None and "extraction" not in tally.sources and tally.a_linked_url:
                 await demonstrate_service(service, tally.a_linked_url)
-            closing_note(service, tally.gaps)
+            closing_note(service, tally)
         finally:
             if service is not None:
                 await service.aclose()

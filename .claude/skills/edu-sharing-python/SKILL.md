@@ -121,6 +121,7 @@ table.
 | what is underneath, recursively | `repo.flows.browse_tree(id, depth=2)` |
 | how much is in there | `repo.flows.collection_stats(id)` |
 | the curated landing page | `repo.flows.page(collection_id)` |
+| the text of a material, wherever it is — and *why* there is none | `repo.flows.text(node_id, extraction=…)` → read `source`, `reason` |
 | the file itself | `node.content.download()` / `node.content.text()` |
 | the curated page as objects | `node.page.get()` / `node.page.render(variant)` |
 | one page of a node's children | `repo.nodes.children(node_id, limit=…)` |
@@ -303,6 +304,7 @@ so the value has a name instead of being buried in a signature.
 | `DEFAULT_EFFORT` / `DEFAULT_VERBOSITY` | `"low"` | reasoning and verbosity on models that support them |
 | `DEFAULT_MAX_TOKENS` / `DEFAULT_MAX_OUTPUT_TOKENS` | `1000` | the cap on a chat answer / on a responses answer |
 | `DEFAULT_HIT_CHARS` / `DEFAULT_RESULT_CHARS` | `400` / `4000` | how much `format_hit` / `format_results` hands a model |
+| `DEFAULT_MAX_CHARS` | `200000` | where `flows.text` cuts, at a word boundary |
 | `DEFAULT_POOL` | `25` | how many hits `search(rerank=True)` fetches before reranking |
 | `MAX_VARIANTS` | `5` | how many rewrites `expand_query` produces |
 | `DEFAULT_MAX_COLLECTIONS` / `DEFAULT_MAX_WIDGETS` | `50` / `24` | ceilings on `browse_tree` and on a rendered page |
