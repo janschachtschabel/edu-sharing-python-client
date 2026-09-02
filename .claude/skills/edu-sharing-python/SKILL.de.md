@@ -330,7 +330,7 @@ zu verschwinden.
 | `DEFAULT_MAX_TOKENS` / `DEFAULT_MAX_OUTPUT_TOKENS` | `1000` | die Grenze einer Chat-Antwort / einer Responses-Antwort |
 | `DEFAULT_HIT_CHARS` / `DEFAULT_RESULT_CHARS` | `400` / `4000` | wie viel `format_hit` / `format_results` einem Modell reicht |
 | `DEFAULT_MAX_CHARS` | `200000` | wo `flows.text` kürzt, an einer Wortgrenze |
-| `SKILL_SEARCH_PAGE` / `SKILL_BUNDLE_MAX` / `SKILL_VISIT_MAX` | `50` / `50` / `30` | Skill-Treffer im Pool · Begleitdateien, bevor ein Ordner als Eingang zählt · Sammlungen je Gang |
+| `SKILL_SEARCH_PAGE` / `SKILL_BUNDLE_MAX` / `SKILL_VISIT_MAX` / `SKILL_DEPTH_MAX` | `50` / `50` / `30` / `2` | Skill-Treffer im Pool · Begleitdateien, bevor ein Ordner als Eingang zählt · Sammlungen je Gang · Ebenen, die der Gang hinabsteigt |
 | `REGISTRY_SCAN_MAX` / `REGISTRY_MAX` / `REGISTRY_POOL` / `REGISTRY_CONTEXT_MAX` | `50` / `100` / `10` / `50` | Dateien auf der Suche nach der Registry · Einträge je Antwort · Köpfe auf einmal · Kontexte je Antwort |
 | `DUPLICATE_SCAN_LIMIT` | `20` | Treffer, die `find_by_url` vergleicht, bevor `add_material` anlegt; `check_before_create` wendet `if_exists` an |
 | `EXCLUSION_MAX` | `200` | die größte Seite, die `search` nach `exclude_ids` nachfüllt |

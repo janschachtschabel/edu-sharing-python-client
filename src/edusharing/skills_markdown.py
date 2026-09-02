@@ -211,8 +211,14 @@ def parse_sections(text: str) -> list[MarkdownSection]:
     return sections
 
 
-def layout_contexts(text: str, blocks: list[SkillReference]) -> ContextLayout:
-    """Assign every block to the named ``##``/``###`` it sits under."""
+def layout_contexts(
+    text: str, blocks: list[SkillReference], *, skill_kind: str = "ki-skill"
+) -> ContextLayout:
+    """Assign every block to the named ``##``/``###`` it sits under.
+
+    ``skill_kind`` says which block kind names a skill -- only those fill the
+    ``skills`` lists; every block gets a ``path``.
+    """
     outline = _Outline(text, parse_sections(text), [b.offset for b in blocks])
     paths: list[str | None] = []
     skills_of: dict[int, list[str]] = {id(s): [] for s in outline.named}
@@ -220,7 +226,7 @@ def layout_contexts(text: str, blocks: list[SkillReference]) -> ContextLayout:
     for block in blocks:
         owner = outline.owner_at(block.offset)
         paths.append(outline.path_of(owner) if owner else None)
-        if block.kind == "ki-skill" and block.node_id:
+        if block.kind == skill_kind and block.node_id:
             (skills_of[id(owner)] if owner else general_skills).append(block.node_id)
 
     contexts = [

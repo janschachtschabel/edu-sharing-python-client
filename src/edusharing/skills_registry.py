@@ -21,7 +21,7 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from .errors import EduSharingError, NotFoundError
+from .errors import NotFoundError, PermissionDeniedError
 from .skills import WLO_SKILLS, SkillConventions, registry_mark
 from .skills_markdown import RegistryContext, RegistryGeneral, layout_contexts, parse_blocks
 from .urls import path_segment
@@ -117,7 +117,9 @@ async def load_registry(
         )
     except NotFoundError:
         return SkillRegistry(collection_id, reason="collection_not_found")
-    except EduSharingError:
+    except PermissionDeniedError:
+        # A refusal is a finding about the collection; a transport or
+        # server failure is not, and raises like everywhere else.
         return SkillRegistry(collection_id, reason="unreadable")
 
     nodes = list(listing.get("nodes") or [])
@@ -141,23 +143,27 @@ async def load_registry(
     try:
         record = await repo.node(registry_id)
         markdown = (await record.content.download()).decode("utf-8", errors="replace")
-    except EduSharingError:
+    except (NotFoundError, PermissionDeniedError):
         return _with(base, reason="unreadable")
 
     blocks = parse_blocks(markdown, conventions.block_kinds)
-    layout = layout_contexts(markdown, blocks)
-    skills = [(b, layout.paths[i]) for i, b in enumerate(blocks) if b.kind == "ki-skill"]
+    layout = layout_contexts(markdown, blocks, skill_kind=conventions.skill_kind)
+    skills = [(b, layout.paths[i]) for i, b in enumerate(blocks)
+              if b.kind == conventions.skill_kind]
     capped = skills[:REGISTRY_MAX]
     truncated = (len(capped), len(skills)) if len(skills) > len(capped) else None
 
     unresolved = [{"title": b.title, "node_id": ""} for b, _ in capped if not b.node_id]
     with_id = [(b, path) for b, path in capped if b.node_id]
+    # One read per record: a skill filed under two contexts is two entries,
+    # not two requests.
+    unique = list(dict.fromkeys(b.node_id for b, _ in with_id))
+    heads: dict[str, dict[str, Any] | None] = dict.fromkeys(unique)
     if resolve:
-        heads = await _read_heads(repo, [b.node_id for b, _ in with_id])
-    else:
-        heads = [None] * len(with_id)
+        heads = dict(zip(unique, await _read_heads(repo, unique), strict=True))
     entries: list[RegistryEntry] = []
-    for (block, path), head in zip(with_id, heads, strict=True):
+    for block, path in with_id:
+        head = heads[block.node_id]
         if resolve and head is None:
             unresolved.append({"title": block.title, "node_id": block.node_id})
             continue
@@ -203,7 +209,7 @@ async def _read_heads(repo: AsyncRepository, ids: list[str]) -> list[dict[str, A
         async with gate:
             try:
                 return (await repo.node(node_id)).raw
-            except EduSharingError:
+            except (NotFoundError, PermissionDeniedError):
                 return None
 
     return list(await asyncio.gather(*(one(i) for i in ids)))

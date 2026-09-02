@@ -59,6 +59,16 @@ and in [`docs/audits/`](docs/audits/).
   only `text/*` fell back to the file; and a 5xx while fetching the extract
   raised out of a flow whose contract is "no text is an answer" -- it is
   now `reason="repository_failed"` with `detail`.
+- **Skills: the walk survives a refused sub-collection, and the block kind
+  is a parameter.** One 403 among the sub-collections of a skills tree
+  raised out of the whole search (the A10 precedent again); it is now
+  counted in `SkillSearch.unreadable` and skipped, the root refusing stays
+  an error. Sub-collections beyond one page set `truncated`. The kind that
+  names a skill (`ki-skill`) was hard-wired in two places; it is
+  `SkillConventions.skill_kind`. A registry naming one skill under two
+  contexts reads its record once; transport and server errors raise
+  instead of posing as `unresolved`; a skill's folder answering 404 is
+  `files_reason="no_folder"`; `pick(..., include_files=False)` reaches `get`.
 
 ## [0.1.0] — 2026-09-02
 

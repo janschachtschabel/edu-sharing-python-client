@@ -11,28 +11,28 @@ Status: `[ ]` offen · `[x]` erledigt · `[-]` bewusst nicht (Begründung).
 
 ## A — Skills (`skills.py`, `skills_registry.py`, `skills_markdown.py`, `flows/skills.py`)
 
-- [ ] A1 MAJOR — Blockart `ki-skill` steht wörtlich in `load_registry` und
+- [x] A1 MAJOR — Blockart `ki-skill` steht wörtlich in `load_registry` und
   `layout_contexts`, obwohl `SkillConventions.block_kinds` der Parameter ist.
   → `SkillConventions.skill_kind` (Vorgabe `ki-skill`), `layout_contexts(..., skill_kind=)`.
 - [ ] A2 MAJOR — Kurznamen werden in `Skills.search` über `resolve_vocabulary`
   auf EINE URI aufgelöst; `repo.search` nimmt alle URIs eines Labels
   (`resolve_all`). Gleiches Muster in `find_collections` (C4). → ein
   Lese-Resolver mit allen Werten je Label.
-- [ ] A3 MAJOR — `_walk`: ein 403/404 einer Untersammlung wirft die ganze Suche
+- [x] A3 MAJOR — `_walk`: ein 403/404 einer Untersammlung wirft die ganze Suche
   (Präzedenz A10 in `flows/tree.py`). → je Untersammlung fangen, zählen
   (`SkillSearch.unreadable`), weiterlaufen; Fehler der Wurzel bleibt ein Fehler.
 - [ ] A4 MAJOR — Der Sammlungszweig (`_walk`, `_is`, `_carries`, Tiefe, Besuchs-
   grenze, `truncated`) ist ungetestet; ebenso `resolve=False`, `REGISTRY_MAX`,
   `scan_truncated`, `reason="unreadable"`, Block ohne ID, `no_folder`, eigene
   `block_kinds`. → Tests.
-- [ ] A5 MINOR — Untersammlungen jenseits der Listenseite (50) fallen ohne
+- [x] A5 MINOR — Untersammlungen jenseits der Listenseite (50) fallen ohne
   `truncated` weg. → `pagination.total` prüfen.
-- [ ] A6 MINOR — `_bundle` fängt nur 403; ein 404 des Ordners wirft nach dem
+- [x] A6 MINOR — `_bundle` fängt nur 403; ein 404 des Ordners wirft nach dem
   Download. → auch `NotFoundError` → `files_reason="no_folder"`.
-- [ ] A7 MINOR — `except EduSharingError` in `load_registry`/`_read_heads`
+- [x] A7 MINOR — `except EduSharingError` in `load_registry`/`_read_heads`
   macht Transport-/Serverfehler zu „unreadable"/„unresolved". → auf
   `NotFoundError | PermissionDeniedError` verengen, Rest wirft.
-- [ ] A8 MINOR — Ein zweimal genannter Skill wird zweimal gelesen. → IDs
+- [x] A8 MINOR — Ein zweimal genannter Skill wird zweimal gelesen. → IDs
   entdoppeln, zurück abbilden.
 - [ ] A9 MINOR — Im Sammlungszweig sortiert `text` nur, filtert nicht; die
   Docstrings von `search`/`pick` versprechen Treffer. → lokal ohne Treffer
@@ -48,12 +48,16 @@ Status: `[ ]` offen · `[x]` erledigt · `[-]` bewusst nicht (Begründung).
   unbenannter Unterabschnitte dem Besitzer anhängen; H4+ schneidet nicht.
 - [ ] A13 NIT — `_document` rechnet `asdict` doppelt; `range` wird stumm
   verworfen. → `asdict(doc)`; `range` mit Kommentar entfernen.
-- [ ] A14 NIT — `pick(text, include_files=False)` wirft. → `include_files`
+- [x] A14 NIT — `pick(text, include_files=False)` wirft. → `include_files`
   durchreichen.
-- [ ] A15 NIT — Kommentar an `registry_mark` falsch; `SKILL_DEPTH_MAX` fehlt
+- [x] A15 NIT (teils) — Kommentar an `registry_mark` falsch; `SKILL_DEPTH_MAX` fehlt
   in `__all__`; `SyncSkills` fehlt in `_sync.__all__`; Registry-Knoten wird
   nach dem Listing erneut gelesen; Fassaden-Docstring behauptet „kein
   `**kwargs`"; Beispiel 21 behauptet, `mds_oeh` sei für die Registry nötig.
+  Bleibt: der zweite Lesezugriff auf den Registry-Knoten — `download()`
+  braucht `downloadUrl` und `content` aus dem Datensatz, die ein Listing
+  nicht auf jeder Instanz trägt; eine Anfrage ist der Preis der Sicherheit.
+  Fassade, `_sync.__all__` und Beispiel 21 folgen im Doku-Commit.
 
 ## C — Suche, Konfiguration, Sync (`flows/find.py`, `flows/collections.py`, `flows/serialize.py`, `_sync.py`, Wächter)
 
@@ -106,37 +110,37 @@ Status: `[ ]` offen · `[x]` erledigt · `[-]` bewusst nicht (Begründung).
 Die Teilung selbst ist verhaltensgleich (Zeile für Zeile gegen `f8f8b0a~1`
 geprüft); die Befunde betreffen Verhalten, das schon vorher so war.
 
-- [ ] B1 MAJOR — `Nodes.create` prüft `cm:name` mit nach; bei einer
+- [x] B1 MAJOR — `Nodes.create` prüft `cm:name` mit nach; bei einer
   Namenskollision, die `renameIfExists` mit Zähler löst, fliegt
   `SilentDropError` mit falscher Diagnose. Jeder Wiederholungslauf von
   `add_material` mit gleichem Titel im selben Ordner scheitert. → `cm:name`
   aus der Probe nehmen; der gespeicherte Name ist `node.name`.
-- [ ] B2 MAJOR — `accept_suggestion` schreibt den Vorschlag mit
+- [x] B2 MAJOR — `accept_suggestion` schreibt den Vorschlag mit
   `set_property`, das die GANZE Liste ersetzt: ein Schlagwort-Vorschlag
   löscht alle anderen Schlagwörter. → Schlagwörter zusammenführen
   (`add_keywords`); sonst ersetzen und die ersetzten Werte nennen
   (`replaced`).
-- [ ] B3 MAJOR — `set_property(None)` liest nach, prüft aber nicht: eine
+- [x] B3 MAJOR — `set_property(None)` liest nach, prüft aber nicht: eine
   Instanz, die 200 sagt und die Eigenschaft behält, gilt als gelöscht. →
   `SilentDropError`, wenn die Eigenschaft noch da ist.
-- [ ] B4 MINOR — Mit `verify=False` geht ein Schreibvorgang über eine Referenz
+- [x] B4 MINOR — Mit `verify=False` geht ein Schreibvorgang über eine Referenz
   ans Original, zurück kommt aber die Referenz ohne `redirected_from`; ein
   Fehler des Originals nennt eine URL, die der Aufrufer nie hatte. → bei
   Umleitung trotzdem lesen (nur die Probe entfällt); Fehlern eine Notiz
   anhängen.
-- [ ] B5 MINOR — `find_by_url` sieht `result.unresolved` nicht an: eine Adresse
+- [x] B5 MINOR — `find_by_url` sieht `result.unresolved` nicht an: eine Adresse
   ohne `http(s)://` wird nicht gesendet, 20 ungefilterte Treffer verglichen,
   „kein Duplikat" gemeldet. → `ValidationError`, damit `check_before_create`
   warnt bzw. verweigert.
-- [ ] B6 MINOR — `decide()` steht in `accept_suggestion` außerhalb des `try`:
+- [x] B6 MINOR — `decide()` steht in `accept_suggestion` außerhalb des `try`:
   scheitert das Markieren nach dem Schreiben, geht das Ergebnis verloren.
   → fangen, `failed`-Teil `mark`, Antwort sagt, dass der Wert geschrieben ist.
-- [ ] B7 MINOR — `update_material` verschweigt die Umleitung (Antwort trägt die
+- [x] B7 MINOR — `update_material` verschweigt die Umleitung (Antwort trägt die
   ID des Originals, nicht die übergebene). → `redirected_from` in Antwort
   und Doku.
-- [ ] B8 MINOR — `placement` fängt `BaseException`. → nur `EduSharingError`,
+- [x] B8 MINOR — `placement` fängt `BaseException`. → nur `EduSharingError`,
   alles andere wirft.
-- [ ] B9 MINOR — `flows.text`: JSON hat Text, fällt aber nicht auf `download`
+- [x] B9 MINOR — `flows.text`: JSON hat Text, fällt aber nicht auf `download`
   zurück; `text()`/`download()` ungeschützt (5xx wirft aus einem Ablauf,
   dessen Vertrag „kein Text ist eine Antwort" ist). → JSON in den Rückfall;
   fangen, Grund `repository_failed` mit `detail`.
@@ -148,13 +152,13 @@ geprüft); die Befunde betreffen Verhalten, das schon vorher so war.
   scheiterndem Knotenlesen; `flows.delete` an einer Referenz;
   `accept_suggestion` an Referenz und mit scheiterndem `decide`;
   `check_before_create` mit ungültigem `if_exists`.
-- [ ] B12 NIT — `if_exists` wird nur mit `url` geprüft. → immer prüfen.
-- [ ] B13 NIT — `describe`-Docstring ohne die vier Trefferfelder; „sechs
+- [x] B12 NIT — `if_exists` wird nur mit `url` geprüft. → immer prüfen.
+- [x] B13 NIT — `describe`-Docstring ohne die vier Trefferfelder; „sechs
   Gründe" bei fünf Codes.
 - [-] B14 NIT — Drei Anfragen in `placement` sind der richtige Kompromiss
   (`/parents` scheitert bei fremdem Material in 18 von 20 Fällen); keine
   Änderung.
-- [ ] B15 NIT — `update(node, properties, verify, aliases)` positional;
+- [x] B15 NIT — `update(node, properties, verify, aliases)` positional;
   `route` als freier String. → keyword-only, `Literal`. `__all__` bleibt
   (interne Helfer; das Modul sagt es).
 

@@ -34,7 +34,7 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from .errors import PermissionDeniedError
+from .errors import NotFoundError, PermissionDeniedError
 from .flows.fields import resolve_vocabulary
 from .flows.ranking import query_terms, term_matches
 from .results import original_id_of
@@ -55,6 +55,7 @@ __all__ = [
     "Skills",
     "WLO_SKILLS",
     "SKILL_BUNDLE_MAX",
+    "SKILL_DEPTH_MAX",
     "SKILL_SEARCH_PAGE",
     "SKILL_VISIT_MAX",
 ]
@@ -94,6 +95,8 @@ class SkillConventions:
         {"text/x-web-markdown", "text/markdown", "text/x-markdown"})
     #: The ``:::`` block kinds a document may carry.
     block_kinds: tuple[str, ...] = ("ki-skill", "wlo-material")
+    #: Which of them names a skill -- the kind a registry lists.
+    skill_kind: str = "ki-skill"
 
 
 WLO_SKILLS = SkillConventions()
@@ -149,6 +152,9 @@ class SkillSearch:
     unresolved: list[dict[str, Any]] = field(default_factory=list)
     #: Whether a cap cut the candidates short: the search page, or the walk.
     truncated: bool = False
+    #: Sub-collections the walk could not open (403 or 404) -- skipped and
+    #: counted, never fatal; the root refusing is an error instead.
+    unreadable: int = 0
 
 
 class Skills:
@@ -189,8 +195,9 @@ class Skills:
             **aliases: configured short names, resolved against the vocabulary.
         """
         wanted, unresolved = await resolve_vocabulary(self._repo, aliases)
+        unreadable = 0
         if collection_id:
-            raw_nodes, truncated = await self._walk(
+            raw_nodes, truncated, unreadable = await self._walk(
                 collection_id, include_subcollections, conventions)
             candidates = [
                 n for n in raw_nodes
@@ -209,7 +216,8 @@ class Skills:
         terms = query_terms(text)
         if terms:
             summaries.sort(key=lambda s: -_score(s, terms))
-        return SkillSearch(hits=summaries[:limit], unresolved=unresolved, truncated=truncated)
+        return SkillSearch(hits=summaries[:limit], unresolved=unresolved,
+                           truncated=truncated, unreadable=unreadable)
 
     async def get(
         self, node_id: str, *, include_files: bool = True,
@@ -261,10 +269,12 @@ class Skills:
         """
         kwargs.setdefault("limit", 5)
         conventions = kwargs.get("conventions", WLO_SKILLS)
+        include_files = kwargs.pop("include_files", True)
         found = await self.search(text, **kwargs)
         if not found.hits:
             return None
-        best = await self.get(found.hits[0].id, conventions=conventions)
+        best = await self.get(
+            found.hits[0].id, include_files=include_files, conventions=conventions)
         return best, found.hits[1:]
 
     # --- Internals --------------------------------------------------------
@@ -295,6 +305,10 @@ class Skills:
             page = await self._repo.nodes.children(folder, limit=SKILL_BUNDLE_MAX + 1)
         except PermissionDeniedError:
             return [], "folder_unreadable", None
+        except NotFoundError:
+            # The record names a folder that is gone: still a reason, not a
+            # missing skill -- the instruction was already read.
+            return [], "no_folder", None
         if page.total > SKILL_BUNDLE_MAX:
             return [], "too_many", page.total
         skip = {node.id, owner.id}
@@ -306,46 +320,83 @@ class Skills:
 
     async def _walk(
         self, root: str, include_subcollections: bool, conventions: SkillConventions
-    ) -> tuple[list[dict[str, Any]], bool]:
-        """Breadth-first over a skills tree: the root's files, then its sub-collections'."""
+    ) -> tuple[list[dict[str, Any]], bool, int]:
+        """Breadth-first over a skills tree: the root's files, then its sub-collections'.
+
+        Returns the records, whether a cap cut the walk short, and how many
+        sub-collections could not be opened. Those are skipped and counted --
+        a curated tree lists collections the account may not read (measured
+        by audit A10 for ``browse_tree``), and one refusal must not turn a
+        partial answer into none. The root refusing is the answer itself.
+        """
         found: list[dict[str, Any]] = []
         visited = {root}
         level = [root]
-        truncated = False
+        truncated, unreadable = False, 0
         for _depth in range(SKILL_DEPTH_MAX + 1):
             next_level: list[str] = []
             for collection_id in level:
-                listing = await self._repo.raw.json(
-                    "GET", f"/node/v1/nodes/-home-/{path_segment(collection_id)}/children",
-                    params={"filter": "files", "maxItems": _PAGE, "skipCount": 0,
-                            # Both, measured: the collection route returns the
-                            # content type under -all-, the node route only
-                            # when asked for it by name (MCP, 2026-08-08).
-                            "propertyFilter": ["-all-", conventions.type_property]},
-                )
-                found.extend(listing.get("nodes") or [])
-                if int((listing.get("pagination") or {}).get("total") or 0) > _PAGE:
-                    truncated = True
+                try:
+                    nodes, more = await self._files_of(collection_id, conventions)
+                except (PermissionDeniedError, NotFoundError):
+                    if collection_id == root:
+                        raise
+                    unreadable += 1
+                    continue
+                found.extend(nodes)
+                truncated = truncated or more
                 if not include_subcollections:
                     continue
-                subs = await self._repo.raw.json(
-                    "GET", f"/collection/v1/collections/-home-/{path_segment(collection_id)}"
-                           "/children/collections",
-                    params={"maxItems": _PAGE},
-                )
-                for sub in subs.get("collections") or []:
-                    sub_id = (sub.get("ref") or {}).get("id") or ""
-                    if not sub_id or sub_id in visited:
-                        continue
-                    if len(visited) >= SKILL_VISIT_MAX:
-                        truncated = True
-                        continue
-                    visited.add(sub_id)
-                    next_level.append(sub_id)
+                try:
+                    subs, more_subs = await self._subs_of(collection_id)
+                except (PermissionDeniedError, NotFoundError):
+                    unreadable += 1
+                    continue
+                truncated = _enqueue(subs, visited, next_level) or more_subs or truncated
             if not next_level:
                 break
             level = next_level
-        return found, truncated
+        return found, truncated, unreadable
+
+    async def _files_of(
+        self, collection_id: str, conventions: SkillConventions
+    ) -> tuple[list[dict[str, Any]], bool]:
+        """One page of a collection's files, and whether there were more."""
+        listing = await self._repo.raw.json(
+            "GET", f"/node/v1/nodes/-home-/{path_segment(collection_id)}/children",
+            params={"filter": "files", "maxItems": _PAGE, "skipCount": 0,
+                    # Both, measured: the collection route returns the
+                    # content type under -all-, the node route only
+                    # when asked for it by name (MCP, 2026-08-08).
+                    "propertyFilter": ["-all-", conventions.type_property]},
+        )
+        nodes = list(listing.get("nodes") or [])
+        return nodes, int((listing.get("pagination") or {}).get("total") or 0) > _PAGE
+
+    async def _subs_of(self, collection_id: str) -> tuple[list[str], bool]:
+        """The ids of a collection's sub-collections, and whether there were more."""
+        subs = await self._repo.raw.json(
+            "GET", f"/collection/v1/collections/-home-/{path_segment(collection_id)}"
+                   "/children/collections",
+            params={"maxItems": _PAGE},
+        )
+        ids = [sid for sub in subs.get("collections") or []
+               if (sid := (sub.get("ref") or {}).get("id"))]
+        return ids, int((subs.get("pagination") or {}).get("total") or 0) > _PAGE
+
+
+def _enqueue(subs: list[str], visited: set[str], next_level: list[str]) -> bool:
+    """Queue unseen sub-collections up to ``SKILL_VISIT_MAX``; ``True`` when the cap bit."""
+    capped = False
+    for sub_id in subs:
+        if sub_id in visited:
+            continue
+        if len(visited) >= SKILL_VISIT_MAX:
+            capped = True
+            continue
+        visited.add(sub_id)
+        next_level.append(sub_id)
+    return capped
 
 
 def _first(value: Any) -> str | None:
@@ -387,6 +438,6 @@ def _score(skill: SkillSummary, terms: list[str]) -> int:
     )
 
 
-#: Precompiled once; the pattern is a convention and a parameter.
 def registry_mark(conventions: SkillConventions) -> re.Pattern[str]:
+    """The registry pattern as a regex -- a convention, hence a parameter."""
     return re.compile(conventions.registry_mark, re.I)

@@ -24,6 +24,7 @@ import httpx
 import pytest
 
 from edusharing import AsyncRepository
+from edusharing.errors import PermissionDeniedError, ServerError
 from edusharing.skills import WLO_SKILLS, SkillConventions
 
 REPO = "https://repo.test/edu-sharing"
@@ -33,6 +34,7 @@ RENDER = f"{REPO}/components/render/"
 SA = "aaaaaaaa-0000-4000-8000-000000000001"
 SB = "bbbbbbbb-0000-4000-8000-000000000002"
 SC = "cccccccc-0000-4000-8000-000000000003"
+SD = "dddddddd-0000-4000-8000-00000000000d"   # ein Skill in einer Untersammlung
 REF_A = "ffffffff-0000-4000-8000-00000000000a"   # Referenz auf SA in einer Sammlung
 FOLDER = "f0f0f0f0-0000-4000-8000-0000000000f0"
 COLL = "c0c0c0c0-0000-4000-8000-0000000000c0"
@@ -87,7 +89,9 @@ def _fehler(name: str) -> dict[str, str]:
 class Instanz:
     def __init__(self, *, folder_status: int = 200, folder_total: int = 3,
                  registry_docs: list[dict] | None = None, coll_status: int = 200,
-                 registry_text: str = REG_MD) -> None:
+                 registry_text: str = REG_MD, unter: dict[str, int] | None = None,
+                 unter_total: int | None = None,
+                 kopf_status: dict[str, int] | None = None) -> None:
         self.nodes = {
             SA: _skill(SA, "Lehrprofil auswerten", keywords=("Lehrkontext",),
                        description="erfasst den Kontext"),
@@ -103,6 +107,13 @@ class Instanz:
         self.folder_status, self.folder_total = folder_status, folder_total
         self.coll_status = coll_status
         self.registry_docs = registry_docs if registry_docs is not None else [self.nodes[REG]]
+        # Untersammlungen von COLL: ID -> Status ihrer Dateiliste (200 = ein Skill SD).
+        self.unter = unter or {}
+        self.unter_total = unter_total          # pagination.total der Sammlungsliste
+        self.kopf_status = kopf_status or {}    # /metadata-Status je Knoten
+        if self.unter:
+            self.nodes[SD] = _skill(SD, "Stunde planen", keywords=("Planung",))
+            self.texts[SD] = "# Stunde\n\nAnleitung D."
         self.anfragen: list[httpx.Request] = []
 
     def handler(self, request: httpx.Request) -> httpx.Response:
@@ -122,6 +133,8 @@ class Instanz:
                                              "pagination": _seite(len(hits), len(hits))})
         if pfad.endswith("/metadata"):
             nid = pfad.split("/-home-/")[1].split("/")[0]
+            if nid in self.kopf_status:
+                return httpx.Response(self.kopf_status[nid], json=_fehler("Kaputt"))
             if nid not in self.nodes:
                 return httpx.Response(404, json={"error": "DAOMissingException", "message": nid})
             return httpx.Response(200, json={"node": self.nodes[nid]})
@@ -145,6 +158,17 @@ class Instanz:
             docs = [*self.registry_docs, self.nodes[REF_A]]
             return httpx.Response(200, json={"nodes": docs,
                                              "pagination": _seite(len(docs), len(docs))})
+        if pfad.endswith(f"/{COLL}/children/collections"):
+            subs = [{"ref": {"id": s}, "title": f"Unter {s}"} for s in self.unter]
+            total = self.unter_total if self.unter_total is not None else len(subs)
+            return httpx.Response(200, json={"collections": subs,
+                                             "pagination": {"total": total}})
+        for sub, status in self.unter.items():
+            if pfad.endswith(f"/{sub}/children"):
+                if status != 200:
+                    return httpx.Response(status, json=_fehler("DAOSecurityException"))
+                return httpx.Response(200, json={"nodes": [self.nodes[SD]],
+                                                 "pagination": _seite(1, 1)})
         if pfad.endswith("/children/collections"):
             return httpx.Response(200, json={"collections": [], "pagination": {"total": 0}})
         raise AssertionError(f"unerwartet: {request.method} {pfad} {params}")
@@ -200,6 +224,52 @@ async def test_eigene_konventionen_ersetzen_die_vorgabe():
     assert [h.id for h in got.hits] == [SA]
 
 
+# --- Der Sammlungszweig ----------------------------------------------------
+
+async def test_der_sammlungszweig_findet_skills_in_untersammlungen():
+    instanz = Instanz(unter={"u1": 200})
+    async with instanz.repo() as repo:
+        got = await repo.skills.search("", collection_id=COLL, include_subcollections=True)
+    assert {h.original_id for h in got.hits} == {SA, SD}, (
+        "die Referenz mit ihrem Original, dazu der Skill der Untersammlung")
+    assert [h.id for h in got.hits if h.original_id == SA] == [REF_A], (
+        "gelistet ist die Referenz -- das Original steht nicht in der Sammlung")
+    assert got.unreadable == 0 and got.truncated is False
+    assert not any("/search/v1" in r.url.path for r in instanz.anfragen), "nie ueber den Index"
+
+
+async def test_ohne_untersammlungen_bleibt_es_bei_der_wurzel():
+    instanz = Instanz(unter={"u1": 200})
+    async with instanz.repo() as repo:
+        got = await repo.skills.search("", collection_id=COLL)
+    assert {h.original_id for h in got.hits} == {SA}
+
+
+async def test_eine_gesperrte_untersammlung_zaehlt_und_stoppt_nicht():
+    """Praezedenz A10 (flows/tree.py): ein 403 unter vielen darf aus einer
+    Teilantwort keine Nicht-Antwort machen. Gezaehlt wird es trotzdem."""
+    instanz = Instanz(unter={"u1": 200, "u2": 403})
+    async with instanz.repo() as repo:
+        got = await repo.skills.search("", collection_id=COLL, include_subcollections=True)
+    assert {h.original_id for h in got.hits} == {SA, SD}
+    assert got.unreadable == 1
+
+
+async def test_eine_gesperrte_wurzel_ist_ein_fehler():
+    """Die eigene ID des Aufrufers: eine Verweigerung ist die Antwort."""
+    instanz = Instanz(coll_status=403)
+    async with instanz.repo() as repo:
+        with pytest.raises(PermissionDeniedError):
+            await repo.skills.search("", collection_id=COLL)
+
+
+async def test_mehr_untersammlungen_als_eine_seite_werden_gesagt():
+    instanz = Instanz(unter={"u1": 200}, unter_total=120)
+    async with instanz.repo() as repo:
+        got = await repo.skills.search("", collection_id=COLL, include_subcollections=True)
+    assert got.truncated is True
+
+
 # --- Abruf -----------------------------------------------------------------
 
 async def test_get_liest_die_datei_nicht_den_textauszug():
@@ -236,6 +306,15 @@ async def test_ein_gesperrter_ordner_ist_ein_grund_kein_fehler():
     async with instanz.repo() as repo:
         doc = await repo.skills.get(SA)
     assert doc.content and doc.files == [] and doc.files_reason == "folder_unreadable"
+
+
+async def test_ein_verschwundener_ordner_ist_ein_grund():
+    """Ein 404 des Ordners flog bisher nach dem Download -- als haette es den
+    Skill nie gegeben."""
+    instanz = Instanz(folder_status=404)
+    async with instanz.repo() as repo:
+        doc = await repo.skills.get(SA)
+    assert doc.content and doc.files == [] and doc.files_reason == "no_folder"
 
 
 async def test_ein_riesiger_ordner_wird_gezaehlt_nicht_gelistet():
@@ -316,6 +395,39 @@ async def test_ohne_markierung_zaehlt_jedes_ai_prompt_markdown():
     assert reg.registry_id == REG and reg.reason == ""
 
 
+async def test_eigene_blockart_fuer_skills():
+    """Die Blockart, die einen Skill nennt, ist Konvention -- also Parameter."""
+    eigene = SkillConventions(block_kinds=("ai-skill",), skill_kind="ai-skill")
+    instanz = Instanz(registry_text=REG_MD.replace("::: ki-skill", "::: ai-skill"))
+    async with instanz.repo() as repo:
+        reg = await repo.skills.registry(COLL, conventions=eigene)
+    assert [e.node_id for e in reg.entries] == [SA, SB]
+    assert reg.contexts[0].skills == [SB, SC]
+
+
+async def test_ein_doppelt_genannter_skill_wird_einmal_gelesen():
+    """Ein Skill unter zwei Kontexten ist redaktioneller Alltag -- zwei Eintraege,
+    ein Kopf."""
+    block = "::: ki-skill\n[Lehrprofil auswerten](" + RENDER + SA + ")\n:::\n"
+    doppelt = REG_MD + "\n## Nachbereiten\n\n" + block
+    instanz = Instanz(registry_text=doppelt)
+    async with instanz.repo() as repo:
+        reg = await repo.skills.registry(COLL)
+    assert [e.node_id for e in reg.entries] == [SA, SB, SA]
+    assert [e.context for e in reg.entries] == [None, "Unterricht vorbereiten", "Nachbereiten"]
+    koepfe = [r for r in instanz.anfragen if r.url.path.endswith(f"/{SA}/metadata")]
+    assert len(koepfe) == 1
+
+
+async def test_ein_serverfehler_beim_kopf_ist_kein_unresolved():
+    """unresolved heisst: der Block nennt keinen lesbaren Datensatz. Ein 500
+    sagt nichts ueber den Datensatz -- er wirft."""
+    instanz = Instanz(kopf_status={SB: 500})
+    async with instanz.repo() as repo:
+        with pytest.raises(ServerError):
+            await repo.skills.registry(COLL)
+
+
 # --- Auswahl ---------------------------------------------------------------
 
 async def test_pick_liefert_den_besten_mit_anleitung_und_die_anderen():
@@ -326,6 +438,14 @@ async def test_pick_liefert_den_besten_mit_anleitung_und_die_anderen():
     best, others = picked
     assert best.id == SB and best.content.startswith("# Fragen")
     assert [o.id for o in others] == [SA]
+
+
+async def test_pick_reicht_include_files_durch():
+    instanz = Instanz()
+    async with instanz.repo() as repo:
+        picked = await repo.skills.pick("Fragen", include_files=False)
+    assert picked is not None
+    assert not any(r.url.path.endswith("/children") for r in instanz.anfragen)
 
 
 async def test_pick_ohne_treffer_ist_none():
@@ -362,7 +482,7 @@ async def test_find_skills_als_dict():
     instanz = Instanz()
     async with instanz.repo() as repo:
         got = await repo.flows.find_skills("Fragen")
-    assert set(got) == {"query", "hits", "unresolved", "truncated"}
+    assert set(got) == {"query", "hits", "unreadable", "unresolved", "truncated"}
     assert got["hits"][0]["id"] == SB and got["hits"][0]["keywords"] == ["Fragen", "Quiz"]
 
 

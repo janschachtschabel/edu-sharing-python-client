@@ -31,9 +31,11 @@ async def find_skills(repo: AsyncRepository, text: str = "", **kwargs: Any) -> d
     """Skills for a task, ranked. See ``Skills.search``.
 
     Returns:
-        ``{query, hits, unresolved, truncated}``. **Check ``unresolved``**: a
-        short name that did not resolve was not applied, and the list is wider
-        than asked. ``truncated`` says a cap cut the candidates.
+        ``{query, hits, unresolved, truncated, unreadable}``. **Check
+        ``unresolved``**: a short name that did not resolve was not applied,
+        and the list is wider than asked. ``truncated`` says a cap cut the
+        candidates; ``unreadable`` counts sub-collections the walk could not
+        open -- skipped, so the answer may be short of them.
     """
     found = await repo.skills.search(text, **kwargs)
     return {
@@ -42,6 +44,7 @@ async def find_skills(repo: AsyncRepository, text: str = "", **kwargs: Any) -> d
         "hits": [_summary(h) for h in found.hits],
         "unresolved": found.unresolved,
         "truncated": found.truncated,
+        "unreadable": found.unreadable,
     }
 
 

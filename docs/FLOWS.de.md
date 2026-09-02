@@ -1200,7 +1200,8 @@ repo.flows.find_skills("Fragen generieren", subject="Physik")
             "description": "…", "keywords": ["Fragen", "Quiz"], "url": "…",
             "download_url": "…"}],
   "unresolved": [],
-  "truncated": false
+  "truncated": false,
+  "unreadable": 0
 }
 ```
 

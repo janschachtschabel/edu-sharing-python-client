@@ -529,16 +529,16 @@ and refused by `-default-`; a `SKILL.md` is read with `download()` because
 | `repo.skills.get(node_id, include_files=…, conventions=…)` | `SkillDocument` — the Markdown, its references, the files beside it |
 | `repo.skills.registry(collection_id, context=…, resolve=…, conventions=…)` | `SkillRegistry` — through the collection's file listing, never the index |
 | `repo.skills.pick(text, …)` | `(SkillDocument, list[SkillSummary]) \| None` — the best match loaded, the others named |
-| `SkillConventions` | `type_property`, `skill_type`, `registry_type`, `registry_mark`, `markdown_mimetypes`, `block_kinds` |
+| `SkillConventions` | `type_property`, `skill_type`, `registry_type`, `registry_mark`, `markdown_mimetypes`, `block_kinds`, `skill_kind` |
 | `WLO_SKILLS` | the default conventions |
 | `SkillSummary` | `id`, `original_id`, `title`, `description`, `keywords`, `url`, `download_url` |
 | `SkillDocument` | the summary plus `content`, `references`, `files`, `files_reason` (`""`, "no_folder", "folder_unreadable", "too_many"), `folder_file_count` |
 | `SkillFile` | `id`, `title`, `mimetype`, `size`, `download_url` |
-| `SkillSearch` | `hits`, `unresolved`, `truncated` |
+| `SkillSearch` | `hits`, `unresolved`, `truncated`, `unreadable` |
 | `SkillRegistry` | `collection_id`, `registry_id`, `registry_title`, `markdown`, `entries`, `unresolved`, `contexts`, `general`, `ambiguous`, `truncated`, `contexts_truncated`, `reason` (`""`, "collection_not_found", "no_registry", "unreadable"), `context_match` ("all", "exact", "missing"), `scan_truncated` |
 | `RegistryEntry` | `node_id`, `title`, `description`, `keywords`, `context` |
 | `load_registry(repo, collection_id, context=…, resolve=…, conventions=…)` | `SkillRegistry` — what `repo.skills.registry` calls |
-| `SKILL_SEARCH_PAGE` `SKILL_BUNDLE_MAX` `SKILL_VISIT_MAX` | `50` hits pooled · `50` companions listed before a folder counts as an inbox · `30` collections a walk may read |
+| `SKILL_SEARCH_PAGE` `SKILL_BUNDLE_MAX` `SKILL_VISIT_MAX` `SKILL_DEPTH_MAX` | `50` hits pooled · `50` companions listed before a folder counts as an inbox · `30` collections a walk may read · `2` levels below the given collection |
 | `REGISTRY_SCAN_MAX` `REGISTRY_MAX` `REGISTRY_POOL` `REGISTRY_CONTEXT_MAX` | `50` files scanned for the registry · `100` entries · `10` heads resolved at once · `50` contexts |
 
 The Markdown itself, without I/O — `edusharing.skills_markdown`:
