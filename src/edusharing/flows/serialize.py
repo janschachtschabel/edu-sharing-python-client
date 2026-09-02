@@ -55,7 +55,8 @@ def hit_as_dict(
     # a listing carries the content type, and ``fields`` used to hide it.
     for prop in properties:
         values = hit.properties().get(prop)
-        if values:
+        # ``0`` and ``False`` are values; only absence and an empty list are not.
+        if values is not None and values != []:
             # As stored -- which is not always a list: a string would be
             # splatted into characters, a number would raise.
             fields[prop] = values if isinstance(values, list) else [values]

@@ -14,7 +14,7 @@ sobald ein öffentlicher Name hier oder in der englischen Fassung fehlt.
 
 ```python
 hit.title                                  # API-Ebene    -> str
-(await repo.flows.search(repo, "Bruch"))["hits"][0]["title"]   # Ablauf-Ebene -> str
+(await repo.flows.search("Bruch"))["hits"][0]["title"]   # Ablauf-Ebene -> str
 ```
 
 **API-Ebene** liefert Objekte — `Node`, `SearchResult`, `SearchHit`. Attribute,
@@ -735,7 +735,7 @@ kids = await repo.flows.child_objects(node_id)
 kids["children"][0]["name"]      # "loesung.pdf"
 kids["children"][0]["order"]     # 0      <- None, wenn es keine Position trägt
 
-links = await repo.flows.relations(series_id)
+links = await repo.flows.relations(node_id=series_id)
 links["relations"][0]["type"]         # "hasPart"
 links["relations"][0]["approved"]     # False
 links["relations"][0]["ai_generated"] # False
@@ -826,12 +826,15 @@ Diese sind für alle da, die sich einen eigenen Ablauf bauen.
 | `MAX_VARIANTS` | wie viele höchstens |
 | `search_reranked(repo, text, pool=…)` | die gepoolte, neu bewertete Suche |
 | `DEFAULT_POOL` | wie viele Kandidaten sie sammelt |
-| `EXCLUSION_MAX` | `200` — die größte Seite, die `search` beim Nachfüllen nach `exclude_ids` anfordert |
+| `EXCLUSION_MAX` | `200` — das größte Nachladen, das `search` nach `exclude_ids` anfügt; das `limit` des Aufrufers wird nie gekappt |
 | `score_hit(hit, query, aliases, profile=GERMAN)` | `int` — die Rangzahl |
 | `term_matches(term, text)` / `query_terms(query, profile)` | der Vergleicher und der Zerleger |
 | `deduplicate(hits)` | wirft Wiederholungen über Varianten hinweg weg |
 | `name_from_title(title)` | ein dateisystemtauglicher Knotenname |
-| `resolve_vocabulary(repo, aliases)` | `(properties, unresolved)` — Kurznamen zu Eigenschaften, Labels aufgelöst; was nicht auflöst, wird genannt, nicht gesendet |
+| `resolve_vocabulary(repo, aliases, every_value=…)` | `(properties, unresolved)` — Kurznamen zu Eigenschaften, Labels aufgelöst; was nicht auflöst, wird genannt, nicht gesendet. `every_value=True` ist die Leseregel: jede URI eines Labels |
+| `carries(props, prop, values)` | `bool` — die lokale Hälfte eines Filters: ob ein Datensatz einen der gewünschten Werte trägt |
+| `walk_collections(repo, collection_id, depth=…, max_collections=…)` | `(entries, opened, truncated)` — der Gang hinter `browse_tree`, jeder Eintrag mit seinem `raw`-Datensatz |
+| `pages_among(found, text)` | die `find_pages`-Antwort, gelesen aus schon geholten Sammlungstreffern |
 | `LanguageProfile` / `GERMAN` | Stoppwörter und Rahmenwörter; Deutsch ist das einzige mitgelieferte Profil |
 | `LanguageProfile` | `framing`, `stopwords`, `synonyms` |
 

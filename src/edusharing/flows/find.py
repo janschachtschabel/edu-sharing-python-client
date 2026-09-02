@@ -31,8 +31,9 @@ __all__ = [
 ]
 
 
-#: The largest page ``search`` asks for when refilling after exclusions. A
-#: long exclusion list must not turn one call into a request for thousands.
+#: The largest refill ``search`` adds after ``exclude_ids``; the caller's own
+#: ``limit`` is never capped. A long exclusion list must not turn one call
+#: into a request for thousands -- ``warnings`` says so instead.
 EXCLUSION_MAX = 200
 
 
@@ -151,7 +152,8 @@ async def search(
 
     # Reranking needs something to rank against. A pure filter query has no
     # text, so there is nothing to expand and nothing to score.
-    if rerank and text and text.strip():
+    reranked = bool(rerank and text and text.strip())
+    if reranked and text is not None:   # the second half only narrows the type
         result, variants = await search_reranked(
             repo, text,
             filters=filters, facets=facet_properties or None,
@@ -176,10 +178,13 @@ async def search(
         )
     if excluded:
         result = replace(result, hits=[h for h in result.hits if h.id not in excluded])
-        if len(result.hits) < limit and result.total > offset + ask:
+        # Under rerank there is no offset -- the pool is the knob.
+        beyond = result.total > (ask if reranked else offset + ask)
+        if len(result.hits) < limit and beyond:
+            knob = "a larger pool" if reranked else "a higher offset"
             warnings.append(
                 f"page short after exclusions: {len(result.hits)} of {limit}, while "
-                f"{result.total} exist -- ask again with a higher offset"
+                f"{result.total} exist -- ask again with {knob}"
             )
 
     folded: dict[str, list[str]] = {}

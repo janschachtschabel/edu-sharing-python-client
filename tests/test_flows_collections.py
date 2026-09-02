@@ -414,3 +414,28 @@ async def test_ohne_text_liefert_der_elternbereich_alles():
     async with _repo(instanz) as repo:
         got = await repo.flows.find_collections("", parent_id="wurzel")
     assert [h["id"] for h in got["hits"]] == ["u-physik", "u-bio", "uu-1"]
+
+
+class VieleUnter(Gefiltert):
+    """Sieben Untersammlungen, nur die letzte traegt das Fach."""
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/wurzel/children/collections"):
+            kinder = [{"ref": {"id": f"u{i}"}, "title": f"Unter {i}", "collection": {"scope": "MY"},
+                       "properties": {"cclom:title": [f"Unter {i}"],
+                                      **({"ccm:taxonid": ["http://x/460"]} if i == 7 else {})}}
+                      for i in range(1, 8)]
+            return httpx.Response(200, json={"collections": kinder,
+                                             "pagination": {"total": 7, "from": 0, "count": 7}})
+        return super().__call__(request)
+
+
+async def test_unter_einem_elternbereich_wird_erst_beurteilt_und_dann_geschnitten():
+    """Der Gang haelt alle Datensaetze -- die Kappung auf 5xlimit bindet dort
+    keine Anfrage und verwarf einen Treffer, der schon im Speicher lag."""
+    instanz = VieleUnter()
+    async with _repo(instanz) as repo:
+        got = await repo.flows.find_collections("", parent_id="wurzel", subject="Physik", limit=1)
+    assert [h["id"] for h in got["hits"]] == ["u7"]
+    assert got["total"] == 1 and got["total_is_lower_bound"] is False
+    assert got["warnings"] == []

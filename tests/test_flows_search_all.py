@@ -9,9 +9,11 @@ Der Haken, den dieser Ablauf sichtbar machen muss: **die Sammlungssuche nimmt
 keine Filter.** Gemessen und in ``collections.py`` festgehalten -- die Abfrage
 akzeptiert ``ngsearchword`` und sonst nichts, jedes weitere Kriterium endet in
 ``400 DAOValidationException``. Wer ``search_all("Zelle", subject="Biologie")``
-aufruft, bekommt gefiltertes Material und **ungefilterte** Sammlungen. Das
-stillschweigend zu tun hiesse, eine Einschraenkung zu behaupten, die es nicht
-gibt.
+aufruft, bekam gefiltertes Material und **ungefilterte** Sammlungen -- bis
+``find_collections`` Kurznamen lokal anwendet (02.09.2026). Seitdem gilt ein
+Kurzname fuer beide Koerbe; nur rohe ``filters`` bleiben den Sammlungen fremd
+und werden genannt. Das stillschweigend zu tun hiesse, eine Einschraenkung
+zu behaupten, die es nicht gibt.
 """
 
 import json
@@ -151,9 +153,10 @@ async def test_beide_koerbe_haben_im_ausfall_dieselben_schluessel():
 
     kaputt.handler = handler
     async with heil.repo() as a, kaputt.repo() as b:
-        gut = await a.flows.search_all("Zelle", subject="Biologie")
-        leer = await b.flows.search_all("Zelle", subject="Biologie")
+        gut = await a.flows.search_all("Zelle", subject="Biologie", include_pages=True)
+        leer = await b.flows.search_all("Zelle", subject="Biologie", include_pages=True)
     assert set(gut["collections"]) == set(leer["collections"])
+    assert set(gut["pages"]) == set(leer["pages"])
     assert set(gut["collections"]["query"]) == set(leer["collections"]["query"])
     assert leer["collections"]["unjudged"] == 0 and leer["collections"]["unresolved"] == []
 
@@ -300,3 +303,16 @@ async def test_seiten_kosten_keine_weitere_anfrage():
         mit = await repo.flows.search_all("Zelle", include_pages=True)
     assert [h["id"] for h in mit["pages"]["hits"]] == ["s-2"]
     assert len(instanz.anfragen) == 3, instanz.anfragen
+
+
+async def test_ein_kurzname_behaelt_die_passende_sammlung():
+    """Die Gegenprobe zum leeren Korb: eine Sammlung mit dem Fach bleibt."""
+    instanz = Instanz(sammlungen=[
+        {**_knoten("s-bio", "Bio"), "properties": {"cclom:title": ["Bio"],
+                                                    "ccm:taxonid": ["http://vocab.test/080"]}},
+        _knoten("s-1", "Ohne Fach"),
+    ])
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.search_all("Zelle", subject="Biologie")
+    assert [h["id"] for h in ergebnis["collections"]["hits"]] == ["s-bio"]
+    assert ergebnis["collections"]["unjudged"] == 0

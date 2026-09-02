@@ -15,7 +15,7 @@ from .find import field_property
 if TYPE_CHECKING:  # pragma: no cover
     from ..repository import AsyncRepository
 
-__all__ = ["name_from_title", "resolve_vocabulary"]
+__all__ = ["carries", "name_from_title", "resolve_vocabulary"]
 
 
 #: ``cm:name`` is the key inside the parent folder, not a display title. These

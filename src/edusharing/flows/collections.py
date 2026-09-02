@@ -114,11 +114,12 @@ async def _collections(
     """``find_collections`` up to the answer: the filtered, cut result."""
     wanted, unresolved = await resolve_vocabulary(repo, aliases, every_value=True)
     query = _query(repo, text, limit, aliases, parent_id)
-    # With a local filter the page must hold candidates, not answers.
-    scan = min(limit * 5, _FILTER_SCAN_MAX) if wanted else limit
+    # With a local filter the page must hold candidates, not answers. Below a
+    # parent the walk holds every record anyway: judge them all, cut after.
     if parent_id:
-        result = await _below(repo, parent_id, text, scan)
+        result = await _below(repo, parent_id, text, None if wanted else limit)
     else:
+        scan = min(limit * 5, _FILTER_SCAN_MAX) if wanted else limit
         result = await repo.collections.find(text, limit=scan)
 
     unjudged = 0
@@ -175,7 +176,7 @@ def _answer(
     return answer
 
 
-def empty_collections(
+def _empty_collections(
     repo: AsyncRepository, text: str, limit: int, failure: str, aliases: dict[str, Any]
 ) -> dict[str, Any]:
     """An empty ``find_collections`` answer naming the failure. Built through
@@ -187,7 +188,7 @@ def empty_collections(
 
 
 async def _below(
-    repo: AsyncRepository, parent_id: str, text: str, limit: int
+    repo: AsyncRepository, parent_id: str, text: str, limit: int | None
 ) -> SearchResult:
     """The collections below ``parent_id`` whose title matches every term."""
     entries, _opened, truncated = await walk_collections(
@@ -309,22 +310,25 @@ async def search_all(
     materials: dict[str, Any] = material_outcome
 
     collections: dict[str, Any]
-    pages: dict[str, Any]
+    pages: dict[str, Any] = {}
     if isinstance(collection_outcome, BaseException):
         # ``collections.find`` already says one level down that half a result
         # is usable and a faked empty one is not. Between the two buckets a
         # collection outage used to take the material hits with it (audit A9).
         failure = f"{type(collection_outcome).__name__}: {collection_outcome}"
-        collections = empty_collections(repo, text, limit, failure, aliases)
+        collections = _empty_collections(repo, text, limit, failure, aliases)
         collections["error"] = failure
-        pages = {"query": text, "hits": [], "checked": 0, "total": 0,
-                 "total_is_lower_bound": True, "reason": failure, "error": failure}
+        if include_pages:
+            # The same path as a filled bucket, so the keys cannot drift.
+            pages = {**pages_among(SearchResult(total_is_lower_bound=True), text),
+                     "reason": failure, "error": failure}
     else:
         found: _Found = collection_outcome
         collections = _answer(repo, found.result, found.query, properties,
                               found.unresolved, found.unjudged)
-        # Read off the hits already fetched: the same search, no second one.
-        pages = {**pages_among(found.result, text), "error": ""}
+        if include_pages:
+            # Read off the hits already fetched: the same search, no second one.
+            pages = {**pages_among(found.result, text), "error": ""}
     collections.setdefault("error", "")
     collections["filters_ignored"] = list(filters or {})
     answer = {

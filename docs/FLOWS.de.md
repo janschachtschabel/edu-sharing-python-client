@@ -97,7 +97,9 @@ Voreingestellt sind `subject`, `level`, `type`, `difficulty`, `license`.
 
 **Seit dem 02.09.2026:** `exclude_ids` lässt schon gezeigte Treffer aus — und
 die Seite wird nachgefüllt, acht gewünschte und drei ausgeschlossene ergeben
-also acht (bis `EXCLUSION_MAX` angefordert); `facet_limit` hebt die 20 Werte
+also acht (das Nachladen bei `EXCLUSION_MAX` gekappt, das `limit` nie; `warnings`
+sagt, wenn eine Seite trotzdem kurz bleibt, und nennt den Knopf — offset, unter
+`rerank` der Pool); `facet_limit` hebt die 20 Werte
 je Facette an; `properties=["ccm:oeh_extendedType"]` trägt jede weitere
 Eigenschaft unter `fields` mit ihrem vollen Namen, wie gespeichert. Jeder
 Treffer nennt außerdem `preview_url`, `download_url`, `license` und `size`.
@@ -310,7 +312,7 @@ repo.flows.search_all("Zellteilung", subject="Biologie", limit=5)
   },
   "collections": {
     "total": 7, "total_is_lower_bound": true, "returned": 3,
-    "hits": [...], "filters_ignored": ["subject"], "error": ""
+    "hits": [...], "filters_ignored": [], "error": ""
   }
 }
 ```
@@ -338,13 +340,14 @@ den anderen verdrängt.
 > zurückzugeben behauptete, es gebe nichts.
 
 **Was dahinter läuft** — 3 Anfragen, gemeinsam gesendet (4, wenn ein Filter
-aufgelöst werden muss):
+aufgelöst werden muss; mit `include_pages` keine weitere — die Seiten werden
+aus den Sammlungstreffern gelesen und kommen bei Ausfall leer mit `error`):
 
 ```python
-# was repo.flows.search_all("Zellteilung") tut
+# was repo.flows.search_all("Zellteilung", subject="Biologie") tut
 materials, collections = await asyncio.gather(
-    find.search(repo, "Zellteilung"),            # 1. ngsearch
-    collections.find_collections(repo, "Zellteilung"),  # 2.+3. ihre beiden Wege
+    find.search(repo, "Zellteilung", subject="Biologie"),         # 1. ngsearch
+    collections.find_collections(repo, "Zellteilung", subject="Biologie"),  # 2.+3.
 )
 ```
 
@@ -823,7 +826,7 @@ Trefferformate auseinanderhalten.
 **Was dahinter läuft** — 2 Anfragen, parallel:
 
 ```python
-# was repo.flows.collection_contents(cid) tut
+# was repo.flows.collection_contents(collection_id=cid) tut
 material, kinder = await asyncio.gather(
     repo.raw.json("GET", f"/node/v1/nodes/-home-/{cid}/children",
                   params={"filter": "files", "maxItems": limit}),

@@ -88,9 +88,9 @@ class Flows:
     async def search_all(self, text: str, **kwargs: Any) -> dict[str, Any]:
         """Material **and** collections in one call. See ``collections.search_all``.
 
-        **Read ``collections.filters_ignored``**: the collection search takes a
-        search word and nothing else, so a filter narrows the material bucket
-        and not the other one.
+        Short names reach both buckets -- ``find_collections`` applies them
+        locally. Raw ``filters`` reach the material only and are named in
+        ``collections.filters_ignored``.
         """
         return await collection_search.search_all(self._repo, text, **kwargs)
 
@@ -113,7 +113,7 @@ class Flows:
     async def text(self, node_id: str, **kwargs: Any) -> dict[str, Any]:
         """The full text of one material, and why there is none. See ``text.text``.
 
-        Repository first, then the file itself for a ``text/*`` upload, then the
+        Repository first, then the file itself for a text, JSON or XML upload, then the
         linked page -- the last only with an ``extraction=`` service passed in.
         **Read ``reason``**: no text is a normal answer here, not an error.
         """
@@ -218,7 +218,8 @@ class Flows:
     async def find_collections(self, text: str = "", **kwargs: Any) -> dict[str, Any]:
         """Search collections. See ``collections.find_collections``.
 
-        ``total_is_lower_bound`` is always true here -- two routes are merged.
+        ``total_is_lower_bound`` is true for a search -- two routes are merged
+        -- and below a ``parent_id`` only when the walk was cut short.
         """
         return await collection_search.find_collections(self._repo, text, **kwargs)
 

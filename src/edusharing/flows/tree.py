@@ -35,6 +35,7 @@ __all__ = [
     "browse_tree",
     "collection_stats",
     "search_in_collection",
+    "walk_collections",
 ]
 
 #: How many collections a walk may open before it stops and says so. Fifty

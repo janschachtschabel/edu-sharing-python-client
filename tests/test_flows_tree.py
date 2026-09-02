@@ -370,3 +370,40 @@ async def test_die_zaehler_teilen_die_stichprobe_nicht_auf():
         zahlen = await repo.flows.collection_stats("wurzel")
     assert zahlen["sampled"] == 1
     assert sum(zahlen["by"]["level"].values()) == 2
+
+
+# --- Zweite Runde (Review 02.09.2026, abends) ------------------------------
+
+async def test_der_baum_traegt_keine_rohdaten():
+    """Der Gang haelt jeden Datensatz (fuer find_collections); browse_tree gibt
+    id, title, collections zurueck -- sonst nichts, auf jeder Ebene."""
+    instanz = Instanz()
+    async with instanz.repo() as repo:
+        baum = await repo.flows.browse_tree("wurzel")
+
+    def pruefe(eintraege):
+        for e in eintraege:
+            assert set(e) == {"id", "title", "collections"}, e
+            pruefe(e["collections"])
+
+    assert baum["collections"]
+    pruefe(baum["collections"])
+
+
+class MehrAlsEineSeite(Instanz):
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        antwort = super().handler(request)
+        if request.url.path.endswith("/children/collections"):
+            data = antwort.json()
+            data["pagination"] = {"total": 120, "from": 0, "count": len(data["collections"])}
+            return httpx.Response(200, json=data)
+        return antwort
+
+
+async def test_mehr_untersammlungen_als_eine_seite_sind_abgeschnitten():
+    instanz = MehrAlsEineSeite()
+    async with instanz.repo() as repo:
+        baum = await repo.flows.browse_tree("wurzel")
+        suche = await repo.flows.search_in_collection("wurzel", "Zellteilung")
+    assert baum["truncated"] is True
+    assert suche["truncated"] is True

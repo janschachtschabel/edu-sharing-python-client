@@ -139,3 +139,24 @@ async def test_rerank_reicht_einen_kurznamen_als_filter_weiter():
     async with instanz.repo() as repo:
         await repo.flows.search("Bruch rechnen", rerank=True, subject="http://x/080")
     assert any(k["property"] == "ccm:taxonid" for k in instanz.koerper[0]["criteria"])
+
+
+async def test_unter_rerank_raet_die_warnung_zum_pool_nicht_zum_offset():
+    """rerank ignoriert offset -- eine Warnung, die ihn empfiehlt, nennt den
+    falschen Knopf."""
+    instanz = Instanz([f"n{i}" for i in range(500)])
+    async with instanz.repo() as repo:
+        got = await repo.flows.search("Bruch rechnen", rerank=True, limit=5,
+                                      exclude_ids=[f"n{i}" for i in range(300)])
+    kurz = [w for w in got["warnings"] if w.startswith("page short")]
+    assert kurz and "pool" in kurz[0] and "offset" not in kurz[0], got["warnings"]
+
+
+async def test_ein_skalarer_nullwert_bleibt_unter_fields_erhalten():
+    """``if values:`` verwarf ein gespeichertes 0 oder False -- ein Wert, keine Luecke."""
+    instanz = Instanz(["n1"], zusatz={"ccm:n": 0, "ccm:f": False, "ccm:leer": []})
+    async with instanz.repo() as repo:
+        got = await repo.flows.search("x", properties=["ccm:n", "ccm:f", "ccm:leer"])
+    fields = got["hits"][0]["fields"]
+    assert fields["ccm:n"] == [0] and fields["ccm:f"] == [False]
+    assert "ccm:leer" not in fields

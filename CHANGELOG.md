@@ -113,8 +113,8 @@ and in [`docs/audits/`](docs/audits/).
   empty collection bucket has the documented keys.** `find_pages` ran
   outside the outage handling built for audit A9, so with `include_pages`
   a 503 of the collection routes raised and lost the material hits; it now
-  rides in the same gather and comes back as an empty `pages` bucket with
-  `error`. The empty collection bucket lacked `unjudged` and two `query`
+  comes back as an empty `pages` bucket with `error` when that search
+  fails. The empty collection bucket lacked `unjudged` and two `query`
   keys -- a `KeyError` in production only; both buckets are built through
   one path now. Short names reach the collection bucket (applied locally);
   `filters_ignored` names raw `filters` only.
@@ -150,6 +150,16 @@ and in [`docs/audits/`](docs/audits/).
   unknown and is decoded; a `SkillConventions` whose `skill_kind` is not
   among `block_kinds` is refused at construction; a query of stopwords
   only is matched as typed inside a collection.
+- **Second review round, search.** The short-page warning under `rerank`
+  recommends a larger pool, not an offset that does nothing there; below a
+  `parent_id` a short-name filter judges every walked collection before
+  the cut; the empty `pages` bucket is built through `pages_among` like
+  the filled one; a stored `0`/`False` survives under `fields`; the facade
+  docstrings and `EXCLUSION_MAX` wording say what the code does; the
+  documentation guard now reads calls inside fenced code blocks and checks
+  keywords against the function behind a `**kwargs` facade; the mirror
+  guard looks both ways and at positional order; `carries`,
+  `walk_collections` and `pages_among` are exported and documented.
 
 ## [0.1.0] — 2026-09-02
 

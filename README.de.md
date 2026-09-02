@@ -752,7 +752,7 @@ stehen — getrennt von Sammlungen.
 
 ```python
 await repo.relations.create(teil_id, "isPartOf", reihe_id)
-await repo.flows.relations(reihe_id)      # die Reihe meldet "hasPart"
+await repo.flows.relations(node_id=reihe_id)      # die Reihe meldet "hasPart"
 ```
 
 Die Gegenrichtung wird automatisch geführt. Die API unterscheidet zudem
@@ -775,7 +775,7 @@ zeigend. WirLernenOnline nennt das „Themenseite“, aber daran ist nichts von 
 Instanz, die den Page Builder benutzt, speichert sie gleich.
 
 ```python
-node = await repo.node(collection_id)
+node = await repo.node(node_id=collection_id)
 page = await node.page.get()              # None, wenn die Sammlung keine hat
 if page:
     print(page.rendered.title, len(page.rendered.swimlanes))

@@ -47,7 +47,7 @@ from ..results import SearchResult
 if TYPE_CHECKING:  # pragma: no cover
     from ..repository import AsyncRepository
 
-__all__ = ["DEFAULT_MAX_WIDGETS", "find_pages", "page"]
+__all__ = ["DEFAULT_MAX_WIDGETS", "find_pages", "page", "pages_among"]
 
 #: How many widget nodes ``resolve_widgets`` may read before it stops and says
 #: so. The measured page carries ten; two dozen is headroom that still bounds a

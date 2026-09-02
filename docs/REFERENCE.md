@@ -14,7 +14,7 @@ public name is missing here or in the German version.
 
 ```python
 hit.title                                  # API level  -> str
-(await repo.flows.search(repo, "Bruch"))["hits"][0]["title"]   # flow level -> str
+(await repo.flows.search("Bruch"))["hits"][0]["title"]   # flow level -> str
 ```
 
 **API level** returns objects — `Node`, `SearchResult`, `SearchHit`. Attributes,
@@ -722,7 +722,7 @@ kids = await repo.flows.child_objects(node_id)
 kids["children"][0]["name"]      # "loesung.pdf"
 kids["children"][0]["order"]     # 0      <- None when it carries no position
 
-links = await repo.flows.relations(series_id)
+links = await repo.flows.relations(node_id=series_id)
 links["relations"][0]["type"]         # "hasPart"
 links["relations"][0]["approved"]     # False
 links["relations"][0]["ai_generated"] # False
@@ -812,12 +812,15 @@ These are exported for anyone building their own flow.
 | `MAX_VARIANTS` | how many at most |
 | `search_reranked(repo, text, pool=…)` | the pooled, re-scored search |
 | `DEFAULT_POOL` | how many candidates it pools |
-| `EXCLUSION_MAX` | `200` — the largest page `search` asks for when refilling after `exclude_ids` |
+| `EXCLUSION_MAX` | `200` — the largest refill `search` adds after `exclude_ids`; the caller's `limit` is never capped |
 | `score_hit(hit, query, aliases, profile=GERMAN)` | `int` — the rank score |
 | `term_matches(term, text)` / `query_terms(query, profile)` | the matcher and the tokeniser |
 | `deduplicate(hits)` | drops repeats across variants |
 | `name_from_title(title)` | a filesystem-safe node name |
-| `resolve_vocabulary(repo, aliases)` | `(properties, unresolved)` — short names to properties, labels resolved; what did not resolve is listed, not sent |
+| `resolve_vocabulary(repo, aliases, every_value=…)` | `(properties, unresolved)` — short names to properties, labels resolved; what did not resolve is listed, not sent. `every_value=True` is the reading rule: every URI a label carries |
+| `carries(props, prop, values)` | `bool` — the local half of a filter: whether a record carries one of the wanted values |
+| `walk_collections(repo, collection_id, depth=…, max_collections=…)` | `(entries, opened, truncated)` — the walk behind `browse_tree`, each entry with its `raw` record |
+| `pages_among(found, text)` | the `find_pages` answer, read off collection hits already fetched |
 | `LanguageProfile` / `GERMAN` | stopwords and framing words; German is the only profile shipped |
 | `LanguageProfile` | `framing`, `stopwords`, `synonyms` |
 

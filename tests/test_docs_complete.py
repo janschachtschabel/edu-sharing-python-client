@@ -554,8 +554,62 @@ def test_der_skill_nennt_jeden_oeffentlichen_namen(name):
 # Leser schreibt sie irgendwann als Schluesselwort. Schluesselwortargumente
 # duerfen alles sein, wenn die Methode ``**kwargs`` hat.
 
-_REPO_AUFRUF = re.compile(r"`repo\.((?:flows\.)?[a-z_]+)\(([^`)]*)\)`")
+_AUFRUF = re.compile(r"repo\.((?:flows\.)?[a-z_]+)\(")
 _BEZEICHNER = re.compile(r"[a-z_][a-z_0-9]*")
+_FLOW_MODULE = ("find", "collections", "describe", "contents", "curate", "tree",
+                "pages", "text", "suggest", "skills", "rerank", "duplicates")
+
+
+def _aufrufe(text: str):
+    """Jeder dokumentierte ``repo.x(...)`` / ``repo.flows.x(...)`` -- inline oder
+    in einem ```-Block -- mit seinem rohen Argumenttext. Klammern werden
+    gezaehlt, damit ein mehrzeiliger Aufruf ganz bleibt; Kommentare am
+    Zeilenende fallen weg."""
+    for m in _AUFRUF.finditer(text):
+        tiefe, i = 1, m.end()
+        while i < len(text) and tiefe:
+            tiefe += (text[i] == "(") - (text[i] == ")")
+            i += 1
+        if tiefe:
+            continue
+        yield m.group(1), re.sub(r"#[^\n]*", "", text[m.end():i - 1])
+
+
+def _argumente(roh: str) -> list[str]:
+    """Am Komma auf Tiefe null getrennt -- eine Liste, ein Dict oder ein Komma
+    in einem String bleiben ganz."""
+    teile: list[str] = []
+    aktuell: list[str] = []
+    tiefe = 0
+    anfuehrung: str | None = None
+    for c in roh:
+        if anfuehrung:
+            if c == anfuehrung:
+                anfuehrung = None
+        elif c in "'\"":
+            anfuehrung = c
+        elif c in "([{":
+            tiefe += 1
+        elif c in ")]}":
+            tiefe -= 1
+        if c == "," and tiefe == 0 and not anfuehrung:
+            teile.append("".join(aktuell))
+            aktuell = []
+        else:
+            aktuell.append(c)
+    teile.append("".join(aktuell))
+    return [s.strip() for s in teile if s.strip()]
+
+
+def _funktion_hinter(name: str):
+    """Die Ablauf-Funktion, an die eine ``**kwargs``-Fassadenmethode weiterreicht."""
+    import importlib
+    import inspect
+    for modul in _FLOW_MODULE:
+        fn = getattr(importlib.import_module(f"edusharing.flows.{modul}"), name, None)
+        if inspect.isfunction(fn):
+            return fn
+    return None
 
 
 def _positionelle(ziel) -> list[str]:
@@ -586,7 +640,7 @@ def test_jeder_dokumentierte_repository_aufruf_nennt_echte_parameter():
         pfad = WURZEL / datei
         if not pfad.exists():
             continue
-        for methode, roh in _REPO_AUFRUF.findall(pfad.read_text(encoding="utf-8")):
+        for methode, roh in _aufrufe(pfad.read_text(encoding="utf-8")):
             ziel = _repo_ziel(methode)
             if ziel is None:
                 falsch.append(f"{datei}: repo.{methode}() gibt es nicht")
@@ -594,9 +648,20 @@ def test_jeder_dokumentierte_repository_aufruf_nennt_echte_parameter():
             parameter = inspect.signature(ziel).parameters
             offen = any(p.kind is inspect.Parameter.VAR_KEYWORD
                         for p in parameter.values())
+            if offen and methode.startswith("flows."):
+                # A facade that forwards ``**kwargs`` documents nothing itself:
+                # the function behind it is what a keyword is checked against.
+                hinter = _funktion_hinter(methode[len("flows."):])
+                if hinter is not None:
+                    ziel = hinter
+                    parameter = inspect.signature(ziel).parameters
+                    offen = any(p.kind is inspect.Parameter.VAR_KEYWORD
+                                for p in parameter.values())
             positionell = _positionelle(ziel)
+            if positionell[:1] == ["repo"]:
+                positionell = positionell[1:]   # the function behind a facade takes repo first
             stelle = 0
-            for stueck in (s.strip() for s in roh.split(",") if s.strip()):
+            for stueck in _argumente(roh):
                 if "=" in stueck:
                     name = stueck.split("=")[0].strip()
                     if (_BEZEICHNER.fullmatch(name) and name not in parameter
@@ -715,3 +780,15 @@ def test_jeder_dokumentierte_freie_aufruf_nennt_echte_parameter():
                 continue
             falsch.extend(f"{datei}: {f}" for f in _argumente_pruefen(ziel, roh, name))
     assert not falsch, "\n  " + "\n  ".join(sorted(set(falsch)))
+
+
+def test_der_waechter_liest_auch_zaeune_und_zaehlt_klammern():
+    """Bis zum Abend des 02.09.2026 sah der Signatur-Waechter nur `repo.x(...)`
+    in Backticks -- 160 Aufrufe in ```-Bloecken, die Leser abschreiben, nicht."""
+    text = ('x\n```python\nawait repo.flows.find_collections(\n    "Physik, Optik",   # 1\n'
+            '    parent_id="w", properties=["a", "b"],\n)\n```\n`repo.node(node_id)`')
+    aufrufe = list(_aufrufe(text))
+    assert [a[0] for a in aufrufe] == ["flows.find_collections", "node"]
+    assert _argumente(aufrufe[0][1]) == ['"Physik, Optik"', 'parent_id="w"',
+                                         'properties=["a", "b"]']
+    assert _argumente(aufrufe[1][1]) == ["node_id"]

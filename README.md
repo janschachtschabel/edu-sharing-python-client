@@ -734,7 +734,7 @@ from collections.
 
 ```python
 await repo.relations.create(part_id, "isPartOf", series_id)
-await repo.flows.relations(series_id)     # the series reports "hasPart"
+await repo.flows.relations(node_id=series_id)     # the series reports "hasPart"
 ```
 
 The opposite direction is kept automatically. The API also distinguishes
@@ -757,7 +757,7 @@ the properties belong to edu-sharing's content model, and any instance using
 the page builder stores them the same way.
 
 ```python
-node = await repo.node(collection_id)
+node = await repo.node(node_id=collection_id)
 page = await node.page.get()              # None when this collection has none
 if page:
     print(page.rendered.title, len(page.rendered.swimlanes))

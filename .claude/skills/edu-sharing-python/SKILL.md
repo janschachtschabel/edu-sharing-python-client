@@ -275,7 +275,10 @@ has to be guessed — argument and return shapes are in `docs/REFERENCE.md`.
 | The job | The call |
 |---|---|
 | turn a title into a legal `cm:name` | `name_from_title(title)` |
-| turn short names into properties, labels resolved | `resolve_vocabulary(repo, aliases)` → `(properties, unresolved)` |
+| turn short names into properties, labels resolved | `resolve_vocabulary(repo, aliases, every_value=…)` → `(properties, unresolved)`; `every_value=True` for a read filter |
+| judge a filter on a record locally | `carries(props, prop, values)` |
+| walk a collection tree with the records | `walk_collections(repo, collection_id, depth=…, max_collections=…)` → `(entries, opened, truncated)` |
+| pages among collection hits already fetched | `pages_among(found, text)` |
 | read a skill document without I/O | `parse_blocks(text)` / `parse_sections(text)` / `layout_contexts(text, blocks)` |
 | a collection's registry, outside the accessor | `load_registry(repo, collection_id)` |
 | widen a weak query | `expand_query(query)` → `QueryVariant`: `.label` `.weight` `.text` |
@@ -319,7 +322,7 @@ so the value has a name instead of being buried in a signature.
 | `SKILL_SEARCH_PAGE` / `SKILL_BUNDLE_MAX` / `SKILL_VISIT_MAX` / `SKILL_DEPTH_MAX` | `50` / `50` / `30` / `2` | skill hits pooled · companion files listed before a folder counts as an inbox · collections a scoped walk may read · levels the walk descends |
 | `REGISTRY_SCAN_MAX` / `REGISTRY_MAX` / `REGISTRY_POOL` / `REGISTRY_CONTEXT_MAX` | `50` / `100` / `10` / `50` | files scanned for a registry · entries per answer · heads resolved at once · contexts per answer |
 | `DUPLICATE_SCAN_LIMIT` | `20` | hits `find_by_url` compares before `add_material` creates; `check_before_create` applies `if_exists` |
-| `EXCLUSION_MAX` | `200` | the largest page `search` refills to after `exclude_ids` |
+| `EXCLUSION_MAX` | `200` | the largest refill after `exclude_ids` — `limit` itself is never capped |
 | `DEFAULT_POOL` | `25` | how many hits `search(rerank=True)` fetches before reranking |
 | `MAX_VARIANTS` | `5` | how many rewrites `expand_query` produces |
 | `DEFAULT_MAX_COLLECTIONS` / `DEFAULT_MAX_WIDGETS` | `50` / `24` | ceilings on `browse_tree` and on a rendered page |
@@ -676,7 +679,7 @@ a reference removes only the reference, which is harmless, and `flows.delete`
 says `is_reference` so you know which of the two went.
 
 ```python
-node = await repo.node(listing_id)
+node = await repo.node(node_id=listing_id)
 node.is_reference            # True
 changed = await node.update(title="…")
 changed.id                   # the original's id, not listing_id

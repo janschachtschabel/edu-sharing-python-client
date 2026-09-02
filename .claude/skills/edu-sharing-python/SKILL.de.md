@@ -287,7 +287,10 @@ muss — die Argument- und Rückgabeformen stehen in `docs/REFERENCE.de.md`.
 | Die Aufgabe | Der Aufruf |
 |---|---|
 | aus einem Titel einen zulässigen `cm:name` machen | `name_from_title(title)` |
-| Kurznamen zu Eigenschaften machen, Labels aufgelöst | `resolve_vocabulary(repo, aliases)` → `(properties, unresolved)` |
+| Kurznamen zu Eigenschaften machen, Labels aufgelöst | `resolve_vocabulary(repo, aliases, every_value=…)` → `(properties, unresolved)`; `every_value=True` für einen Lesefilter |
+| einen Filter lokal an einem Datensatz beurteilen | `carries(props, prop, values)` |
+| einen Sammlungsbaum mitsamt Datensätzen gehen | `walk_collections(repo, collection_id, depth=…, max_collections=…)` → `(entries, opened, truncated)` |
+| Seiten unter schon geholten Sammlungstreffern | `pages_among(found, text)` |
 | ein Skill-Dokument ohne I/O lesen | `parse_blocks(text)` / `parse_sections(text)` / `layout_contexts(text, blocks)` |
 | die Registry einer Sammlung, außerhalb des Zugriffsobjekts | `load_registry(repo, collection_id)` |
 | eine schwache Anfrage verbreitern | `expand_query(query)` → `QueryVariant`: `.label` `.weight` `.text` |
@@ -333,7 +336,7 @@ zu verschwinden.
 | `SKILL_SEARCH_PAGE` / `SKILL_BUNDLE_MAX` / `SKILL_VISIT_MAX` / `SKILL_DEPTH_MAX` | `50` / `50` / `30` / `2` | Skill-Treffer im Pool · Begleitdateien, bevor ein Ordner als Eingang zählt · Sammlungen je Gang · Ebenen, die der Gang hinabsteigt |
 | `REGISTRY_SCAN_MAX` / `REGISTRY_MAX` / `REGISTRY_POOL` / `REGISTRY_CONTEXT_MAX` | `50` / `100` / `10` / `50` | Dateien auf der Suche nach der Registry · Einträge je Antwort · Köpfe auf einmal · Kontexte je Antwort |
 | `DUPLICATE_SCAN_LIMIT` | `20` | Treffer, die `find_by_url` vergleicht, bevor `add_material` anlegt; `check_before_create` wendet `if_exists` an |
-| `EXCLUSION_MAX` | `200` | die größte Seite, die `search` nach `exclude_ids` nachfüllt |
+| `EXCLUSION_MAX` | `200` | das größte Nachladen nach `exclude_ids` — `limit` selbst wird nie gekappt |
 | `DEFAULT_POOL` | `25` | wie viele Treffer `search(rerank=True)` vor dem Neuordnen holt |
 | `MAX_VARIANTS` | `5` | wie viele Umformulierungen `expand_query` erzeugt |
 | `DEFAULT_MAX_COLLECTIONS` / `DEFAULT_MAX_WIDGETS` | `50` / `24` | Obergrenzen für `browse_tree` und für eine gerenderte Seite |
@@ -709,7 +712,7 @@ Referenz, das ist harmlos, und `flows.delete` sagt `is_reference`, damit klar
 ist, welches von beiden ging.
 
 ```python
-node = await repo.node(listing_id)
+node = await repo.node(node_id=listing_id)
 node.is_reference            # True
 changed = await node.update(title="…")
 changed.id                   # die ID des Originals, nicht listing_id

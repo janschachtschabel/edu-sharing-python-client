@@ -94,7 +94,9 @@ The defaults are `subject`, `level`, `type`, `difficulty`, `license`.
 
 **Since 2026-09-02:** `exclude_ids` leaves out hits already shown — and the
 page is refilled, so eight requested and three excluded still yields eight
-(up to `EXCLUSION_MAX` asked for); `facet_limit` raises the 20 values per facet;
+(the refill capped at `EXCLUSION_MAX`, your `limit` never; `warnings` says
+when a page still comes back short, and names the knob — offset, or the
+pool under `rerank`); `facet_limit` raises the 20 values per facet;
 `properties=["ccm:oeh_extendedType"]` carries any further property under
 `fields` by its full name, as stored. Every hit also names `preview_url`,
 `download_url`, `license` and `size`.
@@ -301,7 +303,7 @@ repo.flows.search_all("Zellteilung", subject="Biologie", limit=5)
   },
   "collections": {
     "total": 7, "total_is_lower_bound": true, "returned": 3,
-    "hits": [...], "filters_ignored": ["subject"], "error": ""
+    "hits": [...], "filters_ignored": [], "error": ""
   }
 }
 ```
@@ -801,7 +803,7 @@ formats apart.
 **Behind it** — 2 requests, run in parallel:
 
 ```python
-# what repo.flows.collection_contents(cid) does
+# what repo.flows.collection_contents(collection_id=cid) does
 materials, children = await asyncio.gather(
     repo.raw.json("GET", f"/node/v1/nodes/-home-/{cid}/children",
                   params={"filter": "files", "maxItems": limit}),

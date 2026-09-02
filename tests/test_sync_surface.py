@@ -336,6 +336,10 @@ def test_die_synchrone_fassade_spiegelt_die_vorgaben():
     from edusharing.flows import Flows
 
     fehler = []
+    positional = (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+    for name, _fn in inspect.getmembers(SyncFlows, inspect.isfunction):
+        if not name.startswith("_") and not hasattr(Flows, name):
+            fehler.append(f"{name}: SyncFlows hat es, Flows nicht mehr")
     for name, fn in inspect.getmembers(Flows, inspect.isfunction):
         if name.startswith("_"):
             continue
@@ -346,6 +350,10 @@ def test_die_synchrone_fassade_spiegelt_die_vorgaben():
         a = {n: p for n, p in inspect.signature(fn).parameters.items() if n != "self"}
         b = {n: p for n, p in inspect.signature(spiegel).parameters.items() if n != "self"}
         offen = any(p.kind is inspect.Parameter.VAR_KEYWORD for p in b.values())
+        reihe_a = [n for n, p in a.items() if p.kind in positional]
+        reihe_b = [n for n, p in b.items() if p.kind in positional]
+        if reihe_a[:len(reihe_b)] != reihe_b:
+            fehler.append(f"{name}: Positionen {reihe_b} statt {reihe_a}")
         for n, p in a.items():
             if p.kind is inspect.Parameter.VAR_KEYWORD:
                 continue
