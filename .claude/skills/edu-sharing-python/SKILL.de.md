@@ -753,7 +753,7 @@ ein per `add_material` angelegter Datensatz war über seine Adresse
 (`find_by_url`, `ccm:wwwurl`) nach 5,3 Sekunden auffindbar, vorher nicht. Die
 Dublettenprüfung in `add_material` kann also einen Datensatz, den derselbe
 Prozess eben angelegt hat, nicht sehen, und `search` listet ihn noch nicht —
-`repo.node(id)` schon, denn das liest den Knotenspeicher. Ein Import, der
+`repo.node(node_id)` schon, denn das liest den Knotenspeicher. Ein Import, der
 dieselbe Adresse zweimal enthält, muss seine Eingabe selbst entdoppeln; ein
 Test, der anlegt und dann sucht, muss warten.
 
