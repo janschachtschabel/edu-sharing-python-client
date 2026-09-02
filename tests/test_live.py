@@ -413,18 +413,27 @@ async def test_eine_listing_id_ist_eine_referenz_und_die_sammlungen_kommen_trotz
 # --- Volltext, live --------------------------------------------------------
 
 @pytest.mark.live
-async def test_text_findet_den_text_eines_treffers(repo):
+async def test_text_findet_den_text_eines_treffers():
     """Ohne Dienst: die ersten Treffer zu 'Bruchrechnung' muessen mindestens
     einen Datensatz mit gespeichertem Text haben, und jede Antwort traegt
-    dieselben Schluessel -- auch die ohne Text, mit Grund."""
-    result = await repo.search("Bruchrechnung", limit=6)
-    quellen = []
-    for hit in result.hits:
-        got = await repo.flows.text(hit.id)
-        assert set(got) == {"id", "title", "text", "source", "source_url",
-                            "char_count", "truncated", "reason", "detail"}
-        assert (got["source"] != "none") == (got["reason"] == "")
-        quellen.append(got["source"])
+    dieselben Schluessel -- auch die ohne Text, mit Grund.
+
+    Anonym, und zwar absichtlich: welche Datensaetze vorn liegen, haengt vom
+    Konto ab. Gemessen am 02.09.2026: anonym ist unter den ersten sechs ein
+    Datensatz mit gespeichertem Text (Quelle "repository"); angemeldet waren
+    es andere sechs, und nur einer trug Text, per "download". Der Ablauf ist
+    derselbe -- der Beleg fuer die /textContent-Quelle braucht die anonyme
+    Sicht.
+    """
+    async with AsyncRepository(os.environ["EDU_SHARING_URL"]) as anon:
+        result = await anon.search("Bruchrechnung", limit=6)
+        quellen = []
+        for hit in result.hits:
+            got = await anon.flows.text(hit.id)
+            assert set(got) == {"id", "title", "text", "source", "source_url",
+                                "char_count", "truncated", "reason", "detail"}
+            assert (got["source"] != "none") == (got["reason"] == "")
+            quellen.append(got["source"])
     assert "repository" in quellen, quellen
 
 
