@@ -13,6 +13,12 @@ as well as the exact hit, so every hit's own ``ccm:wwwurl`` is compared; and
 the comparison ignores case and nothing else -- a trailing slash can
 distinguish two real pages, and a wrong "already exists" blocks a legitimate
 record.
+
+One limit, also measured (staging, 2026-09-02): the check sees what the search
+index sees, and the index trails the node store. A record created a moment ago
+was findable by its address after 5.3 seconds, not before. Two creations for
+the same address within that window therefore both succeed; a caller that
+batches imports should de-duplicate its own input first.
 """
 
 from __future__ import annotations

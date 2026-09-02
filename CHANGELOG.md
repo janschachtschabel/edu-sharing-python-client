@@ -14,6 +14,14 @@ and in [`docs/audits/`](docs/audits/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`add_material` names the limit of its duplicate check.** The address
+  lookup goes through the search index, which trails the node store by a few
+  seconds (measured on staging, 2026-09-02: findable after 5.3 s). The write
+  proof that assumed an instant index now waits for it; the flow, the
+  documentation and the skill say so.
+
 ## [0.1.0] — 2026-09-02
 
 ### Added

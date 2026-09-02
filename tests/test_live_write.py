@@ -14,6 +14,7 @@ fremde Bestaende beschaedigt:
 * Kein Test fasst einen Knoten an, dessen ID er nicht selbst erzeugt hat.
 """
 
+import asyncio
 import json
 import os
 import uuid
@@ -22,6 +23,7 @@ import pytest
 
 from edusharing import AsyncRepository
 from edusharing.errors import SilentDropError
+from edusharing.flows.duplicates import find_by_url
 
 pytestmark = [
     pytest.mark.write,
@@ -805,9 +807,24 @@ async def test_schreiben_an_einer_listing_id_erreicht_das_original(repo, sammlun
 # Nicht ausgefuehrt am 02.09.2026 (Staging-Login mit 401 abgelehnt).
 
 async def test_zweites_material_zu_derselben_adresse_wird_nicht_angelegt(repo, ordner):
+    """Die Pruefung sieht, was der Index sieht -- und der hinkt dem Anlegen nach.
+
+    Gemessen am 02.09.2026 auf Staging: ein frisch angelegter Datensatz ist
+    nach 5,3 s ueber ccm:wwwurl auffindbar, sofort nach dem Anlegen nicht.
+    Ein zweiter Aufruf innerhalb dieser Spanne legt also einen zweiten
+    Datensatz an; das ist die dokumentierte Grenze der Pruefung, kein
+    Fehler. Der Test wartet deshalb auf den Index (bis 60 s) und belegt dann,
+    dass der zweite Aufruf den ersten Datensatz zurueckgibt.
+    """
     adresse = f"https://example.org/pytest-{uuid.uuid4().hex[:8]}"
     erstes = await repo.flows.add_material("Erstes", url=adresse, parent_id=ordner.id)
     assert erstes["created"] is True
+    for _ in range(20):
+        if await find_by_url(repo, adresse):
+            break
+        await asyncio.sleep(3)
+    else:
+        pytest.fail("nach 60 s nicht im Index -- die Pruefung kann den Datensatz nicht sehen")
     zweites = await repo.flows.add_material("Zweites", url=adresse, parent_id=ordner.id)
     assert zweites["created"] is False
     assert zweites["existing"]["id"] == erstes["id"]

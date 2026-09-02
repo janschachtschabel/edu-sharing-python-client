@@ -1389,6 +1389,13 @@ Sache des Metadatensatzes — gemessen nimmt `mds_oeh` `ccm:wwwurl` als
 Kriterium an, `-default-` nicht — und wenn nicht, fällt die Vorgabe aus und
 `warnings` sagt es, während `"raise"` sich weigert zu raten.
 
+**Die Prüfung sieht, was der Index sieht.** Die Adresssuche läuft über den
+Suchindex, und der hinkt dem Knotenspeicher nach: gemessen auf Staging
+(02.09.2026) war ein eben angelegter Datensatz nach 5,3 Sekunden über seine
+Adresse auffindbar, vorher nicht. Zwei Aufrufe zur selben Adresse innerhalb
+dieser Spanne legen beide an; ein Import, der dieselbe Adresse zweimal
+enthält, muss seine Eingabe selbst entdoppeln.
+
 **Eingabe**
 
 ```python

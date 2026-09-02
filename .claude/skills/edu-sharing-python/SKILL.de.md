@@ -746,6 +746,17 @@ doc = await repo.flows.skill(found["hits"][0]["id"])
 doc["files_reason"]          # anonym "folder_unreadable"
 ```
 
+### 5.15 Ein Datensatz ist nicht in dem Moment auffindbar, in dem er angelegt wurde
+
+Der Suchindex hinkt dem Knotenspeicher nach. Gemessen auf Staging (02.09.2026):
+ein per `add_material` angelegter Datensatz war über seine Adresse
+(`find_by_url`, `ccm:wwwurl`) nach 5,3 Sekunden auffindbar, vorher nicht. Die
+Dublettenprüfung in `add_material` kann also einen Datensatz, den derselbe
+Prozess eben angelegt hat, nicht sehen, und `search` listet ihn noch nicht —
+`repo.node(id)` schon, denn das liest den Knotenspeicher. Ein Import, der
+dieselbe Adresse zweimal enthält, muss seine Eingabe selbst entdoppeln; ein
+Test, der anlegt und dann sucht, muss warten.
+
 ---
 
 ## 6. Hinter ein Modell stellen

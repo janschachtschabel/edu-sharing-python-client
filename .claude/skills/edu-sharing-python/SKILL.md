@@ -712,6 +712,16 @@ doc = await repo.flows.skill(found["hits"][0]["id"])
 doc["files_reason"]          # "folder_unreadable" anonymously
 ```
 
+### 5.15 A record is not findable the moment it is created
+
+The search index trails the node store. Measured on staging (2026-09-02): a
+record created through `add_material` was findable by its address
+(`find_by_url`, `ccm:wwwurl`) after 5.3 seconds, not before. So the duplicate
+check in `add_material` cannot see a record the same process created a moment
+ago, and `search` will not list it yet either — `repo.node(id)` does, because
+that reads the node store. An import that carries the same address twice must
+de-duplicate its own input; a test that creates and then searches must wait.
+
 ---
 
 ## 6. Putting it behind a model

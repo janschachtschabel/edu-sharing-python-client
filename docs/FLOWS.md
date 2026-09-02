@@ -1353,6 +1353,13 @@ metadata set — measured, `mds_oeh` accepts `ccm:wwwurl` as a criterion and
 `-default-` does not — and when it cannot, the default check is skipped and
 `warnings` says so, while `"raise"` refuses to guess.
 
+**The check sees what the index sees.** The address lookup goes through the
+search index, which trails the node store: measured on staging (2026-09-02),
+a record created a moment ago was findable by its address after 5.3 seconds,
+not before. Two calls for the same address within that window both create;
+an import that carries the same address twice must de-duplicate its own
+input.
+
 **Input**
 
 ```python
