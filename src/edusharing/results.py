@@ -38,6 +38,27 @@ class SearchHit:
     def properties(self) -> dict[str, Any]:
         return self.raw.get("properties") or {}
 
+    @property
+    def preview_url(self) -> str | None:
+        """The hit's own preview image, or ``None`` for a type icon."""
+        return preview_url_of(self.raw)
+
+    @property
+    def download_url(self) -> str | None:
+        """The address of the binary content -- set whether or not a file exists."""
+        return self.raw.get("downloadUrl") or None
+
+    @property
+    def license(self) -> str | None:
+        """The licence key as stored, e.g. ``CC_BY``."""
+        return _first(self.properties().get("ccm:commonlicense_key"))
+
+    @property
+    def size(self) -> int | None:
+        """Size in bytes, where the repository reports it."""
+        value = _first(self.properties().get("cclom:size"))
+        return int(value) if value and str(value).isdigit() else None
+
     def labels(self, prop: str) -> list[str]:
         """The readable values of a vocabulary property.
 
@@ -171,3 +192,17 @@ def _first(value: Any) -> str | None:
     if isinstance(value, list):
         return str(value[0]) if value else None
     return str(value) if value else None
+
+
+def preview_url_of(node: dict[str, Any]) -> str | None:
+    """The node's own preview image, or ``None``.
+
+    Free: the response carries it. ``None`` when the repository is serving a
+    type icon rather than a picture of this node -- measured on 2026-08-28,
+    ``preview.url`` is set either way and even survives deleting the image.
+    ``isIcon`` is what tells them apart, the same trap ``downloadUrl`` has.
+    One rule, used by ``Node`` and ``SearchHit`` alike.
+    """
+    preview = node.get("preview") or {}
+    url = preview.get("url")
+    return str(url) if url and not preview.get("isIcon") else None

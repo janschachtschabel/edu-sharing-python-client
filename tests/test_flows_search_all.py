@@ -214,3 +214,27 @@ async def test_ohne_ausfall_ist_error_leer():
     async with instanz.repo() as repo:
         ergebnis = await repo.flows.search_all("Zelle")
     assert ergebnis["collections"]["error"] == ""
+
+
+# --- Paket 4: der dritte Topf ----------------------------------------------
+
+class MitSeiten(Instanz):
+    """Eine der Sammlungen traegt eine Seite (ccm:page_config_ref)."""
+
+    def __init__(self) -> None:
+        super().__init__(sammlungen=[
+            _knoten("s-1", "Sammlung ohne Seite"),
+            {**_knoten("s-2", "Themenseite Biologie"),
+             "properties": {"cclom:title": ["Themenseite Biologie"],
+                            "ccm:page_config_ref": ["workspace://SpacesStore/ordner-2"]}},
+        ])
+
+
+async def test_seiten_kommen_nur_auf_wunsch():
+    instanz = MitSeiten()
+    async with instanz.repo() as repo:
+        ohne = await repo.flows.search_all("Zelle")
+        mit = await repo.flows.search_all("Zelle", include_pages=True)
+    assert "pages" not in ohne
+    assert [h["id"] for h in mit["pages"]["hits"]] == ["s-2"]
+    assert mit["pages"]["hits"][0]["folder_id"] == "ordner-2"

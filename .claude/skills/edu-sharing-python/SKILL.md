@@ -97,9 +97,9 @@ table.
 
 | The task | The call |
 |---|---|
-| search material | `repo.flows.search(text, subject=…, limit=…)` |
+| search material | `repo.flows.search(text, subject=…, limit=…, exclude_ids=…, properties=…)` |
 | search material *and* collections at once | `repo.flows.search_all(text)` |
-| find collections only | `repo.flows.find_collections(text)` |
+| find collections only — by subject, or below one collection | `repo.flows.find_collections(text, subject=…, parent_id=…)` → read `unjudged` |
 | more like this node | `repo.flows.related(node_id, on=["subject", "level"])` |
 | which values does a field allow | `repo.flows.vocabulary("subject")` |
 | every value of a field, or a substring of one | `repo.vocab.values(prop)` / `repo.vocab.suggest(prop, "ysik")` |
@@ -233,7 +233,7 @@ has to be guessed — argument and return shapes are in `docs/REFERENCE.md`.
 | You hold | From | On it |
 |---|---|---|
 | `SearchResult` | `repo.search(…)` (the flow returns the same as a `dict`) | `.hits` `.total` `.total_is_lower_bound` `.facets` `.suggestions` `.unresolved` `.ignored` `.warnings` `.raw` |
-| `SearchHit` | `result.hits[i]` | `.id` `.title` `.url` `.description` `.source_url` `.mimetype` `.mediatype` `.original_id` `.properties()` `.labels()` |
+| `SearchHit` | `result.hits[i]` | `.id` `.title` `.url` `.description` `.source_url` `.mimetype` `.mediatype` `.preview_url` `.download_url` `.license` `.size` `.original_id` `.properties()` `.labels()` |
 | `Facet` | `result.facets` | `.property` `.values` `.other_count` `.truncated`; `FacetValue`: `.value` `.count` |
 | `UnresolvedFilter` | `result.unresolved` | `.field` `.value` `.suggestions` |
 
@@ -307,6 +307,7 @@ so the value has a name instead of being buried in a signature.
 | `DEFAULT_HIT_CHARS` / `DEFAULT_RESULT_CHARS` | `400` / `4000` | how much `format_hit` / `format_results` hands a model |
 | `DEFAULT_MAX_CHARS` | `200000` | where `flows.text` cuts, at a word boundary |
 | `DUPLICATE_SCAN_LIMIT` | `20` | hits `find_by_url` compares before `add_material` creates; `check_before_create` applies `if_exists` |
+| `EXCLUSION_MAX` | `200` | the largest page `search` refills to after `exclude_ids` |
 | `DEFAULT_POOL` | `25` | how many hits `search(rerank=True)` fetches before reranking |
 | `MAX_VARIANTS` | `5` | how many rewrites `expand_query` produces |
 | `DEFAULT_MAX_COLLECTIONS` / `DEFAULT_MAX_WIDGETS` | `50` / `24` | ceilings on `browse_tree` and on a rendered page |

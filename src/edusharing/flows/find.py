@@ -7,13 +7,12 @@ it answers is a search question, so it lives here with the rest of them.
 
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Sequence
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
 from ..errors import ValidationError
-from ..results import SearchResult
+from ..search import DEFAULT_FACET_LIMIT
 from . import dedupe
 from .describe import describe
 from .language import GERMAN, LanguageProfile
@@ -23,14 +22,18 @@ from .serialize import result_as_dict
 if TYPE_CHECKING:  # pragma: no cover
     from ..repository import AsyncRepository
 __all__ = [
+    "EXCLUSION_MAX",
     "RELATED_ON",
     "field_property",
-    "find_collections",
     "related",
     "search",
-    "search_all",
     "vocabulary",
 ]
+
+
+#: The largest page ``search`` asks for when refilling after exclusions. A
+#: long exclusion list must not turn one call into a request for thousands.
+EXCLUSION_MAX = 200
 
 
 def field_property(repo: AsyncRepository, field: str) -> str:
@@ -66,6 +69,9 @@ async def search(
     pool: int = DEFAULT_POOL,
     language: LanguageProfile = GERMAN,
     deduplicate: bool = True,
+    exclude_ids: Sequence[str] = (),
+    facet_limit: int = DEFAULT_FACET_LIMIT,
+    properties: Sequence[str] = (),
     **aliases: str | list[str],
 ) -> dict[str, Any]:
     """Search for material and return the outcome as JSON.
@@ -92,6 +98,14 @@ async def search(
             same page, and two entries read as two pieces of material. The kept
             hit names the folded ones in ``duplicate_ids``; switch this off for
             the raw view.
+        exclude_ids: hits to leave out -- the ones already shown. The page is
+            refilled: that many more are asked for (up to ``EXCLUSION_MAX``),
+            so eight requested and three excluded still yields eight.
+        facet_limit: values per facet, 20 by default and up to what the
+            repository allows.
+        properties: further properties to carry under ``fields`` by their
+            full name, as stored -- for anything the short names do not
+            cover, such as the content type.
         **aliases: configured short names, e.g. ``subject="Biologie"``.
 
     Returns:
@@ -118,6 +132,11 @@ async def search(
         "limit": limit,
         "offset": offset,
     }
+    excluded = {i for i in exclude_ids if i}
+    if excluded:
+        query["exclude_ids"] = list(exclude_ids)
+    # Ask for that many more, so the page stays full after dropping them.
+    ask = min(limit + len(excluded), EXCLUSION_MAX)
 
     # Reranking needs something to rank against. A pure filter query has no
     # text, so there is nothing to expand and nothing to score.
@@ -125,7 +144,8 @@ async def search(
         result, variants = await search_reranked(
             repo, text,
             filters=filters, facets=facet_properties or None,
-            limit=limit, pool=pool, language=language, **forwarded,
+            limit=ask, pool=pool, language=language, facet_limit=facet_limit,
+            **forwarded,
         )
         query["reranked"] = True
         query["variants"] = variants
@@ -137,10 +157,13 @@ async def search(
             text,
             filters=filters,
             facets=facet_properties or None,
-            limit=limit,
+            limit=ask,
             offset=offset,
+            facet_limit=facet_limit,
             **forwarded,
         )
+    if excluded:
+        result = replace(result, hits=[h for h in result.hits if h.id not in excluded])
 
     folded: dict[str, list[str]] = {}
     if deduplicate:
@@ -148,9 +171,11 @@ async def search(
         # and under rerank that is the best-scored one.
         kept, folded = dedupe.deduplicate(result.hits)
         result = replace(result, hits=kept)
-
+    if len(result.hits) > limit:
+        result = replace(result, hits=result.hits[:limit])
     return result_as_dict(
-        result, query=query, aliases=repo.searcher.field_aliases, folded=folded)
+        result, query=query, aliases=repo.searcher.field_aliases, folded=folded,
+        properties=properties)
 
 
 async def vocabulary(
@@ -181,142 +206,6 @@ async def vocabulary(
         "property": prop,
         "values": [v.label for v in values],
         "count": len(values),
-    }
-
-
-async def find_collections(
-    repo: AsyncRepository, text: str, *, limit: int = 10
-) -> dict[str, Any]:
-    """Search collections and return the outcome as JSON.
-
-    Collections are how edu-sharing groups material for teaching, so finding
-    them is a different question from finding single resources -- and it uses a
-    different endpoint.
-
-    Args:
-        repo: the connection.
-        text: what to search for.
-        limit: how many to return.
-
-    Returns:
-        The same shape as ``search``. ``total_is_lower_bound`` is **true**: the
-        collection search asks two routes and merges them, so the figure counts
-        at least this many, possibly more.
-
-    Raises:
-        EduSharingError: for anything the repository refuses.
-    """
-    result = await repo.collections.find(text, limit=limit)
-    query: dict[str, Any] = {
-        "text": text,
-        "metadataset": repo.metadataset,
-        "limit": limit,
-        "kind": "collections",
-    }
-    return result_as_dict(result, query=query, aliases=repo.searcher.field_aliases)
-
-
-async def search_all(
-    repo: AsyncRepository,
-    text: str,
-    *,
-    filters: dict[str, str | list[str]] | None = None,
-    facets: list[str] | None = None,
-    limit: int = 10,
-    rerank: bool = False,
-    pool: int = DEFAULT_POOL,
-    language: LanguageProfile = GERMAN,
-    deduplicate: bool = True,
-    **aliases: str | list[str],
-) -> dict[str, Any]:
-    """Material **and** collections for one query, in a single call.
-
-    Asking a repository about a topic usually means both questions at once: the
-    individual resources, and the collections in which somebody has already put
-    together what belongs to it. They are different endpoints with different
-    answer shapes, so the two stay in separate buckets rather than being merged
-    into one ranking that would compare things that do not compare.
-
-    Args:
-        repo: the connection.
-        text: what to search for. Required here -- a filter-only search has no
-            counterpart on the collection side.
-        filters, facets, limit, rerank, pool, language, deduplicate, aliases:
-            as in ``search``. ``limit`` applies **per bucket**, so neither
-            crowds out the other.
-
-    Returns:
-        ``{query, materials, collections}``. Each bucket is exactly what
-        ``search`` and ``find_collections`` return on their own, including
-        their own ``total`` -- the collection figure is a lower bound, the
-        material one is not, and a joint sum would blur that.
-
-        ``collections.filters_ignored`` names the filters that could **not** be
-        applied to the collections. Measured: that query accepts
-        ``ngsearchword`` and nothing else; any further criterion ends in
-        ``400 DAOValidationException``. Applying a filter to one bucket and
-        silently not to the other would claim a narrowing that did not happen.
-
-    Raises:
-        ValidationError: on an empty query, or an unknown short name.
-        EduSharingError: for anything the repository refuses.
-    """
-    if not text or not text.strip():
-        raise ValidationError(
-            "search_all needs a query -- the collection search takes a search "
-            "word and nothing else, so there is no filter-only variant here. "
-            "Use search() for that."
-        )
-
-    # As in ``search()``: the short names are configured, not declarable.
-    forwarded: dict[str, Any] = dict(aliases)
-    # Two names per bucket: what the gather handed back, which may be an
-    # exception, and the usable value. Overwriting the first with the second
-    # hid from the reader that they are different things.
-    # ``return_exceptions=True`` means each slot is a result OR the exception
-    # that ended it; the annotation says so, because a checker cannot read it
-    # out of ``gather``.
-    material_outcome: dict[str, Any] | BaseException
-    collection_outcome: dict[str, Any] | BaseException
-    material_outcome, collection_outcome = await asyncio.gather(
-        search(repo, text, filters=filters, facets=facets, limit=limit,
-               rerank=rerank, pool=pool, language=language,
-               deduplicate=deduplicate, **forwarded),
-        find_collections(repo, text, limit=limit),
-        return_exceptions=True,
-    )
-    if isinstance(material_outcome, BaseException):
-        # The material bucket is the main question. Handing it back empty would
-        # claim there is nothing, which is a different statement from "the
-        # search failed".
-        raise material_outcome
-    materials: dict[str, Any] = material_outcome
-
-    collections: dict[str, Any]
-    if isinstance(collection_outcome, BaseException):
-        # ``collections.find`` already says one level down that half a result
-        # is usable and a faked empty one is not. It applies that between its
-        # two routes; between the two buckets it did not, so a collection
-        # outage took the material hits with it (audit A9).
-        #
-        # Built through ``result_as_dict`` rather than written out, so the
-        # empty bucket cannot drift away from the filled one.
-        failure = f"{type(collection_outcome).__name__}: {collection_outcome}"
-        collections = result_as_dict(
-            SearchResult(total_is_lower_bound=True, warnings=[failure]),
-            query={"text": text, "metadataset": repo.metadataset,
-                   "limit": limit, "kind": "collections"},
-            aliases=repo.searcher.field_aliases,
-        )
-        collections["error"] = failure
-    else:
-        collections = collection_outcome
-    collections.setdefault("error", "")
-    collections["filters_ignored"] = [*(filters or {}), *aliases]
-    return {
-        "query": {"text": text, "metadataset": repo.metadataset, "limit": limit},
-        "materials": materials,
-        "collections": collections,
     }
 
 

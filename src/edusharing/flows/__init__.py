@@ -26,8 +26,11 @@ editor.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
+from ..search import DEFAULT_FACET_LIMIT
+from . import collections as collection_search
 from . import contents, curate, describe, find, pages, suggest, tree
 from . import text as text_flow
 from .language import GERMAN, LanguageProfile
@@ -57,6 +60,9 @@ class Flows:
         pool: int = DEFAULT_POOL,
         language: LanguageProfile = GERMAN,
         deduplicate: bool = True,
+        exclude_ids: Sequence[str] = (),
+        facet_limit: int = DEFAULT_FACET_LIMIT,
+        properties: Sequence[str] = (),
         **aliases: str | list[str],
     ) -> dict[str, Any]:
         """Search for material, return JSON. See ``find.search``.
@@ -72,17 +78,18 @@ class Flows:
         return await find.search(
             self._repo, text, filters=filters, facets=facets,
             limit=limit, offset=offset, rerank=rerank, pool=pool,
-            language=language, deduplicate=deduplicate, **aliases,
+            language=language, deduplicate=deduplicate, exclude_ids=exclude_ids,
+            facet_limit=facet_limit, properties=properties, **aliases,
         )
 
     async def search_all(self, text: str, **kwargs: Any) -> dict[str, Any]:
-        """Material **and** collections in one call. See ``find.search_all``.
+        """Material **and** collections in one call. See ``collections.search_all``.
 
         **Read ``collections.filters_ignored``**: the collection search takes a
         search word and nothing else, so a filter narrows the material bucket
         and not the other one.
         """
-        return await find.search_all(self._repo, text, **kwargs)
+        return await collection_search.search_all(self._repo, text, **kwargs)
 
     async def vocabulary(self, field: str, *, locale: str | None = None) -> dict[str, Any]:
         """The values a field accepts. See ``find.vocabulary``."""
@@ -187,20 +194,21 @@ class Flows:
         """
         return await tree.collection_stats(self._repo, collection_id, **kwargs)
 
-    async def find_collections(self, text: str, *, limit: int = 10) -> dict[str, Any]:
-        """Search collections. See ``find.find_collections``.
+    async def find_collections(self, text: str = "", **kwargs: Any) -> dict[str, Any]:
+        """Search collections. See ``collections.find_collections``.
 
         ``total_is_lower_bound`` is always true here -- two routes are merged.
         """
-        return await find.find_collections(self._repo, text, limit=limit)
+        return await collection_search.find_collections(self._repo, text, **kwargs)
 
     async def collection_contents(
-        self, collection_id: str, *, limit: int = 20, offset: int = 0
+        self, collection_id: str, *, limit: int = 20, offset: int = 0,
+        properties: Sequence[str] = (),
     ) -> dict[str, Any]:
         """Material and sub-collections of one collection.
         See ``contents.collection_contents``."""
         return await contents.collection_contents(
-            self._repo, collection_id, limit=limit, offset=offset)
+            self._repo, collection_id, limit=limit, offset=offset, properties=properties)
 
     # --- writing ----------------------------------------------------------
 

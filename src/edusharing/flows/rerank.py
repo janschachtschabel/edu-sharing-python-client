@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..errors import EduSharingError
 from ..results import SearchHit, SearchResult
+from ..search import DEFAULT_FACET_LIMIT
 from .expand import expand_query
 from .language import GERMAN, LanguageProfile
 from .ranking import score_hit
@@ -73,6 +74,7 @@ async def search_reranked(
     limit: int = 10,
     pool: int = DEFAULT_POOL,
     language: LanguageProfile = GERMAN,
+    facet_limit: int = DEFAULT_FACET_LIMIT,
     **aliases: str | list[str],
 ) -> tuple[SearchResult, list[str]]:
     """Run every query variant and return the merged, reordered result.
@@ -93,7 +95,8 @@ async def search_reranked(
 
     async def run(variant):
         return await repo.searcher.search(
-            variant.text, filters=filters, facets=facets, limit=pool, **aliases
+            variant.text, filters=filters, facets=facets, limit=pool,
+            facet_limit=facet_limit, **aliases
         )
 
     outcomes = await asyncio.gather(

@@ -54,7 +54,7 @@ nur von Hand ausgeschrieben.
 | `find_pages` | 2, parallel | beide Sammlungswege → die Treffer mit Seiten-Ref behalten |
 | `relations` | 1 | die Verknüpfungen des Knotens lesen |
 | `child_objects` | 2 | Hauptknoten laden → seine Kinder, gefiltert und sortiert |
-| `find_collections` | 2, parallel | beide Sammlungswege → über die ID zusammenlegen |
+| `find_collections` | 2, parallel; mit `parent_id` eine je geöffneter Sammlung | beide Sammlungswege → über die ID zusammenlegen → lokal filtern |
 | `collection_contents` | 2, parallel | Materialliste + Untersammlungsliste |
 | `add_material` | 3–6 | die Adresse (`url`) prüfen → whoami (ohne parent) → Vokabular auflösen → anlegen → einlegen (auf Wunsch) → veröffentlichen (auf Wunsch) |
 | `update_material` | 3–4 | Vokabular auflösen → laden → schreiben → zurücklesen |
@@ -90,6 +90,13 @@ Voreingestellt sind `subject`, `level`, `type`, `difficulty`, `license`.
 ---
 
 ## `search` — Material finden
+
+**Seit dem 02.09.2026:** `exclude_ids` lässt schon gezeigte Treffer aus — und
+die Seite wird nachgefüllt, acht gewünschte und drei ausgeschlossene ergeben
+also acht (bis `EXCLUSION_MAX` angefordert); `facet_limit` hebt die 20 Werte
+je Facette an; `properties=["ccm:oeh_extendedType"]` trägt jede weitere
+Eigenschaft unter `fields` mit ihrem vollen Namen, wie gespeichert. Jeder
+Treffer nennt außerdem `preview_url`, `download_url`, `license` und `size`.
 
 Vokabulare werden gegen den Metadatensatz dieser Instanz aufgelöst.
 `subject="Biologie"` funktioniert also, ohne dass jemand den URI dahinter kennt.
@@ -267,6 +274,10 @@ unauflösbarer Filter gemeldet statt stillschweigend fallengelassen wird.
 ---
 
 ## `search_all` — Material *und* Sammlungen auf einmal
+
+**Seit dem 02.09.2026:** `include_pages=True` fügt einen dritten Topf hinzu,
+`pages` — die Sammlungstreffer mit redaktioneller Seite (`find_pages`), um den
+Preis einer zweiten Sammlungssuche. `properties=` wirkt auf beide Töpfe.
 
 Wer ein Repositorium nach einem Thema fragt, meint meist beides: die einzelnen
 Materialien und die Sammlungen, in denen jemand schon zusammengestellt hat, was
@@ -699,6 +710,17 @@ for sammlung in await node.collections():
 
 ## `find_collections` — Sammlungen suchen
 
+**Seit dem 02.09.2026 lässt sich die Suche eingrenzen — lokal.** Der
+Sammlungsendpunkt nimmt ein Suchwort und sonst nichts (gemessen); `subject=`,
+`level=` und die anderen Kurznamen werden aufgelöst und gegen die
+Eigenschaften jedes Treffers geprüft; ein Treffer ohne Eigenschaften lässt
+sich nicht beurteilen und zählt in `unjudged`. Sammlungstreffer tragen die
+URIs, aber keine `_DISPLAYNAME`-Labels (gemessen), `fields` bleibt bei ihnen
+also leer — die Eigenschaft selbst holt `properties=["ccm:taxonid"]`.
+`parent_id` sucht nicht: die Untersammlungen darunter werden gegangen (zwei
+Ebenen) und `text` gegen ihre Titel geprüft, die nähere Ebene zuerst; leeres
+`text` listet alle.
+
 Sammlungen sind die Art, wie edu-sharing Material für den Unterricht bündelt.
 Sie zu finden ist eine andere Frage als einzelne Materialien zu finden — und ein
 anderer Endpunkt.
@@ -739,6 +761,10 @@ eine untere Schranke.
 ---
 
 ## `collection_contents` — eine Sammlung öffnen
+
+**Seit dem 02.09.2026:** `properties=["ccm:oeh_extendedType"]` trägt weitere
+Eigenschaften jedes Eintrags unter `fields`, wie gespeichert — gemessen trägt
+ein Listing die Inhaltsart, und `fields` verschwieg sie.
 
 **Eingabe**
 
@@ -913,6 +939,10 @@ GET /collection/v1/collections/-home-/abc/children/collections
 ---
 
 ## `search_in_collection` — etwas in einer Sammlung finden
+
+**Seit dem 02.09.2026:** `properties=["ccm:oeh_extendedType"]` trägt weitere
+Eigenschaften jedes Eintrags unter `fields`, wie gespeichert — gemessen trägt
+ein Listing die Inhaltsart, und `fields` verschwieg sie.
 
 **Eingabe**
 

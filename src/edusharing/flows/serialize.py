@@ -19,6 +19,7 @@ metadata set would produce a different shape.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 from ..results import Facet, SearchHit, SearchResult, UnresolvedFilter
@@ -30,6 +31,8 @@ def hit_as_dict(
     hit: SearchHit,
     aliases: dict[str, str],
     folded: dict[str, list[str]] | None = None,
+    *,
+    properties: Sequence[str] = (),
 ) -> dict[str, Any]:
     """One hit as JSON.
 
@@ -48,6 +51,12 @@ def hit_as_dict(
         labels = hit.labels(prop)
         if labels:
             fields[short_name] = labels
+    # Anything else the caller asked for, under its full name and as stored:
+    # a listing carries the content type, and ``fields`` used to hide it.
+    for prop in properties:
+        values = hit.properties().get(prop)
+        if values:
+            fields[prop] = list(values)
 
     return {
         "id": hit.id,
@@ -57,6 +66,10 @@ def hit_as_dict(
         "source_url": hit.source_url,
         "mimetype": hit.mimetype,
         "mediatype": hit.mediatype,
+        "preview_url": hit.preview_url,
+        "download_url": hit.download_url,
+        "license": hit.license,
+        "size": hit.size,
         "fields": fields,
         # ``None`` on an original. A listing or a collection-scoped search hands
         # out reference ids; this is the record behind one -- and the id a
@@ -99,6 +112,7 @@ def result_as_dict(
     query: dict[str, Any],
     aliases: dict[str, str],
     folded: dict[str, list[str]] | None = None,
+    properties: Sequence[str] = (),
 ) -> dict[str, Any]:
     """A whole search result as JSON.
 
@@ -124,7 +138,7 @@ def result_as_dict(
         # How many records were folded into another. Not a count of what the
         # repository holds -- a count of what this answer left out on purpose.
         "duplicates_removed": sum(len(v) for v in (folded or {}).values()),
-        "hits": [hit_as_dict(h, aliases, folded) for h in result.hits],
+        "hits": [hit_as_dict(h, aliases, folded, properties=properties) for h in result.hits],
         "facets": facets,
         # Non-empty means the result is BROADER than asked for.
         "unresolved": [_unresolved_as_dict(u, by_property) for u in result.unresolved],

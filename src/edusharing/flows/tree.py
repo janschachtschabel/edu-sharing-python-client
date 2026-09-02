@@ -21,6 +21,7 @@ completeness, and a caller cannot tell an empty result from an unfinished one.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 from ..urls import path_segment
@@ -127,6 +128,7 @@ async def search_in_collection(
     *,
     depth: int = 2,
     max_collections: int = DEFAULT_MAX_COLLECTIONS,
+    properties: Sequence[str] = (),
     limit: int = 50,
 ) -> dict[str, Any]:
     """Find material inside one collection and the ones below it.
@@ -184,7 +186,7 @@ async def search_in_collection(
     # the reason this module already argues elsewhere: cutting in silence reads
     # like completeness.
     pages = await asyncio.gather(
-        *(collection_contents(repo, i, limit=limit) for i in ids),
+        *(collection_contents(repo, i, limit=limit, properties=properties) for i in ids),
         return_exceptions=True,
     )
     readable = [p for p in pages if not isinstance(p, BaseException)]

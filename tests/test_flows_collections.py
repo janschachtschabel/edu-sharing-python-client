@@ -212,3 +212,71 @@ async def test_aenderung_gibt_den_neuen_stand_zurueck():
     assert ergebnis["id"] == "m1"
     assert ergebnis["title"] == "Neuer Titel"
     json.dumps(ergebnis)
+
+
+# --- Paket 4: find_collections mit Filtern und Elternbereich ---------------
+#
+# Die Sammlungssuche nimmt ngsearchword und sonst nichts (gemessen). Fach und
+# Stufe koennen also nicht gesendet werden -- sie werden hier auf die
+# Eigenschaften der Treffer angewandt, nachdem die Labels aufgeloest sind. Wer
+# einen Elternbereich nennt, sucht nicht: der Teilbaum wird gegangen und der
+# Text lokal verglichen -- so macht es der MCP mit parentNodeId.
+
+class Gefiltert(Instanz):
+    """Zwei Sammlungstreffer mit Fach, einer ohne Eigenschaften (Leg B)."""
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.anfragen.append(request)
+        pfad = request.url.path
+        if "/values" in pfad:
+            return httpx.Response(200, json=FAECHER)
+        if pfad.endswith("/children/collections"):
+            eltern = pfad.split("/-home-/")[1].split("/")[0]
+            kinder = {"wurzel": [("u-physik", "Optik in der Physik"), ("u-bio", "Zellen")],
+                      "u-physik": [("uu-1", "Linsen und Optik")]}.get(eltern, [])
+            return httpx.Response(200, json={"collections": [
+                {"ref": {"id": i}, "title": t, "collection": {"scope": "MY"},
+                 "properties": {"cclom:title": [t]}} for i, t in kinder]})
+        if "queries" in pfad:
+            return httpx.Response(200, json={"nodes": [
+                _knoten("c-physik", "Physik-Sammlung", **{"ccm:taxonid": ["http://x/460"]}),
+                _knoten("c-bio", "Bio-Sammlung", **{"ccm:taxonid": ["http://x/080"]}),
+                {"ref": {"id": "c-blind"}, "title": "Ohne Eigenschaften", "type": "ccm:map"},
+            ], "pagination": {"total": 3, "from": 0, "count": 3}})
+        if "collections" in pfad:
+            return httpx.Response(200, json={"nodes": [], "pagination": None})
+        return httpx.Response(200, json={"node": self._stand("m1")})
+
+
+async def test_ein_fachfilter_wirkt_auf_die_sammlungen_lokal():
+    instanz = Gefiltert()
+    async with _repo(instanz) as repo:
+        got = await repo.flows.find_collections("Physik", subject="Biologie")
+    assert [h["id"] for h in got["hits"]] == ["c-bio"]
+    assert got["unjudged"] == 1, "der Treffer ohne Eigenschaften kann nicht beurteilt werden"
+    assert got["unresolved"] == []
+    assert got["query"]["filters"] == {"ccm:taxonid": ["http://x/080"]}
+
+
+async def test_ein_unaufloesbarer_filter_wird_gemeldet_und_verengt_nicht():
+    instanz = Gefiltert()
+    async with _repo(instanz) as repo:
+        got = await repo.flows.find_collections("Physik", subject="Phsyik")
+    assert [h["id"] for h in got["hits"]] == ["c-physik", "c-bio", "c-blind"]
+    assert got["unresolved"] and got["unresolved"][0]["value"] == "Phsyik"
+
+
+async def test_ein_elternbereich_wird_gegangen_statt_gesucht():
+    instanz = Gefiltert()
+    async with _repo(instanz) as repo:
+        got = await repo.flows.find_collections("Optik", parent_id="wurzel")
+    assert [h["id"] for h in got["hits"]] == ["u-physik", "uu-1"]
+    assert not any("queries" in r.url.path for r in instanz.anfragen), "keine Suche"
+    assert got["query"]["parent_id"] == "wurzel"
+
+
+async def test_ohne_text_liefert_der_elternbereich_alles():
+    instanz = Gefiltert()
+    async with _repo(instanz) as repo:
+        got = await repo.flows.find_collections("", parent_id="wurzel")
+    assert [h["id"] for h in got["hits"]] == ["u-physik", "u-bio", "uu-1"]

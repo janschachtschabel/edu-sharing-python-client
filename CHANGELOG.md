@@ -16,6 +16,16 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Added
 
+- **Search parity with the MCP.** `search(exclude_ids=…)` leaves out hits
+  already shown and refills the page; `facet_limit` raises the 20 values per
+  facet; `properties=[…]` carries any further property under `fields`, as
+  stored — measured, a collection listing carries the content type and
+  `fields` used to hide it. `find_collections` takes `subject=`/`level=`
+  (applied locally: the collection endpoint accepts a search word and nothing
+  else) and `parent_id=` (walks the subtree instead of searching), and reports
+  `unjudged`. `search_all(include_pages=True)` adds the `pages` bucket. Every
+  hit names `preview_url`, `download_url`, `license` and `size`.
+  `flows/find.py` was split: collection search lives in `flows/collections.py`.
 - **`flows.accept_suggestion`** — apply a proposal, read it back, and only
   then mark it `ACCEPTED`. Measured 2026-08-28: marking alone writes nothing,
   so a proposal accepted by `decide()` was a record of something that never

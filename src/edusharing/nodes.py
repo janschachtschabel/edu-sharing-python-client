@@ -40,7 +40,7 @@ from .errors import SilentDropError, ValidationError
 from .pages import NodePage
 from .permissions import NodePermissions
 from .ratings import Rating
-from .results import original_id_of
+from .results import original_id_of, preview_url_of
 from .suggestions import Suggestions
 from .transport import Transport
 from .urls import path_segment
@@ -154,9 +154,7 @@ class Node:
         deleting the image. ``isIcon`` is what tells them apart, the same trap
         ``downloadUrl`` has.
         """
-        preview = self.raw.get("preview") or {}
-        url = preview.get("url")
-        return str(url) if url and not preview.get("isIcon") else None
+        return preview_url_of(self.raw)
 
     @property
     def aspects(self) -> tuple[str, ...]:

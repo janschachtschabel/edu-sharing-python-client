@@ -97,15 +97,7 @@ async def add_material(
         return _instead_of_creating(repo, existing, warnings)
 
     if parent_id is None:
-        identity = await repo.whoami()
-        if not identity.home_folder:
-            raise EduSharingError(
-                "No home folder for this account, so there is nowhere to put the "
-                "material. Pass parent_id explicitly. "
-                f"(Signed in as {identity.username!r}"
-                f"{', anonymously' if identity.is_anonymous else ''}.)"
-            )
-        parent_id = identity.home_folder
+        parent_id = await _home_folder(repo)
 
     vocabulary_props, unresolved = await resolve_vocabulary(repo, aliases)
     all_properties = {**(properties or {}), **vocabulary_props}
@@ -148,6 +140,19 @@ async def add_material(
         "created": True,
         "warnings": warnings,
     }
+
+
+async def _home_folder(repo: AsyncRepository) -> str:
+    """Where material goes when no parent is named -- or why it cannot."""
+    identity = await repo.whoami()
+    if not identity.home_folder:
+        raise EduSharingError(
+            "No home folder for this account, so there is nowhere to put the "
+            "material. Pass parent_id explicitly. "
+            f"(Signed in as {identity.username!r}"
+            f"{', anonymously' if identity.is_anonymous else ''}.)"
+        )
+    return identity.home_folder
 
 
 def _instead_of_creating(

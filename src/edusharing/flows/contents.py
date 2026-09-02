@@ -8,6 +8,7 @@ by side -- three kinds of belonging, one question.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 from ..childobjects import ORDER_PROPERTY
@@ -26,7 +27,8 @@ __all__ = [
 
 
 async def collection_contents(
-    repo: AsyncRepository, collection_id: str, *, limit: int = 20, offset: int = 0
+    repo: AsyncRepository, collection_id: str, *, limit: int = 20, offset: int = 0,
+    properties: Sequence[str] = (),
 ) -> dict[str, Any]:
     """What is inside a collection: material and sub-collections.
 
@@ -87,11 +89,11 @@ async def collection_contents(
 
     aliases = repo.searcher.field_aliases
     materials = [
-        hit_as_dict(SearchHit.from_node(node, repo.url), aliases)
+        hit_as_dict(SearchHit.from_node(node, repo.url), aliases, properties=properties)
         for node in (nodes_response.get("nodes") or [])
     ]
     children = [
-        hit_as_dict(SearchHit.from_node(node, repo.url), aliases)
+        hit_as_dict(SearchHit.from_node(node, repo.url), aliases, properties=properties)
         for node in (collections_response.get("collections") or [])
     ]
 

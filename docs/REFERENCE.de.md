@@ -135,7 +135,7 @@ result.unresolved            # []  <- immer prüfen
 | Name | Trägt |
 |---|---|
 | `SearchResult` | `total`, `total_is_lower_bound`, `hits`, `facets`, `unresolved`, `warnings` |
-| `SearchHit` | `id`, `title`, `description`, `url`, `source_url`, `mimetype`, `mediatype`, `original_id`, `properties`, `raw` |
+| `SearchHit` | `id`, `title`, `description`, `url`, `source_url`, `mimetype`, `mediatype`, `preview_url`, `download_url`, `license`, `size`, `original_id`, `properties`, `raw` |
 | `SearchHit.labels(prop)` | `list[str]` — lesbare Werte statt URIs |
 | `SearchHit.from_node(node, repo_url)` | baut einen Treffer aus einem Knotenrumpf |
 | `Facet` | `property`, `values`, `other_count`, `truncated` |
@@ -615,9 +615,9 @@ Argument. Tiefe und Begründungen: [FLOWS.de.md](FLOWS.de.md).
 
 | Aufruf | Liefert |
 |---|---|
-| `repo.flows.search(text, filters=…, facets=…, limit=…, rerank=…)` | `{query, total, total_is_lower_bound, returned, duplicates_removed, hits, facets, unresolved, ignored, warnings, suggestions}` |
-| `repo.flows.search_all(text, limit=…)` | `{query, materials, collections}` — beide Körbe auf einmal |
-| `repo.flows.find_collections(text, limit=…)` | dieselbe Form wie `search`; `total_is_lower_bound` ist **immer** wahr |
+| `repo.flows.search(text, filters=…, facets=…, limit=…, rerank=…, exclude_ids=…, facet_limit=…, properties=…)` | `{query, total, total_is_lower_bound, returned, duplicates_removed, hits, facets, unresolved, ignored, warnings, suggestions}` |
+| `repo.flows.search_all(text, limit=…, include_pages=…, properties=…)` | `{query, materials, collections}` — beide Körbe auf einmal; `pages` als dritter mit `include_pages=True` |
+| `repo.flows.find_collections(text, limit=…, parent_id=…, properties=…, subject=…)` | dieselbe Form wie `search` plus `unjudged`; Filter wirken lokal; `total_is_lower_bound` ist bei einer Suche **immer** wahr |
 | `repo.flows.related(node_id, on=…, limit=…)` | `{seed, based_on, hits, unresolved, reason}` |
 | `repo.flows.vocabulary(field)` | `{field, property, values, count}` |
 
@@ -668,7 +668,7 @@ diese Knoten nicht gibt.
 
 | Aufruf | Liefert |
 |---|---|
-| `repo.flows.collection_contents(id, limit=…, offset=…)` | `{id, materials, collections, total_materials, returned_materials}` |
+| `repo.flows.collection_contents(id, limit=…, offset=…, properties=…)` | `{id, materials, collections, total_materials, returned_materials}` |
 | `repo.flows.child_objects(node_id)` | `{id, count, children}` |
 | `repo.flows.relations(node_id)` | `{id, count, relations}` |
 
@@ -768,6 +768,7 @@ Diese sind für alle da, die sich einen eigenen Ablauf bauen.
 | `MAX_VARIANTS` | wie viele höchstens |
 | `search_reranked(repo, text, pool=…)` | die gepoolte, neu bewertete Suche |
 | `DEFAULT_POOL` | wie viele Kandidaten sie sammelt |
+| `EXCLUSION_MAX` | `200` — die größte Seite, die `search` beim Nachfüllen nach `exclude_ids` anfordert |
 | `score_hit(hit, query, aliases, profile=GERMAN)` | `int` — die Rangzahl |
 | `term_matches(term, text)` / `query_terms(query, profile)` | der Vergleicher und der Zerleger |
 | `deduplicate(hits)` | wirft Wiederholungen über Varianten hinweg weg |

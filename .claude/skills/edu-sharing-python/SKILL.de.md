@@ -108,9 +108,9 @@ der Platte.)*
 
 | Die Aufgabe | Der Aufruf |
 |---|---|
-| Material suchen | `repo.flows.search(text, subject=…, limit=…)` |
+| Material suchen | `repo.flows.search(text, subject=…, limit=…, exclude_ids=…, properties=…)` |
 | Material *und* Sammlungen auf einmal | `repo.flows.search_all(text)` |
-| nur Sammlungen finden | `repo.flows.find_collections(text)` |
+| nur Sammlungen finden — nach Fach, oder unterhalb einer Sammlung | `repo.flows.find_collections(text, subject=…, parent_id=…)` → `unjudged` lesen |
 | mehr wie dieser Knoten | `repo.flows.related(node_id, on=["subject", "level"])` |
 | welche Werte lässt ein Feld zu | `repo.flows.vocabulary("subject")` |
 | alle Werte eines Feldes, oder eine Teilzeichenkette | `repo.vocab.values(prop)` / `repo.vocab.suggest(prop, "ysik")` |
@@ -245,7 +245,7 @@ muss — die Argument- und Rückgabeformen stehen in `docs/REFERENCE.de.md`.
 | Man hält | Woher | Was darauf ist |
 |---|---|---|
 | `SearchResult` | `repo.search(…)` (der Ablauf liefert dasselbe als `dict`) | `.hits` `.total` `.total_is_lower_bound` `.facets` `.suggestions` `.unresolved` `.ignored` `.warnings` `.raw` |
-| `SearchHit` | `result.hits[i]` | `.id` `.title` `.url` `.description` `.source_url` `.mimetype` `.mediatype` `.original_id` `.properties()` `.labels()` |
+| `SearchHit` | `result.hits[i]` | `.id` `.title` `.url` `.description` `.source_url` `.mimetype` `.mediatype` `.preview_url` `.download_url` `.license` `.size` `.original_id` `.properties()` `.labels()` |
 | `Facet` | `result.facets` | `.property` `.values` `.other_count` `.truncated`; `FacetValue`: `.value` `.count` |
 | `UnresolvedFilter` | `result.unresolved` | `.field` `.value` `.suggestions` |
 
@@ -321,6 +321,7 @@ zu verschwinden.
 | `DEFAULT_HIT_CHARS` / `DEFAULT_RESULT_CHARS` | `400` / `4000` | wie viel `format_hit` / `format_results` einem Modell reicht |
 | `DEFAULT_MAX_CHARS` | `200000` | wo `flows.text` kürzt, an einer Wortgrenze |
 | `DUPLICATE_SCAN_LIMIT` | `20` | Treffer, die `find_by_url` vergleicht, bevor `add_material` anlegt; `check_before_create` wendet `if_exists` an |
+| `EXCLUSION_MAX` | `200` | die größte Seite, die `search` nach `exclude_ids` nachfüllt |
 | `DEFAULT_POOL` | `25` | wie viele Treffer `search(rerank=True)` vor dem Neuordnen holt |
 | `MAX_VARIANTS` | `5` | wie viele Umformulierungen `expand_query` erzeugt |
 | `DEFAULT_MAX_COLLECTIONS` / `DEFAULT_MAX_WIDGETS` | `50` / `24` | Obergrenzen für `browse_tree` und für eine gerenderte Seite |

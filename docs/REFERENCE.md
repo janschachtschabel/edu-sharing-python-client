@@ -129,7 +129,7 @@ result.unresolved            # []  <- always check this
 | Name | Carries |
 |---|---|
 | `SearchResult` | `total`, `total_is_lower_bound`, `hits`, `facets`, `unresolved`, `warnings` |
-| `SearchHit` | `id`, `title`, `description`, `url`, `source_url`, `mimetype`, `mediatype`, `original_id`, `properties`, `raw` |
+| `SearchHit` | `id`, `title`, `description`, `url`, `source_url`, `mimetype`, `mediatype`, `preview_url`, `download_url`, `license`, `size`, `original_id`, `properties`, `raw` |
 | `SearchHit.labels(prop)` | `list[str]` — readable values instead of URIs |
 | `SearchHit.from_node(node, repo_url)` | builds a hit from a node body |
 | `Facet` | `property`, `values`, `other_count`, `truncated` |
@@ -605,9 +605,9 @@ argument. Depth and reasoning: [FLOWS.md](FLOWS.md).
 
 | Call | Returns |
 |---|---|
-| `repo.flows.search(text, filters=…, facets=…, limit=…, rerank=…)` | `{query, total, total_is_lower_bound, returned, duplicates_removed, hits, facets, unresolved, ignored, warnings, suggestions}` |
-| `repo.flows.search_all(text, limit=…)` | `{query, materials, collections}` — both buckets at once |
-| `repo.flows.find_collections(text, limit=…)` | same shape as `search`; `total_is_lower_bound` is **always true** |
+| `repo.flows.search(text, filters=…, facets=…, limit=…, rerank=…, exclude_ids=…, facet_limit=…, properties=…)` | `{query, total, total_is_lower_bound, returned, duplicates_removed, hits, facets, unresolved, ignored, warnings, suggestions}` |
+| `repo.flows.search_all(text, limit=…, include_pages=…, properties=…)` | `{query, materials, collections}` — both buckets at once; `pages` as a third with `include_pages=True` |
+| `repo.flows.find_collections(text, limit=…, parent_id=…, properties=…, subject=…)` | same shape as `search` plus `unjudged`; filters applied locally; `total_is_lower_bound` is **always true** for a search |
 | `repo.flows.related(node_id, on=…, limit=…)` | `{seed, based_on, hits, unresolved, reason}` |
 | `repo.flows.vocabulary(field)` | `{field, property, values, count}` |
 
@@ -656,7 +656,7 @@ than requested is otherwise indistinguishable from "these do not exist".
 
 | Call | Returns |
 |---|---|
-| `repo.flows.collection_contents(id, limit=…, offset=…)` | `{id, materials, collections, total_materials, returned_materials}` |
+| `repo.flows.collection_contents(id, limit=…, offset=…, properties=…)` | `{id, materials, collections, total_materials, returned_materials}` |
 | `repo.flows.child_objects(node_id)` | `{id, count, children}` |
 | `repo.flows.relations(node_id)` | `{id, count, relations}` |
 
@@ -755,6 +755,7 @@ These are exported for anyone building their own flow.
 | `MAX_VARIANTS` | how many at most |
 | `search_reranked(repo, text, pool=…)` | the pooled, re-scored search |
 | `DEFAULT_POOL` | how many candidates it pools |
+| `EXCLUSION_MAX` | `200` — the largest page `search` asks for when refilling after `exclude_ids` |
 | `score_hit(hit, query, aliases, profile=GERMAN)` | `int` — the rank score |
 | `term_matches(term, text)` / `query_terms(query, profile)` | the matcher and the tokeniser |
 | `deduplicate(hits)` | drops repeats across variants |

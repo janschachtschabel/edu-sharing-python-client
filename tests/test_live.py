@@ -447,3 +447,47 @@ async def test_find_by_url_findet_den_datensatz_zu_einer_bekannten_adresse():
     async with AsyncRepository.from_env() as repo:
         with pytest.raises(ValidationError):
             await find_by_url(repo, hit.source_url)
+
+
+# --- Paket 4, live: Suchgleichstand ----------------------------------------
+
+@pytest.mark.live
+async def test_ausschluss_haelt_die_seite_voll():
+    async with AsyncRepository.from_env(metadataset="mds_oeh") as repo:
+        erste = await repo.flows.search("Bruchrechnung", limit=5)
+        weg = [h["id"] for h in erste["hits"][:2]]
+        zweite = await repo.flows.search("Bruchrechnung", limit=5, exclude_ids=weg)
+    ids = [h["id"] for h in zweite["hits"]]
+    assert not set(weg) & set(ids)
+    assert len(ids) == 5, ids
+
+
+@pytest.mark.live
+async def test_sammlungen_lassen_sich_nach_fach_filtern_und_unter_einer_eltern_sammlung_finden():
+    async with AsyncRepository.from_env(metadataset="mds_oeh") as repo:
+        gefiltert = await repo.flows.find_collections(
+            "Optik", subject="Physik", limit=10, properties=["ccm:taxonid"])
+        assert gefiltert["unresolved"] == []
+        physik = set(gefiltert["query"]["filters"]["ccm:taxonid"])
+        # Sammlungstreffer tragen die URI, aber kein _DISPLAYNAME (gemessen) --
+        # darum die Eigenschaft selbst und nicht das Label.
+        for hit in gefiltert["hits"]:
+            assert physik & set(hit["fields"].get("ccm:taxonid", [])), hit
+        alle = await repo.flows.find_collections("Optik", limit=10)
+        eltern = next((h["id"] for h in alle["hits"]
+                       if h["title"].strip().lower() == "optik"), None)
+        assert eltern, [h["title"] for h in alle["hits"]]
+        unten = await repo.flows.find_collections("", parent_id=eltern, limit=50)
+    assert unten["hits"], "die Optik-Sammlung hat Untersammlungen (gemessen: Wellenoptik, Farben …)"
+    assert unten["query"]["parent_id"] == eltern
+
+
+@pytest.mark.live
+async def test_search_all_mit_seiten_und_eigenschaften():
+    async with AsyncRepository.from_env(metadataset="mds_oeh") as repo:
+        got = await repo.flows.search_all("Optik", include_pages=True,
+                                          properties=["ccm:wwwurl"], limit=5)
+    assert "pages" in got and "hits" in got["pages"]
+    assert got["materials"]["hits"], "Material zu Optik"
+    assert any("ccm:wwwurl" in h["fields"] for h in got["materials"]["hits"]), \
+        "die gewuenschte Eigenschaft erscheint unter fields"

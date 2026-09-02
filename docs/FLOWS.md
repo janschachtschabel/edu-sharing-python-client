@@ -53,7 +53,7 @@ out by hand.
 | `find_pages` | 2, parallel | both collection routes → keep the hits carrying a page ref |
 | `relations` | 1 | read the node's links |
 | `child_objects` | 2 | load parent → its children, filtered and sorted |
-| `find_collections` | 2, parallel | both collection routes → merge on id |
+| `find_collections` | 2, parallel; with `parent_id` one per collection opened | both collection routes → merge on id → filter locally |
 | `collection_contents` | 2, parallel | material listing + sub-collection listing |
 | `add_material` | 3–6 | check the address (`url`) → whoami (if no parent) → resolve vocabulary → create → add to collection (if asked) → publish (if asked) |
 | `update_material` | 3–4 | resolve vocabulary → load → write → read back |
@@ -87,6 +87,13 @@ The defaults are `subject`, `level`, `type`, `difficulty`, `license`.
 ---
 
 ## `search` — find material
+
+**Since 2026-09-02:** `exclude_ids` leaves out hits already shown — and the
+page is refilled, so eight requested and three excluded still yields eight
+(up to `EXCLUSION_MAX` asked for); `facet_limit` raises the 20 values per facet;
+`properties=["ccm:oeh_extendedType"]` carries any further property under
+`fields` by its full name, as stored. Every hit also names `preview_url`,
+`download_url`, `license` and `size`.
 
 Vocabularies are resolved against this instance's own metadata set, so
 `subject="Biologie"` works without anyone knowing the URI behind it.
@@ -258,6 +265,10 @@ unresolvable filter is reported rather than silently dropped.
 ---
 
 ## `search_all` — material *and* collections at once
+
+**Since 2026-09-02:** `include_pages=True` adds a third bucket, `pages` — the
+collection hits that carry a curated page (`find_pages`), at the cost of the
+collection search a second time. `properties=` reaches both buckets.
 
 Asking a repository about a topic usually means both questions: the individual
 resources, and the collections in which somebody has already put together what
@@ -681,6 +692,16 @@ for collection in await node.collections():
 
 ## `find_collections` — search collections
 
+**Since 2026-09-02 the search can be narrowed — locally.** The collection
+endpoint takes a search word and nothing else (measured), so `subject=`,
+`level=` and the other short names are resolved and matched against each hit's
+own properties; a hit without properties cannot be judged and is counted in
+`unjudged`. Collection hits carry the URIs but no `_DISPLAYNAME` labels
+(measured), so `fields` stays empty for them — ask for the property itself with
+`properties=["ccm:taxonid"]`. `parent_id` does not search: the sub-collections
+below it are walked (two levels) and `text` is matched against their titles,
+nearest level first; empty `text` lists them all.
+
 Collections are how edu-sharing groups material for teaching, so finding them is
 a different question from finding single resources — and a different endpoint.
 
@@ -719,6 +740,10 @@ a lower bound.
 ---
 
 ## `collection_contents` — open a collection
+
+**Since 2026-09-02:** `properties=["ccm:oeh_extendedType"]` carries further
+properties of each entry under `fields`, as stored — measured, a listing carries
+the content type and `fields` used to hide it.
 
 **Input**
 
@@ -888,6 +913,10 @@ GET /collection/v1/collections/-home-/abc/children/collections
 ---
 
 ## `search_in_collection` — find something inside one collection
+
+**Since 2026-09-02:** `properties=["ccm:oeh_extendedType"]` carries further
+properties of each entry under `fields`, as stored — measured, a listing carries
+the content type and `fields` used to hide it.
 
 **Input**
 
