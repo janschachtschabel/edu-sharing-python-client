@@ -1360,7 +1360,10 @@ default) an existing record is named — `created` is `False`, `existing` carrie
 `"create"` skips the check. Whether the check can run is a property of the
 metadata set — measured, `mds_oeh` accepts `ccm:wwwurl` as a criterion and
 `-default-` does not — and when it cannot, the default check is skipped and
-`warnings` says so, while `"raise"` refuses to guess.
+`warnings` says so, while `"raise"` refuses to guess. The same applies to an
+address the search cannot take as a criterion — it passes only `http(s)://`
+addresses through — and to a misspelled `if_exists`, which is refused even
+when no `url` is given.
 
 **The check sees what the index sees.** The address lookup goes through the
 search index, which trails the node store: measured on staging (2026-09-02),

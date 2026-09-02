@@ -18,7 +18,8 @@ import httpx
 import pytest
 
 from edusharing import AsyncRepository
-from edusharing.errors import ConflictError
+from edusharing.errors import ConflictError, ValidationError
+from edusharing.flows.duplicates import find_by_url
 
 REPO = "https://repo.test/edu-sharing"
 HOME = "home-folder-id"
@@ -45,6 +46,10 @@ class Instanz:
             return httpx.Response(200, json={"person": {
                 "authorityName": "alice", "userName": "alice", "profile": {},
                 "homeFolder": {"id": HOME}}})
+        if "/values" in pfad:
+            # Ein Wert ohne http(s):// geht durch die Vokabularsuche -- und
+            # findet dort nichts.
+            return httpx.Response(200, json={"values": []})
         if "/search/v1" in pfad:
             if self.kriterium_unbekannt:
                 return httpx.Response(400, json={
@@ -109,6 +114,32 @@ async def test_ohne_dublette_wird_angelegt():
     assert got["existing"] is None
     assert got["warnings"] == []
     assert len(instanz.angelegt) == 1
+
+
+async def test_eine_adresse_ohne_schema_kann_nicht_geprueft_werden():
+    """Die Suche nimmt ccm:wwwurl nur als URI entgegen; "www.example.org/x"
+    wandert in unresolved und wird NICHT gesendet. Bis heute verglich die
+    Pruefung dann zwanzig ungefilterte Treffer und meldete "keine Dublette"
+    -- genau das stille Ergebnis, das sie verhindern soll."""
+    instanz = Instanz([_treffer("nachbar", "https://example.org/anderes")])
+    async with instanz.repo() as repo:
+        with pytest.raises(ValidationError):
+            await find_by_url(repo, "www.example.org/x")
+        got = await repo.flows.add_material("Neu", url="www.example.org/x")
+        assert got["created"] is True
+        assert got["warnings"] and "duplicate check skipped" in got["warnings"][0]
+        with pytest.raises(ConflictError):
+            await repo.flows.add_material("Neu", url="www.example.org/x", if_exists="raise")
+
+
+async def test_ein_falsches_if_exists_wird_auch_ohne_adresse_abgelehnt():
+    """Ein ausdruecklicher, aber verschriebener Wunsch darf nicht wortlos
+    untergehen -- auch wenn ohne url gar keine Pruefung anstuende."""
+    instanz = Instanz([])
+    async with instanz.repo() as repo:
+        with pytest.raises(ValidationError, match="if_exists"):
+            await repo.flows.add_material("Neu", if_exists="retrun")
+    assert instanz.angelegt == []
 
 
 async def test_raise_wirft_bei_dublette():

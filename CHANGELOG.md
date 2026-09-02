@@ -40,6 +40,12 @@ and in [`docs/audits/`](docs/audits/).
   added; for other properties the displaced values come back as
   `replaced`. A failure while marking the proposal no longer loses the
   answer: `failed` carries a `mark` part and the value stays written.
+- **An address the search cannot take is a check that did not run.**
+  `find_by_url` never looked at `unresolved`; a scheme-less address was not
+  sent, twenty unfiltered hits were compared, and "no duplicate" came back
+  with empty `warnings`. It now raises `ValidationError`, which
+  `add_material` turns into the documented warning or refusal. A
+  misspelled `if_exists` is refused even when no `url` is given.
 
 ## [0.1.0] — 2026-09-02
 

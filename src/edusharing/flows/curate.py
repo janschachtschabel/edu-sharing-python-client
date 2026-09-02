@@ -21,7 +21,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ..errors import EduSharingError, ValidationError
-from .duplicates import check_before_create
+from .duplicates import check_before_create, validate_if_exists
 from .fields import name_from_title, resolve_vocabulary
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -89,6 +89,8 @@ async def add_material(
         raise ValidationError(
             "Material needs a title -- it is what a person sees in the search."
         )
+    # Checked even without ``url``: a misspelled wish must not pass in silence.
+    validate_if_exists(if_exists)
     existing: dict[str, Any] | None = None
     warnings: list[str] = []
     if url is not None:

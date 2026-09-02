@@ -1398,6 +1398,10 @@ Sache des Metadatensatzes — gemessen nimmt `mds_oeh` `ccm:wwwurl` als
 Kriterium an, `-default-` nicht — und wenn nicht, fällt die Vorgabe aus und
 `warnings` sagt es, während `"raise"` sich weigert zu raten.
 
+Dasselbe gilt für eine Adresse, die die Suche nicht als Kriterium nimmt — sie
+lässt nur `http(s)://`-Adressen durch — und für ein verschriebenes
+`if_exists`, das auch ohne `url` abgewiesen wird.
+
 **Die Prüfung sieht, was der Index sieht.** Die Adresssuche läuft über den
 Suchindex, und der hinkt dem Knotenspeicher nach: gemessen auf Staging
 (02.09.2026) war ein eben angelegter Datensatz nach 5,3 Sekunden über seine

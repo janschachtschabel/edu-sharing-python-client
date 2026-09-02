@@ -46,18 +46,36 @@ async def find_by_url(repo: AsyncRepository, url: str) -> dict[str, Any] | None:
 
     Raises:
         ValidationError: when the metadata set does not accept ``ccm:wwwurl``
-            as a criterion. Not swallowed: the caller decides whether a check
-            that cannot run is a warning or a refusal.
+            as a criterion -- or when the search could not take this value
+            as one (it passes only ``http(s)://`` addresses through; anything
+            else lands in ``unresolved`` and is not sent). Not swallowed: the
+            caller decides whether a check that cannot run is a warning or a
+            refusal.
     """
     wanted = url.strip().lower()
     if not wanted:
         return None
     result = await repo.search(filters={"ccm:wwwurl": url.strip()}, limit=DUPLICATE_SCAN_LIMIT)
+    if result.unresolved:
+        # Not sent means not filtered: the hits below would be neighbours of
+        # nothing, and "no duplicate" a guess.
+        raise ValidationError(
+            f"{url!r} could not be sent as a ccm:wwwurl criterion -- the search takes "
+            "only http(s) addresses -- so the duplicate check did not run."
+        )
     for hit in result.hits:
         stored = (hit.source_url or "").strip()
         if stored and stored.lower() == wanted:
             return {"id": hit.id, "title": hit.title, "url": stored}
     return None
+
+
+def validate_if_exists(if_exists: str) -> None:
+    """``return``, ``raise`` or ``create`` -- anything else is a misspelled wish."""
+    if if_exists not in ("return", "raise", "create"):
+        raise ValidationError(
+            f"if_exists={if_exists!r} is not one of return, raise, create."
+        )
 
 
 async def check_before_create(
@@ -77,10 +95,7 @@ async def check_before_create(
         ConflictError: with ``"raise"``, when the record exists -- or when the
             metadata set cannot answer the question at all.
     """
-    if if_exists not in ("return", "raise", "create"):
-        raise ValidationError(
-            f"if_exists={if_exists!r} is not one of return, raise, create."
-        )
+    validate_if_exists(if_exists)
     if if_exists == "create":
         return None, []
     try:
