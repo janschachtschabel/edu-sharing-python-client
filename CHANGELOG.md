@@ -14,6 +14,8 @@ and in [`docs/audits/`](docs/audits/).
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-09-02
+
 ### Added
 
 - **Skills** — `repo.skills` and four flows (`find_skills`, `skill`,

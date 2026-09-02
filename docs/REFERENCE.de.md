@@ -38,7 +38,7 @@ Ereignisschleife in einem Thread für Sie.
 
 | Aufruf | Ergebnis |
 |---|---|
-| `edusharing.__version__` | `str` — `"0.0.1"`, aus den Paketdaten gelesen |
+| `edusharing.__version__` | `str` — `"0.1.0"`, aus den Paketdaten gelesen |
 | `Repository(url, auth=(user, password))` | die Verbindung |
 | `Repository.from_env()` | liest `EDU_SHARING_URL`, `EDU_SHARING_USER`, `EDU_SHARING_PASSWORD`, optional `EDU_SHARING_METADATASET` |
 | `AsyncRepository(url, ...)` | dasselbe, `async` |
