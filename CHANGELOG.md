@@ -69,6 +69,23 @@ and in [`docs/audits/`](docs/audits/).
   contexts reads its record once; transport and server errors raise
   instead of posing as `unresolved`; a skill's folder answering 404 is
   `files_reason="no_folder"`; `pick(..., include_files=False)` reaches `get`.
+- **Skill Markdown: a block shown inside a code fence is not a reference,
+  and an untitled sub-section lends its prose.** `parse_blocks` read a
+  `::: ki-skill` example inside a fence as a real reference (and matched
+  any `:::` pair when given no kinds); the prose under an untitled `###`
+  inside a named `##`, and everything below an `####`, reached no
+  `instruction`. Fences now mask blocks and headings alike; untitled
+  sub-sections are transparent for their prose as for their skills; only
+  `#` to `###` end a stretch of prose.
+- **Skills: a search inside a collection matches, not merely ranks; the
+  instruction is read as text only.** `search(text, collection_id=…)`
+  returned every skill of the collection sorted by score, and `pick`
+  named a zero-score "best"; a record no term touches is now left out.
+  `get` decodes with `utf-8-sig` (a byte-order mark hid the H1 from the
+  section parser) and refuses a binary upload with
+  `content_reason="not_text"` instead of returning mojibake; `no_file`
+  says the other reason. One `is_text_like` in `content` serves `text` and
+  the skills alike.
 
 ## [0.1.0] — 2026-09-02
 

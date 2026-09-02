@@ -1230,6 +1230,7 @@ repo.flows.skill(node_id)
 {
   "id": "…", "original_id": "…", "title": "Fragen generieren", "…": "…",
   "content": "# Fragen generieren\n\n…",
+  "content_reason": "",
   "references": [{"kind": "ki-skill", "title": "Lehrprofil auswerten",
                   "url": "…/components/render/…", "node_id": "…", "offset": 412}],
   "files": [{"id": "…", "title": "vorlage.docx", "mimetype": "application/msword",
@@ -1238,6 +1239,10 @@ repo.flows.skill(node_id)
   "folder_file_count": null
 }
 ```
+
+`content_reason` sagt, warum `content` `null` ist: `no_file` für einen Datensatz
+ohne Upload, `not_text` für einen binären — ein als Text dekodiertes PDF ist
+Zeichensalat, keine Anleitung. Eine Byte-Order-Mark wird entfernt.
 
 `content` ist hochgeladener Inhalt — Daten, die ein Modell abwägt, nie eine
 Anweisung, der diese Bibliothek folgt. Vor dem Prompt mit `as_untrusted`

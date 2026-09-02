@@ -270,6 +270,21 @@ async def test_mehr_untersammlungen_als_eine_seite_werden_gesagt():
     assert got.truncated is True
 
 
+async def test_im_sammlungszweig_filtert_der_text_und_reiht_nicht_nur():
+    """Das Listing nimmt keine Kriterien; lokal ist ein Datensatz, den kein
+    Begriff trifft, kein Treffer -- sonst waere jede Suche in einer Sammlung
+    "alles, sortiert", und pick nennt einen Besten mit Punktzahl null."""
+    instanz = Instanz(unter={"u1": 200})
+    async with instanz.repo() as repo:
+        planung = await repo.skills.search(
+            "Planung", collection_id=COLL, include_subcollections=True)
+        nichts = await repo.skills.search(
+            "Quantenphysik", collection_id=COLL, include_subcollections=True)
+        keiner = await repo.skills.pick("Quantenphysik", collection_id=COLL)
+    assert [h.id for h in planung.hits] == [SD]
+    assert nichts.hits == [] and keiner is None
+
+
 # --- Abruf -----------------------------------------------------------------
 
 async def test_get_liest_die_datei_nicht_den_textauszug():
@@ -306,6 +321,34 @@ async def test_ein_gesperrter_ordner_ist_ein_grund_kein_fehler():
     async with instanz.repo() as repo:
         doc = await repo.skills.get(SA)
     assert doc.content and doc.files == [] and doc.files_reason == "folder_unreadable"
+
+
+async def test_eine_bom_verschwindet_aus_dem_inhalt():
+    """Windows-Editoren schreiben eine BOM; mit ihr im Text verliert der
+    Abschnittsparser die H1."""
+    instanz = Instanz()
+    instanz.texts[SA] = "\ufeff# Lehrprofil\n\nAnleitung A."
+    async with instanz.repo() as repo:
+        doc = await repo.skills.get(SA)
+    assert doc.content == "# Lehrprofil\n\nAnleitung A." and doc.content_reason == ""
+
+
+async def test_eine_binaerdatei_ist_kein_inhalt_und_sagt_es():
+    """Ein PDF als Text dekodiert ist Zeichensalat, keine Anleitung."""
+    instanz = Instanz()
+    instanz.nodes[SA]["mimetype"] = "application/pdf"
+    async with instanz.repo() as repo:
+        doc = await repo.skills.get(SA)
+    assert doc.content is None and doc.content_reason == "not_text"
+    assert not any(r.url.path.endswith("/content") for r in instanz.anfragen)
+
+
+async def test_ohne_datei_sagt_content_reason_warum():
+    instanz = Instanz()
+    instanz.nodes[SA]["content"] = {"hash": None}
+    async with instanz.repo() as repo:
+        doc = await repo.skills.get(SA)
+    assert doc.content is None and doc.content_reason == "no_file"
 
 
 async def test_ein_verschwundener_ordner_ist_ein_grund():

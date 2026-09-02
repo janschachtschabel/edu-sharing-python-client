@@ -34,19 +34,19 @@ Status: `[ ]` offen · `[x]` erledigt · `[-]` bewusst nicht (Begründung).
   `NotFoundError | PermissionDeniedError` verengen, Rest wirft.
 - [x] A8 MINOR — Ein zweimal genannter Skill wird zweimal gelesen. → IDs
   entdoppeln, zurück abbilden.
-- [ ] A9 MINOR — Im Sammlungszweig sortiert `text` nur, filtert nicht; die
+- [x] A9 MINOR — Im Sammlungszweig sortiert `text` nur, filtert nicht; die
   Docstrings von `search`/`pick` versprechen Treffer. → lokal ohne Treffer
   (Score 0) aussortieren, wenn Suchbegriffe vorliegen; Docstrings anpassen.
-- [ ] A10 MINOR — `parse_blocks` ignoriert Code-Zäune (ein gezeigtes Beispiel
+- [x] A10 MINOR — `parse_blocks` ignoriert Code-Zäune (ein gezeigtes Beispiel
   wird zum Verweis) und `kinds=()` fängt jedes `:::`-Paar. → Zaunspannen
   maskieren; leere `kinds` → `[]`.
-- [ ] A11 MINOR — `Skills.get` dekodiert ohne BOM-Behandlung und ohne
+- [x] A11 MINOR — `Skills.get` dekodiert ohne BOM-Behandlung und ohne
   Mimetype-Blick (Binärdatei → Zeichensalat). → `utf-8-sig`; Nicht-Text →
   `content=None` mit `content_reason`.
-- [ ] A12 MINOR — Prosa unter unbenanntem `###` in einem benannten `##`
+- [x] A12 MINOR — Prosa unter unbenanntem `###` in einem benannten `##`
   landet in keiner `instruction`; H4+ schneidet die Prosa ab. → Prosa
   unbenannter Unterabschnitte dem Besitzer anhängen; H4+ schneidet nicht.
-- [ ] A13 NIT — `_document` rechnet `asdict` doppelt; `range` wird stumm
+- [x] A13 NIT — `_document` rechnet `asdict` doppelt; `range` wird stumm
   verworfen. → `asdict(doc)`; `range` mit Kommentar entfernen.
 - [x] A14 NIT — `pick(text, include_files=False)` wirft. → `include_files`
   durchreichen.

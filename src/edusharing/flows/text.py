@@ -29,6 +29,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ..agent.format import cap_text
+from ..content import is_text_like
 from ..errors import EduSharingError, NotFoundError, PermissionDeniedError
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -131,19 +132,11 @@ async def _stored(
     extract = await node.content.text()
     if extract:
         return _capped(answer, extract, "repository", max_chars)
-    if node.content.has_content and _textual(node.content.mimetype):
+    if node.content.has_content and is_text_like(node.content.mimetype):
         decoded = (await node.content.download()).decode("utf-8", errors="replace")
         if decoded:
             return _capped(answer, decoded, "download", max_chars)
     return None
-
-
-def _textual(mimetype: str | None) -> bool:
-    """Bytes worth decoding: text, JSON and XML. Measured 2026-08-27,
-    ``/textContent`` is empty for Markdown and JSON although the file has text."""
-    kind = (mimetype or "").lower()
-    return (kind.startswith("text/") or kind in ("application/json", "application/xml")
-            or kind.endswith(("+json", "+xml")))
 
 
 def _capped(answer: dict[str, Any], full: str, source: str, max_chars: int) -> dict[str, Any]:

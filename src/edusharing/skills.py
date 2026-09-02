@@ -34,6 +34,7 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from .content import is_text_like
 from .errors import NotFoundError, PermissionDeniedError
 from .flows.fields import resolve_vocabulary
 from .flows.ranking import query_terms, term_matches
@@ -131,8 +132,12 @@ class SkillFile:
 class SkillDocument(SkillSummary):
     """A skill with its instruction and what belongs to it."""
 
-    #: The Markdown as stored -- ``None`` when the record carries no file.
+    #: The Markdown as stored, without a byte-order mark -- ``None`` when
+    #: ``content_reason`` says why.
     content: str | None = None
+    #: ``""``, ``no_file`` (the record carries no upload) or ``not_text`` (a
+    #: binary upload -- a PDF decoded as text is mojibake, not an instruction).
+    content_reason: str = ""
     references: list[SkillReference] = field(default_factory=list)
     #: The other files in the skill's folder. Empty when there are none --
     #: or when ``files_reason`` says why they could not be listed.
@@ -178,9 +183,10 @@ class Skills:
         Repository-wide the content type travels as a search criterion, and
         the short names (``subject="Physik"``) with it. In a collection the
         listing takes no criteria, so both are checked against each record
-        locally. A skill that is both an original and a reference into a
-        collection comes back once -- as the original, the id a write may
-        target.
+        locally -- and so is ``text``: a record no term touches is left out
+        there, as the index would have left it out. A skill that is both an
+        original and a reference into a collection comes back once -- as the
+        original, the id a write may target.
 
         Ranked by relevance: a term in the title counts 3, in the keywords 2,
         in the description 1. Without ``text`` the catalogue keeps its order.
@@ -214,6 +220,10 @@ class Skills:
             truncated = result.total > len(result.hits)
         summaries = _dedupe_by_original([self._summary(n) for n in candidates])
         terms = query_terms(text)
+        if terms and collection_id:
+            # The listing took no criteria; a record no term touches is no
+            # match, and ranking it last would still present it as one.
+            summaries = [s for s in summaries if _score(s, terms) > 0]
         if terms:
             summaries.sort(key=lambda s: -_score(s, terms))
         return SkillSearch(hits=summaries[:limit], unresolved=unresolved,
@@ -234,9 +244,7 @@ class Skills:
             PermissionDeniedError: when it may not be read.
         """
         node = await self._repo.node(node_id)
-        content: str | None = None
-        if node.content.has_content:
-            content = (await node.content.download()).decode("utf-8", errors="replace")
+        content, content_reason = await _instruction(node)
         files: list[SkillFile] = []
         reason, count = "", None
         if include_files:
@@ -244,7 +252,7 @@ class Skills:
         summary = self._summary(node.raw)
         return SkillDocument(
             **summary.__dict__,
-            content=content,
+            content=content, content_reason=content_reason,
             references=parse_blocks(content or "", conventions.block_kinds),
             files=files, files_reason=reason, folder_file_count=count,
         )
@@ -397,6 +405,18 @@ def _enqueue(subs: list[str], visited: set[str], next_level: list[str]) -> bool:
         visited.add(sub_id)
         next_level.append(sub_id)
     return capped
+
+
+async def _instruction(node: Node) -> tuple[str | None, str]:
+    """The Markdown as stored, or why there is none."""
+    if not node.content.has_content:
+        return None, "no_file"
+    # An unknown type is decoded -- only a type that says "binary" is refused.
+    if node.content.mimetype and not is_text_like(node.content.mimetype):
+        return None, "not_text"
+    # utf-8-sig: a byte-order mark from a Windows editor would otherwise sit in
+    # front of the H1, and the section parser would not see the heading.
+    return (await node.content.download()).decode("utf-8-sig", errors="replace"), ""
 
 
 def _first(value: Any) -> str | None:

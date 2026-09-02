@@ -543,7 +543,7 @@ ist; der Ordner eines Skills antwortete anonym mit 403.
 | `SkillConventions` | `type_property`, `skill_type`, `registry_type`, `registry_mark`, `markdown_mimetypes`, `block_kinds`, `skill_kind` |
 | `WLO_SKILLS` | die Vorgabe-Konventionen |
 | `SkillSummary` | `id`, `original_id`, `title`, `description`, `keywords`, `url`, `download_url` |
-| `SkillDocument` | die Zusammenfassung plus `content`, `references`, `files`, `files_reason` (`""`, "no_folder", "folder_unreadable", "too_many"), `folder_file_count` |
+| `SkillDocument` | die Zusammenfassung plus `content`, `content_reason` (`""`, "no_file", "not_text"), `references`, `files`, `files_reason` (`""`, "no_folder", "folder_unreadable", "too_many"), `folder_file_count` |
 | `SkillFile` | `id`, `title`, `mimetype`, `size`, `download_url` |
 | `SkillSearch` | `hits`, `unresolved`, `truncated`, `unreadable` |
 | `SkillRegistry` | `collection_id`, `registry_id`, `registry_title`, `markdown`, `entries`, `unresolved`, `contexts`, `general`, `ambiguous`, `truncated`, `contexts_truncated`, `reason` (`""`, "collection_not_found", "no_registry", "unreadable"), `context_match` ("all", "exact", "missing"), `scan_truncated` |

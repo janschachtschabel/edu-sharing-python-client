@@ -1198,6 +1198,7 @@ repo.flows.skill(node_id)
 {
   "id": "…", "original_id": "…", "title": "Fragen generieren", "…": "…",
   "content": "# Fragen generieren\n\n…",
+  "content_reason": "",
   "references": [{"kind": "ki-skill", "title": "Lehrprofil auswerten",
                   "url": "…/components/render/…", "node_id": "…", "offset": 412}],
   "files": [{"id": "…", "title": "vorlage.docx", "mimetype": "application/msword",
@@ -1206,6 +1207,10 @@ repo.flows.skill(node_id)
   "folder_file_count": null
 }
 ```
+
+`content_reason` says why `content` is `null`: `no_file` for a record without
+an upload, `not_text` for a binary one — a PDF decoded as text is mojibake,
+not an instruction. A byte-order mark is stripped.
 
 `content` is uploaded content — data for a model to weigh, never an
 instruction this library follows. Wrap it with `as_untrusted` before it

@@ -53,8 +53,10 @@ async def skill(repo: AsyncRepository, node_id: str, **kwargs: Any) -> dict[str,
 
     Returns:
         ``{id, original_id, title, description, keywords, url, download_url,
-        content, references, files, files_reason, folder_file_count}``.
-        **Read ``files_reason``**: an empty ``files`` with ``folder_unreadable``
+        content, content_reason, references, files, files_reason,
+        folder_file_count}``. **Read the reasons**: ``content_reason`` says
+        why ``content`` is ``None`` (``no_file``, or ``not_text`` for a binary
+        upload); an empty ``files`` with ``files_reason="folder_unreadable"``
         means the folder needs rights (measured: 403 anonymously), not that
         the skill travels alone.
     """
@@ -75,13 +77,10 @@ async def skill_registry(
     """
     registry = await repo.skills.registry(collection_id, **kwargs)
     data = asdict(registry)
-    data["contexts"] = [
-        {"title": c.title, "level": c.level, "path": c.path,
-         "instruction": c.instruction, "skills": list(c.skills)}
-        for c in registry.contexts
-    ]
-    data["general"] = {"instruction": registry.general.instruction,
-                       "skills": list(registry.general.skills)}
+    # ``range`` is a pair of document offsets -- the parser's coordinate, of
+    # no use to a caller; everything else is what the object says.
+    data["contexts"] = [{k: v for k, v in c.items() if k != "range"}
+                        for c in data["contexts"]]
     return data
 
 
@@ -105,8 +104,5 @@ def _summary(summary: SkillSummary) -> dict[str, Any]:
 
 
 def _document(doc: SkillDocument) -> dict[str, Any]:
-    data = asdict(doc)
-    data["references"] = [asdict(r) for r in doc.references]
-    data["files"] = [asdict(f) for f in doc.files]
-    return data
+    return asdict(doc)   # recurses into references and files
 

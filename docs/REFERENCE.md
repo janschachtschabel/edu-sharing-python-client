@@ -532,7 +532,7 @@ and refused by `-default-`; a `SKILL.md` is read with `download()` because
 | `SkillConventions` | `type_property`, `skill_type`, `registry_type`, `registry_mark`, `markdown_mimetypes`, `block_kinds`, `skill_kind` |
 | `WLO_SKILLS` | the default conventions |
 | `SkillSummary` | `id`, `original_id`, `title`, `description`, `keywords`, `url`, `download_url` |
-| `SkillDocument` | the summary plus `content`, `references`, `files`, `files_reason` (`""`, "no_folder", "folder_unreadable", "too_many"), `folder_file_count` |
+| `SkillDocument` | the summary plus `content`, `content_reason` (`""`, "no_file", "not_text"), `references`, `files`, `files_reason` (`""`, "no_folder", "folder_unreadable", "too_many"), `folder_file_count` |
 | `SkillFile` | `id`, `title`, `mimetype`, `size`, `download_url` |
 | `SkillSearch` | `hits`, `unresolved`, `truncated`, `unreadable` |
 | `SkillRegistry` | `collection_id`, `registry_id`, `registry_title`, `markdown`, `entries`, `unresolved`, `contexts`, `general`, `ambiguous`, `truncated`, `contexts_truncated`, `reason` (`""`, "collection_not_found", "no_registry", "unreadable"), `context_match` ("all", "exact", "missing"), `scan_truncated` |

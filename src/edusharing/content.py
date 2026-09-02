@@ -44,6 +44,18 @@ if TYPE_CHECKING:
 __all__ = ["NodeContent"]
 
 
+def is_text_like(mimetype: str | None) -> bool:
+    """Bytes worth decoding as text: ``text/*``, JSON and XML.
+
+    Measured 2026-08-27: ``/textContent`` is empty for Markdown and JSON
+    although the file has text -- so these are the types a caller reads with
+    ``download()`` instead. A PDF decoded as text is mojibake, not text.
+    """
+    kind = (mimetype or "").lower()
+    return (kind.startswith("text/") or kind in ("application/json", "application/xml")
+            or kind.endswith(("+json", "+xml")))
+
+
 class NodeContent:
     """Access to a node's binary content."""
 
