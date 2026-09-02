@@ -716,6 +716,7 @@ entdoppelt, Gesamtzahl als Untergrenze gekennzeichnet). Die Messung der
 | `pages.py`, `flows/pages.py` | Kuratierte Seiten — lesen und die gerenderte Variante setzen |
 | `extraction.py` | Der Textextraktionsdienst neben dem Repositorium |
 | `metadata_agent.py` | Welche Felder eine Inhaltsart trägt — die Schemata hinter `ccm:oeh_extendedData` |
+| `nodes_write.py` | Die Rümpfe hinter `Node.update`, `set_property` und der Schlagwort-Zusammenführung: Feldkürzel und Rückleseprobe (am 02.09.2026 herausgelöst) |
 
 Die Messungen, auf denen diese Module stehen, sind in §7 — dort wurden sie
 festgehalten, als sie gemacht wurden. Drei Entscheidungen verdienen eine eigene
@@ -801,8 +802,14 @@ damit beide Aufrufer sie teilen.
    Messprotokoll dieses Projekts, werden nicht ausgeliefert und haben kein
    außenstehendes Publikum; sie zu übersetzen wäre eine Gelegenheit, einen
    gemessenen Befund zu verwischen. Eine bewusste Ausnahme von E7.
-3. **`nodes.py` (629 Zeilen)** liegt weiterhin über der Größenschwelle. Es ist
-   mit jeder neuen Fläche am Knoten gewachsen; jede davon ist ein Durchgriff
-   auf ein eigenes Modul, es ist also keine zweite Verantwortung aufgetaucht,
-   an der zu schneiden wäre. `flows/discover.py` hatte eine und wurde geteilt
-   (§8.6).
+3. **`nodes.py` wurde am 02.09.2026 geteilt.** Bis Etappe 9 blieb es über
+   der Größenschwelle, mit der Begründung, dass jede neue Fläche am Knoten ein
+   Durchgriff auf ein eigenes Modul ist. Die Referenz-Umleitung vom 02.09.2026
+   hat das geändert: die Schreibdisziplin -- Feldkürzel, Rückleseprobe,
+   Schlagwort-Zusammenführung, das Durchschreiben ans Original -- war zu einem
+   eigenen Änderungsgrund geworden. Ihre Rümpfe liegen jetzt in
+   `nodes_write.py` (200 Zeilen); `Node` behält die Methoden als einzeilige
+   Durchgriffe, die öffentliche Oberfläche hat sich also nicht bewegt.
+   `nodes.py` steht bei 537 Zeilen: das Lesemodell und seine Türen.
+   `flows/discover.py` hatte früher eine zweite Verantwortung bekommen und
+   wurde auf dieselbe Art geteilt (§8.6).

@@ -661,6 +661,7 @@ the overlap remains in the documentation, where it belongs.
 | `pages.py`, `flows/pages.py` | Curated pages — reading, and setting the rendered variant |
 | `extraction.py` | The text-extraction service beside the repository |
 | `metadata_agent.py` | Which fields a content type carries — the schemas behind `ccm:oeh_extendedData` |
+| `nodes_write.py` | The bodies behind `Node.update`, `set_property` and the keyword merge: field aliases and the read-back check (split out on 2026-09-02) |
 
 The measurements these modules are built on are in §7; they were recorded there
 as they were taken. Three decisions are worth naming separately:
@@ -739,7 +740,13 @@ moved down to ``urls.py`` so both callers share it.
    project, are not shipped, and have no external audience; translating them
    would be an opportunity to blur a measured finding. A deliberate exception to
    E7.
-3. **`nodes.py` (629 lines)** remains above the size threshold. It grew
-   with each new node-level surface; every one of them is a pass-through to
-   its own module, so no second responsibility has appeared to cut along.
-   `flows/discover.py` did grow one and was split (§8.6).
+3. **`nodes.py` was split on 2026-09-02.** Through stage 9 it stayed above
+   the size threshold on the grounds that every new node-level surface was a
+   pass-through to its own module. The reference redirection of 2026-09-02
+   changed that: the write discipline -- field aliases, read-back check,
+   keyword merge, the write-through to an original -- had become a reason to
+   change of its own. Its bodies are now in `nodes_write.py` (200 lines);
+   `Node` keeps the methods as one-line delegations, so the public surface did
+   not move. `nodes.py` is at 537 lines: the read model and its doors.
+   `flows/discover.py` had grown a second responsibility earlier and was split
+   the same way (§8.6).

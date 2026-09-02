@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..nodes import Node
+from ..nodes_write import fields_of
 from .sanitize import sanitize_text
 
 __all__ = ["ChangePlan", "plan_update"]
@@ -113,7 +114,7 @@ async def plan_update(
     """
     # Uses the same alias resolution as update(), so plan and execution cannot
     # drift apart.
-    intended = node._fields(properties, aliases)
+    intended = fields_of(properties, aliases)
 
     changes: dict[str, tuple[list[str], list[str]]] = {}
     unchanged: dict[str, list[str]] = {}

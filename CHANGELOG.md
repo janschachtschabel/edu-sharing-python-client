@@ -104,6 +104,16 @@ and in [`docs/audits/`](docs/audits/).
   against the parameter list unless the method takes `**kwargs`. The last one
   found all fourteen wrong places below.
 
+### Changed
+
+- **`nodes.py` split.** The write path -- field aliases, the read-back check,
+  `update`, `set_property`, the keyword merge -- moved to `nodes_write.py`;
+  `Node` keeps every method as a one-line delegation, so nothing in the public
+  surface changed. 697 lines became 537 plus 200. The architecture note that
+  had argued against a split (§8, "no second responsibility") is revised: the
+  reference redirection gave the write discipline a reason to change of its
+  own.
+
 ### Fixed
 
 - **Nine documented free-function signatures were wrong**, found by the new
