@@ -170,3 +170,13 @@ geprüft); die Befunde betreffen Verhalten, das schon vorher so war.
 `pytest -q` grün (Zahl steigt um die neuen Tests), `ruff check .`,
 `mypy --strict src`, die Doku-Wächter; wo ein Befund eine Messung braucht,
 steht sie am Befund.
+
+## Stand am Abend des 02.09.2026
+
+Alle 45 Befunde sind bearbeitet: 41 umgesetzt, drei bewusst teilweise
+(A15: der zweite Lesezugriff auf den Registry-Knoten bleibt; C11: die
+Seitensuche läuft parallel, sendet aber weiterhin ihre zwei Anfragen; B11: das
+Löschen einer Referenz und `accept_suggestion` an einer Referenz sind live
+belegt, nicht offline), einer unverändert mit Begründung (B14). Dreizehn
+Commits, jeder hinter dem Gate (ruff, mypy --strict, 1280 Tests); die
+betroffenen Pfade danach noch einmal live gegen Staging gelaufen.

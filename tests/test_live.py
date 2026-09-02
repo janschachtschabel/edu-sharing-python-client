@@ -477,7 +477,10 @@ async def test_sammlungen_lassen_sich_nach_fach_filtern_und_unter_einer_eltern_s
         gefiltert = await repo.flows.find_collections(
             "Optik", subject="Physik", limit=10, properties=["ccm:taxonid"])
         assert gefiltert["unresolved"] == []
-        physik = set(gefiltert["query"]["filters"]["ccm:taxonid"])
+        assert gefiltert["query"]["filters"] == {"subject": "Physik"}, "die Worte des Aufrufers"
+        # Seit dem Review vom 02.09.2026 nennt query.filters die Worte, nicht die
+        # URIs -- die holt sich der Test selbst, alle, wie der Lesefilter.
+        physik = set(await repo.vocab.resolve_all("ccm:taxonid", "Physik"))
         # Sammlungstreffer tragen die URI, aber kein _DISPLAYNAME (gemessen) --
         # darum die Eigenschaft selbst und nicht das Label.
         for hit in gefiltert["hits"]:
