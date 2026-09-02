@@ -16,6 +16,14 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Added
 
+- **`Node.original_id`, `is_reference`, `aspects`, `redirected_from`; `SearchHit.original_id`.**
+  A collection holds references, and a listing hands out their ids. The
+  node now says which record it stands for, and a write through a reference
+  returns the original with `redirected_from` set. `placement`, `describe`
+  and `delete` carry `original_id`; `delete` also `is_reference`.
+- **`ancestry_of` and `collections_of` accept the connection**, as every
+  other free function does; `collections_of` takes `original_id=` from a
+  caller that already resolved it, saving the read.
 - **`Repository.resolve_all(prop, label)`** — the blocking counterpart to
   `Vocabulary.resolve_all`. A label can belong to two vocabularies; `resolve`
   returns only the first. `search` resolved ambiguous labels internally either
@@ -57,6 +65,16 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Fixed
 
+- **A listing id made the library answer "in no collection" — and write
+  into the void.** Measured on staging, 2026-09-02: `/usage` answers a
+  reference id with an empty list and the original with two collections;
+  `node.collections()` and `flows.placement` passed the empty list on as a
+  fact. And a `PUT` aimed at a reference is stored on the reference and never
+  reaches the record (measured by the MCP, 2026-08-17) — a drop the read-back
+  cannot see, because it re-reads the same node. Reads now ask for the
+  original; `update()`, `set_property()` and `add_keywords()` write to it.
+  Deleting is deliberately not redirected: on a reference it removes only the
+  reference, and redirecting it would turn a harmless act into data loss.
 - **`docs/REFERENCE(.de).md` documented a capability that never existed.**
   `repo.resolve(url_or_id)` promised "the node id behind a rendering URL". The
   method exists under that name but does something else — `resolve(prop, label)`

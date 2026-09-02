@@ -203,7 +203,7 @@ has to be guessed — argument and return shapes are in `docs/REFERENCE.md`.
 
 | You hold | From | On it |
 |---|---|---|
-| `Node` | `repo.node(node_id)`, `repo.create_node(…)` | read `.id` `.name` `.title` `.type` `.url` `.access` `.can_write` `.is_public` `.preview_url` `.properties` `.keywords` `.raw` `.get()` `.get_all()` `.labels()` `.parents()` `.collections()`; write `.update()` `.set_property()` `.add_keywords()` `.remove_keywords()` `.rate()` `.unrate()` `.delete()`; doors `.content` `.children` `.permissions` `.workflow` `.comments` `.suggestions` `.page` `.rating` |
+| `Node` | `repo.node(node_id)`, `repo.create_node(…)` | read `.id` `.name` `.title` `.type` `.aspects` `.original_id` `.is_reference` `.redirected_from` `.url` `.access` `.can_write` `.is_public` `.preview_url` `.properties` `.keywords` `.raw` `.get()` `.get_all()` `.labels()` `.parents()` `.collections()`; write `.update()` `.set_property()` `.add_keywords()` `.remove_keywords()` `.rate()` `.unrate()` `.delete()`; doors `.content` `.children` `.permissions` `.workflow` `.comments` `.suggestions` `.page` `.rating` |
 | `NodeContent` | `node.content` | `.download()` `.text()` `.upload()` `.set_preview()` `.delete_preview()`; `.has_content` `.mimetype` `.size` `.download_url` |
 | `NodePermissions` | `node.permissions` | `.get()` `.grant()` `.revoke()` `.publish()` `.unpublish()` |
 | `Permissions` | `node.permissions.get()` | `.own` `.inherited` `.effective` `.inherits` `.is_public` `.allows()` `.find()` |
@@ -231,7 +231,7 @@ has to be guessed — argument and return shapes are in `docs/REFERENCE.md`.
 | You hold | From | On it |
 |---|---|---|
 | `SearchResult` | `repo.search(…)` (the flow returns the same as a `dict`) | `.hits` `.total` `.total_is_lower_bound` `.facets` `.suggestions` `.unresolved` `.ignored` `.warnings` `.raw` |
-| `SearchHit` | `result.hits[i]` | `.id` `.title` `.url` `.description` `.source_url` `.mimetype` `.mediatype` `.properties()` `.labels()` |
+| `SearchHit` | `result.hits[i]` | `.id` `.title` `.url` `.description` `.source_url` `.mimetype` `.mediatype` `.original_id` `.properties()` `.labels()` |
 | `Facet` | `result.facets` | `.property` `.values` `.other_count` `.truncated`; `FacetValue`: `.value` `.count` |
 | `UnresolvedFilter` | `result.unresolved` | `.field` `.value` `.suggestions` |
 
@@ -638,6 +638,33 @@ Every one of them has a blocking counterpart on the repository itself:
 
 `repo.vocab.suggest` and `repo.vocab.clear_cache` have no blocking
 counterpart; everything a caller needs for filtering does.
+
+---
+
+### 5.13 A collection listing hands out reference ids
+
+A collection holds **references**, not records. `collection_contents`,
+`search_in_collection` and every collection-scoped listing return the ids of
+those references — the ordinary way to obtain an id, not an edge case. Measured
+on staging (2026-09-02): `/usage` answers a reference id with an empty list and
+the original with two collections; and a write aimed at a reference is stored
+on the reference and never reaches the record (measured by the MCP,
+2026-08-17) — the read-back cannot notice, because it re-reads the same node.
+
+The library resolves this. `node.original_id` names the record (`None` on an
+original), `node.collections()` and `flows.placement` ask for the original, and
+`update()`, `set_property()` and `add_keywords()` write to it and return the
+**original** with `redirected_from` set. Deleting is *not* redirected: deleting
+a reference removes only the reference, which is harmless, and `flows.delete`
+says `is_reference` so you know which of the two went.
+
+```python
+node = await repo.node(listing_id)
+node.is_reference            # True
+changed = await node.update(title="…")
+changed.id                   # the original's id, not listing_id
+changed.redirected_from      # listing_id -- the write was redirected
+```
 
 ---
 

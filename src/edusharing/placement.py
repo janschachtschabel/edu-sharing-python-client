@@ -56,13 +56,27 @@ class Ancestry:
         return f"Ancestry(parents={len(self.parents)}, scope={self.scope!r})"
 
 
-async def ancestry_of(nodes: Nodes, node_id: str) -> Ancestry:
+def _nodes_of(repo_or_nodes: Any) -> Nodes:
+    """Accept the connection or its ``nodes`` accessor.
+
+    Every other free function takes the connection; these two took ``Nodes``
+    and the reference documented ``repo`` -- so both are accepted, and the
+    documented form is the one that works.
+    """
+    return getattr(repo_or_nodes, "nodes", repo_or_nodes)
+
+
+async def ancestry_of(repo_or_nodes: Any, node_id: str) -> Ancestry:
     """Read the way up from a node.
 
     ``fullPath`` is deliberately not sent: measured, asking for the complete
     path answers 403 for an ordinary account, because it runs through areas the
     account may not read. What comes back reaches as far as the account is
     allowed, and ``Ancestry.scope`` says how far that was.
+
+    Args:
+        repo_or_nodes: the connection, or its ``nodes`` accessor.
+        node_id: the node's id.
 
     Raises:
         PermissionDeniedError: when even the permitted part is refused. Not
@@ -71,6 +85,7 @@ async def ancestry_of(nodes: Nodes, node_id: str) -> Ancestry:
     """
     from .nodes import Node as _Node  # local: nodes imports this module
 
+    nodes = _nodes_of(repo_or_nodes)
     response = await nodes.transport.json(
         "GET",
         f"/node/v1/nodes/-home-/{path_segment(node_id)}/parents",
@@ -87,19 +102,44 @@ async def ancestry_of(nodes: Nodes, node_id: str) -> Ancestry:
     )
 
 
-async def collections_of(nodes: Nodes, node_id: str) -> list[Node]:
+async def collections_of(
+    repo_or_nodes: Any, node_id: str, *, original_id: str | None = None
+) -> list[Node]:
     """The collections holding a reference to this node.
 
     Not the parent chain: a collection references nodes whose own parent lives
     elsewhere, so this answers "who has curated it", not "where does it live".
 
+    **The question always goes to the original.** A collection listing hands
+    out the ids of *references*, and the usage endpoint knows only originals:
+    measured on 2026-09-02 against staging, it answered ``200`` with an empty
+    list for a listing id and named two collections for the original behind
+    it. Asked with the listing id, this function used to report "in no
+    collection" for material that sits in two. So the node is read first and
+    its ``original_id`` is what gets asked -- unless the caller already holds
+    the node and passes it, which saves that read.
+
     Each entry comes back as a full node -- measured, with properties, title
     and ``isPublic`` -- so nothing has to be read a second time.
+
+    Args:
+        repo_or_nodes: the connection, or its ``nodes`` accessor.
+        node_id: the node's id -- an original's or a reference's.
+        original_id: the id to ask for, when the caller has already resolved
+            it (``node.original_id or node.id``). ``None`` reads the node.
+
+    Raises:
+        NotFoundError: when no node carries this id.
+        PermissionDeniedError: when the node may not be read.
     """
     from .nodes import Node as _Node  # local: nodes imports this module
 
+    nodes = _nodes_of(repo_or_nodes)
+    if original_id is None:
+        node = await nodes.get(node_id)
+        original_id = node.original_id or node.id
     response: Any = await nodes.transport.json(
-        "GET", f"/usage/v1/usages/node/{path_segment(node_id)}/collections"
+        "GET", f"/usage/v1/usages/node/{path_segment(original_id)}/collections"
     )
     # A list, not an object -- and a list of *usages*, so an entry without a
     # collection block would become a node without an id.

@@ -683,3 +683,4 @@ async def test_widgets_aufloesen(repo):
                 assert all(isinstance(i, str) for i in element["node_ids"])
         return
     pytest.skip("keine der gefundenen Seiten fuehrt aufloesbare Widgets")
+

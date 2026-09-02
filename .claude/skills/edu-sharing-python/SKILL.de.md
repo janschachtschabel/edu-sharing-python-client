@@ -215,7 +215,7 @@ muss — die Argument- und Rückgabeformen stehen in `docs/REFERENCE.de.md`.
 
 | Man hält | Woher | Was darauf ist |
 |---|---|---|
-| `Node` | `repo.node(node_id)`, `repo.create_node(…)` | lesen `.id` `.name` `.title` `.type` `.url` `.access` `.can_write` `.is_public` `.preview_url` `.properties` `.keywords` `.raw` `.get()` `.get_all()` `.labels()` `.parents()` `.collections()`; schreiben `.update()` `.set_property()` `.add_keywords()` `.remove_keywords()` `.rate()` `.unrate()` `.delete()`; Türen `.content` `.children` `.permissions` `.workflow` `.comments` `.suggestions` `.page` `.rating` |
+| `Node` | `repo.node(node_id)`, `repo.create_node(…)` | lesen `.id` `.name` `.title` `.type` `.aspects` `.original_id` `.is_reference` `.redirected_from` `.url` `.access` `.can_write` `.is_public` `.preview_url` `.properties` `.keywords` `.raw` `.get()` `.get_all()` `.labels()` `.parents()` `.collections()`; schreiben `.update()` `.set_property()` `.add_keywords()` `.remove_keywords()` `.rate()` `.unrate()` `.delete()`; Türen `.content` `.children` `.permissions` `.workflow` `.comments` `.suggestions` `.page` `.rating` |
 | `NodeContent` | `node.content` | `.download()` `.text()` `.upload()` `.set_preview()` `.delete_preview()`; `.has_content` `.mimetype` `.size` `.download_url` |
 | `NodePermissions` | `node.permissions` | `.get()` `.grant()` `.revoke()` `.publish()` `.unpublish()` |
 | `Permissions` | `node.permissions.get()` | `.own` `.inherited` `.effective` `.inherits` `.is_public` `.allows()` `.find()` |
@@ -243,7 +243,7 @@ muss — die Argument- und Rückgabeformen stehen in `docs/REFERENCE.de.md`.
 | Man hält | Woher | Was darauf ist |
 |---|---|---|
 | `SearchResult` | `repo.search(…)` (der Ablauf liefert dasselbe als `dict`) | `.hits` `.total` `.total_is_lower_bound` `.facets` `.suggestions` `.unresolved` `.ignored` `.warnings` `.raw` |
-| `SearchHit` | `result.hits[i]` | `.id` `.title` `.url` `.description` `.source_url` `.mimetype` `.mediatype` `.properties()` `.labels()` |
+| `SearchHit` | `result.hits[i]` | `.id` `.title` `.url` `.description` `.source_url` `.mimetype` `.mediatype` `.original_id` `.properties()` `.labels()` |
 | `Facet` | `result.facets` | `.property` `.values` `.other_count` `.truncated`; `FacetValue`: `.value` `.count` |
 | `UnresolvedFilter` | `result.unresolved` | `.field` `.value` `.suggestions` |
 
@@ -669,6 +669,35 @@ Zu jedem gibt es ein blockierendes Gegenstück am Repositorium selbst:
 
 `repo.vocab.suggest` und `repo.vocab.clear_cache` haben kein blockierendes
 Gegenstück; alles, was ein Aufrufer zum Filtern braucht, schon.
+
+---
+
+### 5.13 Ein Sammlungs-Listing liefert Referenz-IDs
+
+Eine Sammlung hält **Referenzen**, keine Datensätze. `collection_contents`,
+`search_in_collection` und jedes auf eine Sammlung bezogene Listing geben die
+IDs dieser Referenzen zurück — der gewöhnliche Weg zu einer ID, kein
+Sonderfall. Gegen Staging gemessen (02.09.2026): `/usage` antwortet einer
+Referenz-ID mit leerer Liste und dem Original mit zwei Sammlungen; und ein
+Schreibvorgang an eine Referenz wird auf der Referenz gespeichert und erreicht
+den Datensatz nie (vom MCP am 17.08.2026 gemessen) — die Rückleseprobe merkt
+es nicht, weil sie denselben Knoten liest.
+
+Die Bibliothek löst das auf. `node.original_id` nennt den Datensatz (`None`
+auf einem Original), `node.collections()` und `flows.placement` fragen für das
+Original, und `update()`, `set_property()` und `add_keywords()` schreiben
+dorthin und geben das **Original** mit gesetztem `redirected_from` zurück.
+Löschen wird *nicht* umgeleitet: an einer Referenz verschwindet nur die
+Referenz, das ist harmlos, und `flows.delete` sagt `is_reference`, damit klar
+ist, welches von beiden ging.
+
+```python
+node = await repo.node(listing_id)
+node.is_reference            # True
+changed = await node.update(title="…")
+changed.id                   # die ID des Originals, nicht listing_id
+changed.redirected_from      # listing_id -- der Schreibvorgang wurde umgeleitet
+```
 
 ---
 

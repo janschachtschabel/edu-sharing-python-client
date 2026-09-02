@@ -122,6 +122,7 @@ repo.flows.search(
       "mimetype": "text/html",
       "mediatype": "link",
       "fields": {"subject": ["Biologie"], "level": ["Sekundarstufe II"]},
+      "original_id": null,
       "duplicate_ids": []
     }
   ],
@@ -360,6 +361,10 @@ Cached: asking a second time for the same field costs nothing.
 
 ## `describe` — everything about one node
 
+Since 2026-09-02 the answer also carries `aspects` and `original_id` — a
+listing id names a reference, and `original_id` is the record behind it,
+the id a write goes to (`None` on an original).
+
 **One request**, exactly like `repo.node(node_id)` at the API level. This flow saves
 no round trip; it hands back a `dict` with vocabulary fields already resolved to
 labels, instead of a `Node` object.
@@ -539,6 +544,15 @@ first with a message naming the one to use instead.
 ---
 
 ## `placement` — where a node sits, and who curated it
+
+**A listing id is a reference.** Since 2026-09-02 the node is read first and
+the collections are asked for the record behind it: measured against
+staging, `/usage` answers a reference id with an empty list and the original
+with the collections it sits in — this flow used to report "in no
+collection" for material that is in two. The answer carries `original_id`
+(`None` on an original). A node that cannot be read adds
+`{part: "original"}` to `failed`, and the collections are then asked with
+the id as given.
 
 Two questions that look alike and are not. **Where it lives** is its folder, and
 that folder's folder. **Who curated it** is which collections hold a reference —
@@ -1240,6 +1254,11 @@ then, so aborting would leave one nobody asked for.
 ---
 
 ## `delete` — remove and say what went
+
+Since 2026-09-02 the answer also says `is_reference` and `original_id`.
+Deleting a reference removes only the reference (measured by the MCP,
+2026-08-17); the record behind it survives, and this is where a caller
+learns which of the two just went.
 
 **Input**
 

@@ -125,6 +125,7 @@ repo.flows.search(
       "mimetype": "text/html",
       "mediatype": "link",
       "fields": {"subject": ["Biologie"], "level": ["Sekundarstufe II"]},
+      "original_id": null,
       "duplicate_ids": []
     }
   ],
@@ -371,6 +372,10 @@ Zwischengespeichert: dasselbe Feld ein zweites Mal zu erfragen kostet nichts.
 
 ## `describe` — alles über einen Knoten
 
+Seit dem 02.09.2026 trägt die Antwort auch `aspects` und `original_id` —
+eine Listing-ID benennt eine Referenz, und `original_id` ist der Datensatz
+dahinter, die ID, an die ein Schreibvorgang geht (`None` auf einem Original).
+
 **Ein Zugriff**, genau wie `repo.node(node_id)` auf der API-Ebene. Dieser Ablauf
 spart keinen Umlauf; er liefert ein `dict` mit bereits aufgelösten
 Vokabularwerten statt eines `Node`-Objekts.
@@ -552,6 +557,15 @@ Bibliothek lehnt vorher ab und nennt den passenden.
 ---
 
 ## `placement` — wo ein Knoten liegt, und wer ihn kuratiert hat
+
+**Eine Listing-ID ist eine Referenz.** Seit dem 02.09.2026 wird der Knoten
+zuerst gelesen und die Sammlungen werden für den Datensatz dahinter
+erfragt: gegen Staging gemessen antwortet `/usage` einer Referenz-ID mit
+leerer Liste und dem Original mit den Sammlungen, in denen es liegt — dieser
+Ablauf meldete „in keiner Sammlung" für Material, das in zweien liegt. Die
+Antwort trägt `original_id` (`None` auf einem Original). Ein Knoten, der
+sich nicht lesen lässt, fügt `{part: "original"}` zu `failed` hinzu; die
+Sammlungen werden dann mit der ID wie übergeben erfragt.
 
 Zwei Fragen, die sich ähneln und es nicht sind. **Wo er liegt** ist sein Ordner,
 und dessen Ordner. **Wer ihn kuratiert hat** sind die Sammlungen, die eine
@@ -1273,6 +1287,11 @@ Zeitpunkt schon, ein Abbruch hinterließe eine, die niemand bestellt hat.
 ---
 
 ## `delete` — löschen und benennen, was verschwand
+
+Seit dem 02.09.2026 sagt die Antwort auch `is_reference` und `original_id`.
+An einer Referenz verschwindet nur die Referenz (vom MCP am 17.08.2026
+gemessen); der Datensatz dahinter bleibt, und hier erfährt ein Aufrufer,
+welches von beiden gerade ging.
 
 **Eingabe**
 

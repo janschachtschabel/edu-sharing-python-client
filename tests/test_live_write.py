@@ -764,3 +764,37 @@ async def test_fremde_variante_wird_verweigert(eigene_seite):
 
 async def test_sammlung_ohne_seite_meldet_das(sammlung):
     assert await sammlung.page.get() is None
+
+
+# --- Schreiben ueber eine Listing-ID ---------------------------------------
+#
+# Vom MCP am 17.08.2026 gegen Staging gemessen: ein PUT an eine Referenz wird
+# auf der Referenz gespeichert und erreicht das Original nie. Hier wird das
+# Gegenteil belegt -- die Bibliothek leitet um und weist es aus -- und dass ein
+# Loeschen an der Referenz das Original unangetastet laesst.
+#
+# Nicht ausgefuehrt am 02.09.2026: der temporaere Staging-Login wurde an dem
+# Tag mit 401 abgelehnt. Laeuft mit dem naechsten gueltigen Konto.
+
+async def test_schreiben_an_einer_listing_id_erreicht_das_original(repo, sammlung, knoten):
+    assert await repo.add_to_collection(sammlung.id, knoten.id) is True
+    inhalt = await repo.flows.collection_contents(sammlung.id, limit=10)
+    eintrag = next(m for m in inhalt["materials"] if m["original_id"] == knoten.id)
+    listing_id = eintrag["id"]
+    assert listing_id != knoten.id, "das Listing liefert die Referenz, nicht den Datensatz"
+
+    referenz = await repo.node(listing_id)
+    assert referenz.is_reference
+    assert referenz.original_id == knoten.id
+
+    neu = await referenz.update(title="Ueber die Referenz geschrieben")
+    assert neu.id == knoten.id
+    assert neu.redirected_from == listing_id
+    assert (await repo.node(knoten.id)).title == "Ueber die Referenz geschrieben"
+
+    gegangen = await repo.flows.delete(listing_id)
+    assert gegangen["is_reference"] is True
+    assert gegangen["original_id"] == knoten.id
+    assert (await repo.node(knoten.id)).title == "Ueber die Referenz geschrieben"
+    danach = await repo.flows.collection_contents(sammlung.id, limit=10)
+    assert all(m["id"] != listing_id for m in danach["materials"])

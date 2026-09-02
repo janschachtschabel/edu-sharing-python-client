@@ -40,6 +40,7 @@ from .errors import SilentDropError, ValidationError
 from .pages import NodePage
 from .permissions import NodePermissions
 from .ratings import Rating
+from .results import original_id_of
 from .suggestions import Suggestions
 from .transport import Transport
 from .urls import path_segment
@@ -88,6 +89,7 @@ class Node:
     def __init__(self, data: dict[str, Any], nodes: Nodes) -> None:
         self._data = data
         self._nodes = nodes
+        self._redirected_from: str | None = None
 
     # --- Reading ----------------------------------------------------------
 
@@ -157,6 +159,50 @@ class Node:
         return str(url) if url and not preview.get("isIcon") else None
 
     @property
+    def aspects(self) -> tuple[str, ...]:
+        """The aspects layered on this node's type, e.g. ``ccm:collection_io_reference``."""
+        return tuple(str(a) for a in (self.raw.get("aspects") or []))
+
+    @property
+    def original_id(self) -> str | None:
+        """The record this node is a reference to -- ``None`` on an original.
+
+        A collection holds **references**: adding material creates a node with
+        its own id, and that id is what a collection listing hands out. Measured
+        on 2026-09-02 against staging, the reference's response carries
+        ``originalId``, while ``/usage`` answers for the reference with an empty
+        list and for the original with the collections it actually sits in.
+
+        The rule lives in ``results.original_id_of`` -- the DTO field first,
+        ``ccm:original`` only as a fallback and only when it names another
+        node, because on an original it points at the record itself.
+        """
+        return original_id_of(self.raw)
+
+    @property
+    def is_reference(self) -> bool:
+        """Whether this id names a reference rather than the record itself."""
+        return self.original_id is not None
+
+    @property
+    def redirected_from(self) -> str | None:
+        """The reference id a write was aimed at, when this node is the original
+        it was redirected to. ``None`` for a node that was not written through
+        a reference.
+
+        Set on the node a write returns, never on a node that was merely read,
+        so a redirection cannot go unnoticed: the id you wrote to and the id you
+        got back differ, and this says why.
+        """
+        return self._redirected_from
+
+    def _redirected(self, node: Node) -> Node:
+        """Stamp ``node`` as the target of a write that was aimed at this node."""
+        if node.id != self.id:
+            node._redirected_from = self.id
+        return node
+
+    @property
     def properties(self) -> dict[str, Any]:
         return self._data.get("properties") or {}
 
@@ -212,9 +258,12 @@ class Node:
     async def collections(self) -> list[Node]:
         """The collections holding a reference to this node.
 
-        See ``placement.collections_of``.
+        See ``placement.collections_of``. This node already knows whether it is
+        a reference, so the question goes to the original without a second read.
         """
-        return await placement.collections_of(self._nodes, self.id)
+        return await placement.collections_of(
+            self._nodes, self.id, original_id=self.original_id or self.id
+        )
 
     @property
     def workflow(self) -> Workflow:
@@ -297,7 +346,12 @@ class Node:
             **aliases: short names from ``WRITE_FIELD_ALIASES``, e.g. ``title=``.
 
         Returns:
-            A new ``Node`` carrying the read-back state.
+            A new ``Node`` carrying the read-back state. **On a reference this
+            is the original**, with ``redirected_from`` set: a collection
+            listing hands out reference ids, and a write aimed at a reference
+            is stored on the reference and never reaches the record (measured
+            by the MCP on 2026-08-17). The read-back cannot catch that -- it
+            re-reads the same node -- so the write goes to the original instead.
 
         Raises:
             SilentDropError: when the repository reports 200 and values are
@@ -308,15 +362,16 @@ class Node:
         if not fields:
             return self
 
+        target = self.original_id or self.id
         await self._nodes.transport.json(
-            "PUT", f"/node/v1/nodes/-home-/{path_segment(self.id)}/metadata", json=fields
+            "PUT", f"/node/v1/nodes/-home-/{path_segment(target)}/metadata", json=fields
         )
         if not verify:
             return self
 
-        fresh = await self._nodes.get(self.id)
+        fresh = await self._nodes.get(target)
         fresh._check(fields, route="update")
-        return fresh
+        return self._redirected(fresh)
 
     async def set_property(self, prop: str, value: Any, *, verify: bool = True) -> Node:
         """Set a single property past the metadata set.
@@ -331,6 +386,8 @@ class Node:
         Raises:
             SilentDropError: when the value is not set afterwards.
         """
+        # Same rule as ``update``: a reference is written through to its original.
+        target = self.original_id or self.id
         if value is None:
             # Measured: both a "null" body and no body at all delete the
             # property. The explicit "null" is sent -- it is the documented
@@ -338,7 +395,7 @@ class Node:
             # differently.
             await self._nodes.transport.request(
                 "POST",
-                f"/node/v1/nodes/-home-/{path_segment(self.id)}/property",
+                f"/node/v1/nodes/-home-/{path_segment(target)}/property",
                 params={"property": prop},
                 content=b"null",
                 headers={"Content-Type": "application/json"},
@@ -346,18 +403,18 @@ class Node:
         else:
             await self._nodes.transport.request(
                 "POST",
-                f"/node/v1/nodes/-home-/{path_segment(self.id)}/property",
+                f"/node/v1/nodes/-home-/{path_segment(target)}/property",
                 params={"property": prop},
                 json=_as_list(value),
             )
         if not verify:
             return self
 
-        fresh = await self._nodes.get(self.id)
+        fresh = await self._nodes.get(target)
         if value is None:
-            return fresh
+            return self._redirected(fresh)
         fresh._check({prop: _as_list(value)}, route="set_property")
-        return fresh
+        return self._redirected(fresh)
 
     # --- Keywords ---------------------------------------------------------
 
@@ -396,7 +453,9 @@ class Node:
         if not add and not remove:
             return self
 
-        fresh = await self._nodes.get(self.id)
+        # The list to merge into is the ORIGINAL's: a reference carries a copy
+        # that stops inheriting the moment it is written to.
+        fresh = await self._nodes.get(self.original_id or self.id)
         existing = fresh.keywords
         dropping = {k.strip().casefold() for k in remove}
 
@@ -408,8 +467,8 @@ class Node:
                 known.add(k.strip().casefold())
 
         if merged == existing:
-            return fresh
-        return await fresh.update(properties={KEYWORD_PROPERTY: merged})
+            return self._redirected(fresh)
+        return self._redirected(await fresh.update(properties={KEYWORD_PROPERTY: merged}))
 
     async def delete(self, *, recycle: bool = True) -> None:
         """Delete the node.

@@ -58,6 +58,10 @@ def hit_as_dict(
         "mimetype": hit.mimetype,
         "mediatype": hit.mediatype,
         "fields": fields,
+        # ``None`` on an original. A listing or a collection-scoped search hands
+        # out reference ids; this is the record behind one -- and the id a
+        # write goes to.
+        "original_id": hit.original_id,
         # The records folded into this one. Empty in the normal case; non-empty
         # means the repository holds further nodes for the same source address.
         "duplicate_ids": list((folded or {}).get(hit.id, [])),

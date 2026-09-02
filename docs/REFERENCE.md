@@ -129,7 +129,7 @@ result.unresolved            # []  <- always check this
 | Name | Carries |
 |---|---|
 | `SearchResult` | `total`, `total_is_lower_bound`, `hits`, `facets`, `unresolved`, `warnings` |
-| `SearchHit` | `id`, `title`, `description`, `url`, `source_url`, `mimetype`, `mediatype`, `properties`, `raw` |
+| `SearchHit` | `id`, `title`, `description`, `url`, `source_url`, `mimetype`, `mediatype`, `original_id`, `properties`, `raw` |
 | `SearchHit.labels(prop)` | `list[str]` — readable values instead of URIs |
 | `SearchHit.from_node(node, repo_url)` | builds a hit from a node body |
 | `Facet` | `property`, `values`, `other_count`, `truncated` |
@@ -204,6 +204,10 @@ Which short names exist is read from the instance, not fixed in the library.
 | `node.can_write` | `bool` — whether `Write` is in `access` |
 | `node.is_public` | `bool` — readable without login |
 | `node.preview_url` | `str \| None` |
+| `node.original_id` | `str \| None` — the record behind a reference; `None` on an original. A collection listing hands out reference ids |
+| `node.is_reference` | `bool` |
+| `node.aspects` | `tuple[str, ...]` — e.g. `ccm:collection_io_reference` |
+| `node.redirected_from` | `str \| None` — set on the node a write returns when the write was aimed at a reference |
 | `node.rating` | `Rating \| None` |
 
 ```python
@@ -255,7 +259,7 @@ await node.remove_keywords(["Klasse 6"])
 | `node.parents()` | `list[Node]` — **nearest first** |
 | `node.collections()` | `list[Node]` — the collections holding it |
 | `ancestry_of(repo, node_id)` | `Ancestry` |
-| `collections_of(repo, node_id)` | `list[Node]` |
+| `collections_of(repo, node_id, original_id=…)` | `list[Node]` — asks for the **original**; reads the node unless `original_id` is given |
 
 ```python
 [p.title for p in await node.parents()]   # ["Bruchrechnung", "Mathematik"]
@@ -625,9 +629,9 @@ applied — the search answered a wider question than you asked.
 
 | Call | Returns |
 |---|---|
-| `repo.flows.describe(node_id)` | `{id, title, url, description, source_url, mimetype, mediatype, fields, name, type, access, public, has_content, keywords, properties}` |
+| `repo.flows.describe(node_id)` | `{id, title, url, description, source_url, mimetype, mediatype, fields, name, type, aspects, original_id, access, public, has_content, keywords, properties}` |
 | `repo.flows.describe_many(ids)` | `{requested, found, nodes, failed}` — order preserved |
-| `repo.flows.placement(node_id)` | `{id, title, path, collections, scope, failed}` — `path` reads **top down** |
+| `repo.flows.placement(node_id)` | `{id, original_id, title, path, collections, scope, failed}` — `path` reads **top down** |
 
 ```python
 info = await repo.flows.describe(node_id)
@@ -709,7 +713,7 @@ stopped early is not "there is none".
 | `repo.flows.add_material(parent_id, title=…, url=…, subject=…, …)` | `{id, title, url, parent_id, name, collection, unresolved}` |
 | `repo.flows.update_material(node_id, …)` | `{id, title, url, name, unresolved}` |
 | `repo.flows.build_collection(title, node_ids, …)` | `{id, title, url, added, failed}` |
-| `repo.flows.delete(node_id)` | `{id, title, name, type, recycled}` |
+| `repo.flows.delete(node_id)` | `{id, title, name, type, is_reference, original_id, recycled}` — deleting a reference removes only the reference |
 
 ```python
 made = await repo.flows.add_material(

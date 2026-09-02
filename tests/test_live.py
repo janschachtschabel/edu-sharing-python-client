@@ -375,3 +375,35 @@ async def test_mitglieder_brauchen_verwaltungsrechte(repo):
     gruppen = await _mitgliedschaften(repo)
     with pytest.raises(PermissionDeniedError):
         await repo.people.members(gruppen[0].name)
+
+
+# --- Die Referenz-Falle, live -----------------------------------------------
+
+@pytest.mark.live
+async def test_eine_listing_id_ist_eine_referenz_und_die_sammlungen_kommen_trotzdem(repo):
+    """Gemessen am 02.09.2026, Sammlung "Ungleichungen": usage kennt nur das
+    Original -- collections_of(Listing-ID) = 0, collections_of(Original) = 2.
+    Seither fragt die Bibliothek fuer das Original, und die Sammlung, aus der
+    die ID stammt, muss in der Antwort stehen.
+
+    Die Suche ist nicht reproduzierbar und nicht jedes Material ist anonym
+    lesbar (dann verweigert die Instanz beide Haelften, und placement wirft --
+    richtig so). Darum werden die ersten Treffer durchprobiert, bis ein
+    lesbares Paar gefunden ist; keines zu finden ist ein Befund, kein Fehler.
+    """
+    from edusharing.errors import PermissionDeniedError
+    found = await repo.flows.find_collections("Bruchrechnung", limit=5)
+    geprueft = 0
+    for sammlung in (h["id"] for h in found["hits"]):
+        inhalt = await repo.flows.collection_contents(sammlung, limit=3)
+        for eintrag in inhalt["materials"]:
+            assert eintrag["original_id"], "ein Listing-Eintrag ist eine Referenz"
+            try:
+                lage = await repo.flows.placement(eintrag["id"])
+            except PermissionDeniedError:
+                continue                      # nicht anonym lesbar -- naechstes
+            geprueft += 1
+            assert lage["original_id"] == eintrag["original_id"]
+            assert any(c["id"] == sammlung for c in lage["collections"]), lage
+            return
+    pytest.skip(f"kein anonym lesbares Material in {len(found['hits'])} Sammlungen ({geprueft} geprueft)")

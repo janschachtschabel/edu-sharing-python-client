@@ -30,6 +30,10 @@ class SearchHit:
     mimetype: str | None = None
     mediatype: str | None = None
     raw: dict[str, Any] = field(default_factory=dict)
+    #: The record behind a reference -- ``None`` on an original. A search
+    #: scoped to a collection, and every collection listing, hands out
+    #: reference ids; see ``original_id_of``.
+    original_id: str | None = None
 
     def properties(self) -> dict[str, Any]:
         return self.raw.get("properties") or {}
@@ -56,7 +60,33 @@ class SearchHit:
             mimetype=node.get("mimetype"),
             mediatype=node.get("mediatype"),
             raw=node,
+            original_id=original_id_of(node),
         )
+
+
+def original_id_of(node: dict[str, Any]) -> str | None:
+    """The record a node response is a reference to -- ``None`` on an original.
+
+    A collection holds **references**: adding material creates a node with its
+    own id, and that id is what a listing hands out. Measured on 2026-09-02
+    against staging, a reference's response carries ``originalId``; the usage
+    endpoint knows only the original (empty list for the reference, two
+    collections for the original behind it), and the MCP measured on
+    2026-08-17 that a write aimed at a reference is stored on the reference
+    and never reaches the original.
+
+    The DTO field is read first. ``ccm:original`` is only the fallback for a
+    repository that does not send it, and only when it names another node: on
+    an original the property points at the record **itself** (3/3 measured),
+    so reading it without that comparison would report every record as a
+    reference to itself. One rule, used by ``Node`` and ``SearchHit`` alike.
+    """
+    dto = node.get("originalId")
+    if dto:
+        return str(dto)
+    node_id = (node.get("ref") or {}).get("id") or ""
+    prop = _first((node.get("properties") or {}).get("ccm:original"))
+    return prop if prop and prop != node_id else None
 
 
 @dataclass(frozen=True, slots=True)

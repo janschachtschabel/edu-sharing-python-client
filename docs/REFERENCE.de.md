@@ -135,7 +135,7 @@ result.unresolved            # []  <- immer prüfen
 | Name | Trägt |
 |---|---|
 | `SearchResult` | `total`, `total_is_lower_bound`, `hits`, `facets`, `unresolved`, `warnings` |
-| `SearchHit` | `id`, `title`, `description`, `url`, `source_url`, `mimetype`, `mediatype`, `properties`, `raw` |
+| `SearchHit` | `id`, `title`, `description`, `url`, `source_url`, `mimetype`, `mediatype`, `original_id`, `properties`, `raw` |
 | `SearchHit.labels(prop)` | `list[str]` — lesbare Werte statt URIs |
 | `SearchHit.from_node(node, repo_url)` | baut einen Treffer aus einem Knotenrumpf |
 | `Facet` | `property`, `values`, `other_count`, `truncated` |
@@ -212,6 +212,10 @@ festgelegt.
 | `node.can_write` | `bool` — ob `Write` in `access` steht |
 | `node.is_public` | `bool` — ohne Anmeldung lesbar |
 | `node.preview_url` | `str \| None` |
+| `node.original_id` | `str \| None` — der Datensatz hinter einer Referenz; `None` auf einem Original. Ein Sammlungs-Listing liefert Referenz-IDs |
+| `node.is_reference` | `bool` |
+| `node.aspects` | `tuple[str, ...]` — z. B. `ccm:collection_io_reference` |
+| `node.redirected_from` | `str \| None` — gesetzt auf dem Knoten, den ein Schreibvorgang zurückgibt, wenn er an eine Referenz gerichtet war |
 | `node.rating` | `Rating \| None` |
 
 ```python
@@ -263,7 +267,7 @@ await node.remove_keywords(["Klasse 6"])
 | `node.parents()` | `list[Node]` — **nächster zuerst** |
 | `node.collections()` | `list[Node]` — die Sammlungen, die ihn halten |
 | `ancestry_of(repo, node_id)` | `Ancestry` |
-| `collections_of(repo, node_id)` | `list[Node]` |
+| `collections_of(repo, node_id, original_id=…)` | `list[Node]` — fragt für das **Original**; liest den Knoten, wenn `original_id` fehlt |
 
 ```python
 [p.title for p in await node.parents()]   # ["Bruchrechnung", "Mathematik"]
@@ -636,9 +640,9 @@ als die gestellte.
 
 | Aufruf | Liefert |
 |---|---|
-| `repo.flows.describe(node_id)` | `{id, title, url, description, source_url, mimetype, mediatype, fields, name, type, access, public, has_content, keywords, properties}` |
+| `repo.flows.describe(node_id)` | `{id, title, url, description, source_url, mimetype, mediatype, fields, name, type, aspects, original_id, access, public, has_content, keywords, properties}` |
 | `repo.flows.describe_many(ids)` | `{requested, found, nodes, failed}` — Reihenfolge bleibt |
-| `repo.flows.placement(node_id)` | `{id, title, path, collections, scope, failed}` — `path` liest sich **von oben nach unten** |
+| `repo.flows.placement(node_id)` | `{id, original_id, title, path, collections, scope, failed}` — `path` liest sich **von oben nach unten** |
 
 ```python
 info = await repo.flows.describe(node_id)
@@ -721,7 +725,7 @@ Gang, der früh abgebrochen hat, heißt nicht „es gibt keins".
 | `repo.flows.add_material(parent_id, title=…, url=…, subject=…, …)` | `{id, title, url, parent_id, name, collection, unresolved}` |
 | `repo.flows.update_material(node_id, …)` | `{id, title, url, name, unresolved}` |
 | `repo.flows.build_collection(title, node_ids, …)` | `{id, title, url, added, failed}` |
-| `repo.flows.delete(node_id)` | `{id, title, name, type, recycled}` |
+| `repo.flows.delete(node_id)` | `{id, title, name, type, is_reference, original_id, recycled}` — an einer Referenz verschwindet nur die Referenz |
 
 ```python
 made = await repo.flows.add_material(

@@ -525,3 +525,155 @@ def test_node_ohne_lesbare_werte_gibt_eine_leere_liste():
     """Nicht jede Property fuehrt ein Vokabular -- das ist kein Fehler."""
     node = Node({"ref": {"id": "n1"}, "properties": {"cclom:title": ["Titel"]}}, None)
     assert node.labels("cclom:title") == []
+
+
+# --- Referenz oder Original? ----------------------------------------------
+#
+# Eine Sammlung haelt Referenzen, nicht Datensaetze. Ein Listing liefert die
+# IDs der Referenzen -- und das ist der gewoehnliche Weg zu einer ID, kein
+# Sonderfall. Gemessen gegen Staging am 02.09.2026: das DTO einer Referenz
+# traegt ``originalId`` und ``ccm:original`` zeigt aufs Original; auf einem
+# Original FEHLT ``originalId`` und ``ccm:original`` zeigt auf den Knoten
+# selbst (3/3, auch vom MCP am 17.08. so gemessen).
+
+REFERENZ = {"ref": {"id": "r-1"}, "originalId": "o-1",
+            "aspects": ["ccm:collection_io_reference", "ccm:iometadata"],
+            "properties": {"ccm:original": ["o-1"], "cclom:title": ["T"]}}
+ORIGINAL = {"ref": {"id": "o-1"},
+            "aspects": ["ccm:iometadata"],
+            "properties": {"ccm:original": ["o-1"], "cclom:title": ["T"]}}
+
+
+def test_eine_referenz_kennt_ihr_original():
+    node = Node(REFERENZ, None)
+    assert node.original_id == "o-1"
+    assert node.is_reference is True
+    assert node.aspects == ("ccm:collection_io_reference", "ccm:iometadata")
+
+
+def test_ein_original_ist_keine_referenz_auf_sich_selbst():
+    """Wer ``ccm:original`` ohne Selbstvergleich liest, meldet jeden Datensatz
+    als Referenz auf sich selbst."""
+    node = Node(ORIGINAL, None)
+    assert node.original_id is None
+    assert node.is_reference is False
+
+
+def test_ohne_originalid_zaehlt_die_eigenschaft_wenn_sie_abweicht():
+    """Aeltere Instanzen ohne ``originalId`` im DTO: die Eigenschaft ist der
+    Rueckfall -- nur, wenn sie nicht auf den Knoten selbst zeigt."""
+    alt = {"ref": {"id": "r-2"}, "properties": {"ccm:original": ["o-2"]}}
+    assert Node(alt, None).original_id == "o-2"
+    assert Node({"ref": {"id": "x"}, "properties": {}}, None).aspects == ()
+
+
+# --- Schreiben an einer Referenz ------------------------------------------
+#
+# Vom MCP am 17.08.2026 gegen Staging gemessen (services/write/nodes.ts):
+# ein PUT an eine Referenz wird AUF DER REFERENZ gespeichert, erreicht das
+# Original nie, und die Referenz hoert ab dann auf zu erben. Die Rueckleseprobe
+# bemerkt das nicht -- sie liest denselben Knoten und findet genau den Wert,
+# den sie geschrieben hat. Darum geht jeder Schreibvorgang ans Original und
+# sagt es (``redirected_from``). Loeschen dagegen nicht: an einer Referenz
+# entfernt es nur die Referenz, und eine Umleitung waere genau der
+# Datenverlust, den die Umleitung beim Schreiben verhindern soll (MCP, F10).
+
+REF, ORIG = "r-1", "o-1"
+
+
+class ZweiKnoten:
+    """Referenz ``r-1`` auf Original ``o-1``, beide mit eigenem Zustand."""
+
+    def __init__(self) -> None:
+        self.props = {REF: {"cclom:title": ["Alt"], "ccm:original": [ORIG]},
+                      ORIG: {"cclom:title": ["Alt"], "ccm:original": [ORIG]}}
+        self.aufrufe: list[httpx.Request] = []
+
+    def _antwort(self, nid: str) -> dict:
+        data = _node_antwort(self.props[nid])["node"]
+        data["ref"]["id"] = nid
+        if nid == REF:
+            data["originalId"] = ORIG
+            data["aspects"] = ["ccm:collection_io_reference"]
+        return {"node": data}
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.aufrufe.append(request)
+        pfad, methode = request.url.path, request.method
+        nid = REF if f"/{REF}" in pfad else ORIG
+        if methode == "GET" and pfad.endswith("/metadata"):
+            return httpx.Response(200, json=self._antwort(nid))
+        if methode == "PUT" and pfad.endswith("/metadata"):
+            self.props[nid].update(json.loads(request.content))
+            return httpx.Response(200, json=self._antwort(nid))
+        if methode == "POST" and pfad.endswith("/property"):
+            self.props[nid][request.url.params["property"]] = json.loads(request.content)
+            return httpx.Response(200, content=b"")
+        if methode == "DELETE":
+            return httpx.Response(200, content=b"")
+        return httpx.Response(404, json={"error": "x", "message": pfad})
+
+    def pfade(self, methode: str) -> list[str]:
+        return [r.url.path for r in self.aufrufe if r.method == methode]
+
+
+async def test_update_an_einer_referenz_schreibt_ans_original():
+    server = ZweiKnoten()
+    node = await _nodes(server).get(REF)
+    neu = await node.update(title="Neu")
+    assert server.pfade("PUT") == [f"/edu-sharing/rest/node/v1/nodes/-home-/{ORIG}/metadata"]
+    assert neu.id == ORIG
+    assert neu.redirected_from == REF
+    assert server.props[ORIG]["cclom:title"] == ["Neu"]
+    assert server.props[REF]["cclom:title"] == ["Alt"]
+
+
+async def test_update_an_einem_original_leitet_nicht_um():
+    server = ZweiKnoten()
+    node = await _nodes(server).get(ORIG)
+    neu = await node.update(title="Neu")
+    assert neu.id == ORIG
+    assert neu.redirected_from is None
+
+
+async def test_set_property_an_einer_referenz_schreibt_ans_original():
+    server = ZweiKnoten()
+    node = await _nodes(server).get(REF)
+    neu = await node.set_property("ccm:foo", "x")
+    assert server.pfade("POST") == [f"/edu-sharing/rest/node/v1/nodes/-home-/{ORIG}/property"]
+    assert neu.id == ORIG
+    assert neu.redirected_from == REF
+
+
+async def test_add_keywords_an_einer_referenz_mischt_die_des_originals():
+    server = ZweiKnoten()
+    server.props[ORIG]["cclom:general_keyword"] = ["bleibt"]
+    node = await _nodes(server).get(REF)
+    neu = await node.add_keywords("neu")
+    assert server.props[ORIG]["cclom:general_keyword"] == ["bleibt", "neu"]
+    assert neu.id == ORIG
+
+
+async def test_loeschen_an_einer_referenz_wird_nicht_umgeleitet():
+    server = ZweiKnoten()
+    node = await _nodes(server).get(REF)
+    await node.delete()
+    assert server.pfade("DELETE") == [f"/edu-sharing/rest/node/v1/nodes/-home-/{REF}"]
+
+
+# --- Auch ein Treffer kennt sein Original -----------------------------------
+
+def test_ein_treffer_kennt_sein_original():
+    from edusharing.results import SearchHit
+    ref = SearchHit.from_node({"ref": {"id": "r-1"}, "originalId": "o-1", "properties": {}}, REPO)
+    orig = SearchHit.from_node({"ref": {"id": "o-1"},
+                                "properties": {"ccm:original": ["o-1"]}}, REPO)
+    assert ref.original_id == "o-1"
+    assert orig.original_id is None
+
+
+def test_hit_as_dict_nennt_das_original():
+    from edusharing.flows.serialize import hit_as_dict
+    from edusharing.results import SearchHit
+    hit = SearchHit.from_node({"ref": {"id": "r-1"}, "originalId": "o-1", "properties": {}}, REPO)
+    assert hit_as_dict(hit, {})["original_id"] == "o-1"

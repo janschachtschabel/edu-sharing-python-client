@@ -29,6 +29,7 @@ import pytest
 
 from edusharing import AsyncRepository
 from edusharing.errors import PermissionDeniedError
+from edusharing.placement import collections_of
 
 REPO = "https://repo.test/edu-sharing"
 NID = "k-1"
@@ -212,13 +213,20 @@ async def test_der_pfad_laeuft_von_oben_nach_unten():
     assert [s["title"] for s in ergebnis["path"]] == ["Oberordner", "Unterordner"]
 
 
-async def test_placement_kostet_zwei_anfragen():
-    """Beide Endpunkte, parallel. Ein dritter Aufruf waere das Nachlesen des
-    Knotens -- den fragt der Ablauf nicht, weil parents ihn schon mitliefert."""
+async def test_placement_kostet_drei_anfragen_eine_je_frage():
+    """Der Knoten, der Weg nach oben, die Sammlungen -- je einmal.
+
+    Bis zum 02.09.2026 waren es zwei: parents liefert den Knoten mit. Seither
+    wird er vorab gelesen, weil eine Listing-ID eine Referenz ist und die
+    Sammlungen fuer das ORIGINAL zu erfragen sind (siehe unten). Was weiterhin
+    nicht passiert: ein Nachlesen je gefundener Sammlung -- die usage-Antwort
+    traegt jede vollstaendig."""
     instanz = Instanz()
     async with instanz.repo() as repo:
         await repo.flows.placement(NID)
-    assert len(instanz.anfragen) == 2, [r.url.path for r in instanz.anfragen]
+    pfade = [r.url.path for r in instanz.anfragen]
+    assert len(pfade) == 3, pfade
+    assert sum(p.endswith("/metadata") for p in pfade) == 1
 
 
 async def test_placement_nennt_den_titel_des_knotens():
@@ -345,3 +353,106 @@ async def test_ancestry_repr_nennt_das_wesentliche():
     async with instanz.repo() as repo:
         herkunft = await ancestry_of(repo.nodes, NID)
     assert repr(herkunft) == "Ancestry(parents=2, scope='MY_FILES')"
+
+
+# --- Die Referenz-Falle ---------------------------------------------------
+#
+# Gemessen gegen Staging am 02.09.2026, Sammlung "Ungleichungen": das erste
+# Material im Listing traegt ``ccm:collection_io_reference`` und
+# ``originalId``. ``/usage/v1/usages/node/{id}/collections`` kennt nur das
+# Original -- fuer die Listing-ID antwortet es 200 mit leerer Liste:
+#
+#     collections_of(Listing-ID) = 0     collections_of(Original) = 2
+#
+# Die Bibliothek sagte damit "in keiner Sammlung" fuer ein Material, das in
+# zweien liegt. Kein Fehler, kein Hinweis. Darum wird IMMER ueber das Original
+# gefragt, und wer den Knoten schon hat, uebergibt es, statt ihn erneut zu lesen.
+
+REF_ID, ORIG_ID = "r-1", "o-1"
+
+
+def _referenz() -> dict:
+    data = _knoten(REF_ID, "k.txt", "Mein Titel", typ="ccm:io")
+    data["originalId"] = ORIG_ID
+    data["aspects"] = ["ccm:collection_io_reference"]
+    data["properties"]["ccm:original"] = [ORIG_ID]
+    return data
+
+
+class Referenz(Instanz):
+    """Eine Referenz ``r-1`` auf das Original ``o-1``; usage antwortet nur dem Original."""
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        self.anfragen.append(request)
+        pfad = request.url.path
+        if pfad.endswith("/metadata"):
+            original = _knoten(ORIG_ID, "k.txt", "Mein Titel", typ="ccm:io")
+            data = _referenz() if f"/{REF_ID}/" in pfad else original
+            return httpx.Response(200, json={"node": data})
+        if pfad.endswith("/parents"):
+            return httpx.Response(200, json={"nodes": [_referenz(), _knoten("oben", "o", "Oben")],
+                                             "pagination": None, "scope": "MY_FILES"})
+        if "/usage/v1" in pfad:
+            wen = pfad.split("/usages/node/")[1].split("/")[0]
+            return httpx.Response(200, json=NUTZUNGEN if wen == ORIG_ID else [])
+        raise AssertionError(f"unerwartet: {request.method} {pfad}")
+
+    def usage_pfad(self) -> str:
+        return next(a.url.path for a in self.anfragen if "/usage/v1" in a.url.path)
+
+    def metadata_abrufe(self) -> int:
+        return sum(1 for a in self.anfragen if a.url.path.endswith("/metadata"))
+
+
+async def test_collections_of_fragt_das_original_einer_referenz():
+    instanz = Referenz()
+    async with instanz.repo() as repo:
+        sammlungen = await collections_of(repo.nodes, REF_ID)
+    assert [s.id for s in sammlungen] == ["s-1", "s-2"]
+    assert instanz.usage_pfad().endswith(f"/usages/node/{ORIG_ID}/collections")
+
+
+async def test_collections_of_nimmt_auch_das_repositorium():
+    """Jede andere freie Funktion nimmt ``repo``; diese nahm ``Nodes`` -- und
+    die Referenz dokumentierte ``repo``. Beides gilt jetzt."""
+    instanz = Referenz()
+    async with instanz.repo() as repo:
+        assert len(await collections_of(repo, REF_ID)) == 2
+
+
+async def test_mit_bekanntem_original_wird_der_knoten_nicht_gelesen():
+    instanz = Referenz()
+    async with instanz.repo() as repo:
+        await collections_of(repo.nodes, REF_ID, original_id=ORIG_ID)
+    assert instanz.metadata_abrufe() == 0
+    assert instanz.usage_pfad().endswith(f"/usages/node/{ORIG_ID}/collections")
+
+
+async def test_node_collections_uebergibt_sein_eigenes_original():
+    """Der Knoten liegt schon vor -- ein zweiter Abruf waere eine Anfrage fuer nichts."""
+    instanz = Referenz()
+    async with instanz.repo() as repo:
+        knoten = await repo.node(REF_ID)
+        vorher = len(instanz.anfragen)
+        sammlungen = await knoten.collections()
+    assert [s.id for s in sammlungen] == ["s-1", "s-2"]
+    assert len(instanz.anfragen) == vorher + 1
+
+
+async def test_placement_liest_einmal_und_nennt_das_original():
+    instanz = Referenz()
+    async with instanz.repo() as repo:
+        lage = await repo.flows.placement(REF_ID)
+    assert lage["id"] == REF_ID
+    assert lage["original_id"] == ORIG_ID
+    assert [c["id"] for c in lage["collections"]] == ["s-1", "s-2"]
+    assert instanz.usage_pfad().endswith(f"/usages/node/{ORIG_ID}/collections")
+    assert instanz.metadata_abrufe() == 1
+
+
+async def test_placement_eines_originals_nennt_kein_original():
+    instanz = Referenz()
+    async with instanz.repo() as repo:
+        lage = await repo.flows.placement(ORIG_ID)
+    assert lage["original_id"] is None
+    assert instanz.usage_pfad().endswith(f"/usages/node/{ORIG_ID}/collections")

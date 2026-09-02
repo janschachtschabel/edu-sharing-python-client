@@ -278,7 +278,9 @@ async def delete(
             reversible one; permanent deletion has to be spelled out.
 
     Returns:
-        ``{id, title, name, type, recycled}`` -- describing what is now gone.
+        ``{id, title, name, type, is_reference, original_id, recycled}`` --
+        describing what is now gone. Deleting a reference removes only the
+        reference; the record behind it (``original_id``) survives.
 
     Raises:
         NotFoundError: when no node carries this id. Nothing is deleted.
@@ -290,6 +292,11 @@ async def delete(
         "title": node.title,
         "name": node.name,
         "type": node.type,
+        # Deleting a reference removes only the reference; the record behind
+        # it survives (measured by the MCP, 2026-08-17). Said here rather than
+        # left for the caller to discover from a listing that still shows it.
+        "is_reference": node.is_reference,
+        "original_id": node.original_id,
     }
     await node.delete(recycle=recycle)
     return {**described, "recycled": recycle}

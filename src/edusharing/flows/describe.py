@@ -41,9 +41,11 @@ async def describe(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
 
     Returns:
         ``{id, title, url, description, source_url, mimetype, mediatype, fields,
-        name, type, access, public, has_content, keywords, properties,
-        duplicate_ids}``. ``duplicate_ids`` is empty here -- the key comes from
-        the shared hit shape, where a deduplicated search fills it.
+        name, type, aspects, original_id, access, public, has_content, keywords,
+        properties, duplicate_ids}``. ``original_id`` is the record behind a
+        reference -- a listing id names one -- and ``None`` on an original.
+        ``duplicate_ids`` is empty here -- the key comes from the shared hit
+        shape, where a deduplicated search fills it.
         ``public`` says whether anyone may read the node -- inherited access
         included, and free, because the node response carries it.
         ``properties`` holds the raw edu-sharing properties for anything the
@@ -59,6 +61,10 @@ async def describe(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
     data.update({
         "name": node.name,
         "type": node.type,
+        "aspects": list(node.aspects),
+        # A listing id names a reference; this is the record behind it, and
+        # the id a write goes to. ``None`` on an original.
+        "original_id": node.original_id,
         "access": list(node.access),
         "public": node.is_public,
         "has_content": node.content.has_content,
@@ -81,7 +87,10 @@ async def placement(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
         node_id: the node's id.
 
     Returns:
-        ``{id, title, path, collections, scope, failed}``.
+        ``{id, original_id, title, path, collections, scope, failed}``.
+        ``original_id`` is the record behind a reference and ``None`` on an
+        original; the collections are always asked for that record, because a
+        listing id is a reference and the usage endpoint knows only originals.
 
         ``path`` runs **top down**, ready to print as a breadcrumb -- unlike
         ``node.parents()``, which mirrors the endpoint and gives the nearest
@@ -100,9 +109,23 @@ async def placement(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
         NotFoundError: when no node carries this id.
         PermissionDeniedError: when the way up is refused.
     """
+    # One read first: a listing id is a reference, and the collections have to
+    # be asked for the original behind it (see ``collections_of``). When the
+    # node itself cannot be read, both halves are still asked with the id as
+    # given -- that keeps the partial answer the docstring promises, and the
+    # unresolved id is named in ``failed`` rather than passed off as resolved.
+    failed: list[dict[str, str]] = []
+    original_id: str | None = None
+    try:
+        node = await repo.nodes.get(node_id)
+        original_id = node.original_id
+    except EduSharingError as exc:
+        failed.append({"part": "original",
+                       "reason": f"{type(exc).__name__}: {exc}"})
+
     ancestry, collections = await asyncio.gather(
-        placement_api.ancestry_of(repo.nodes, node_id),
-        placement_api.collections_of(repo.nodes, node_id),
+        placement_api.ancestry_of(repo, node_id),
+        placement_api.collections_of(repo, node_id, original_id=original_id or node_id),
         return_exceptions=True,
     )
     if isinstance(ancestry, BaseException) and isinstance(collections, BaseException):
@@ -110,7 +133,6 @@ async def placement(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
         # claim the node sits nowhere. ``collections.find`` draws the same line.
         raise ancestry
 
-    failed: list[dict[str, str]] = []
     if isinstance(ancestry, BaseException):
         failed.append({"part": "path",
                        "reason": f"{type(ancestry).__name__}: {ancestry}"})
@@ -122,6 +144,9 @@ async def placement(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
 
     return {
         "id": node_id,
+        # ``None`` on an original; on a reference the record the collections
+        # were asked for -- and the id a write would have to target.
+        "original_id": original_id,
         # From the parents answer, where the node is the first entry -- so the
         # title costs no request of its own.
         "title": ancestry.node.title if ancestry.node else None,
