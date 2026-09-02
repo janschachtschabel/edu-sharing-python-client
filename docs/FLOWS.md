@@ -42,7 +42,7 @@ out by hand.
 | `vocabulary` | 1 | resolve short name → fetch values (cached) |
 | `describe` | 1 | load node |
 | `search_all` | 3–4 | material search (+1 to resolve a filter) + collection search (its two routes), in parallel |
-| `placement` | 2 | way up + collections holding a reference, in parallel |
+| `placement` | 3 | load node (to resolve a reference) → way up + collections of the original, in parallel |
 | `describe_many` | one per distinct id, in parallel | load each, report the ones that are gone |
 | `related` | 2 (+1 per filter resolved) | describe the seed → search with its fields → drop the seed |
 | `browse_tree` | one per collection opened | walk the sub-collections, de-duplicated and capped |

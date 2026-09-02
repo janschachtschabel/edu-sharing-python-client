@@ -43,7 +43,7 @@ nur von Hand ausgeschrieben.
 | `vocabulary` | 1 | Kurzname auflösen → Werte holen (zwischengespeichert) |
 | `describe` | 1 | Knoten laden |
 | `search_all` | 3–4 | Materialsuche (+1 zum Auflösen eines Filters) + Sammlungssuche (ihre zwei Wege), parallel |
-| `placement` | 2 | Weg nach oben + Sammlungen mit Referenz, parallel |
+| `placement` | 3 | Knoten laden (Referenz auflösen) → Weg nach oben + Sammlungen des Originals, parallel |
 | `describe_many` | eine je verschiedener ID, parallel | jeden laden, die verschwundenen melden |
 | `related` | 2 (+1 je aufgelöstem Filter) | Ausgang beschreiben → mit seinen Feldern suchen → Ausgang herausnehmen |
 | `browse_tree` | eine je geöffneter Sammlung | Untersammlungen ablaufen, entdoppelt und gedeckelt |
