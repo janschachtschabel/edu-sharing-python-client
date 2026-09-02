@@ -167,3 +167,33 @@ def test_mehr_als_fuenfzig_kontexte_werden_gemeldet():
     layout = layout_contexts(text, parse_blocks(text))
     assert len(layout.contexts) == 50
     assert layout.truncated == (50, 55)
+
+
+# --- Zaeune und Prosa (Review 02.09.2026) ------------------------------------
+
+def test_ein_beispiel_im_codezaun_ist_kein_verweis():
+    """Ein SKILL.md, das die Blocksyntax ZEIGT, verweist auf nichts -- sonst
+    erfaende der Parser einen Verweis, was er nie darf."""
+    beispiel = f"::: ki-skill\n[Beispiel]({RENDER}{A})\n:::\n"
+    gezeigt = (f"So sieht ein Block aus:\n\n```\n{beispiel}```\n\n"
+               f"::: ki-skill\n[Echt]({RENDER}{B})\n:::\n")
+    assert [r.node_id for r in parse_blocks(gezeigt)] == [B]
+
+
+def test_ohne_blockarten_kein_block():
+    assert parse_blocks(REGISTRY, kinds=()) == []
+
+
+def test_prosa_eines_unbenannten_unterabschnitts_gehoert_dem_besitzer():
+    """Ein unbenanntes ### ist durchsichtig -- fuer seine Skills UND seine Prosa."""
+    doc = f"## Vorbereiten\n\nA.\n\n###\n\nB.\n\n::: ki-skill\n[X]({RENDER}{A})\n:::\n"
+    layout = layout_contexts(doc, parse_blocks(doc))
+    assert layout.contexts[0].instruction == "A.\n\nB."
+    assert layout.contexts[0].skills == [A]
+
+
+def test_eine_h4_schneidet_die_prosa_nicht():
+    """Nur ##/### eroeffnen Kontexte; eine tiefere Ueberschrift ist Teil der Prosa."""
+    doc = "## Vorbereiten\n\nA.\n\n#### Hinweis\n\nB.\n"
+    layout = layout_contexts(doc, [])
+    assert layout.contexts[0].instruction == "A.\n\n#### Hinweis\n\nB."

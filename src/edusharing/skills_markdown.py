@@ -26,14 +26,17 @@ Three pure functions, the rules those of the MCP (``skill-references.ts``,
 under three headings.
 
 * ``parse_blocks`` -- the ``:::`` blocks, with kind, title, URL, node id and
-  offset. An unclosed block matches nothing: a malformed document yields fewer
+  offset. An unclosed block matches nothing, and a block shown inside a code
+  fence is an example: a malformed or explanatory document yields fewer
   references, never invented ones.
 * ``parse_sections`` -- the ATX headings and the span of document under each.
   Setext headings and headings inside code fences are not headings.
 * ``layout_contexts`` -- which named ``##``/``###`` a block sits under. A
-  section without a title is *transparent*: its content belongs to the nearest
-  named section above it, and failing that to the general part. Dropping
-  untitled sections would have swallowed their skills without a trace.
+  section without a title is *transparent*: its skills AND its prose belong
+  to the nearest named section above it, and failing that to the general
+  part. Dropping untitled sections would have swallowed their skills without
+  a trace. Headings below ``###`` open no context; they are part of the
+  prose.
 """
 
 from __future__ import annotations
@@ -146,7 +149,10 @@ class ContextLayout:
 
 
 def parse_blocks(text: str, kinds: tuple[str, ...] = DEFAULT_KINDS) -> list[SkillReference]:
-    """The ``:::`` blocks of ``text``, in document order."""
+    """The ``:::`` blocks of ``text``, in document order -- none from inside a code fence."""
+    if not kinds:
+        return []
+    fenced = _fenced_spans(text)
     fence = re.compile(
         r"^:::[ \t]*(" + "|".join(re.escape(k) for k in kinds) + r")[ \t]*\r?$"
         r"(.*?)^:::[ \t]*\r?$",
@@ -154,6 +160,8 @@ def parse_blocks(text: str, kinds: tuple[str, ...] = DEFAULT_KINDS) -> list[Skil
     )
     refs: list[SkillReference] = []
     for m in fence.finditer(text):
+        if any(a <= m.start() < b for a, b in fenced):
+            continue  # shown, not meant
         body = m.group(2)
         link = _TITLE_LINK.search(body)
         if not link:  # a block with no link references nothing
@@ -183,21 +191,13 @@ def _plain_title(raw: str) -> str:
 def parse_sections(text: str) -> list[MarkdownSection]:
     """The ATX headings of ``text``, each with the span under it."""
     heads: list[tuple[int, str, int, int]] = []  # level, title, start, body_start
+    fenced = _fenced_spans(text)
     offset = 0
-    in_fence: str | None = None
     for line in text.splitlines(keepends=True):
-        stripped = line.rstrip("\r\n")
-        fence = _FENCE.match(stripped)
-        if fence:
-            if in_fence is None:
-                in_fence = fence.group(1)
-            elif fence.group(1) == in_fence:
-                in_fence = None
-        elif in_fence is None:
-            m = _HEADING.match(stripped)
-            if m:
-                title = (m.group(2) or "").rstrip("#").strip()
-                heads.append((len(m.group(1)), title, offset, offset + len(line)))
+        m = _HEADING.match(line.rstrip("\r\n"))
+        if m and not any(a <= offset < b for a, b in fenced):
+            title = (m.group(2) or "").rstrip("#").strip()
+            heads.append((len(m.group(1)), title, offset, offset + len(line)))
         offset += len(line)
 
     sections: list[MarkdownSection] = []
@@ -209,6 +209,26 @@ def parse_sections(text: str) -> list[MarkdownSection]:
                 break
         sections.append(MarkdownSection(level, title, start, body_start, end))
     return sections
+
+
+def _fenced_spans(text: str) -> list[tuple[int, int]]:
+    """The ``[start, end)`` offsets of every code fence. What is shown there is
+    not markup -- neither a heading nor a block. An unclosed fence runs to the
+    end of the document, as it does for a Markdown renderer."""
+    spans: list[tuple[int, int]] = []
+    opened: tuple[str, int] | None = None
+    offset = 0
+    for line in text.splitlines(keepends=True):
+        fence = _FENCE.match(line.rstrip("\r\n"))
+        if fence and opened is None:
+            opened = (fence.group(1), offset)
+        elif fence and opened is not None and fence.group(1) == opened[0]:
+            spans.append((opened[1], offset + len(line)))
+            opened = None
+        offset += len(line)
+    if opened is not None:
+        spans.append((opened[1], len(text)))
+    return spans
 
 
 def layout_contexts(
@@ -232,7 +252,7 @@ def layout_contexts(
     contexts = [
         RegistryContext(
             title=s.title, level=s.level, path=outline.path_of(s),
-            instruction=outline.prose(s.body_start, s.end),
+            instruction=outline.instruction_of(s),
             skills=skills_of[id(s)], range=(s.heading_start, s.end),
         )
         for s in outline.named
@@ -254,7 +274,9 @@ class _Outline:
         self.sections = sections
         self.named = [s for s in sections if s.level in (2, 3) and s.title]
         self._boundaries = sorted(offsets)
-        self._headings = sorted(s.heading_start for s in sections)
+        # Only ``#`` to ``###`` end a stretch of prose: deeper headings open
+        # no context and stay part of what the editors wrote.
+        self._headings = sorted(s.heading_start for s in sections if s.level <= 3)
 
     def owner_at(self, offset: int) -> MarkdownSection | None:
         # The last match in document order is the innermost: a named H2 spans
@@ -280,6 +302,17 @@ class _Outline:
                   + [h for h in self._headings if start < h < end] + [end])
         body = self.text[start:cut].strip()
         return body or None
+
+    def instruction_of(self, section: MarkdownSection) -> str | None:
+        """Its own prose, plus that of the untitled sub-sections it owns --
+        transparent for the prose as for the skills."""
+        pieces = [self.prose(section.body_start, section.end)] + [
+            self.prose(u.body_start, u.end) for u in self.sections
+            if u.level in (2, 3) and not u.title
+            and section.heading_start < u.heading_start < section.end
+            and self.owner_at(u.heading_start + 1) is section
+        ]
+        return "\n\n".join(p for p in pieces if p) or None
 
     def general_instruction(self) -> str | None:
         """The prose before the first named context, plus that of untitled
