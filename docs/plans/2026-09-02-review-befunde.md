@@ -176,3 +176,43 @@ Begründung (B14 — der Review selbst empfahl keine Änderung; die drei
 Anfragen von `placement` sind der richtige Kompromiss). Fünfzehn Commits,
 jeder hinter dem Gate (ruff, mypy --strict, die Gesamtsuite); die betroffenen
 Pfade danach noch einmal live gegen Staging gelaufen.
+
+## Zweite Runde — die Fixes selbst geprüft (Abend des 02.09.2026)
+
+Drei frische Agenten über `fd15c9f..HEAD`: 30 Befunde, kein CRITICAL.
+
+Skills (S):
+- [x] S1 MAJOR — BOM-Behandlung nur in `get`, der Abschnittsparser läuft aber in der Registry → `decode_text` für beide.
+- [x] S2 MINOR — Zaunmaske übersprang nur den Treffer; ein unvollständiges Beispiel im Zaun lief bis zum nächsten echten Block → Spannen werden geblankt.
+- [x] S3 MINOR — `download()` ohne Datei warf aus `load_registry` → `has_content` vorher, `unreadable`; `_downloadable` weg.
+- [x] S4 MINOR — Die letzte Ebene fragte noch nach Untersammlungen → fester Horizont, dokumentiert.
+- [x] S5 MINOR — Anfragezahlen (Registry 2–3 + eine je eigenem Eintrag; `find_skills` zwei je Sammlung mit Untersammlungen).
+- [x] S6 NIT — Die Untersammlungsliste der Wurzel verweigert → Fehler, wie die Dateiliste.
+- [x] S7 NIT — `application/octet-stream` gilt als unbekannt und wird dekodiert.
+- [x] S8 NIT — `skill_kind` muss unter `block_kinds` sein (`ValueError`).
+- [x] S9 NIT — Text nur aus Stoppwörtern filtert auch in der Sammlung (wörtlich).
+- [x] S10 NIT — REFERENCE: `layout_contexts(text, blocks, skill_kind=…)`.
+
+Suche/Wächter (R):
+- [ ] R1 MAJOR — FLOWS-Beispiel `search_all` zeigt `filters_ignored: ["subject"]`, der Code liefert `[]`.
+- [ ] R2 MINOR — Kurze-Seite-Warnung unter `rerank` nennt `offset`, das dort nichts tut.
+- [ ] R3 MINOR — `_below` schneidet vor dem Filter, obwohl der Gang alles hält → mit Filter erst nach dem Urteil schneiden.
+- [ ] R4 MINOR — Fassaden-Docstrings (`search_all`, `find_collections`) nennen alte Verträge.
+- [ ] R5 MINOR — `EXCLUSION_MAX` überall als „größte Seite" beschrieben; die zwei Warnungen fehlen in FLOWS.
+- [ ] R6 MINOR — DE-Block `search_all` hinkt EN nach; Changelog-Satz „rides in the same gather" überholt.
+- [ ] R7 MINOR — Signatur-Wächter liest keine ```-Blöcke und keine Schlüsselwörter bei `**kwargs`-Fassaden.
+- [ ] R8 MINOR — `browse_tree`: `raw` entfernt und `pagination.total` → `truncated` nicht direkt getestet.
+- [ ] R9 MINOR — Leerer `pages`-Korb handgeschrieben; `pages_among` läuft auch ohne `include_pages`.
+- [ ] R10 NIT — Test-Docstring „ungefilterte Sammlungen" veraltet; positiver Filterfall fehlt.
+- [ ] R11 NIT — Spiegel-Wächter nur in eine Richtung, ohne Positionsreihenfolge.
+- [ ] R12 NIT — Namen/Exporte (`empty_collections`, `walk_collections`, `pages_among`, `carries`); REFERENCE `resolve_vocabulary(every_value=…)`; `if values:` verwirft skalares `0`.
+
+Schreibpfad (W):
+- [ ] W1 MINOR — `replaced` liest die Referenz statt des Originals.
+- [ ] W2 MINOR — `placement`-Docstring: „zwei Anfragen", Teil `original` fehlt.
+- [ ] W3 MINOR — „`text/*`" in Kostentabelle, Abschnitt und Fassade; es sind Text, JSON und XML.
+- [ ] W4 MINOR — `add_material` „3–6 Anfragen" stimmt nicht (1 + je Schritt; Veröffentlichen 4).
+- [ ] W5 NIT — `set_property`-Docstring ohne Lösch-Probe; `verify`-Text ohne Referenz-Lesen.
+- [ ] W6 NIT — `cm:name`-Ausnahme unbedingt, Kommentar sagt Zähler; Test pinnt das Mock-Format.
+- [ ] W7 NIT — `find_by_url` zahlt Vokabular und Suche vor dem Abweisen; `validate_if_exists` nicht in `__all__`.
+- [ ] W8 NIT — `add_material`-Ausgabebeispiel ohne `existing`, `created`, `warnings`.

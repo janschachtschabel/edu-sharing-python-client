@@ -44,6 +44,13 @@ if TYPE_CHECKING:
 __all__ = ["NodeContent"]
 
 
+def decode_text(data: bytes) -> str:
+    """Uploaded bytes as text: UTF-8, a byte-order mark stripped, undecodable
+    bytes replaced. The BOM matters: a Windows editor writes one, and with it
+    in front of the first ``#`` a heading parser sees no heading."""
+    return data.decode("utf-8-sig", errors="replace")
+
+
 def is_text_like(mimetype: str | None) -> bool:
     """Bytes worth decoding as text: ``text/*``, JSON and XML.
 

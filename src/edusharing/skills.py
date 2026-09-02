@@ -34,7 +34,7 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from .content import is_text_like
+from .content import decode_text, is_text_like
 from .errors import NotFoundError, PermissionDeniedError
 from .flows.fields import carries, resolve_vocabulary
 from .flows.ranking import query_terms, term_matches
@@ -98,6 +98,15 @@ class SkillConventions:
     block_kinds: tuple[str, ...] = ("ki-skill", "wlo-material")
     #: Which of them names a skill -- the kind a registry lists.
     skill_kind: str = "ki-skill"
+
+    def __post_init__(self) -> None:
+        # A skill kind outside the parsed kinds would yield an empty registry
+        # with no reason -- a misconfiguration, said at construction.
+        if self.skill_kind not in self.block_kinds:
+            raise ValueError(
+                f"skill_kind {self.skill_kind!r} is not among block_kinds "
+                f"{self.block_kinds!r} -- the registry would parse no skill block."
+            )
 
 
 WLO_SKILLS = SkillConventions()
@@ -221,10 +230,13 @@ class Skills:
             truncated = result.total > len(result.hits)
         summaries = _dedupe_by_original([self._summary(n) for n in candidates])
         terms = query_terms(text)
-        if terms and collection_id:
+        # A query of stopwords only is still a query -- matched as typed, as
+        # ``find_collections`` does below a parent.
+        needle = text.strip().lower()
+        if needle and collection_id:
             # The listing took no criteria; a record no term touches is no
             # match, and ranking it last would still present it as one.
-            summaries = [s for s in summaries if _score(s, terms) > 0]
+            summaries = [s for s in summaries if _relevance(s, terms, needle) > 0]
         if terms:
             summaries.sort(key=lambda s: -_score(s, terms))
         return SkillSearch(hits=summaries[:limit], unresolved=unresolved,
@@ -336,7 +348,10 @@ class Skills:
         sub-collections could not be opened. Those are skipped and counted --
         a curated tree lists collections the account may not read (measured
         by audit A10 for ``browse_tree``), and one refusal must not turn a
-        partial answer into none. The root refusing is the answer itself.
+        partial answer into none. The root refusing -- its files or its
+        sub-collection listing -- is the answer itself. ``SKILL_DEPTH_MAX`` is
+        a fixed horizon: the last level reads its files and does not ask for
+        sub-collections it would never visit.
         """
         found: list[dict[str, Any]] = []
         visited = {root}
@@ -354,11 +369,13 @@ class Skills:
                     continue
                 found.extend(nodes)
                 truncated = truncated or more
-                if not include_subcollections:
+                if not include_subcollections or _depth == SKILL_DEPTH_MAX:
                     continue
                 try:
                     subs, more_subs = await self._subs_of(collection_id)
                 except (PermissionDeniedError, NotFoundError):
+                    if collection_id == root:
+                        raise
                     unreadable += 1
                     continue
                 truncated = _enqueue(subs, visited, next_level) or more_subs or truncated
@@ -412,12 +429,12 @@ async def _instruction(node: Node) -> tuple[str | None, str]:
     """The Markdown as stored, or why there is none."""
     if not node.content.has_content:
         return None, "no_file"
-    # An unknown type is decoded -- only a type that says "binary" is refused.
-    if node.content.mimetype and not is_text_like(node.content.mimetype):
+    # A missing type, or the MIME "unknown", is decoded -- only a type that
+    # says "binary" is refused.
+    kind = node.content.mimetype
+    if kind and kind != "application/octet-stream" and not is_text_like(kind):
         return None, "not_text"
-    # utf-8-sig: a byte-order mark from a Windows editor would otherwise sit in
-    # front of the H1, and the section parser would not see the heading.
-    return (await node.content.download()).decode("utf-8-sig", errors="replace"), ""
+    return decode_text(await node.content.download()), ""
 
 
 def _first(value: Any) -> str | None:
@@ -439,6 +456,15 @@ def _dedupe_by_original(skills: list[SkillSummary]) -> list[SkillSummary]:
         if seen is None or (seen_is_reference and skill.id == skill.original_id):
             by_original[skill.original_id] = skill
     return list(by_original.values())
+
+
+def _relevance(skill: SkillSummary, terms: list[str], needle: str) -> int:
+    """The score -- or, for a query with no searchable term, whether the text
+    occurs as typed."""
+    if terms:
+        return _score(skill, terms)
+    blob = " ".join([skill.title, *skill.keywords, skill.description]).lower()
+    return 1 if needle in blob else 0
 
 
 def _score(skill: SkillSummary, terms: list[str]) -> int:

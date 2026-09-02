@@ -52,9 +52,9 @@ nur von Hand ausgeschrieben.
 | `collection_stats` | 2, parallel | Materialliste + Untersammlungsliste → lokal auszählen |
 | `page` | 3 (+1 je Widget mit `resolve_widgets`) | Sammlung laden → ihren Seiten-Ordner → dessen Varianten |
 | `find_pages` | 2, parallel | beide Sammlungswege → die Treffer mit Seiten-Ref behalten |
-| `find_skills` | 1, oder eine je gelesener Sammlung | Suche mit der Inhaltsart → lokal reihen |
+| `find_skills` | 1, oder eine je gelesener Sammlung (zwei mit `include_subcollections`) | Suche mit der Inhaltsart → lokal reihen |
 | `skill` | 2–3 | Datensatz laden → Datei herunterladen → Ordner des Originals listen |
-| `skill_registry` | 1–2 + eine je Eintrag | Dateien der Sammlung listen → Registry herunterladen → jeden Kopf auflösen |
+| `skill_registry` | 2–3 + eine je eigenem Eintrag | Dateien der Sammlung listen → Registry herunterladen → jeden Kopf auflösen |
 | `pick_skill` | `find_skills` + `skill` | suchen → den besten laden |
 | `relations` | 1 | die Verknüpfungen des Knotens lesen |
 | `child_objects` | 2 | Hauptknoten laden → seine Kinder, gefiltert und sortiert |
@@ -1273,7 +1273,7 @@ rahmen.
 
 ## `skill_registry` — welche Skills eine Sammlung freigegeben hat
 
-**Eine Anfrage plus eine je Eintrag — zwei, wenn dem Listing die
+**Zwei Anfragen plus eine je eigenem Eintrag — drei, wenn dem Listing die
 Download-Adresse fehlt.** Das Dateilisting der Sammlung (nie
 der Suchindex — ein Datensatz kann aus dem Index fallen und im Speicher
 liegen, vom MCP am 09.08.2026 gemessen), das Registry-Dokument per

@@ -93,13 +93,17 @@ class Instanz:
                  unter_total: int | None = None,
                  kopf_status: dict[str, int] | None = None,
                  coll_total: int | None = None,
-                 content_status: dict[str, int] | None = None) -> None:
+                 content_status: dict[str, int] | None = None,
+                 baum: dict[str, list[str]] | None = None,
+                 coll_subs_status: int = 200) -> None:
         self.nodes = {
             SA: _skill(SA, "Lehrprofil auswerten", keywords=("Lehrkontext",),
                        description="erfasst den Kontext"),
             SB: _skill(SB, "Fragen generieren", keywords=("Fragen", "Quiz"),
                        description="Fragen zu einem Text"),
-            REF_A: _skill(REF_A, "Lehrprofil auswerten", original=SA),
+            # Eine Referenz traegt die Metadaten ihres Originals (kopiert beim Einlegen).
+            REF_A: _skill(REF_A, "Lehrprofil auswerten", keywords=("Lehrkontext",),
+                          description="erfasst den Kontext", original=SA),
             REG: _skill(REG, "Skill Registry", typ=REGISTRY),
         }
         self.texts = {
@@ -115,7 +119,9 @@ class Instanz:
         self.kopf_status = kopf_status or {}    # /metadata-Status je Knoten
         self.coll_total = coll_total            # pagination.total der Dateiliste
         self.content_status = content_status or {}   # /content-Status je Knoten
-        if self.unter:
+        self.baum = baum                        # Sammlung -> Untersammlungen, beliebig tief
+        self.coll_subs_status = coll_subs_status   # die Untersammlungsliste der Wurzel
+        if self.unter or self.baum:
             self.nodes[SD] = _skill(SD, "Stunde planen", keywords=("Planung",))
             self.texts[SD] = "# Stunde\n\nAnleitung D."
         self.anfragen: list[httpx.Request] = []
@@ -165,19 +171,26 @@ class Instanz:
             total = self.coll_total if self.coll_total is not None else len(docs)
             return httpx.Response(200, json={"nodes": docs,
                                              "pagination": _seite(total, len(docs))})
-        if pfad.endswith(f"/{COLL}/children/collections"):
-            subs = [{"ref": {"id": s}, "title": f"Unter {s}"} for s in self.unter]
-            total = self.unter_total if self.unter_total is not None else len(subs)
+        if pfad.endswith("/children/collections"):
+            cid = pfad.split("/-home-/")[1].split("/")[0]
+            if cid == COLL and self.coll_subs_status != 200:
+                return httpx.Response(self.coll_subs_status,
+                                      json=_fehler("DAOSecurityException"))
+            kinder = (self.baum.get(cid, []) if self.baum is not None
+                      else (list(self.unter) if cid == COLL else []))
+            subs = [{"ref": {"id": s}, "title": f"Unter {s}"} for s in kinder]
+            total = (self.unter_total if self.unter_total is not None and cid == COLL
+                     else len(subs))
             return httpx.Response(200, json={"collections": subs,
                                              "pagination": {"total": total}})
-        for sub, status in self.unter.items():
+        bekannt = set(self.unter) | {s for ks in (self.baum or {}).values() for s in ks}
+        for sub in bekannt:
             if pfad.endswith(f"/{sub}/children"):
+                status = self.unter.get(sub, 200)
                 if status != 200:
                     return httpx.Response(status, json=_fehler("DAOSecurityException"))
                 return httpx.Response(200, json={"nodes": [self.nodes[SD]],
                                                  "pagination": _seite(1, 1)})
-        if pfad.endswith("/children/collections"):
-            return httpx.Response(200, json={"collections": [], "pagination": {"total": 0}})
         raise AssertionError(f"unerwartet: {request.method} {pfad} {params}")
 
     def repo(self, **kwargs) -> AsyncRepository:
@@ -649,3 +662,79 @@ async def test_ohne_downloadadresse_im_listing_wird_der_datensatz_gelesen():
         reg = await repo.skills.registry(COLL, resolve=False)
     assert reg.entries
     assert sum(r.url.path.endswith(f"/{REG}/metadata") for r in instanz.anfragen) == 1
+
+
+# --- Zweite Runde (Review 02.09.2026, abends) ------------------------------
+
+async def test_eine_bom_in_der_registry_verschluckt_keine_ueberschrift():
+    """Der Abschnittsparser laeuft in der Registry, nicht im Skill -- dort war
+    die BOM-Behandlung zuerst gelandet."""
+    instanz = Instanz(registry_text="\ufeff" + REG_MD)
+    async with instanz.repo() as repo:
+        reg = await repo.skills.registry(COLL)
+    assert [c.path for c in reg.contexts] == ["Unterricht vorbereiten"]
+    assert reg.general.instruction == "Erst den Bestand sichten."
+    assert reg.general.skills == [SA]
+
+
+async def test_ein_kandidat_ohne_datei_ist_unlesbar_kein_fehler():
+    ohne = {**_skill(REG, "Skill Registry", typ=REGISTRY), "content": {"hash": None}}
+    instanz = Instanz(registry_docs=[ohne])
+    async with instanz.repo() as repo:
+        reg = await repo.skills.registry(COLL)
+    assert reg.reason == "unreadable" and reg.registry_id == REG
+
+
+async def test_ohne_content_im_listing_wird_der_datensatz_gelesen():
+    schmal = {k: v for k, v in _skill(REG, "Skill Registry", typ=REGISTRY).items()
+              if k != "content"}
+    instanz = Instanz(registry_docs=[schmal])
+    async with instanz.repo() as repo:
+        reg = await repo.skills.registry(COLL, resolve=False)
+    assert reg.entries
+    assert sum(r.url.path.endswith(f"/{REG}/metadata") for r in instanz.anfragen) == 1
+
+
+async def test_am_horizont_wird_nicht_mehr_nach_untersammlungen_gefragt():
+    """SKILL_DEPTH_MAX ist ein fester Horizont: die letzte Ebene liest ihre
+    Dateien, fragt aber nicht nach Untersammlungen, die sie nie besuchen wuerde."""
+    instanz = Instanz(unter={"u1": 200, "u2": 200, "u3": 200},
+                      baum={COLL: ["u1"], "u1": ["u2"], "u2": ["u3"]})
+    async with instanz.repo() as repo:
+        got = await repo.skills.search("", collection_id=COLL, include_subcollections=True)
+    pfade = [r.url.path for r in instanz.anfragen]
+    assert any(p.endswith("/u1/children/collections") for p in pfade)
+    assert not any(p.endswith("/u2/children/collections") for p in pfade)
+    assert not any(p.endswith("/u3/children") for p in pfade)
+    assert {h.original_id for h in got.hits} == {SA, SD}
+
+
+async def test_eine_gesperrte_untersammlungsliste_der_wurzel_ist_ein_fehler():
+    instanz = Instanz(unter={"u1": 200}, coll_subs_status=403)
+    async with instanz.repo() as repo:
+        with pytest.raises(PermissionDeniedError):
+            await repo.skills.search("", collection_id=COLL, include_subcollections=True)
+
+
+async def test_octet_stream_gilt_als_unbekannt_und_wird_dekodiert():
+    """application/octet-stream ist das MIME-"unbekannt", kein Urteil "binaer"."""
+    instanz = Instanz()
+    instanz.nodes[SA]["mimetype"] = "application/octet-stream"
+    async with instanz.repo() as repo:
+        doc = await repo.skills.get(SA)
+    assert doc.content == "# Lehrprofil\n\nAnleitung A." and doc.content_reason == ""
+
+
+def test_die_skill_blockart_muss_unter_den_blockarten_sein():
+    with pytest.raises(ValueError):
+        SkillConventions(block_kinds=("ki-skill",), skill_kind="ai-skill")
+
+
+async def test_ein_text_nur_aus_stoppwoertern_filtert_auch_in_der_sammlung():
+    """Wie _below in find_collections: woertlich verglichen, nicht als nichts."""
+    instanz = Instanz(unter={"u1": 200})
+    async with instanz.repo() as repo:
+        den = await repo.skills.search("den", collection_id=COLL, include_subcollections=True)
+        die = await repo.skills.search("die", collection_id=COLL, include_subcollections=True)
+    assert {h.original_id for h in den.hits} == {SA}, "erfasst DEN Kontext"
+    assert die.hits == []

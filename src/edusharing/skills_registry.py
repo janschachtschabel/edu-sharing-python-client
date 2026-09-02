@@ -21,6 +21,7 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from .content import decode_text
 from .errors import NotFoundError, PermissionDeniedError
 from .nodes import Node
 from .skills import WLO_SKILLS, SkillConventions, registry_mark
@@ -141,13 +142,8 @@ async def load_registry(
         ambiguous=len(candidates) if len(candidates) > 1 else 0,
         scan_truncated=scan_truncated,
     )
-    try:
-        # The listing entry is a full record on this instance; only when it
-        # lacks what a download needs is the record read again.
-        record = (Node(chosen, repo.nodes) if _downloadable(chosen)
-                  else await repo.node(registry_id))
-        markdown = (await record.content.download()).decode("utf-8", errors="replace")
-    except (NotFoundError, PermissionDeniedError):
+    markdown = await _document_of(repo, chosen, registry_id)
+    if markdown is None:
         return _with(base, reason="unreadable")
 
     blocks = parse_blocks(markdown, conventions.block_kinds)
@@ -205,6 +201,26 @@ async def load_registry(
     )
 
 
+async def _document_of(
+    repo: AsyncRepository, chosen: dict[str, Any], registry_id: str
+) -> str | None:
+    """The registry Markdown, or ``None`` when it cannot be read.
+
+    The listing entry is a full record on this instance; only when it lacks
+    what a download needs is the record read again. A candidate without a
+    file is unreadable, not an error.
+    """
+    record = Node(chosen, repo.nodes)
+    try:
+        if "content" not in chosen or not record.content.download_url:
+            record = await repo.node(registry_id)
+        if not record.content.has_content:
+            return None
+        return decode_text(await record.content.download())
+    except (NotFoundError, PermissionDeniedError):
+        return None
+
+
 async def _read_heads(repo: AsyncRepository, ids: list[str]) -> list[dict[str, Any] | None]:
     """The records behind the blocks, a few at a time; a missing one is ``None``."""
     gate = asyncio.Semaphore(REGISTRY_POOL)
@@ -217,13 +233,6 @@ async def _read_heads(repo: AsyncRepository, ids: list[str]) -> list[dict[str, A
                 return None
 
     return list(await asyncio.gather(*(one(i) for i in ids)))
-
-
-def _downloadable(raw: dict[str, Any]) -> bool:
-    """Whether a listing entry carries what ``download()`` needs: the address,
-    and a content hash that says there is a file."""
-    has_hash = (raw.get("content") or {}).get("hash") is not None
-    return bool(raw.get("downloadUrl")) and has_hash
 
 
 def _is_registry_candidate(raw: dict[str, Any], conventions: SkillConventions) -> bool:

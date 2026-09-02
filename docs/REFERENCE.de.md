@@ -558,7 +558,7 @@ Das Markdown selbst, ohne I/O — `edusharing.skills_markdown`:
 |---|---|
 | `parse_blocks(text, kinds=…)` | `list[SkillReference]` — die `:::`-Blöcke |
 | `parse_sections(text)` | `list[MarkdownSection]` — ATX-Überschriften mit ihrer Reichweite |
-| `layout_contexts(text, blocks)` | `ContextLayout` — unter welcher benannten Überschrift jeder Block liegt |
+| `layout_contexts(text, blocks, skill_kind=…)` | `ContextLayout` — unter welcher benannten Überschrift jeder Block liegt |
 | `SkillReference` | `kind`, `title`, `url`, `node_id`, `offset` |
 | `MarkdownSection` | `level`, `title`, `heading_start`, `body_start`, `end` |
 | `RegistryContext` | `title`, `level`, `path`, `instruction`, `skills`, `range` |

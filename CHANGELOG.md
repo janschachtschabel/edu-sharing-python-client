@@ -81,8 +81,9 @@ and in [`docs/audits/`](docs/audits/).
   instruction is read as text only.** `search(text, collection_id=…)`
   returned every skill of the collection sorted by score, and `pick`
   named a zero-score "best"; a record no term touches is now left out.
-  `get` decodes with `utf-8-sig` (a byte-order mark hid the H1 from the
-  section parser) and refuses a binary upload with
+  the instruction and the registry are decoded with `utf-8-sig` (a
+  byte-order mark hid the H1 from the section parser, which runs on the
+  registry) and refuses a binary upload with
   `content_reason="not_text"` instead of returning mojibake; `no_file`
   says the other reason. One `is_text_like` in `content` serves `text` and
   the skills alike.
@@ -139,6 +140,16 @@ and in [`docs/audits/`](docs/audits/).
   it; it downloads from the listing entry and reads the record only when
   the listing lacks the download address. Deleting a reference and
   accepting a proposal at a reference are pinned offline as well.
+- **Second review round, skills.** The registry document is decoded with
+  the same BOM-stripping rule as the instruction (the section parser runs
+  there); a block shown unclosed inside a code fence no longer swallows the
+  next real block; a registry candidate without a file is `unreadable`, not
+  an error; the walk does not ask the last level for sub-collections it
+  would never visit, and the root's sub-collection listing refusing is an
+  error like its file listing; `application/octet-stream` counts as
+  unknown and is decoded; a `SkillConventions` whose `skill_kind` is not
+  among `block_kinds` is refused at construction; a query of stopwords
+  only is matched as typed inside a collection.
 
 ## [0.1.0] — 2026-09-02
 

@@ -51,9 +51,9 @@ out by hand.
 | `collection_stats` | 2, parallel | material listing + sub-collection listing → tally locally |
 | `page` | 3 (+1 per widget with `resolve_widgets`) | load collection → its page folder → the folder's variants |
 | `find_pages` | 2, parallel | both collection routes → keep the hits carrying a page ref |
-| `find_skills` | 1, or one per collection read | search with the content type → rank locally |
+| `find_skills` | 1, or one per collection read (two with `include_subcollections`) | search with the content type → rank locally |
 | `skill` | 2–3 | load record → download the file → list the original's folder |
-| `skill_registry` | 1–2 + one per entry | list the collection's files → download the registry → resolve each head |
+| `skill_registry` | 2–3 + one per distinct entry | list the collection's files → download the registry → resolve each head |
 | `pick_skill` | `find_skills` + `skill` | search → load the best |
 | `relations` | 1 | read the node's links |
 | `child_objects` | 2 | load parent → its children, filtered and sorted |
@@ -1241,8 +1241,8 @@ reaches a prompt.
 
 ## `skill_registry` — which skills one collection approved
 
-**One request plus one per entry — two when the listing lacks the download
-address.** The collection's file listing (never the
+**Two requests plus one per distinct entry — three when the listing lacks
+the download address.** The collection's file listing (never the
 search index — a record can fall out of the index while sitting in the store,
 measured by the MCP on 2026-08-09), the registry document with `download()`
 straight from the listing entry (its record is read separately only when the

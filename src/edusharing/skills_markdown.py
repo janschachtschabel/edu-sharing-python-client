@@ -152,16 +152,22 @@ def parse_blocks(text: str, kinds: tuple[str, ...] = DEFAULT_KINDS) -> list[Skil
     """The ``:::`` blocks of ``text``, in document order -- none from inside a code fence."""
     if not kinds:
         return []
-    fenced = _fenced_spans(text)
+    # Fenced spans are blanked, newlines kept, so offsets stay and no match
+    # can start inside a fence -- nor run from an unclosed example in one to
+    # the closing marker of the next real block.
+    shown = list(text)
+    for a, b in _fenced_spans(text):
+        for i in range(a, b):
+            if shown[i] != "\n":
+                shown[i] = " "
+    masked = "".join(shown)
     fence = re.compile(
         r"^:::[ \t]*(" + "|".join(re.escape(k) for k in kinds) + r")[ \t]*\r?$"
         r"(.*?)^:::[ \t]*\r?$",
         re.M | re.S,
     )
     refs: list[SkillReference] = []
-    for m in fence.finditer(text):
-        if any(a <= m.start() < b for a, b in fenced):
-            continue  # shown, not meant
+    for m in fence.finditer(masked):
         body = m.group(2)
         link = _TITLE_LINK.search(body)
         if not link:  # a block with no link references nothing

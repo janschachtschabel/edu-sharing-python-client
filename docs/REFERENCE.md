@@ -547,7 +547,7 @@ The Markdown itself, without I/O — `edusharing.skills_markdown`:
 |---|---|
 | `parse_blocks(text, kinds=…)` | `list[SkillReference]` — the `:::` blocks |
 | `parse_sections(text)` | `list[MarkdownSection]` — ATX headings with their span |
-| `layout_contexts(text, blocks)` | `ContextLayout` — which named heading each block sits under |
+| `layout_contexts(text, blocks, skill_kind=…)` | `ContextLayout` — which named heading each block sits under |
 | `SkillReference` | `kind`, `title`, `url`, `node_id`, `offset` |
 | `MarkdownSection` | `level`, `title`, `heading_start`, `body_start`, `end` |
 | `RegistryContext` | `title`, `level`, `path`, `instruction`, `skills`, `range` |

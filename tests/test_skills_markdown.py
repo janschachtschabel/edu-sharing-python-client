@@ -197,3 +197,11 @@ def test_eine_h4_schneidet_die_prosa_nicht():
     doc = "## Vorbereiten\n\nA.\n\n#### Hinweis\n\nB.\n"
     layout = layout_contexts(doc, [])
     assert layout.contexts[0].instruction == "A.\n\n#### Hinweis\n\nB."
+
+
+def test_ein_unvollstaendiges_beispiel_im_zaun_verschluckt_keinen_echten_block():
+    """Ein Zaun, der nur den oeffnenden Block zeigt: bisher lief der Treffer vom
+    Zaun bis zum schliessenden ::: des naechsten ECHTEN Blocks -- und der war weg."""
+    doc = (f"```\n::: ki-skill\n[Beispiel]({RENDER}{A})\n```\n\n"
+           f"::: ki-skill\n[Echt]({RENDER}{B})\n:::\n")
+    assert [r.node_id for r in parse_blocks(doc)] == [B]
