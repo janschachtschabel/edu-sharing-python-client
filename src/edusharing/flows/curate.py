@@ -202,7 +202,10 @@ async def update_material(
             against this instance's vocabulary.
 
     Returns:
-        ``{id, title, url, name, unresolved}`` -- the state after the change.
+        ``{id, title, url, name, unresolved, redirected_from}`` -- the state
+        after the change. ``redirected_from`` names the id passed in when the
+        write went to its original (a listing id is a reference), and ``id``
+        is then the original's; ``None`` otherwise.
 
         **Check ``unresolved``.** Those values were not written, and the rest of
         the change went through regardless.
@@ -240,6 +243,7 @@ async def update_material(
         "url": updated.url,
         "name": updated.name,
         "unresolved": unresolved,
+        "redirected_from": updated.redirected_from,
     }
 
 

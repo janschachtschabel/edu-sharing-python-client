@@ -48,9 +48,10 @@ class Instanz:
     def __init__(self, knoten: dict | None = None, *, text: str = "",
                  datei: bytes = b"", status: int = 200,
                  extrahiert: str | None = "Von der Seite.",
-                 dienst_status: int = 200) -> None:
+                 dienst_status: int = 200, text_status: int = 200) -> None:
         self.knoten = knoten if knoten is not None else _knoten()
         self.text, self.datei, self.status = text, datei, status
+        self.text_status = text_status          # was /textContent antwortet
         self.extrahiert, self.dienst_status = extrahiert, dienst_status
         self.extraktionen: list[dict] = []
         self.pfade: list[str] = []
@@ -72,6 +73,9 @@ class Instanz:
                                                          "message": "nope"})
             return httpx.Response(200, json={"node": self.knoten})
         if pfad.endswith("/textContent"):
+            if self.text_status != 200:
+                return httpx.Response(self.text_status,
+                                      json={"error": "Kaputt", "message": "nein"})
             return httpx.Response(200, json={"text": self.text})
         if pfad.endswith("/content"):
             return httpx.Response(200, content=self.datei)
@@ -106,6 +110,24 @@ async def test_text_aus_dem_repositorium():
     assert got["truncated"] is False
     # Die Seite wird nicht gefragt, wenn das Repositorium Text hat.
     assert instanz.extraktionen == []
+
+
+async def test_json_kommt_ebenfalls_per_download():
+    """Gemessen am 27.08.2026: /textContent ist auch fuer application/json
+    leer, obwohl die Datei Text hat. Bis heute fiel nur text/* zurueck."""
+    instanz = Instanz(_knoten(datei=True, mimetype="application/json"), datei=b'{"a": 1}')
+    got = await _text(instanz)
+    assert got["source"] == "download" and got["text"] == '{"a": 1}'
+
+
+async def test_ein_ausfall_des_repositoriums_ist_ein_grund_kein_fehler():
+    """Der Vertrag lautet: kein Text ist eine Antwort. Ein 5xx beim Abholen
+    des Textauszugs darf den Ablauf nicht sprengen -- und darf nicht "kein
+    Text" heissen, denn vielleicht gibt es einen."""
+    instanz = Instanz(_knoten(datei=True, mimetype="application/pdf"), text_status=500)
+    got = await _text(instanz)
+    assert got["source"] == "none" and got["reason"] == "repository_failed"
+    assert got["detail"]
 
 
 async def test_markdown_kommt_per_download():

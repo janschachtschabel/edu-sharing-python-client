@@ -214,6 +214,37 @@ async def test_aenderung_gibt_den_neuen_stand_zurueck():
     json.dumps(ergebnis)
 
 
+class MitReferenz(Instanz):
+    """ref-1 ist eine Referenz auf m1 -- ein Sammlungs-Listing gibt solche IDs aus."""
+
+    def _stand(self, knoten_id: str) -> dict:
+        data = super()._stand("m1" if knoten_id == "ref-1" else knoten_id)
+        if knoten_id == "ref-1":
+            data = {**data, "ref": {"id": "ref-1"}, "originalId": "m1",
+                    "aspects": ["ccm:collection_io_reference"]}
+        return data
+
+
+async def test_aenderung_an_einer_referenz_weist_die_umleitung_aus():
+    """Die Antwort traegt die ID des Originals -- und muss sagen, dass der
+    Aufrufer eine andere uebergeben hat. describe, placement und delete tun
+    das; update_material verschwieg es bis heute."""
+    instanz = MitReferenz()
+    async with _repo(instanz) as repo:
+        ergebnis = await repo.flows.update_material("ref-1", title="Neuer Titel")
+    assert ergebnis["id"] == "m1"
+    assert ergebnis["redirected_from"] == "ref-1"
+    assert "ref-1" not in instanz.geschrieben
+    assert instanz.geschrieben["m1"]["cclom:title"] == ["Neuer Titel"]
+
+
+async def test_aenderung_an_einem_original_ist_nicht_umgeleitet():
+    instanz = Instanz()
+    async with _repo(instanz) as repo:
+        ergebnis = await repo.flows.update_material("m1", title="Neuer Titel")
+    assert ergebnis["redirected_from"] is None
+
+
 # --- Paket 4: find_collections mit Filtern und Elternbereich ---------------
 #
 # Die Sammlungssuche nimmt ngsearchword und sonst nichts (gemessen). Fach und

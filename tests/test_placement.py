@@ -60,10 +60,12 @@ NUTZUNGEN = [
 class Instanz:
     def __init__(self, *, eltern: dict | None = None,
                  nutzungen: list | None = None,
-                 eltern_fehler: int | None = None) -> None:
+                 eltern_fehler: int | None = None,
+                 knoten_fehler: int | None = None) -> None:
         self.eltern = ELTERN if eltern is None else eltern
         self.nutzungen = NUTZUNGEN if nutzungen is None else nutzungen
         self.eltern_fehler = eltern_fehler
+        self.knoten_fehler = knoten_fehler      # was /metadata antwortet
         self.anfragen: list[httpx.Request] = []
 
     def handler(self, request: httpx.Request) -> httpx.Response:
@@ -76,6 +78,9 @@ class Instanz:
             return httpx.Response(200, json=self.eltern)
         if "/usage/v1" in pfad:
             return httpx.Response(200, json=self.nutzungen)
+        if self.knoten_fehler:
+            return httpx.Response(self.knoten_fehler, json={
+                "error": "DAOSecurityException", "message": "Zugriff verweigert"})
         return httpx.Response(200, json={"node": _knoten(NID, "k.txt", "Mein Titel",
                                                          typ="ccm:io")})
 
@@ -312,6 +317,31 @@ async def test_ohne_ausfall_bleibt_failed_leer():
     async with instanz.repo() as repo:
         ergebnis = await repo.flows.placement(NID)
     assert ergebnis["failed"] == []
+
+
+async def test_ein_unlesbarer_knoten_kostet_nicht_die_beiden_haelften():
+    """Der Knoten selbst ist 403, Weg und Sammlungen antworten: failed nennt
+    den Teil "original", der Rest bleibt eine Teilantwort."""
+    instanz = Instanz(knoten_fehler=403)
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.placement(NID)
+    assert [f["part"] for f in ergebnis["failed"]] == ["original"]
+    assert ergebnis["original_id"] is None
+    assert ergebnis["path"] and ergebnis["collections"]
+
+
+async def test_ein_programmfehler_wird_nicht_zur_teilantwort():
+    """Nur ein Fehler des Repositoriums ist eine Teilantwort. Ein Bug in der
+    eigenen Verarbeitung muss werfen -- als failed-Eintrag waere er unsichtbar."""
+    class Kaputt(Instanz):
+        def handler(self, request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("/parents"):
+                raise RuntimeError("bug")
+            return super().handler(request)
+
+    async with Kaputt().repo() as repo:
+        with pytest.raises(RuntimeError):
+            await repo.flows.placement(NID)
 
 
 # --- Wie weit die Antwort reicht ------------------------------------------

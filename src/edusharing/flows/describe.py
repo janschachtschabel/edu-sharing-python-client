@@ -42,8 +42,9 @@ async def describe(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
     Returns:
         ``{id, title, url, description, source_url, mimetype, mediatype, fields,
         name, type, aspects, original_id, access, public, has_content, keywords,
-        properties, duplicate_ids}``. ``original_id`` is the record behind a
-        reference -- a listing id names one -- and ``None`` on an original.
+        properties, duplicate_ids, preview_url, download_url, license, size}``.
+        ``original_id`` is the record behind a reference -- a listing id names
+        one -- and ``None`` on an original.
         ``duplicate_ids`` is empty here -- the key comes from the shared hit
         shape, where a deduplicated search fills it.
         ``public`` says whether anyone may read the node -- inherited access
@@ -128,6 +129,11 @@ async def placement(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
         placement_api.collections_of(repo, node_id, original_id=original_id or node_id),
         return_exceptions=True,
     )
+    for half in (ancestry, collections):
+        # Only what the repository refused is a partial answer. Anything
+        # else is a bug, and a bug hidden in ``failed`` would never be seen.
+        if isinstance(half, BaseException) and not isinstance(half, EduSharingError):
+            raise half
     if isinstance(ancestry, BaseException) and isinstance(collections, BaseException):
         # Nothing to report is not a partial result: an empty answer would
         # claim the node sits nowhere. ``collections.find`` draws the same line.

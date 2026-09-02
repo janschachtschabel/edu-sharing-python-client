@@ -467,7 +467,9 @@ repo.flows.text(node_id, extraction=service, max_chars=20_000)
 
 `source` is `repository`, `download`, `extraction` or `none`. **Read `reason`
 when it is `none`**: `node_not_found`, `access_denied`, `no_text_no_url`,
-`no_extraction_service` or `extraction_failed` — and `detail` carries the
+`repository_failed` (the repository did not hand over what it has — worth a
+retry, not "no text"), `no_extraction_service` or `extraction_failed` — and
+`detail` carries the
 service's or the error's own words. No text is a normal answer, not an error,
 and a model told so can say so instead of inventing one. `source_url` names
 the linked page whenever there is one, so a caller without a service can still
@@ -1282,8 +1284,12 @@ repo.flows.update_material(
 
 ```json
 {"id": "b1a7555d-…", "title": "Neuer Titel", "url": "…",
- "name": "material.pdf", "unresolved": []}
+ "name": "material.pdf", "unresolved": [], "redirected_from": null}
 ```
+
+**`redirected_from`** names the id you passed when the write went to its
+original — a listing id is a reference, and a write stored on a reference
+never reaches the record — and `id` is then the original's. `null` otherwise.
 
 Only what you pass is written; everything else stays. The write is verified by
 reading it back, so a value edu-sharing silently drops raises `SilentDropError`

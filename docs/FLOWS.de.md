@@ -479,7 +479,9 @@ repo.flows.text(node_id, extraction=service, max_chars=20_000)
 
 `source` ist `repository`, `download`, `extraction` oder `none`. **Bei `none`
 `reason` lesen**: `node_not_found`, `access_denied`, `no_text_no_url`,
-`no_extraction_service` oder `extraction_failed` — und `detail` trägt die
+`repository_failed` (das Repositorium hat nicht herausgegeben, was es hat —
+einen zweiten Versuch wert, nicht „kein Text"), `no_extraction_service` oder
+`extraction_failed` — und `detail` trägt die
 Worte des Dienstes oder des Fehlers. Kein Text ist eine normale Antwort, kein
 Fehler, und ein Modell, dem man das sagt, kann es weitersagen, statt einen zu
 erfinden. `source_url` nennt die verlinkte Seite, wann immer es eine gibt,
@@ -1314,8 +1316,13 @@ repo.flows.update_material(
 
 ```json
 {"id": "b1a7555d-…", "title": "Neuer Titel", "url": "…",
- "name": "material.pdf", "unresolved": []}
+ "name": "material.pdf", "unresolved": [], "redirected_from": null}
 ```
+
+**`redirected_from`** nennt die übergebene ID, wenn der Schreibvorgang an das
+Original ging — eine Listing-ID ist eine Referenz, und ein auf der Referenz
+gespeicherter Wert erreicht den Datensatz nie — und `id` ist dann die des
+Originals. Sonst `null`.
 
 Geschrieben wird nur, was übergeben wurde; alles andere bleibt. Der Schreibvorgang
 wird durch erneutes Lesen geprüft, sodass ein Wert, den edu-sharing stillschweigend

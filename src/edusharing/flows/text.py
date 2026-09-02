@@ -5,7 +5,8 @@ Three sources, asked in this order and only as far as needed:
 1. **The repository's own text** (``/textContent``). Present for the large
    majority of records -- the MCP counted 29 of 32 sampled live records on
    2026-07-28 -- for linked pages as well as attached files.
-2. **The file itself**, when the record carries a ``text/*`` upload. Measured
+2. **The file itself**, when the record carries a text, JSON or XML upload.
+   Measured
    on 2026-08-27 by uploading one sentence in five formats: ``/textContent``
    returns **nothing** for ``text/markdown`` and ``application/json`` although
    the file has text (see ``NodeContent.text``). A skill's ``SKILL.md`` is
@@ -32,6 +33,7 @@ from ..errors import EduSharingError, NotFoundError, PermissionDeniedError
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..extraction import TextExtraction
+    from ..nodes import Node
     from ..repository import AsyncRepository
 
 __all__ = ["text", "DEFAULT_MAX_CHARS"]
@@ -64,10 +66,12 @@ async def text(
         ``{id, title, text, source, source_url, char_count, truncated, reason,
         detail}``. ``source`` is ``repository``, ``download``, ``extraction`` or
         ``none``. With ``none``, ``reason`` is one of ``node_not_found``,
-        ``access_denied``, ``no_text_no_url``, ``no_extraction_service`` or
-        ``extraction_failed``, and ``detail`` carries the service's or the
-        error's own words. ``source_url`` is the linked page whenever there is
-        one, so a caller without a service can still decide to fetch it.
+        ``access_denied``, ``repository_failed`` (the repository did not hand
+        over what it has -- worth a retry, not the same as "no text"),
+        ``no_text_no_url``, ``no_extraction_service`` or ``extraction_failed``,
+        and ``detail`` carries the service's or the error's own words.
+        ``source_url`` is the linked page whenever there is one, so a caller
+        without a service can still decide to fetch it.
 
     Raises:
         Nothing of its own. A refused or missing node is reported in
@@ -87,14 +91,16 @@ async def text(
         return {**answer, "reason": "access_denied", "detail": str(exc)}
     answer["title"] = node.title or None
 
-    stored = await node.content.text()
-    if stored:
-        return _capped(answer, stored, "repository", max_chars)
-
-    if node.content.has_content and (node.content.mimetype or "").startswith("text/"):
-        decoded = (await node.content.download()).decode("utf-8", errors="replace")
-        if decoded:
-            return _capped(answer, decoded, "download", max_chars)
+    try:
+        stored = await _stored(node, answer, max_chars)
+    except EduSharingError as exc:
+        # The repository failed to hand over what it has. Not "there is no
+        # text" -- there may well be one -- and not an error out of a flow
+        # whose answer is always "text, or why not".
+        return {**answer, "reason": "repository_failed",
+                "detail": f"{type(exc).__name__}: {exc}"}
+    if stored is not None:
+        return stored
 
     linked = node.get("ccm:wwwurl")
     if not linked:
@@ -116,6 +122,28 @@ async def text(
         **answer, "text": got.text, "source": "extraction",
         "char_count": got.char_count, "truncated": got.truncated,
     }
+
+
+async def _stored(
+    node: Node, answer: dict[str, Any], max_chars: int
+) -> dict[str, Any] | None:
+    """The repository's own extract, else the file when it is text-like."""
+    extract = await node.content.text()
+    if extract:
+        return _capped(answer, extract, "repository", max_chars)
+    if node.content.has_content and _textual(node.content.mimetype):
+        decoded = (await node.content.download()).decode("utf-8", errors="replace")
+        if decoded:
+            return _capped(answer, decoded, "download", max_chars)
+    return None
+
+
+def _textual(mimetype: str | None) -> bool:
+    """Bytes worth decoding: text, JSON and XML. Measured 2026-08-27,
+    ``/textContent`` is empty for Markdown and JSON although the file has text."""
+    kind = (mimetype or "").lower()
+    return (kind.startswith("text/") or kind in ("application/json", "application/xml")
+            or kind.endswith(("+json", "+xml")))
 
 
 def _capped(answer: dict[str, Any], full: str, source: str, max_chars: int) -> dict[str, Any]:

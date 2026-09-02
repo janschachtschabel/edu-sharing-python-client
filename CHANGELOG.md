@@ -46,6 +46,19 @@ and in [`docs/audits/`](docs/audits/).
   with empty `warnings`. It now raises `ValidationError`, which
   `add_material` turns into the documented warning or refusal. A
   misspelled `if_exists` is refused even when no `url` is given.
+- **`update_material` discloses a redirection.** Its answer carried the
+  original's `id` for a reference passed in and said nothing about it;
+  `redirected_from` now names the id the caller used, like `describe`,
+  `placement` and `delete` already did.
+- **`placement` reports repository failures only.** A bug in the two halves
+  was caught as a partial answer and hidden in `failed`; it raises now. The
+  node read failing while both halves answer is pinned as the partial
+  answer it was meant to be.
+- **`text` reads JSON and XML uploads, and a repository failure is a
+  reason.** `/textContent` is empty for `application/json` (measured), yet
+  only `text/*` fell back to the file; and a 5xx while fetching the extract
+  raised out of a flow whose contract is "no text is an answer" -- it is
+  now `reason="repository_failed"` with `detail`.
 
 ## [0.1.0] — 2026-09-02
 
