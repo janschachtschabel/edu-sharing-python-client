@@ -86,6 +86,12 @@ and in [`docs/audits/`](docs/audits/).
   `content_reason="not_text"` instead of returning mojibake; `no_file`
   says the other reason. One `is_text_like` in `content` serves `text` and
   the skills alike.
+- **`search` no longer caps the caller's `limit` at the refill cap.**
+  `limit=250` silently became 200, and a page the refill could not fill
+  after exclusions came back short with empty `warnings`. The cap now
+  applies to the refill only; both shortfalls are named in `warnings`;
+  under `rerank` the pool grows with the refill. A stored property that is
+  not a list is wrapped under `fields`, not splatted into characters.
 
 ## [0.1.0] — 2026-09-02
 

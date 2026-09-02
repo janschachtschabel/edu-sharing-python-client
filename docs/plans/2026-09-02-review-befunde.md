@@ -61,7 +61,7 @@ Status: `[ ]` offen · `[x]` erledigt · `[-]` bewusst nicht (Begründung).
 
 ## C — Suche, Konfiguration, Sync (`flows/find.py`, `flows/collections.py`, `flows/serialize.py`, `_sync.py`, Wächter)
 
-- [ ] C1 MAJOR — `search`: `ask = min(limit + len(excluded), EXCLUSION_MAX)`
+- [x] C1 MAJOR — `search`: `ask = min(limit + len(excluded), EXCLUSION_MAX)`
   kappt JEDE Anfrage auf 200 (auch `limit=250` ohne Ausschlüsse) und meldet
   einen nicht auffüllbaren Rest nicht. → `ask = limit + min(len(excluded), MAX)`;
   Warnungen bei Überschuss und bei kurzer Seite; unter `rerank` `pool` anheben.
@@ -85,7 +85,7 @@ Status: `[ ]` offen · `[x]` erledigt · `[-]` bewusst nicht (Begründung).
   Untersammlungen fallen stumm weg). → `truncated=True`.
 - [ ] C9 MINOR — `_below`: ein `text` nur aus Stoppwörtern ergibt `terms=[]`
   → alles passt. → Teilstring-Rückfall oder Warnung.
-- [ ] C10 MINOR — `hit_as_dict`: `list(values)` zerlegt einen String in
+- [x] C10 MINOR — `hit_as_dict`: `list(values)` zerlegt einen String in
   Zeichen, ein `int` wirft. → Liste erzwingen.
 - [ ] C11 MINOR — `find_pages` läuft sequenziell nach dem `gather` und sendet
   dieselben zwei Sammlungsanfragen erneut. → in den `gather` (mit C2).

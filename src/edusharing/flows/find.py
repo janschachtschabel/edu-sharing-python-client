@@ -100,7 +100,10 @@ async def search(
             the raw view.
         exclude_ids: hits to leave out -- the ones already shown. The page is
             refilled: that many more are asked for (up to ``EXCLUSION_MAX``),
-            so eight requested and three excluded still yields eight.
+            so eight requested and three excluded still yields eight. When
+            the refill cannot fill the page -- more exclusions than the cap,
+            or the excluded ids outnumber what one page holds -- ``warnings``
+            says so rather than letting a short page read as "nothing left".
         facet_limit: values per facet, 20 by default and up to what the
             repository allows.
         properties: further properties to carry under ``fields`` by their
@@ -133,10 +136,18 @@ async def search(
         "offset": offset,
     }
     excluded = {i for i in exclude_ids if i}
+    warnings: list[str] = []
     if excluded:
         query["exclude_ids"] = list(exclude_ids)
-    # Ask for that many more, so the page stays full after dropping them.
-    ask = min(limit + len(excluded), EXCLUSION_MAX)
+    # Ask for that many more, so the page stays full after dropping them. The
+    # refill is capped; the caller's own limit is not.
+    extra = min(len(excluded), EXCLUSION_MAX)
+    if len(excluded) > EXCLUSION_MAX:
+        warnings.append(
+            f"{len(excluded)} ids excluded but refilled for {EXCLUSION_MAX} only: "
+            "the page may come back short"
+        )
+    ask = limit + extra
 
     # Reranking needs something to rank against. A pure filter query has no
     # text, so there is nothing to expand and nothing to score.
@@ -144,7 +155,8 @@ async def search(
         result, variants = await search_reranked(
             repo, text,
             filters=filters, facets=facet_properties or None,
-            limit=ask, pool=pool, language=language, facet_limit=facet_limit,
+            # The pool must hold the refill too, or the exclusions eat into it.
+            limit=ask, pool=max(pool, ask), language=language, facet_limit=facet_limit,
             **forwarded,
         )
         query["reranked"] = True
@@ -164,6 +176,11 @@ async def search(
         )
     if excluded:
         result = replace(result, hits=[h for h in result.hits if h.id not in excluded])
+        if len(result.hits) < limit and result.total > offset + ask:
+            warnings.append(
+                f"page short after exclusions: {len(result.hits)} of {limit}, while "
+                f"{result.total} exist -- ask again with a higher offset"
+            )
 
     folded: dict[str, list[str]] = {}
     if deduplicate:
@@ -173,6 +190,8 @@ async def search(
         result = replace(result, hits=kept)
     if len(result.hits) > limit:
         result = replace(result, hits=result.hits[:limit])
+    if warnings:
+        result = replace(result, warnings=[*result.warnings, *warnings])
     return result_as_dict(
         result, query=query, aliases=repo.searcher.field_aliases, folded=folded,
         properties=properties)

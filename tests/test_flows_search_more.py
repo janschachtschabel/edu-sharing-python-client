@@ -29,8 +29,9 @@ def _knoten(node_id: str) -> dict:
 
 
 class Instanz:
-    def __init__(self, ids: list[str]) -> None:
+    def __init__(self, ids: list[str], zusatz: dict | None = None) -> None:
         self.ids = ids
+        self.zusatz = zusatz or {}     # Eigenschaften, die jeder Treffer traegt
         self.koerper: list[dict] = []
         self.params: list[dict] = []
 
@@ -41,6 +42,8 @@ class Instanz:
         self.params.append(dict(request.url.params))
         wieviele = int(request.url.params.get("maxItems", 10))
         seite = [_knoten(i) for i in self.ids[:wieviele]]
+        for n in seite:
+            n["properties"].update(self.zusatz)
         return httpx.Response(200, json={
             "nodes": seite, "facets": [],
             "pagination": {"total": len(self.ids), "from": 0, "count": len(seite)}})
@@ -79,6 +82,46 @@ async def test_facet_limit_wird_durchgereicht():
     assert facetten and facetten[0]["property"] == "ccm:taxonid"
     assert instanz.koerper[0].get("facetLimit") == 100 or \
         any(f.get("count") == 100 or f.get("limit") == 100 for f in facetten), instanz.koerper[0]
+
+
+async def test_das_eigene_limit_wird_nicht_gekappt():
+    """Die Kappung gilt dem Nachladen, nicht dem Limit: 250 verlangt sind 250
+    gefragt. Bis heute wurden es stumm 200."""
+    instanz = Instanz([f"n{i}" for i in range(300)])
+    async with instanz.repo() as repo:
+        got = await repo.flows.search("x", limit=250)
+    assert int(instanz.params[0]["maxItems"]) == 250 and len(got["hits"]) == 250
+    assert got["warnings"] == []
+
+
+async def test_eine_kurze_seite_nach_ausschluessen_wird_gesagt():
+    """Mehr Ausschluesse als die Kappung: die Seite kann kurz bleiben -- und
+    muss es sagen, statt wie "nichts mehr da" auszusehen."""
+    instanz = Instanz([f"n{i}" for i in range(500)])
+    async with instanz.repo() as repo:
+        got = await repo.flows.search(
+            "x", limit=10, exclude_ids=[f"n{i}" for i in range(300)])
+    assert int(instanz.params[0]["maxItems"]) == 210, "10 plus die gekappten 200"
+    assert got["hits"] == []
+    assert len(got["warnings"]) == 2 and "short" in got["warnings"][1], got["warnings"]
+
+
+async def test_unter_rerank_waechst_der_pool_mit_dem_nachladen():
+    instanz = Instanz([f"n{i}" for i in range(60)])
+    async with instanz.repo() as repo:
+        await repo.flows.search("Bruch rechnen", rerank=True, limit=30,
+                                exclude_ids=["n1", "n2", "n3"])
+    assert all(int(p["maxItems"]) >= 33 for p in instanz.params), instanz.params
+
+
+async def test_eine_einzelne_eigenschaft_wird_nicht_in_zeichen_zerlegt():
+    """Nicht jede Eigenschaft ist eine Liste: ein String zerfiel in Buchstaben,
+    eine Zahl warf."""
+    instanz = Instanz(["n1"], zusatz={"ccm:x": "einzeln", "ccm:n": 5})
+    async with instanz.repo() as repo:
+        got = await repo.flows.search("x", properties=["ccm:x", "ccm:n"])
+    assert got["hits"][0]["fields"]["ccm:x"] == ["einzeln"]
+    assert got["hits"][0]["fields"]["ccm:n"] == [5]
 
 
 # --- Paket 5: der Reranker reicht Kurznamen als Filter weiter, nicht als Parameter

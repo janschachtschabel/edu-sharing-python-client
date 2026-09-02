@@ -56,7 +56,9 @@ def hit_as_dict(
     for prop in properties:
         values = hit.properties().get(prop)
         if values:
-            fields[prop] = list(values)
+            # As stored -- which is not always a list: a string would be
+            # splatted into characters, a number would raise.
+            fields[prop] = values if isinstance(values, list) else [values]
 
     return {
         "id": hit.id,
