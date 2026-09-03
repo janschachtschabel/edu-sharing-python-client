@@ -220,6 +220,106 @@ async def test_timeout_wird_wiederholt():
     assert len(versuche) == 2
 
 
+# --- Was nach dem Senden wiederholt werden darf ----------------------------
+#
+# Audit-Befund COR-1 (03.09.2026): ein Timeout nach dem Senden und ein 5xx
+# lassen offen, ob der Server die Anfrage ausgefuehrt hat. Ein zweites POST
+# legt dann ein zweites Kind an, haengt ein zweites Schlagwort an. Vor dem
+# Senden ist dagegen nichts passiert -- da darf jede Methode nochmal.
+
+WRITE = "/node/v1/nodes/-home-/abc/children"
+
+
+def _erst_scheitern(fehler):
+    """Handler, der beim ersten Aufruf scheitert -- mit einem Status (int)
+    oder einer httpx-Ausnahme (Klasse) -- und danach 200 sagt."""
+    versuche = []
+
+    def handler(request):
+        versuche.append(1)
+        if len(versuche) < 2:
+            if isinstance(fehler, int):
+                return httpx.Response(fehler, text="")
+            raise fehler("scheitert", request=request)
+        return httpx.Response(200, json={})
+
+    return handler, versuche
+
+
+async def test_ein_post_wird_nach_lesetimeout_nicht_wiederholt():
+    """Nach dem Senden weiss niemand, ob das Kind schon angelegt ist. Die
+    Meldung sagt das, damit der Aufrufer nachsieht statt nochmal zu senden."""
+    handler, versuche = _erst_scheitern(httpx.ReadTimeout)
+
+    async with _transport(handler, max_retries=2) as t:
+        with pytest.raises(TransportError, match="may already have been carried out"):
+            await t.request("POST", WRITE)
+    assert len(versuche) == 1
+
+
+async def test_ein_post_wird_nach_5xx_nicht_wiederholt():
+    handler, versuche = _erst_scheitern(502)
+
+    async with _transport(handler, max_retries=2) as t:
+        with pytest.raises(ServerError):
+            await t.request("POST", WRITE)
+    assert len(versuche) == 1
+
+
+async def test_ein_delete_wird_nach_lesetimeout_nicht_wiederholt():
+    """Ein zweites DELETE liefe in ein 404, das der Aufrufer fuer die Wahrheit
+    hielte: "gab es nie" statt "ist gerade weg"."""
+    handler, versuche = _erst_scheitern(httpx.ReadTimeout)
+
+    async with _transport(handler, max_retries=2) as t:
+        with pytest.raises(TransportError):
+            await t.request("DELETE", "/node/v1/nodes/-home-/abc")
+    assert len(versuche) == 1
+
+
+async def test_ein_verbindungsfehler_wird_auch_bei_post_wiederholt():
+    handler, versuche = _erst_scheitern(httpx.ConnectError)
+
+    async with _transport(handler, max_retries=2) as t:
+        antwort = await t.request("POST", WRITE)
+    assert antwort.status_code == 200
+    assert len(versuche) == 2
+
+
+async def test_ein_get_wird_nach_lesetimeout_weiter_wiederholt():
+    handler, versuche = _erst_scheitern(httpx.ReadTimeout)
+
+    async with _transport(handler, max_retries=2) as t:
+        antwort = await t.request("GET", "/_about")
+    assert antwort.status_code == 200
+    assert len(versuche) == 2
+
+
+async def test_als_idempotent_markiert_wird_auch_ein_post_wiederholt():
+    """Eine Eigenschaft setzen, eine ACL ersetzen: doppelt angekommen ist
+    derselbe Zustand. Solche Aufrufe sagen es dem Transport selbst."""
+    handler, versuche = _erst_scheitern(httpx.ReadTimeout)
+
+    async with _transport(handler, max_retries=2) as t:
+        antwort = await t.request(
+            "POST", "/node/v1/nodes/-home-/abc/property", idempotent=True
+        )
+    assert antwort.status_code == 200
+    assert len(versuche) == 2
+
+
+async def test_ein_401_wird_auch_bei_post_einmal_wiederholt():
+    """Abgelehnt, bevor etwas ausgefuehrt wurde -- die gemessene 401-Laune
+    (README) trifft Schreibvorgaenge genauso, und die Wiederholung bleibt
+    ungefaehrlich."""
+    handler, versuche = _erst_scheitern(401)
+
+    async with _transport(handler, max_retries=2) as t:
+        antwort = await t.request("POST", WRITE)
+    assert antwort.status_code == 200
+    assert len(versuche) == 2
+
+
 # --- Gleichzeitigkeit -----------------------------------------------------
 
 async def test_gleichzeitigkeit_ist_begrenzt():

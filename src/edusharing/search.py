@@ -154,6 +154,7 @@ class Search:
             response = await self._transport.json(
                 "POST",
                 f"/search/v1/queries/-home-/{path_segment(self.metadataset)}/{path_segment(self.query)}",
+                idempotent=True,
                 params={
                     "contentType": content_type,
                     "maxItems": limit,

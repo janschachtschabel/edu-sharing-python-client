@@ -562,6 +562,16 @@ braucht es eine Anmeldung“ und heißt es beim zweiten Mal wieder). Einmal, nic
 `max_retries` mal — ein zusätzlicher Versuch ist der Preis für den gemessenen
 Ausrutscher, drei wären eine Strafe für einen Tippfehler im Passwort.
 
+**Und was schon geschehen sein könnte, wird nicht noch einmal gesendet.** Nach
+einem Timeout nach dem Senden oder einem `5xx` weiß niemand, ob das
+Repositorium die Anfrage ausgeführt hat. Der Transport sendet dann nur erneut,
+was zweimal ankommen darf: Lesezugriffe und die Schreibvorgänge, die bloß einen
+Zustand setzen — `update`, `set_property`, Rechte, Bewertungen,
+`collections.update`. Anlegen, Löschen, in eine Sammlung legen werfen
+stattdessen `TransportError` mit dem Hinweis, dass die Anfrage ausgeführt
+worden sein könnte — nachsehen, dann entscheiden. Ein Verbindungsfehler von
+vor dem Senden wird für jede Methode wiederholt.
+
 Dazu drei Fehler, die mit dem falschen Status ankommen — damit `except
 NotFoundError` sie wirklich fängt, und damit der Transport nicht dreimal
 wiederholt, was nie gelingen kann:

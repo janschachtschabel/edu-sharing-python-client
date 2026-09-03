@@ -548,6 +548,15 @@ after another, `0 of 100` requests answered `401`; sent all at once, `9 of
 `max_retries` times — an extra request is a fair price for a measured hiccup,
 three would be a penalty for a typo in a password.
 
+**And a write that may already have happened is not sent again.** After a
+timeout past the sending, or a `5xx`, nobody knows whether the repository
+carried the request out. The transport then re-sends only what may arrive
+twice: reads, and the writes that merely set a state — `update`,
+`set_property`, permissions, ratings, `collections.update`. Creating,
+deleting, adding to a collection raise `TransportError` instead, saying that
+the request may have been carried out — look before sending it again. A
+connection failure from before anything was sent is retried for every method.
+
 And three errors that arrive wearing the wrong status, so that `except
 NotFoundError` actually catches them — and so the transport does not retry
 three times what can never succeed:

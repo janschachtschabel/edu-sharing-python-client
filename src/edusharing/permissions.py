@@ -356,6 +356,7 @@ class NodePermissions:
             self._path(),
             params={"sendMail": "false", "sendCopy": "false"},
             json={"inherited": inherits, "permissions": [a.as_body() for a in aces]},
+            idempotent=True,
         )
         return await self.get()
 

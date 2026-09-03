@@ -366,6 +366,7 @@ class NodePage:
             f"/node/v1/nodes/-home-/{path_segment(folder_id)}/property",
             params={"property": PAGE_CONFIG},
             json=[document],
+            idempotent=True,
         )
         page = await self._read(folder_id)
         if page.rendered_id != variant_id:

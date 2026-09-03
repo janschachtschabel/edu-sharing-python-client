@@ -501,6 +501,12 @@ Vier Entscheidungen, die beim Bauen fielen, jede im Code begründet:
    Statuscode.** Sonst würde ein „Not allowed for guest user" dreimal
    wiederholt — dieselbe Anfrage, die nie gelingen kann, gegen ein
    Repositorium, das nichts falsch gemacht hat.
+   Und nach der *Methode* (Audit COR-1, 03.09.2026): nach einem Timeout nach
+   dem Senden oder einem 5xx wird nur erneut gesendet, was zweimal ankommen
+   darf — Lesezugriffe und die Schreibvorgänge, die bloß einen Zustand setzen
+   und das sagen (`idempotent=True`). Ein Anlegen oder Löschen im Zweifel
+   wirft, statt womöglich zweimal zu laufen; ein Verbindungsfehler von vor dem
+   Senden wird für jede Methode wiederholt.
 2. **Die synchrone Fläche fährt ihre eigene Schleife in ihrem eigenen Faden**
    statt `asyncio.run()`. Sonst scheitert sie in Jupyter — genau bei dem
    Publikum, für das sie existiert.

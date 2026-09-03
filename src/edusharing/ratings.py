@@ -108,6 +108,7 @@ async def rate(node: Node, value: float, text: str = "") -> Rating | None:
         "PUT",
         f"/rating/v1/ratings/-home-/{path_segment(node.id)}",
         params={"rating": as_text},
+        idempotent=True,
         content=text.encode("utf-8"),
         headers={"Content-Type": "application/json"},
     )

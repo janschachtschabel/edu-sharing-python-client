@@ -8,9 +8,11 @@ drift apart.
 URL. Absolute URLs partly come from response data (previews, downloads), and one
 of them may point elsewhere.
 
-**What gets retried.** Only what a retry can fix. The decision is made on the
-error type from ``errors``, not on the status code -- because with edu-sharing
-an HTTP 500 can simply mean "not signed in".
+**What gets retried.** Only what a retry can fix, and only where a second
+attempt is safe. The decision is made on the error type from ``errors``, not
+on the status code -- because with edu-sharing an HTTP 500 can simply mean
+"not signed in" -- and on the method: a write that may already have been
+carried out is not sent again unless it says it may be (``idempotent=True``).
 
 **How much runs at once.** A fan-out across many nodes otherwise creates more
 load than the repository tolerates.
@@ -54,6 +56,32 @@ DEFAULT_MAX_CONCURRENCY = 8
 DEFAULT_BACKOFF_BASE = 0.5
 
 
+# Methods a second attempt cannot harm (RFC 9110) -- the default answer of
+# ``request(idempotent=None)``. Everything else is retried only before sending.
+_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+# Failures from before anything went over the wire: nothing happened on the
+# server, so any method may try again.
+_BEFORE_SENDING = (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout)
+
+
+def _network_failure(
+    exc: httpx.HTTPError, method: str, url: str, repeatable: bool
+) -> TransportError:
+    """The error kept for the next attempt -- or raised, when there must be none.
+
+    A failure from before anything was sent leaves the server untouched. A
+    timeout or a dropped connection after that does not: the request may have
+    been carried out, and re-sending a POST would carry it out again.
+    """
+    if repeatable or isinstance(exc, _BEFORE_SENDING):
+        return TransportError(f"{type(exc).__name__}: {exc}", url=url)
+    raise TransportError(
+        f"{type(exc).__name__}: {exc}. Not retried: the {method} may already "
+        "have been carried out on the server -- check before sending it again.",
+        url=url,
+    ) from exc
+
+
 class Transport:
     """HTTP access to an edu-sharing repository.
 
@@ -67,9 +95,14 @@ class Transport:
         backoff_base: base wait; doubles with each attempt.
         client: your own httpx client, e.g. for tests.
 
-    Only a ``ServerError`` is retried -- what the server could temporarily not
-    deliver. A rejected request is not: retrying it is the same request again,
-    three times the load, and the same answer.
+    Retried is what the server could temporarily not deliver -- a
+    ``ServerError`` or a network failure -- and only for a request that may
+    arrive twice: GET, HEAD and OPTIONS by default, plus the writes that pass
+    ``idempotent=True`` because they merely set a state. A rejected request is
+    not retried: that is the same request again, three times the load, and the
+    same answer. Nor is a write that may already have been carried out: after
+    a timeout past the sending or a 5xx it raises ``TransportError`` and says
+    so, rather than creating a second child.
 
     **One exception, measured.** A ``401`` on a connection that *is* signed in
     is retried exactly once. Measured against edu-sharing 11.0 (staging,
@@ -197,22 +230,33 @@ class Transport:
         content: bytes | str | None = None,
         files: Any = None,
         headers: dict[str, str] | None = None,
+        idempotent: bool | None = None,
     ) -> httpx.Response:
         """Make a request and return the response.
 
         Args:
             path: path relative to the REST root (``/_about``) or an absolute URL.
             credential: credentials for this request only.
+            idempotent: whether a second attempt is safe once the first may
+                have been carried out. ``None`` decides by method: GET, HEAD
+                and OPTIONS are, everything else is not. A write that merely
+                sets a state -- the metadata, one property, an ACL -- passes
+                ``True`` and is then retried like a read.
 
         Raises:
             EduSharingError: on any status from 400 up, as the matching subtype.
-            TransportError: when the request never reached the server.
+            TransportError: when the request never reached the server -- or
+                may have, and must not be sent twice.
         """
         url = self._resolve(path)
         cred = self.credential if credential is None else credential_from(credential)
         request_headers = self._headers(url, cred, headers)
 
         last: EduSharingError | None = None
+        # A second attempt is safe when the first never reached the server, or
+        # when arriving twice changes nothing. After a timeout past the sending
+        # or a 5xx, a POST may already have created its child (audit COR-1).
+        repeatable = method.upper() in _SAFE_METHODS if idempotent is None else idempotent
         # Spent at most once per request -- see the note at ``_retry_401``.
         may_retry_401 = not cred.is_anonymous
         # Likewise once, and for the same reason: an instance that withholds its
@@ -238,9 +282,7 @@ class Transport:
                     )
             except httpx.HTTPError as exc:
                 # Network layer: timeout, DNS, TLS, dropped connection.
-                last = TransportError(
-                    f"{type(exc).__name__}: {exc}", url=url,
-                )
+                last = _network_failure(exc, method, url, repeatable)
                 continue
 
             if 300 <= response.status_code < 400:
@@ -266,10 +308,11 @@ class Transport:
             if response.status_code == 401 and may_retry_401:
                 may_retry_401 = False
                 continue
-            # Only what the server could temporarily not deliver gets retried.
-            # A 500 that in truth means "not signed in" was already classified
-            # as AuthenticationError and no longer counts as a ServerError here.
-            if not isinstance(last, ServerError):
+            # Only what the server could temporarily not deliver gets retried,
+            # and only where a second delivery is safe. A 500 that in truth
+            # means "not signed in" was already classified as
+            # AuthenticationError and no longer counts as a ServerError here.
+            if not isinstance(last, ServerError) or not repeatable:
                 raise last
             if details_withheld(last):
                 if not may_retry_withheld:

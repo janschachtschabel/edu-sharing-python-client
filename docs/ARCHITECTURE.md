@@ -456,6 +456,12 @@ Four decisions made while building, each justified in the code:
 1. **Retries follow the error *type*, not the status code.** Otherwise a "Not
    allowed for guest user" would be retried three times — the same request that
    can never succeed, against a repository that did nothing wrong.
+   And the *method* (audit COR-1, 2026-09-03): after a timeout past the
+   sending or a 5xx, only a request that may arrive twice is sent again —
+   reads, and the writes that merely set a state and say so
+   (`idempotent=True`). A create or delete in doubt raises instead of possibly
+   running twice; a connection failure from before the sending is retried for
+   every method.
 2. **The synchronous surface runs its own loop in its own thread** rather than
    `asyncio.run()`. Otherwise it fails inside Jupyter — precisely the audience
    it exists for.

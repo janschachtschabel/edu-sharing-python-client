@@ -189,6 +189,7 @@ class Collections:
         response = await self._transport.json(
             "POST",
             f"/search/v1/queries/-home-/{path_segment(self.metadataset)}/{COLLECTION_QUERY}",
+            idempotent=True,
             params={
                 "contentType": "COLLECTIONS",
                 "maxItems": limit,
@@ -324,6 +325,7 @@ class Collections:
             "PUT",
             f"/collection/v1/collections/-home-/{path_segment(collection_id)}",
             json=body,
+            idempotent=True,
         )
 
         stored = await nodes.get(collection_id)

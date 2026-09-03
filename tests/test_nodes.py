@@ -198,6 +198,44 @@ async def test_verify_abschaltbar():
 
 # --- Der Direktweg --------------------------------------------------------
 
+class _Abbruch(Server):
+    """Der erste Aufruf der genannten Methode bricht nach dem Senden ab."""
+
+    def __init__(self, methode: str):
+        super().__init__()
+        self.methode = methode
+        self.abgebrochen = 0
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        if request.method == self.methode and not self.abgebrochen:
+            self.abgebrochen += 1
+            raise httpx.ReadTimeout("abgebrochen", request=request)
+        return super().__call__(request)
+
+
+async def test_update_wird_nach_abbruch_wiederholt():
+    """Metadaten ersetzen ist idempotent: doppelt angekommen ist derselbe
+    Zustand. Das Update sagt es dem Transport -- sonst bliebe es beim ersten
+    Abbruch stehen, wo ein Anlegen stehen bleiben muss (COR-1)."""
+    server = _Abbruch("PUT")
+    node = await _nodes(server).get(NID)
+
+    await node.update(title="Neu")
+
+    assert server.abgebrochen == 1
+    assert server.props["cclom:title"] == ["Neu"]
+
+
+async def test_set_property_wird_nach_abbruch_wiederholt():
+    server = _Abbruch("POST")
+    node = await _nodes(server).get(NID)
+
+    await node.set_property("ccm:custom", ["x"])
+
+    assert server.abgebrochen == 1
+    assert server.props["ccm:custom"] == ["x"]
+
+
 async def test_set_property_umgeht_die_filterung():
     server = Server(stumm=("ccm:foo",))
     node = await _nodes(server).get(NID)

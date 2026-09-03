@@ -144,7 +144,8 @@ async def update(
     target = node.original_id or node.id
     with _naming_redirection(node, target):
         await node._nodes.transport.json(
-            "PUT", f"/node/v1/nodes/-home-/{path_segment(target)}/metadata", json=fields
+            "PUT", f"/node/v1/nodes/-home-/{path_segment(target)}/metadata", json=fields,
+            idempotent=True,
         )
     if not verify and target == node.id:
         return node
@@ -170,7 +171,9 @@ async def set_property(node: Node, prop: str, value: Any, *, verify: bool) -> No
         if value is None else {"json": as_list(value)}
     )
     with _naming_redirection(node, target):
-        await node._nodes.transport.request("POST", route, params={"property": prop}, **body)
+        await node._nodes.transport.request(
+            "POST", route, params={"property": prop}, idempotent=True, **body
+        )
     if not verify and target == node.id:
         return node
 

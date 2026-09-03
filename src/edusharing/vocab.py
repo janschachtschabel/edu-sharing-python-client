@@ -189,6 +189,7 @@ class Vocabulary:
         response = await self._transport.json(
             "POST",
             f"/mds/v1/metadatasets/-home-/{path_segment(self.metadataset)}/values",
+            idempotent=True,
             json={
                 "valueParameters": {
                     "query": self.query,

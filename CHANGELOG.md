@@ -16,6 +16,14 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Fixed
 
+- **The transport no longer re-sends a write that may already have been
+  carried out** (audit COR-1). After a timeout past the sending, or a 5xx,
+  only reads and the writes that merely set a state — `update`,
+  `set_property`, permissions, ratings, `collections.update`, the search and
+  vocabulary queries — are retried; `request(idempotent=)` is the switch. A
+  create or delete raises `TransportError` naming the doubt. A connection
+  failure from before the sending is retried for every method, a `401` once,
+  as before.
 - **`add_material` names the limit of its duplicate check.** The address
   lookup goes through the search index, which trails the node store by a few
   seconds (measured on staging, 2026-09-02: findable after 5.3 s). The write
