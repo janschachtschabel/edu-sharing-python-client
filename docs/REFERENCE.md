@@ -737,7 +737,7 @@ collection of sub-collections as empty.
 | Call | Returns |
 |---|---|
 | `repo.flows.browse_tree(collection_id, depth=…, max_collections=…)` | `{id, collections, opened, truncated}`, nested |
-| `repo.flows.search_in_collection(collection_id, query, …)` | `{query, hits, searched, truncated}` |
+| `repo.flows.search_in_collection(collection_id, query, …)` | `{query, hits, searched, unreadable, failed, truncated}` |
 | `repo.flows.collection_stats(collection_id, …)` | `{id, materials, collections, sampled, complete, by}` |
 | `DEFAULT_MAX_COLLECTIONS` | the walk's default cap |
 

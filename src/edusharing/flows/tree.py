@@ -24,6 +24,7 @@ import asyncio
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
+from ..errors import EduSharingError
 from ..urls import path_segment
 from .contents import collection_contents
 
@@ -181,15 +182,21 @@ async def search_in_collection(
         limit: how much material to read per collection.
 
     Returns:
-        ``{query, hits, searched, unreadable, truncated}``. **``unreadable``
-        counts the collections the walk could not open** -- refused, not
-        absent. Together with ``truncated`` it is what separates "there is
-        nothing" from "you were not shown everything". **Read ``truncated``**: an
-        empty result from a walk that stopped early is not "there is none".
+        ``{query, hits, searched, unreadable, failed, truncated}``.
+        **``unreadable`` counts the collections the walk could not open** --
+        refused, not absent -- and ``failed`` names each of them with its id
+        and the reason (``"PermissionDeniedError: ..."``). Together with
+        ``truncated`` they separate "there is nothing" from "you were not
+        shown everything". **Read ``truncated``**: an empty result from a walk
+        that stopped early is not "there is none".
 
     Raises:
         ValueError: on an empty query.
         NotFoundError: when no collection carries this id.
+        EduSharingError: when not one collection could be read -- a wrong
+            password refuses all of them, and that is no partial answer.
+            Any error that is not a refusal (a bug, a broken dependency) is
+            raised as well rather than counted.
     """
     if not query or not query.strip():
         raise ValueError(
@@ -218,6 +225,11 @@ async def search_in_collection(
         *(collection_contents(repo, i, limit=limit, properties=properties) for i in ids),
         return_exceptions=True,
     )
+    refused = _refused(ids, pages)
+    if refused and len(refused) == len(ids):
+        # Not one page opened. With a wrong password every listing says 401,
+        # and "unreadable: 4" would hide that behind an empty partial answer.
+        raise refused[0][1]
     readable = [p for p in pages if not isinstance(p, BaseException)]
     hits = [
         hit
@@ -229,9 +241,27 @@ async def search_in_collection(
         "query": query,
         "hits": hits,
         "searched": len(readable),
-        "unreadable": len(pages) - len(readable),
+        "unreadable": len(refused),
+        "failed": [{"id": cid, "reason": f"{type(e).__name__}: {e}"} for cid, e in refused],
         "truncated": tree["truncated"] or len(found) > len(ids),
     }
+
+
+def _refused(ids: Sequence[str], pages: Sequence[object]) -> list[tuple[str, EduSharingError]]:
+    """The collections whose material listing the repository refused.
+
+    A refusal -- 403, 404, a 401 -- is part of the answer. Anything else is a
+    bug of this library or of a dependency and is raised as such: ``gather``
+    with ``return_exceptions`` would otherwise report a ``TypeError`` as
+    "unreadable" (audit COR-2, 2026-09-03).
+    """
+    refused: list[tuple[str, EduSharingError]] = []
+    for cid, page in zip(ids, pages, strict=True):
+        if isinstance(page, EduSharingError):
+            refused.append((cid, page))
+        elif isinstance(page, BaseException):
+            raise page
+    return refused
 
 
 async def collection_stats(

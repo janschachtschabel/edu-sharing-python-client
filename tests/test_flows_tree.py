@@ -23,6 +23,7 @@ import httpx
 import pytest
 
 from edusharing import AsyncRepository
+from edusharing.errors import AuthenticationError
 
 REPO = "https://repo.test/edu-sharing"
 
@@ -356,6 +357,68 @@ async def test_ohne_ausfall_ist_unreadable_null():
     async with instanz.repo() as repo:
         ergebnis = await repo.flows.search_in_collection("wurzel", "zellteilung")
     assert ergebnis["unreadable"] == 0
+    assert ergebnis["failed"] == []
+
+
+# --- Audit COR-2 (03.09.2026): "unreadable" war ein Sammelbecken -----------
+
+def _verweigert(instanz: Instanz, sammlungen: tuple[str, ...], status: int) -> None:
+    """Das Material-Listing der genannten Sammlungen antwortet mit ``status``."""
+    urspruenglich = instanz.handler
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        pfad = request.url.path
+        if pfad.endswith("/children") and any(
+            f"/nodes/-home-/{s}/" in pfad for s in sammlungen
+        ):
+            instanz.anfragen.append(pfad)
+            return httpx.Response(status, json={
+                "error": "DAOSecurityException", "message": "nicht fuer dich"})
+        return urspruenglich(request)
+
+    instanz.handler = handler
+
+
+async def test_failed_nennt_die_verweigerte_sammlung_mit_grund():
+    """Eine Zahl sagt nicht, *welche* Sammlung sich verweigert hat und warum.
+    Wer nachsehen will, braucht die id und den Fehlertyp."""
+    instanz = Instanz()
+    _verweigert(instanz, ("b",), 403)
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.search_in_collection("wurzel", "zellteilung")
+    assert ergebnis["unreadable"] == 1
+    assert [f["id"] for f in ergebnis["failed"]] == ["b"]
+    assert ergebnis["failed"][0]["reason"].startswith("PermissionDeniedError")
+    json.dumps(ergebnis)
+
+
+async def test_scheitern_alle_listen_wirft_der_erste_fehler():
+    """Mit falschem Passwort sagt jedes Listing 401 -- und die Antwort war
+    "hits: [], unreadable: 4": eine Teilantwort ohne Teil. Nichts gelesen ist
+    keine Antwort, sondern der Fehler."""
+    instanz = Instanz()
+    _verweigert(instanz, ("wurzel", "a", "b", "a1"), 401)
+    async with instanz.repo() as repo:
+        with pytest.raises(AuthenticationError):
+            await repo.flows.search_in_collection("wurzel", "zellteilung")
+
+
+async def test_ein_programmfehler_wird_nicht_zu_unreadable(monkeypatch):
+    """``gather(return_exceptions=True)`` faengt alles -- auch einen TypeError
+    aus dieser Bibliothek. Der ist kein "verweigert", der ist ein Fehler."""
+    import edusharing.flows.tree as tree
+    echt = tree.collection_contents
+
+    async def kaputt(repo, collection_id, **kwargs):
+        if collection_id == "b":
+            raise RuntimeError("kaputt")
+        return await echt(repo, collection_id, **kwargs)
+
+    monkeypatch.setattr(tree, "collection_contents", kaputt)
+    instanz = Instanz()
+    async with instanz.repo() as repo:
+        with pytest.raises(RuntimeError, match="kaputt"):
+            await repo.flows.search_in_collection("wurzel", "zellteilung")
 
 
 async def test_die_zaehler_teilen_die_stichprobe_nicht_auf():

@@ -988,6 +988,7 @@ repo.flows.search_in_collection("abc-123", "zelle", depth=2)
   "hits": [{"id": "…", "title": "Zellteilung", "…": "…"}],
   "searched": 4,
   "unreadable": 0,
+  "failed": [],
   "truncated": false
 }
 ```
@@ -999,6 +1000,11 @@ repo.flows.search_in_collection("abc-123", "zelle", depth=2)
 > früher gar keine; jetzt wird der Rest durchsucht und die Zahl steht neben
 > `truncated` — aus demselben Grund: stilles Abschneiden liest sich wie
 > Vollständigkeit.
+> **`failed` nennt jede einzelne** mit id und Grund
+> (`"PermissionDeniedError: …"`). Ließ sich keine einzige Sammlung lesen,
+> wirft der Ablauf stattdessen — ein falsches Passwort verweigert alle, und
+> das ist keine Teilantwort. Nur eine Verweigerung gehört zur Antwort: jeder
+> andere Fehler wird geworfen, nicht gezählt (Audit COR-2).
 
 > **Eine Suche lässt sich nicht auf eine Sammlung eingrenzen.** Drei Mal
 > gemessen — vom `wlo-mcp-sc` am 17.07.2026, hier am 27. und 28.08.2026 —

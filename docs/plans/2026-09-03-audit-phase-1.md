@@ -35,9 +35,11 @@ Status: `[ ]` offen · `[x]` erledigt · `[-]` bewusst nicht (Begründung).
   `download(max_bytes=)` mit Größenprüfung vor dem Abruf und Streaming mit
   Kappung; `flows.text`, `skills.get`, Registry melden `too_large`;
   `parse_blocks`/`parse_sections` linear (Zeilenautomat).
-- [ ] **COR-2** — `search_in_collection` verschluckt jeden Fehlertyp als
+- [x] **COR-2** — `search_in_collection` verschluckt jeden Fehlertyp als
   „unreadable". → Programmfehler werfen; scheitern alle Listen, wirft der
   erste Fehler; sonst `failed: [{id, reason}]` neben `unreadable`.
+  Erledigt: `_refused` in `flows/tree.py`, 3 Tests + Zusatzprüfung, Docstring,
+  FLOWS (EN/DE), Referenz (EN/DE), CHANGELOG.
 
 Danach: Live-Nachlauf gegen Staging (lesend anonym, schreibend mit Login),
 Audit-Bericht §4 um den Stand ergänzen.

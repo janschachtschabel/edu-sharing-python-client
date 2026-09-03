@@ -16,6 +16,12 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Fixed
 
+- **`search_in_collection` no longer counts every error as "unreadable"**
+  (audit COR-2). A refusal is reported per collection under `failed` with id
+  and reason; when not one collection could be read, the flow raises the
+  error instead of answering with an empty partial result — a wrong password
+  used to come back as `unreadable: 4`. Any error that is not a refusal is
+  raised, not counted.
 - **Four documented calls that raised `TypeError` when copied** (audit DOC-1,
   DOC-2): the reference passed `add_material` the folder id as its title and
   `build_collection` its node ids positionally; the skill wrote
