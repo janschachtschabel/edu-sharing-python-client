@@ -116,6 +116,10 @@ Credentials come from the environment (`EDU_SHARING_URL`, `EDU_SHARING_USER`,
 repo = Repository(url, auth=("user", "password"))
 ```
 
+Credentials inside the address (`https://user:password@host`) are refused: an
+address is logged and repeated in error messages, so they would leak with it.
+`auth=` and the environment are the places for them.
+
 Every one of the 389 operations is reachable, even without a method of its own:
 
 ```python

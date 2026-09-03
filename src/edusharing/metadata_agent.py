@@ -43,7 +43,7 @@ from urllib.parse import urlsplit
 import httpx
 
 from .errors import EduSharingError, at_least, error_from_response
-from .urls import path_segment
+from .urls import path_segment, refuse_userinfo
 
 __all__ = ["ContentType", "MetadataAgent", "SchemaInfo"]
 
@@ -298,6 +298,11 @@ class MetadataAgent:
 
 def _check_base(value: str) -> str:
     """Scheme and host, nothing else -- as ``TextExtraction`` demands."""
+    refuse_userinfo(
+        (value or "").strip(),
+        instead="This client sends no credentials to the metadata agent; "
+        "remove them from the address.",
+    )
     parts = urlsplit((value or "").strip())
     if parts.scheme not in ("http", "https") or not parts.netloc:
         raise EduSharingError(

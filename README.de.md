@@ -116,6 +116,10 @@ Zugangsdaten kommen aus der Umgebung (`EDU_SHARING_URL`, `EDU_SHARING_USER`,
 repo = Repository(url, auth=("benutzer", "passwort"))
 ```
 
+Zugangsdaten in der Adresse (`https://benutzer:passwort@host`) werden
+abgewiesen: eine Adresse steht im Log und in jeder Fehlermeldung, sie kämen
+mit. `auth=` und die Umgebung sind der Ort dafür.
+
 Jeder der 389 Endpunkte ist erreichbar, auch ohne eigene Methode:
 
 ```python

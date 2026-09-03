@@ -76,6 +76,30 @@ def test_doppeltes_edu_sharing_wird_abgelehnt():
         normalize_repository_url(f"{FULL}/edu-sharing")
 
 
+@pytest.mark.parametrize("eingabe", [
+    "https://alice:geheim@repositorium.example.test",
+    "alice:geheim@repositorium.example.test/edu-sharing",     # ohne Schema
+    "https://alice@repositorium.example.test/edu-sharing",    # nur der Name
+])
+def test_zugangsdaten_in_der_adresse_werden_abgewiesen(eingabe):
+    """Audit SEC-1 (03.09.2026): ``user:pw@host`` ging durch -- und die
+    Adresse steht in jedem Log, jeder Viewer-URL, jeder Fehlermeldung. Die
+    Meldung nennt den richtigen Ort und wiederholt das Passwort nicht."""
+    with pytest.raises(EduSharingError, match="auth=") as fehler:
+        normalize_repository_url(eingabe)
+    assert "geheim" not in str(fehler.value)
+    assert "EDU_SHARING_USER" in str(fehler.value)
+
+
+def test_zugangsdaten_werden_vor_dem_deep_link_geprueft():
+    """Sonst wiederholte die Deep-Link-Meldung die Adresse samt Passwort."""
+    with pytest.raises(EduSharingError) as fehler:
+        normalize_repository_url(
+            "https://alice:geheim@repositorium.example.test/edu-sharing/components/render/x"
+        )
+    assert "geheim" not in str(fehler.value)
+
+
 # --- Pfadsegmente ---------------------------------------------------------
 #
 # Diese Gruppe existiert wegen eines Audit-Befundes (F1, 27.08.2026): Bezeichner

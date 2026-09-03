@@ -16,6 +16,11 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Fixed
 
+- **An address with credentials in it is refused** (audit SEC-1).
+  `https://user:password@host` went through and landed in every log line,
+  viewer URL and error message. `Repository`, `TextExtraction`,
+  `MetadataAgent` and `BildungsAPI` now refuse it, name the place for the
+  credentials, and mask them in the message.
 - **The transport no longer re-sends a write that may already have been
   carried out** (audit COR-1). After a timeout past the sending, or a 5xx,
   only reads and the writes that merely set a state — `update`,

@@ -17,9 +17,12 @@ Status: `[ ]` offen · `[x]` erledigt · `[-]` bewusst nicht (Begründung).
   ARCHITECTURE (EN/DE), CHANGELOG. Der b-api-Client behält seine Schleife:
   Modellaufrufe sind zustandslos, eine Wiederholung kostet eine Anfrage,
   keinen doppelten Schreibzugriff (ARC-2, Phase 2).
-- [ ] **SEC-1** — `https://user:pw@host` wird angenommen und geloggt. →
+- [x] **SEC-1** — `https://user:pw@host` wird angenommen und geloggt. →
   `normalize_repository_url` und die drei Geschwister-Prüfungen weisen eine
   Netloc mit `@` ab und nennen `auth=` / `EDU_SHARING_USER`.
+  Erledigt: ein Helfer `refuse_userinfo` in `urls.py`, vier Aufrufer, die
+  Meldung maskiert das Passwort; 7 Tests; README, Referenz, Skill (EN/DE),
+  CHANGELOG.
 - [ ] **DOC-1 / DOC-2** — Vier dokumentierte Aufrufe werfen `TypeError`
   (Referenz: `add_material(folder.id, title=…)`, `build_collection("…",
   [ids])`; Skill: `Repository(url, credential=…)`, `BildungsAPI(url, key)`).

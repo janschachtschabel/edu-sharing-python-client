@@ -77,6 +77,7 @@ nimmt eine eigene.
 ```python
 repo = Repository(os.environ["EDU_SHARING_URL"], auth=(user, password))
 repo = Repository.from_env()      # EDU_SHARING_URL / _USER / _PASSWORD
+# benutzer:passwort@ in der URL wird abgewiesen -- auth= oder die Umgebung tragen sie
 ```
 
 Die drei Nachbardienste bekommen jeder **seine eigene** Adresse und haben

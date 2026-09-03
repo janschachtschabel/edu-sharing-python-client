@@ -56,7 +56,7 @@ from urllib.parse import urlsplit
 import httpx
 
 from .errors import EduSharingError, at_least
-from .urls import is_unroutable_host
+from .urls import is_unroutable_host, refuse_userinfo
 
 __all__ = ["ExtractedText", "TextExtraction", "METHODS"]
 
@@ -313,6 +313,11 @@ class TextExtraction:
 
 def _check_base(value: str) -> str:
     """Scheme and host, nothing else. Refused rather than warned about."""
+    refuse_userinfo(
+        (value or "").strip(),
+        instead="This client sends no credentials to the extraction service; "
+        "remove them from the address.",
+    )
     parts = urlsplit((value or "").strip())
     if parts.scheme not in ("http", "https") or not parts.netloc:
         raise EduSharingError(

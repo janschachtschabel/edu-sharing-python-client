@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import ipaddress
 import re
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 from .errors import EduSharingError
 
@@ -21,6 +21,27 @@ __all__ = ["normalize_repository_url", "path_segment", "rest_base",
            "is_unroutable_host"]
 
 _APP_SEGMENT = "/edu-sharing"
+
+
+def refuse_userinfo(url: str, *, instead: str) -> None:
+    """Refuse ``scheme://user:password@host`` (audit SEC-1, 2026-09-03).
+
+    An address is logged, repeated in error messages and, for the repository,
+    part of every viewer URL: credentials inside it leak everywhere at once.
+    ``instead`` says where they belong; the message masks them.
+
+    Raises:
+        EduSharingError: when the host part carries user information.
+    """
+    # Without "//" urlsplit reads "user:pw@host" as the scheme "user".
+    netloc = urlsplit(url if "//" in url else f"//{url}").netloc
+    if "@" not in netloc:
+        return
+    shown = url.replace(netloc, "***@" + netloc.rsplit("@", 1)[1], 1)
+    raise EduSharingError(
+        f"The address {shown!r} carries credentials (user:password@host) and is "
+        f"refused: an address is logged and repeated in error messages. {instead}"
+    )
 
 
 def normalize_repository_url(raw: str) -> str:
@@ -46,6 +67,12 @@ def normalize_repository_url(raw: str) -> str:
 
     if not re.match(r"^https?://", url, flags=re.IGNORECASE):
         url = f"https://{url}"
+
+    refuse_userinfo(
+        url,
+        instead="Pass them as Repository(url, auth=(user, password)) or set "
+        "EDU_SHARING_USER and EDU_SHARING_PASSWORD.",
+    )
 
     if re.search(r"/components(/|$)", url, flags=re.IGNORECASE):
         raise EduSharingError(

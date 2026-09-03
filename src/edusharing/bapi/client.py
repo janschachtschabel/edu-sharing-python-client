@@ -41,7 +41,7 @@ from ..errors import (
     at_least,
     error_from_response,
 )
-from ..urls import path_segment
+from ..urls import path_segment, refuse_userinfo
 from . import passthrough
 from .body import UNSET, ReasoningParam, build_body, read_answer
 from .models import (
@@ -160,6 +160,11 @@ class BildungsAPI:
         at_least("models_cache_seconds", models_cache_seconds, 0)
         at_least("retries_before_switching", retries_before_switching, 0)
         self._api_key = api_key
+        refuse_userinfo(
+            base_url,
+            instead=f"The b-api takes a key -- BildungsAPI(api_key=...) or {ENV_KEY} "
+            "-- not a user.",
+        )
         self.base_url = base_url.rstrip("/")
         self.provider = provider
         self.max_retries = max_retries

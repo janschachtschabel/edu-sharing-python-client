@@ -78,6 +78,13 @@ def test_eine_adresse_ohne_schema_wird_abgelehnt():
         MetadataAgent("agent.example.test")
 
 
+def test_zugangsdaten_in_der_adresse_werden_abgewiesen():
+    """SEC-1: die Adresse steht im Log; das Passwort darf nicht mit."""
+    with pytest.raises(EduSharingError) as fehler:
+        MetadataAgent("https://alice:geheim@agent.example.test")
+    assert "geheim" not in str(fehler.value)
+
+
 # --- Schemaliste -----------------------------------------------------------
 
 async def test_die_liste_nennt_datei_profil_und_feldzahl():

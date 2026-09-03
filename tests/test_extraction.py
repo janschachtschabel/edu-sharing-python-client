@@ -304,6 +304,7 @@ def test_mit_umgebungsvariable_entsteht_einer(monkeypatch):
     "extraktion.test",
     "ftp://extraktion.test",
     "https://extraktion.test/pfad?a=1",
+    "https://alice:geheim@extraktion.test",           # SEC-1: Zugangsdaten
     "   ",
 ])
 def test_unbrauchbare_basis_url_wird_abgelehnt(wert):

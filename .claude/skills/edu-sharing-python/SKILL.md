@@ -66,6 +66,7 @@ point takes one, and no call below it takes an address of its own.
 ```python
 repo = Repository(os.environ["EDU_SHARING_URL"], auth=(user, password))
 repo = Repository.from_env()      # EDU_SHARING_URL / _USER / _PASSWORD
+# user:password@ inside the URL is refused -- auth= or the environment carry them
 ```
 
 The three neighbouring services each take **their own** address and also have

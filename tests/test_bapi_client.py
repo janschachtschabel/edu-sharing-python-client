@@ -350,6 +350,13 @@ def test_ohne_adresse_wird_verweigert(monkeypatch):
     assert "B_API_BASE_URL" in str(fehler.value)
 
 
+def test_zugangsdaten_in_der_adresse_werden_abgewiesen():
+    """SEC-1: ``base_url`` wurde bisher gar nicht geprueft."""
+    with pytest.raises(EduSharingError) as fehler:
+        BildungsAPI("irgendein-schluessel", base_url="https://alice:geheim@b-api.example.test")
+    assert "geheim" not in str(fehler.value)
+
+
 def test_mit_adresse_aus_der_umgebung_geht_es(monkeypatch):
     monkeypatch.setenv("B_API_KEY", "irgendein-schluessel")
     monkeypatch.setenv("B_API_BASE_URL", "https://gateway.example.test")
