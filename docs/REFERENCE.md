@@ -782,13 +782,14 @@ stopped early is not "there is none".
 
 ```python
 made = await repo.flows.add_material(
-    folder.id, title="Testmaterial", url="https://example.org/x",
+    "Testmaterial", parent_id=folder.id, url="https://example.org/x",
     subject="Mathematik", level="Sekundarstufe I")
 
 made["id"]            # "7c04…"
 made["unresolved"]    # []      <- values listed here were NOT written
 
-built = await repo.flows.build_collection("Sammelmappe", [id_a, id_b, "gibt-es-nicht"])
+built = await repo.flows.build_collection(
+    "Sammelmappe", node_ids=[id_a, id_b, "gibt-es-nicht"])
 built["added"]        # ["9f2c…", "3b71…"]
 built["failed"]       # [{"id": "gibt-es-nicht", "reason": "NotFoundError: …"}]
 

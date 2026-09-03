@@ -23,11 +23,14 @@ Status: `[ ]` offen · `[x]` erledigt · `[-]` bewusst nicht (Begründung).
   Erledigt: ein Helfer `refuse_userinfo` in `urls.py`, vier Aufrufer, die
   Meldung maskiert das Passwort; 7 Tests; README, Referenz, Skill (EN/DE),
   CHANGELOG.
-- [ ] **DOC-1 / DOC-2** — Vier dokumentierte Aufrufe werfen `TypeError`
+- [x] **DOC-1 / DOC-2** — Vier dokumentierte Aufrufe werfen `TypeError`
   (Referenz: `add_material(folder.id, title=…)`, `build_collection("…",
   [ids])`; Skill: `Repository(url, credential=…)`, `BildungsAPI(url, key)`).
   → berichtigen; der Signatur-Wächter bindet jeden dokumentierten Aufruf
   (`inspect.signature().bind`) und prüft Konstruktoren in den Tabellen.
+  Erledigt: `_bindet_nicht` mit `bind_partial` und Platzhaltern in allen drei
+  Wächtern (Repository-, freie, Konstruktor-Aufrufe), Selbsttest mit den vier
+  Fällen; Referenz (EN/DE), Skill (EN/DE), CHANGELOG.
 - [ ] **SEC-2** — Downloads ungedeckelt, Markdown-Parser quadratisch. →
   `download(max_bytes=)` mit Größenprüfung vor dem Abruf und Streaming mit
   Kappung; `flows.text`, `skills.get`, Registry melden `too_large`;

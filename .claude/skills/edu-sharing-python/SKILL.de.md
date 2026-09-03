@@ -214,7 +214,7 @@ muss — die Argument- und Rückgabeformen stehen in `docs/REFERENCE.de.md`.
 
 | Man hält | Woher | Was darauf ist |
 |---|---|---|
-| `Repository` | `Repository(url, credential=…)` oder `.from_env()` | `.search()` `.node()` `.create_node()` `.children()` `.create_collection()` `.update_collection()` `.add_to_collection()` `.remove_from_collection()` `.find_collections()` `.resolve()` `.resolve_all()` `.about()` `.whoami()` `.metadatasets()` `.close()`; `.url` `.credential` `.metadataset` `.raw` `.flows` `.people` `.relations` |
+| `Repository` | `Repository(url, auth=…)` oder `.from_env()` | `.search()` `.node()` `.create_node()` `.children()` `.create_collection()` `.update_collection()` `.add_to_collection()` `.remove_from_collection()` `.find_collections()` `.resolve()` `.resolve_all()` `.about()` `.whoami()` `.metadatasets()` `.close()`; `.url` `.credential` `.metadataset` `.raw` `.flows` `.people` `.relations` |
 | `AsyncRepository` | dasselbe, innerhalb einer Ereignisschleife | dieselben Namen mit `await`, `.aclose()` statt `.close()`, dazu `.nodes` `.collections` `.vocab` `.searcher` |
 | `Credential` | `BasicCredential(user, pw)`, `BasicCredential.from_env()`, `AnonymousCredential()`, `credential_from(…)` | `.headers()` `.is_anonymous` `.username` |
 
@@ -274,7 +274,7 @@ muss — die Argument- und Rückgabeformen stehen in `docs/REFERENCE.de.md`.
 
 | Man hält | Woher | Was darauf ist |
 |---|---|---|
-| `BildungsAPI` | `BildungsAPI(url, key)` oder `.from_env()` | `.chat()` `.respond()` `.models()` `.load()` `.embeddings()` `.moderate()` `.images()` `.call()` `.aclose()` |
+| `BildungsAPI` | `BildungsAPI(key, base_url=url)` oder `.from_env()` | `.chat()` `.respond()` `.models()` `.load()` `.embeddings()` `.moderate()` `.images()` `.call()` `.aclose()` |
 | `Answer` | `.chat()` / `.respond()` | `.text` `.status` `.reason` `.model` `.truncated` `.raw` |
 | `Model` | `.models()` | `.id` `.name` `.demand` `.status` `.input` `.output` `.owned_by` `.shutdown_date` `.is_ready` `.can_chat` `.is_retired_on()` |
 | `LoadReport` | `.load()` | `.provider` `.models` `.reports_load` `.retired` `.total` `.least_loaded` `.summary()`; freie Funktionen `load_report()` `rank_models()` `rank_among()` `pick_model()` `is_rankable()` |
@@ -673,7 +673,7 @@ aufruf darauf erzeugt aus blockierendem Code eine Koroutine, die nie erwartet
 wird — kein Fehler, keine Wirkung.
 
 ```python
-repo = Repository(url, credential=cred)
+repo = Repository(url, auth=cred)
 repo.collections.find("Bruchrechnung")   # ein Koroutinen-Objekt -- tut nichts
 repo.find_collections("Bruchrechnung")   # der blockierende Weg
 ```

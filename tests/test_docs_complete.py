@@ -560,12 +560,12 @@ _FLOW_MODULE = ("find", "collections", "describe", "contents", "curate", "tree",
                 "pages", "text", "suggest", "skills", "rerank", "duplicates")
 
 
-def _aufrufe(text: str):
+def _aufrufe(text: str, muster: re.Pattern[str] = _AUFRUF):
     """Jeder dokumentierte ``repo.x(...)`` / ``repo.flows.x(...)`` -- inline oder
     in einem ```-Block -- mit seinem rohen Argumenttext. Klammern werden
     gezaehlt, damit ein mehrzeiliger Aufruf ganz bleibt; Kommentare am
-    Zeilenende fallen weg."""
-    for m in _AUFRUF.finditer(text):
+    Zeilenende fallen weg. Mit ``muster`` liest es auch ``Klasse(...)``."""
+    for m in muster.finditer(text):
         tiefe, i = 1, m.end()
         while i < len(text) and tiefe:
             tiefe += (text[i] == "(") - (text[i] == ")")
@@ -618,6 +618,38 @@ def _positionelle(ziel) -> list[str]:
                inspect.Parameter.POSITIONAL_OR_KEYWORD)
     return [n for n, p in inspect.signature(ziel).parameters.items()
             if n != "self" and p.kind in erlaubt]
+
+
+_PLATZHALTER = object()
+
+
+def _bindet_nicht(ziel, roh: str, wer: str, *, implizit: int) -> list[str]:
+    """Der Aufruf `wer(roh)` gegen ``inspect.signature(ziel).bind_partial``.
+
+    Der Namensvergleich sieht nur Bezeichner: ``folder.id, title=...`` und
+    ``"Mappe", [a, b]`` warfen beim Abschreiben TypeError, ohne dass er es
+    bemerkte (Audit DOC-1, 03.09.2026). Platzhalter statt Werte; ``implizit``
+    zaehlt ``self`` oder das ``repo`` einer Ablauf-Funktion; ``bind_partial``,
+    weil eine Tabellenzeile wie ``BildungsAPI(models_cache_seconds=0)`` nur
+    einen Knopf zeigt und die Pflichtargumente bewusst weglaesst."""
+    import inspect
+    positional: list[object] = [_PLATZHALTER] * implizit
+    schluessel: dict[str, object] = {}
+    for stueck in _argumente(roh):
+        if stueck in ("…", "..."):
+            continue                        # "und mehr" -- kein Wert
+        if stueck.startswith("*"):
+            return []                       # entpackt: statisch nicht pruefbar
+        name = stueck.split("=", 1)[0].strip()
+        if "=" in stueck and _BEZEICHNER.fullmatch(name):
+            schluessel[name] = _PLATZHALTER
+        else:
+            positional.append(_PLATZHALTER)
+    try:
+        inspect.signature(ziel).bind_partial(*positional, **schluessel)
+    except TypeError as fehler:
+        return [f"{wer}({' '.join(roh.split())}) bindet nicht: {fehler}"]
+    return []
 
 
 def _repo_ziel(methode: str):
@@ -676,6 +708,9 @@ def test_jeder_dokumentierte_repository_aufruf_nennt_echte_parameter():
                             f"{datei}: repo.{methode}() nennt an Stelle {stelle + 1} "
                             f"{stueck!r}, die Methode nennt es {echt!r}")
                 stelle += 1
+            erste = next(iter(parameter), None)
+            falsch.extend(_bindet_nicht(ziel, roh, f"{datei}: repo.{methode}",
+                                        implizit=int(erste in ("self", "repo"))))
 
     assert not falsch, "\n  " + "\n  ".join(falsch)
 
@@ -764,6 +799,7 @@ def _argumente_pruefen(ziel, roh: str, wer: str) -> list[str]:
                 falsch.append(f"{wer}() nennt an Stelle {stelle + 1} {stueck!r}, "
                               f"die Funktion nennt es {echt!r}")
         stelle += 1
+    falsch.extend(_bindet_nicht(ziel, roh, wer, implizit=0))
     return falsch
 
 
@@ -780,6 +816,59 @@ def test_jeder_dokumentierte_freie_aufruf_nennt_echte_parameter():
                 continue
             falsch.extend(f"{datei}: {f}" for f in _argumente_pruefen(ziel, roh, name))
     assert not falsch, "\n  " + "\n  ".join(sorted(set(falsch)))
+
+
+_KONSTRUKTOR = re.compile(r"(?<!\w)([A-Z][A-Za-z0-9_]*)\(")
+
+
+def _konstruktor(name: str, klassen: dict[str, type]):
+    """``__init__`` der oeffentlichen Klasse -- fuer ``Repository`` der von
+    ``AsyncRepository``, an den die blockierende Huelle alles weiterreicht."""
+    from edusharing import AsyncRepository
+    klasse = {"Repository": AsyncRepository}.get(name) or klassen.get(name)
+    return None if klasse is None else klasse.__init__
+
+
+def test_jeder_dokumentierte_konstruktor_bindet():
+    """`Repository(url, credential=...)` und `BildungsAPI(url, key)` standen in
+    den Tabellen des Skills, `Repository(url, credential=cred)` in seinem
+    Beispiel (Audit DOC-2, 03.09.2026) -- TypeError beim Abschreiben, und
+    kein Waechter las Konstruktoren."""
+    klassen = _klassen_der_bibliothek()
+    falsch: list[str] = []
+    for datei in BEHAUPTEND:
+        pfad = WURZEL / datei
+        if not pfad.exists():
+            continue
+        for name, roh in _aufrufe(pfad.read_text(encoding="utf-8"), _KONSTRUKTOR):
+            ziel = _konstruktor(name, klassen)
+            if ziel is None:
+                continue
+            falsch.extend(_bindet_nicht(ziel, roh, f"{datei}: {name}", implizit=1))
+    assert not falsch, "\n  " + "\n  ".join(sorted(set(falsch)))
+
+
+def test_der_waechter_bindet_platzhalter_an_die_signatur():
+    """Die vier Aufrufe des Audits, nachgestellt -- und ihre richtigen Formen."""
+    from edusharing.flows.curate import add_material, build_collection
+    klassen = _klassen_der_bibliothek()
+    repository = _konstruktor("Repository", klassen)
+    bapi = _konstruktor("BildungsAPI", klassen)
+
+    def klemmt(ziel, roh: str) -> bool:
+        return bool(_bindet_nicht(ziel, roh, "x", implizit=1))
+
+    assert klemmt(add_material, 'folder.id, title="x"')          # title doppelt
+    assert klemmt(build_collection, '"Mappe", [a, b]')           # node_ids ist keyword-only
+    assert klemmt(repository, "url, credential=c")               # heisst auth
+    assert klemmt(bapi, "url, key")                              # base_url ist keyword-only
+    assert not klemmt(add_material, 'title="x", parent_id=folder.id')
+    assert not klemmt(build_collection, '"Mappe", node_ids=[a, b]')
+    assert not klemmt(repository, "url, auth=c")
+    assert not klemmt(bapi, "key, base_url=url")
+    assert not klemmt(bapi, "models_cache_seconds=0")            # nur ein Knopf gezeigt
+    assert not klemmt(build_collection, "title, node_ids=[…], …")  # "und mehr"
+    assert not klemmt(bapi, "*args")                             # entpackt: nicht pruefbar
 
 
 def test_der_waechter_liest_auch_zaeune_und_zaehlt_klammern():

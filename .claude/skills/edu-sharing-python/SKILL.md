@@ -202,7 +202,7 @@ has to be guessed — argument and return shapes are in `docs/REFERENCE.md`.
 
 | You hold | From | On it |
 |---|---|---|
-| `Repository` | `Repository(url, credential=…)` or `.from_env()` | `.search()` `.node()` `.create_node()` `.children()` `.create_collection()` `.update_collection()` `.add_to_collection()` `.remove_from_collection()` `.find_collections()` `.resolve()` `.resolve_all()` `.about()` `.whoami()` `.metadatasets()` `.close()`; `.url` `.credential` `.metadataset` `.raw` `.flows` `.people` `.relations` |
+| `Repository` | `Repository(url, auth=…)` or `.from_env()` | `.search()` `.node()` `.create_node()` `.children()` `.create_collection()` `.update_collection()` `.add_to_collection()` `.remove_from_collection()` `.find_collections()` `.resolve()` `.resolve_all()` `.about()` `.whoami()` `.metadatasets()` `.close()`; `.url` `.credential` `.metadataset` `.raw` `.flows` `.people` `.relations` |
 | `AsyncRepository` | the same, inside an event loop | the same names awaited, `.aclose()` for `.close()`, plus `.nodes` `.collections` `.vocab` `.searcher` |
 | `Credential` | `BasicCredential(user, pw)`, `BasicCredential.from_env()`, `AnonymousCredential()`, `credential_from(…)` | `.headers()` `.is_anonymous` `.username` |
 
@@ -262,7 +262,7 @@ has to be guessed — argument and return shapes are in `docs/REFERENCE.md`.
 
 | You hold | From | On it |
 |---|---|---|
-| `BildungsAPI` | `BildungsAPI(url, key)` or `.from_env()` | `.chat()` `.respond()` `.models()` `.load()` `.embeddings()` `.moderate()` `.images()` `.call()` `.aclose()` |
+| `BildungsAPI` | `BildungsAPI(key, base_url=url)` or `.from_env()` | `.chat()` `.respond()` `.models()` `.load()` `.embeddings()` `.moderate()` `.images()` `.call()` `.aclose()` |
 | `Answer` | `.chat()` / `.respond()` | `.text` `.status` `.reason` `.model` `.truncated` `.raw` |
 | `Model` | `.models()` | `.id` `.name` `.demand` `.status` `.input` `.output` `.owned_by` `.shutdown_date` `.is_ready` `.can_chat` `.is_retired_on()` |
 | `LoadReport` | `.load()` | `.provider` `.models` `.reports_load` `.retired` `.total` `.least_loaded` `.summary()`; free functions `load_report()` `rank_models()` `rank_among()` `pick_model()` `is_rankable()` |
@@ -642,7 +642,7 @@ the asynchronous objects unchanged. Calling a method on them from blocking code
 produces a coroutine that is never awaited — no error, no effect.
 
 ```python
-repo = Repository(url, credential=cred)
+repo = Repository(url, auth=cred)
 repo.collections.find("Bruchrechnung")   # a coroutine object -- does nothing
 repo.find_collections("Bruchrechnung")   # the blocking route
 ```

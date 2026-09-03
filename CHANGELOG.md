@@ -16,6 +16,12 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Fixed
 
+- **Four documented calls that raised `TypeError` when copied** (audit DOC-1,
+  DOC-2): the reference passed `add_material` the folder id as its title and
+  `build_collection` its node ids positionally; the skill wrote
+  `Repository(url, credential=…)` and `BildungsAPI(url, key)`. The docs guard
+  now binds every documented call — methods, flows, free functions and
+  constructors — against the real signature with placeholders.
 - **An address with credentials in it is refused** (audit SEC-1).
   `https://user:password@host` went through and landed in every log line,
   viewer URL and error message. `Repository`, `TextExtraction`,
