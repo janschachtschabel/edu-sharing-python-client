@@ -49,3 +49,10 @@ Status: `[ ]` offen · `[x]` erledigt · `[-]` bewusst nicht (Begründung).
 
 Danach: Live-Nachlauf gegen Staging (lesend anonym, schreibend mit Login),
 Audit-Bericht §4 um den Stand ergänzen.
+
+**Erledigt (06.09.2026).** Live-Nachlauf: lesend anonym 43 bestanden / 63
+übersprungen; lesend angemeldet 72 bestanden / 34 übersprungen, nachdem ein
+veralteter `search_all`-Test berichtigt war (Kurznamen erreichen seit dem
+02.09. den Sammlungskorb, nur rohe `filters` werden als ignoriert genannt);
+schreibend 79 bestanden in eigenen Wegwerf-Ordnern. CI grün auf jedem Commit.
+Audit-Bericht §4 trägt den Stand. Weiter mit Phase 2 der Roadmap (§9).
