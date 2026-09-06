@@ -66,8 +66,8 @@ class SyncTransport:
     the synchronous surface too -- otherwise it becomes a dead end the moment
     something is needed that the library does not cover yet.
 
-    Deliberately narrow: only ``request`` and ``json``. Everything else belongs
-    on the asynchronous transport, not duplicated here.
+    Deliberately narrow: only ``request``, ``json`` and ``download``.
+    Everything else belongs on the asynchronous transport, not duplicated here.
     """
 
     def __init__(self, transport: Any, loop: LoopThread) -> None:
@@ -81,6 +81,10 @@ class SyncTransport:
     def json(self, method: str, path: str, **kwargs: Any) -> Any:
         """Like ``Transport.json``, blocking."""
         return self._loop.run(self._transport.json(method, path, **kwargs))
+
+    def download(self, path: str, **kwargs: Any) -> bytes:
+        """Like ``Transport.download``, blocking."""
+        return bytes(self._loop.run(self._transport.download(path, **kwargs)))
 
     def __repr__(self) -> str:
         return f"SyncTransport({self._transport!r})"
@@ -334,9 +338,9 @@ class SyncNodeContent:
         """Like ``NodeContent.upload``, blocking."""
         return SyncNode(self._loop.run(self._content.upload(data, **kwargs)), self._loop)
 
-    def download(self) -> bytes:
+    def download(self, *, max_bytes: int | None = None) -> bytes:
         """Like ``NodeContent.download``, blocking."""
-        return bytes(self._loop.run(self._content.download()))
+        return bytes(self._loop.run(self._content.download(max_bytes=max_bytes)))
 
     def text(self, **kwargs: Any) -> str:
         """Like ``NodeContent.text``, blocking."""

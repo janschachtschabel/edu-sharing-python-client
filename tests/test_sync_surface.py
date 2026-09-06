@@ -294,6 +294,21 @@ def test_download_synchron(repo):
     assert _kein_coroutine(repo.node(NID).content.download()) == b"Dateiinhalt"
 
 
+def test_download_mit_deckel_synchron(repo):
+    """Review 06.09.2026 (F3): die Referenz nennt download(max_bytes=...) und
+    repo.raw.download -- die blockierende Flaeche kannte beides nicht, und die
+    ist das Jupyter-Publikum, das die Bibliothek nennt."""
+    from edusharing.errors import ContentTooLargeError
+    with pytest.raises(ContentTooLargeError):
+        repo.node(NID).content.download(max_bytes=5)
+    assert repo.node(NID).content.download(max_bytes=100) == b"Dateiinhalt"
+
+
+def test_raw_download_synchron(repo):
+    url = repo.node(NID).content.download_url
+    assert _kein_coroutine(repo.raw.download(url, max_bytes=100)) == b"Dateiinhalt"
+
+
 def test_upload_synchron(repo):
     node = _kein_coroutine(
         repo.node(NID).content.upload(b"x", filename="x.txt", mimetype="text/plain"))

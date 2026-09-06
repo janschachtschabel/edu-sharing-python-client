@@ -21,7 +21,8 @@ and in [`docs/audits/`](docs/audits/).
   reports the size, else while the bytes arrive, streamed through the new
   `repo.raw.download` (retried like any GET). The text paths (`flows.text`, `skills.get`, the skill
   registry) stop at `MAX_TEXT_BYTES` (8 MiB) and say `too_large`; the new
-  `ContentTooLargeError` names both numbers. The Markdown parsers behind the
+  `ContentTooLargeError` names both numbers; the blocking surface mirrors both
+  calls. The Markdown parsers behind the
   registry are linear now — 10 000 blocks used to take minutes. `flows.text`
   decodes through `decode_text` now, so a byte-order mark is stripped.
 - **`search_in_collection` no longer counts every error as "unreadable"**
