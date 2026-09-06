@@ -516,12 +516,21 @@ async def test_search_all_liefert_beide_koerbe(repo):
 
 @pytest.mark.live
 async def test_search_all_meldet_die_nicht_angewandten_filter(repo):
-    """Die Sammlungsabfrage nimmt nur ngsearchword. Der Filter wirkt also auf
-    das Material und nicht auf die Sammlungen -- und der Ablauf sagt es, statt
-    eine Einschraenkung zu behaupten, die es nicht gibt."""
+    """Die Sammlungsabfrage nimmt nur ngsearchword. Ein Kurzname wie ``subject``
+    wird auf die Sammlungen darum lokal angewandt und gilt in beiden Koerben;
+    nur ein roher ``filters``-Eintrag hat dort kein Gegenstueck -- und der
+    Ablauf nennt ihn, statt eine Einschraenkung zu behaupten, die es nicht
+    gibt. (Live-Nachlauf 06.09.2026: der Test pinnte den Stand vor dem
+    02.09., als Kurznamen den Sammlungskorb noch nicht erreichten.)"""
     ergebnis = await repo.flows.search_all("Zelle", subject="Biologie", limit=5)
-    assert ergebnis["collections"]["filters_ignored"] == ["subject"]
+    assert ergebnis["collections"]["filters_ignored"] == []
     assert ergebnis["materials"]["unresolved"] == [], "der Filter griff beim Material"
+
+    uris = await repo.vocab.resolve_all("ccm:taxonid", "Biologie")
+    assert uris, "Biologie steht im Fachvokabular"
+    roh = await repo.flows.search_all("Zelle", filters={"ccm:taxonid": uris}, limit=5)
+    assert roh["collections"]["filters_ignored"] == ["ccm:taxonid"]
+    assert roh["materials"]["unresolved"] == []
 
 
 @pytest.mark.live
