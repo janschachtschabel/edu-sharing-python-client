@@ -42,6 +42,7 @@ under three headings.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 
 __all__ = [
@@ -74,6 +75,7 @@ _ESCAPED = re.compile(r"\\([!-/:-@\[-`{-~])")
 #: ``#`` to ``######``, at most three of indent, and a space after the hashes.
 _HEADING = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+(.*?))?[ \t]*$")
 _FENCE = re.compile(r"^ {0,3}(```|~~~)")
+_BLOCK_END = re.compile(r"^:::[ \t]*\r?$")
 
 
 @dataclass(frozen=True)
@@ -149,38 +151,53 @@ class ContextLayout:
 
 
 def parse_blocks(text: str, kinds: tuple[str, ...] = DEFAULT_KINDS) -> list[SkillReference]:
-    """The ``:::`` blocks of ``text``, in document order -- none from inside a code fence."""
+    """The ``:::`` blocks of ``text``, in document order -- none from inside a code fence.
+
+    One pass over the lines outside the fences. A block opens on ``::: kind``
+    and closes on the next bare ``:::``; an opener inside an open block is
+    body text, an opener without a closer references nothing. That is what
+    the non-greedy regex before it read -- minus its run from every unclosed
+    opener to the end of the document (audit SEC-2, 2026-09-06).
+    """
     if not kinds:
         return []
-    # Fenced spans are blanked, newlines kept, so offsets stay and no match
-    # can start inside a fence -- nor run from an unclosed example in one to
-    # the closing marker of the next real block.
-    shown = list(text)
-    for a, b in _fenced_spans(text):
-        for i in range(a, b):
-            if shown[i] != "\n":
-                shown[i] = " "
-    masked = "".join(shown)
-    fence = re.compile(
+    opener = re.compile(
         r"^:::[ \t]*(" + "|".join(re.escape(k) for k in kinds) + r")[ \t]*\r?$"
-        r"(.*?)^:::[ \t]*\r?$",
-        re.M | re.S,
     )
     refs: list[SkillReference] = []
-    for m in fence.finditer(masked):
-        body = m.group(2)
-        link = _TITLE_LINK.search(body)
-        if not link:  # a block with no link references nothing
-            continue
-        node = _NODE_ID.search(body)
-        refs.append(SkillReference(
-            kind=m.group(1),
-            title=_plain_title(link.group(1)),
-            url=link.group(2),
-            node_id=node.group(1) if node else "",
-            offset=m.start(),
-        ))
+    open_kind: str | None = None
+    open_offset = 0
+    body: list[str] = []
+    for offset, line in _lines_outside_fences(text):
+        bare = line.rstrip("\n")
+        if open_kind is None:
+            m = opener.match(bare)
+            if m:
+                open_kind, open_offset, body = m.group(1), offset, []
+        elif _BLOCK_END.match(bare):
+            ref = _reference(open_kind, "".join(body), open_offset)
+            if ref is not None:
+                refs.append(ref)
+            open_kind = None
+        else:
+            body.append(line)
     return refs
+
+
+def _reference(kind: str, body: str, offset: int) -> SkillReference | None:
+    """One block's reference -- ``None`` for a block with no link, which
+    references nothing."""
+    link = _TITLE_LINK.search(body)
+    if not link:
+        return None
+    node = _NODE_ID.search(body)
+    return SkillReference(
+        kind=kind,
+        title=_plain_title(link.group(1)),
+        url=link.group(2),
+        node_id=node.group(1) if node else "",
+        offset=offset,
+    )
 
 
 def _plain_title(raw: str) -> str:
@@ -195,26 +212,48 @@ def _plain_title(raw: str) -> str:
 
 
 def parse_sections(text: str) -> list[MarkdownSection]:
-    """The ATX headings of ``text``, each with the span under it."""
+    """The ATX headings of ``text``, each with the span under it.
+
+    A section runs to the next heading of its own level or a higher one. The
+    open headings form a stack: a new heading closes every open one at its
+    level or below -- one pass, where the pairwise look-ahead before it grew
+    with the square of the headings (audit SEC-2, 2026-09-06).
+    """
     heads: list[tuple[int, str, int, int]] = []  # level, title, start, body_start
-    fenced = _fenced_spans(text)
-    offset = 0
-    for line in text.splitlines(keepends=True):
+    for offset, line in _lines_outside_fences(text):
         m = _HEADING.match(line.rstrip("\r\n"))
-        if m and not any(a <= offset < b for a, b in fenced):
+        if m:
             title = (m.group(2) or "").rstrip("#").strip()
             heads.append((len(m.group(1)), title, offset, offset + len(line)))
-        offset += len(line)
 
-    sections: list[MarkdownSection] = []
-    for i, (level, title, start, body_start) in enumerate(heads):
-        end = len(text)
-        for later_level, _, later_start, _ in heads[i + 1:]:
-            if later_level <= level:
-                end = later_start
-                break
-        sections.append(MarkdownSection(level, title, start, body_start, end))
-    return sections
+    ends = [len(text)] * len(heads)
+    still_open: list[int] = []
+    for i, (level, _, start, _) in enumerate(heads):
+        while still_open and heads[still_open[-1]][0] >= level:
+            ends[still_open.pop()] = start
+        still_open.append(i)
+    return [
+        MarkdownSection(level, title, start, body_start, ends[i])
+        for i, (level, title, start, body_start) in enumerate(heads)
+    ]
+
+
+def _lines_outside_fences(text: str) -> Iterator[tuple[int, str]]:
+    """``(offset, line)`` for every line not inside a code fence, in order.
+
+    What is shown in a fence is not markup. One pointer walks the fenced
+    spans alongside the lines, so the pass stays linear however many fences
+    a document has.
+    """
+    spans = _fenced_spans(text)
+    at = 0
+    offset = 0
+    for line in text.splitlines(keepends=True):
+        while at < len(spans) and spans[at][1] <= offset:
+            at += 1
+        if not (at < len(spans) and spans[at][0] <= offset < spans[at][1]):
+            yield offset, line
+        offset += len(line)
 
 
 def _fenced_spans(text: str) -> list[tuple[int, int]]:

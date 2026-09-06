@@ -128,6 +128,31 @@ def test_setext_und_zaeune_sind_keine_ueberschriften():
 
 # --- Kontexte --------------------------------------------------------------
 
+def test_ein_zweiter_oeffner_im_offenen_block_ist_text():
+    """Gepinnt vor dem Umbau (Audit SEC-2): ein ``::: kind`` innerhalb eines
+    offenen Blocks ist Fliesstext bis zum naechsten blanken ``:::`` -- so las
+    es der Regex, so muss es der Zeilenautomat lesen."""
+    text = "::: ki-skill\n[A](https://a.test)\n::: ki-skill\n[B](https://b.test)\n:::\n"
+    refs = parse_blocks(text)
+    assert [(r.title, r.url, r.offset) for r in refs] == [("A", "https://a.test", 0)]
+
+
+def test_die_parser_bleiben_bei_vielen_zaeunen_und_offenen_bloecken_linear():
+    """Audit SEC-2 (06.09.2026): der nicht-gierige Block-Regex lief von jedem
+    Oeffner ohne Schliesser bis zum Dokumentende, und die Abschnittssuche
+    fragte fuer jede Zeile jeden Zaun. 10 000 Bloecke mit je einem Zaun
+    brauchten Minuten; ein Registry-Dokument kommt aus dem Repositorium,
+    also von anderen."""
+    import time
+    text = "".join(
+        f"::: ki-skill\n```\ncode {i}\n```\n# Titel {i}\n" for i in range(10_000)
+    )
+    start = time.perf_counter()
+    assert parse_blocks(text) == []
+    assert len(parse_sections(text)) == 10_000
+    assert time.perf_counter() - start < 3.0
+
+
 def test_kontexte_aus_benannten_h2_und_h3():
     refs = parse_blocks(REGISTRY)
     layout = layout_contexts(REGISTRY, refs)
