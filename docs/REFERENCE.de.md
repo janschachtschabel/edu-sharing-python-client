@@ -98,6 +98,7 @@ README.
 |---|---|
 | `repo.raw.json("GET", "/node/v1/nodes/-home-/{id}/metadata")` | der geparste Rumpf |
 | `repo.raw.request("POST", path, json=…)` | `httpx.Response` |
+| `repo.raw.download(path, max_bytes=…)` | `bytes` — gestreamt, gedeckelt, nicht wiederholt |
 | `repo.raw.is_repository_url(url)` | `bool` — ob Zugangsdaten mitgingen |
 
 ```python
@@ -287,7 +288,8 @@ macht daraus einen Pfad, der sich von oben nach unten liest.
 | `node.content.mimetype` | `str \| None` |
 | `node.content.size` | `int \| None` |
 | `node.content.download_url` | `str \| None` |
-| `node.content.download()` | `bytes` |
+| `node.content.download()` | `bytes` — stückweise gelesen |
+| `node.content.download(max_bytes=…)` | `bytes` — `ContentTooLargeError` über der Grenze, vor dem Abruf, wenn `size` bekannt ist; die Textpfade übergeben `MAX_TEXT_BYTES` (8 MiB) |
 | `node.content.text()` | `str` — der Text, den das Repository extrahiert hat |
 | `node.content.upload(data, filename=…, mimetype=…)` | `Node` |
 | `node.content.set_preview(data, mimetype="image/png")` | `Node` |
@@ -544,10 +546,10 @@ ist; der Ordner eines Skills antwortete anonym mit 403.
 | `SkillConventions` | `type_property`, `skill_type`, `registry_type`, `registry_mark`, `markdown_mimetypes`, `block_kinds`, `skill_kind` |
 | `WLO_SKILLS` | die Vorgabe-Konventionen |
 | `SkillSummary` | `id`, `original_id`, `title`, `description`, `keywords`, `url`, `download_url` |
-| `SkillDocument` | die Zusammenfassung plus `content`, `content_reason` (`""`, "no_file", "not_text"), `references`, `files`, `files_reason` (`""`, "no_folder", "folder_unreadable", "too_many"), `folder_file_count` |
+| `SkillDocument` | die Zusammenfassung plus `content`, `content_reason` (`""`, "no_file", "not_text", "too_large"), `references`, `files`, `files_reason` (`""`, "no_folder", "folder_unreadable", "too_many"), `folder_file_count` |
 | `SkillFile` | `id`, `title`, `mimetype`, `size`, `download_url` |
 | `SkillSearch` | `hits`, `unresolved`, `truncated`, `unreadable` |
-| `SkillRegistry` | `collection_id`, `registry_id`, `registry_title`, `markdown`, `entries`, `unresolved`, `contexts`, `general`, `ambiguous`, `truncated`, `contexts_truncated`, `reason` (`""`, "collection_not_found", "no_registry", "unreadable"), `context_match` ("all", "exact", "missing"), `scan_truncated` |
+| `SkillRegistry` | `collection_id`, `registry_id`, `registry_title`, `markdown`, `entries`, `unresolved`, `contexts`, `general`, `ambiguous`, `truncated`, `contexts_truncated`, `reason` (`""`, "collection_not_found", "no_registry", "unreadable", "too_large"), `context_match` ("all", "exact", "missing"), `scan_truncated` |
 | `RegistryEntry` | `node_id`, `title`, `description`, `keywords`, `context` |
 | `load_registry(repo, collection_id, context=…, resolve=…, conventions=…)` | `SkillRegistry` — was `repo.skills.registry` ruft |
 | `SKILL_SEARCH_PAGE` `SKILL_BUNDLE_MAX` `SKILL_VISIT_MAX` `SKILL_DEPTH_MAX` | `50` Treffer im Pool · `50` Begleitdateien, bevor ein Ordner als Eingang zählt · `30` Sammlungen je Gang · `2` Ebenen unter der angegebenen Sammlung |
@@ -1289,6 +1291,7 @@ Jeder Fehlschlag ist ein `EduSharingError`. Wer den fängt, fängt alle.
 | `ConflictError` | das Repository lehnt den Zustand ab (409) |
 | `ServerError` | die Instanz ist gescheitert (5xx) |
 | `SilentDropError` | **der Schreibvorgang gab 200 zurück und speicherte nichts** |
+| `ContentTooLargeError` | ein Download ist größer als max_bytes — vor dem Abruf, wenn die Größe bekannt ist |
 | `UnsafeUrlError` | `check_url` hat eine Adresse abgelehnt |
 
 ```python

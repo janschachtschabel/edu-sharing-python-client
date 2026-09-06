@@ -35,13 +35,18 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from .errors import EduSharingError, ValidationError
+from .errors import ContentTooLargeError, EduSharingError, ValidationError
 from .urls import path_segment
 
 if TYPE_CHECKING:
     from .nodes import Node
 
-__all__ = ["NodeContent"]
+__all__ = ["NodeContent", "MAX_TEXT_BYTES"]
+
+#: The largest file the text paths read whole -- ``flows.text``, ``skills.get``
+#: and the registry pass it as ``max_bytes``: 8 MiB, more than any Markdown a
+#: person wrote and less than a video mislabelled as text (audit SEC-2).
+MAX_TEXT_BYTES = 8 * 1024 * 1024
 
 
 def decode_text(data: bytes) -> str:
@@ -188,13 +193,19 @@ class NodeContent:
         )
         return await self._node._nodes.get(self._node.id)
 
-    async def download(self) -> bytes:
-        """Fetch the binary content.
+    async def download(self, *, max_bytes: int | None = None) -> bytes:
+        """Fetch the binary content, in chunks.
+
+        Args:
+            max_bytes: refuse a file larger than this -- before the request
+                when the repository reports the size (``size``), else while
+                the bytes arrive. ``None`` downloads whatever there is.
 
         Raises:
             EduSharingError: when the node carries no file -- a link record, for
                 instance. Returning an empty bytestring would be
                 indistinguishable from an empty file.
+            ContentTooLargeError: above ``max_bytes``.
         """
         url = self.download_url
         if not self.has_content or not url:
@@ -204,8 +215,13 @@ class NodeContent:
                 "file. For a link record the source is in ccm:wwwurl "
                 "(node.get('ccm:wwwurl'))."
             )
-        response = await self._transport.request("GET", url)
-        return bytes(response.content)
+        size = self.size
+        if max_bytes is not None and size is not None and size > max_bytes:
+            raise ContentTooLargeError(
+                f"Node {self._node.id} carries {size} bytes, more than "
+                f"max_bytes={max_bytes}. Nothing was downloaded."
+            )
+        return bytes(await self._transport.download(url, max_bytes=max_bytes))
 
     async def text(self, *, force_update: bool = False) -> str:
         """The extracted full text.

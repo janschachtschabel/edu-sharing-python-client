@@ -31,10 +31,16 @@ Status: `[ ]` offen · `[x]` erledigt · `[-]` bewusst nicht (Begründung).
   Erledigt: `_bindet_nicht` mit `bind_partial` und Platzhaltern in allen drei
   Wächtern (Repository-, freie, Konstruktor-Aufrufe), Selbsttest mit den vier
   Fällen; Referenz (EN/DE), Skill (EN/DE), CHANGELOG.
-- [ ] **SEC-2** — Downloads ungedeckelt, Markdown-Parser quadratisch. →
+- [x] **SEC-2** — Downloads ungedeckelt, Markdown-Parser quadratisch. →
   `download(max_bytes=)` mit Größenprüfung vor dem Abruf und Streaming mit
   Kappung; `flows.text`, `skills.get`, Registry melden `too_large`;
   `parse_blocks`/`parse_sections` linear (Zeilenautomat).
+  Erledigt in zwei Commits (06.09.2026): Parser als Zeilenautomaten mit
+  Pin- und Leistungstest; `Transport.download` (Streaming, Content-Length
+  vor dem ersten Byte, Zählung danach), `NodeContent.download(max_bytes=)`
+  mit Größenprüfung vor dem Abruf, `ContentTooLargeError`, `MAX_TEXT_BYTES`,
+  `too_large` in Textablauf, `skills.get` und Registry; 10 Tests; Referenz,
+  FLOWS, Skill (EN/DE), CHANGELOG.
 - [x] **COR-2** — `search_in_collection` verschluckt jeden Fehlertyp als
   „unreadable". → Programmfehler werfen; scheitern alle Listen, wirft der
   erste Fehler; sonst `failed: [{id, reason}]` neben `unreadable`.

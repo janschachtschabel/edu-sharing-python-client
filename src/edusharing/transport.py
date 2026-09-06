@@ -28,6 +28,7 @@ import httpx
 
 from .auth import ANONYMOUS, Credential, credential_from
 from .errors import (
+    ContentTooLargeError,
     EduSharingError,
     ServerError,
     TransportError,
@@ -62,6 +63,33 @@ _SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 # Failures from before anything went over the wire: nothing happened on the
 # server, so any method may try again.
 _BEFORE_SENDING = (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout)
+
+
+def _redirect_error(response: httpx.Response, url: str) -> EduSharingError:
+    """Reported, not followed. ``follow_redirects`` stays at httpx's default of
+    ``False`` on purpose: following one off the repository would carry the
+    credentials to whatever it names. Not reporting it was worse -- the empty
+    body of a redirect came back as success, which for ``Content.download``
+    means zero bytes instead of the file (audit A8)."""
+    return EduSharingError(
+        f"HTTP {response.status_code}: the repository redirected to "
+        f"{response.headers.get('location') or '(no Location header)'!r}. "
+        "This client does not follow redirects -- a redirect off "
+        "the repository would take the credentials with it. If your "
+        "installation sits behind a proxy that bounces, point "
+        "EDU_SHARING_URL at the address it bounces to.",
+        status=response.status_code, url=url,
+    )
+
+
+def _check_size(size: int, max_bytes: int | None, url: str) -> None:
+    if max_bytes is not None and size > max_bytes:
+        raise ContentTooLargeError(
+            f"The file is larger than max_bytes={max_bytes}: {size} bytes "
+            "(announced, or received so far). Raise the limit, or read "
+            "NodeContent.size first and decide.",
+            url=url,
+        )
 
 
 def _network_failure(
@@ -286,21 +314,7 @@ class Transport:
                 continue
 
             if 300 <= response.status_code < 400:
-                # Reported, not followed. ``follow_redirects`` stays at httpx's
-                # default of ``False`` on purpose: following one off the
-                # repository would carry the credentials to whatever it names.
-                # Not reporting it was worse -- the empty body of a redirect
-                # came back as success, which for ``Content.download`` means
-                # zero bytes instead of the file (audit A8).
-                raise EduSharingError(
-                    f"HTTP {response.status_code}: the repository redirected to "
-                    f"{response.headers.get('location') or '(no Location header)'!r}. "
-                    "This client does not follow redirects -- a redirect off "
-                    "the repository would take the credentials with it. If your "
-                    "installation sits behind a proxy that bounces, point "
-                    "EDU_SHARING_URL at the address it bounces to.",
-                    status=response.status_code, url=url,
-                )
+                raise _redirect_error(response, url)
             if response.status_code < 400:
                 return response
 
@@ -329,6 +343,47 @@ class Transport:
         """Like ``request``, but returns the parsed JSON body."""
         response = await self.request(method, path, **kwargs)
         return response.json()
+
+    async def download(self, path: str, *, max_bytes: int | None = None) -> bytes:
+        """GET a body in chunks; refuse one larger than ``max_bytes``.
+
+        ``request`` reads a whole body into memory before anyone can look at
+        its size (audit SEC-2). Here the announced ``Content-Length`` is
+        checked before the first byte and the count while they arrive.
+        Status handling is that of ``request``: a redirect is reported, a
+        status from 400 up becomes the matching error. Not retried -- a second
+        attempt would be a second full download, and a caller who wants one
+        can call again.
+
+        Raises:
+            ContentTooLargeError: above ``max_bytes``, with the size so far.
+            EduSharingError: on a redirect or any status from 400 up.
+            TransportError: on a network failure, before or during the read.
+        """
+        url = self._resolve(path)
+        request_headers = self._headers(url, self.credential, None)
+        logger.debug("GET %s (streaming)", self._for_log(url))
+        chunks: list[bytes] = []
+        received = 0
+        try:
+            async with self._semaphore, self._client.stream(
+                "GET", url, headers=request_headers
+            ) as response:
+                if 300 <= response.status_code < 400:
+                    raise _redirect_error(response, url)
+                if response.status_code >= 400:
+                    await response.aread()
+                    raise error_from_response(response.status_code, url, response.text)
+                announced = response.headers.get("content-length", "")
+                if announced.isdigit():
+                    _check_size(int(announced), max_bytes, url)
+                async for chunk in response.aiter_bytes():
+                    received += len(chunk)
+                    _check_size(received, max_bytes, url)
+                    chunks.append(chunk)
+        except httpx.HTTPError as exc:
+            raise TransportError(f"{type(exc).__name__}: {exc}", url=url) from exc
+        return b"".join(chunks)
 
     def __repr__(self) -> str:
         return f"Transport({self.repository_url!r})"

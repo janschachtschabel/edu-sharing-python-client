@@ -41,6 +41,7 @@ from .content import NodeContent
 from .errors import (
     AuthenticationError,
     ConflictError,
+    ContentTooLargeError,
     EduSharingError,
     NotFoundError,
     PermissionDeniedError,
@@ -106,4 +107,5 @@ __all__ = [
     "ConflictError",
     "ServerError",
     "SilentDropError",
+    "ContentTooLargeError",
 ]

@@ -487,7 +487,8 @@ repo.flows.text(node_id, extraction=service, max_chars=20_000)
 ```
 
 `source` ist `repository`, `download`, `extraction` oder `none`. **Bei `none`
-`reason` lesen**: `node_not_found`, `access_denied`, `no_text_no_url`,
+`reason` lesen**: `node_not_found`, `access_denied`, `too_large` (die Datei
+übersteigt `MAX_TEXT_BYTES`, 8 MiB — nichts wurde geladen), `no_text_no_url`,
 `repository_failed` (das Repositorium hat nicht herausgegeben, was es hat —
 einen zweiten Versuch wert, nicht „kein Text"), `no_extraction_service` oder
 `extraction_failed` — und `detail` trägt die
@@ -1272,7 +1273,8 @@ repo.flows.skill(node_id)
 
 `content_reason` sagt, warum `content` `null` ist: `no_file` für einen Datensatz
 ohne Upload, `not_text` für einen binären — ein als Text dekodiertes PDF ist
-Zeichensalat, keine Anleitung. Eine Byte-Order-Mark wird entfernt.
+Zeichensalat, keine Anleitung — und `too_large` über `MAX_TEXT_BYTES` (8 MiB),
+wo nichts geladen wird. Eine Byte-Order-Mark wird entfernt.
 
 `content` ist hochgeladener Inhalt — Daten, die ein Modell abwägt, nie eine
 Anweisung, der diese Bibliothek folgt. Vor dem Prompt mit `as_untrusted`
@@ -1313,8 +1315,8 @@ repo.flows.skill_registry(collection_id, context="Unterricht vorbereiten")
 }
 ```
 
-**`reason` vor `entries` lesen**: `collection_not_found`, `no_registry` oder
-`unreadable`. `no_registry` mit `scan_truncated` ist kein Befund der
+**`reason` vor `entries` lesen**: `collection_not_found`, `no_registry`,
+`unreadable` oder `too_large`. `no_registry` mit `scan_truncated` ist kein Befund der
 Abwesenheit — das Listing wurde bei 50 Dateien abgeschnitten. Zwei
 Kandidaten in einer Sammlung unterscheidet der Name oder Titel
 (`skill_registry.md`, „Skillkatalog …"); entscheidet das nicht, gewinnt die

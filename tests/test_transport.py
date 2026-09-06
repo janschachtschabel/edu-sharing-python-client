@@ -14,6 +14,7 @@ import pytest
 from edusharing.auth import ANONYMOUS, BasicCredential
 from edusharing.errors import (
     AuthenticationError,
+    ContentTooLargeError,
     EduSharingError,
     NotFoundError,
     ServerError,
@@ -586,3 +587,79 @@ async def test_ein_gewoehnlicher_500_wird_weiter_voll_wiederholt():
         with pytest.raises(ServerError):
             await t.request("GET", "/_about")
     assert len(versuche) == 4
+
+
+# --- Streaming-Download mit Deckel (Audit SEC-2, 06.09.2026) ----------------
+#
+# request() liest jeden Koerper ganz in den Speicher, bevor jemand seine
+# Groesse sehen kann. download() prueft die angekuendigte Groesse vor dem
+# ersten Byte und zaehlt mit, waehrend sie ankommen.
+
+async def _stueckweise(*teile: bytes):
+    for teil in teile:
+        yield teil
+
+
+async def test_download_liest_den_koerper_stueckweise():
+    def handler(request):
+        return httpx.Response(200, content=_stueckweise(b"ab", b"cd", b"ef"))
+
+    async with _transport(handler) as t:
+        assert await t.download("/x") == b"abcdef"
+
+
+async def test_download_bricht_ueber_max_bytes_ab():
+    """Ohne Content-Length zaehlt der Transport mit und bricht ab, statt alles
+    zu halten und dann zu messen."""
+    def handler(request):
+        return httpx.Response(200, content=_stueckweise(b"x" * 60, b"x" * 60))
+
+    async with _transport(handler) as t:
+        with pytest.raises(ContentTooLargeError):
+            await t.download("/x", max_bytes=100)
+
+
+async def test_download_lehnt_eine_angekuendigte_groesse_vor_dem_lesen_ab():
+    def handler(request):
+        return httpx.Response(200, content=b"x" * 1000)      # Content-Length: 1000
+
+    async with _transport(handler) as t:
+        with pytest.raises(ContentTooLargeError, match="1000"):
+            await t.download("/x", max_bytes=100)
+        assert len(await t.download("/x", max_bytes=1000)) == 1000
+        assert len(await t.download("/x")) == 1000
+
+
+async def test_download_meldet_umleitung_status_und_netzfehler():
+    """Dieselben Regeln wie request(): eine Umleitung ist kein Erfolg (Audit
+    A8), ein Status ab 400 wird zum passenden Fehler, ein Netzfehler zum
+    TransportError."""
+    def handler(request):
+        pfad = request.url.path
+        if pfad.endswith("/kaputt"):
+            raise httpx.ReadTimeout("zu langsam", request=request)
+        if pfad.endswith("/weg"):
+            return httpx.Response(302, headers={"location": "https://anderswo.test/"})
+        return httpx.Response(404, json={"error": "DAOMissingException", "message": "nein"})
+
+    async with _transport(handler) as t:
+        with pytest.raises(EduSharingError, match="redirected"):
+            await t.download("/weg")
+        with pytest.raises(NotFoundError):
+            await t.download("/fehlt")
+        with pytest.raises(TransportError):
+            await t.download("/kaputt")
+
+
+async def test_download_traegt_die_anmeldung_nur_zum_repositorium():
+    gesehen = {}
+
+    def handler(request):
+        gesehen[request.url.host] = request.headers.get("authorization")
+        return httpx.Response(200, content=b"x")
+
+    async with _transport(handler) as t:
+        await t.download("/x")
+        await t.download("https://fremd.example.test/datei")
+    assert gesehen["repositorium.example.test"] is not None
+    assert gesehen["fremd.example.test"] is None

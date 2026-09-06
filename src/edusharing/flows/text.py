@@ -29,8 +29,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ..agent.format import cap_text
-from ..content import is_text_like
-from ..errors import EduSharingError, NotFoundError, PermissionDeniedError
+from ..content import MAX_TEXT_BYTES, decode_text, is_text_like
+from ..errors import (
+    ContentTooLargeError,
+    EduSharingError,
+    NotFoundError,
+    PermissionDeniedError,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..extraction import TextExtraction
@@ -69,8 +74,10 @@ async def text(
         ``none``. With ``none``, ``reason`` is one of ``node_not_found``,
         ``access_denied``, ``repository_failed`` (the repository did not hand
         over what it has -- worth a retry, not the same as "no text"),
-        ``no_text_no_url``, ``no_extraction_service`` or ``extraction_failed``,
-        and ``detail`` carries the service's or the error's own words.
+        ``too_large`` (the file is bigger than ``MAX_TEXT_BYTES``; nothing was
+        downloaded), ``no_text_no_url``, ``no_extraction_service`` or
+        ``extraction_failed``, and ``detail`` carries the service's or the
+        error's own words.
         ``source_url`` is the linked page whenever there is one, so a caller
         without a service can still decide to fetch it.
 
@@ -133,7 +140,11 @@ async def _stored(
     if extract:
         return _capped(answer, extract, "repository", max_chars)
     if node.content.has_content and is_text_like(node.content.mimetype):
-        decoded = (await node.content.download()).decode("utf-8", errors="replace")
+        try:
+            raw = await node.content.download(max_bytes=MAX_TEXT_BYTES)
+        except ContentTooLargeError as exc:
+            return {**answer, "reason": "too_large", "detail": str(exc)}
+        decoded = decode_text(raw)
         if decoded:
             return _capped(answer, decoded, "download", max_chars)
     return None

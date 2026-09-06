@@ -24,6 +24,7 @@ import httpx
 import pytest
 
 from edusharing import AsyncRepository
+from edusharing.content import MAX_TEXT_BYTES
 from edusharing.errors import PermissionDeniedError, ServerError
 from edusharing.skills import WLO_SKILLS, SkillConventions
 
@@ -388,6 +389,25 @@ async def test_ohne_datei_sagt_content_reason_warum():
     async with instanz.repo() as repo:
         doc = await repo.skills.get(SA)
     assert doc.content is None and doc.content_reason == "no_file"
+
+
+async def test_eine_zu_grosse_anleitung_sagt_too_large():
+    """Audit SEC-2: ueber MAX_TEXT_BYTES wird die Datei nicht geladen; die
+    Groesse steht in cclom:size."""
+    instanz = Instanz()
+    instanz.nodes[SA]["properties"]["cclom:size"] = [str(MAX_TEXT_BYTES + 1)]
+    async with instanz.repo() as repo:
+        doc = await repo.skills.get(SA)
+    assert doc.content is None and doc.content_reason == "too_large"
+    assert not any(r.url.path.endswith("/content") for r in instanz.anfragen)
+
+
+async def test_eine_zu_grosse_registry_sagt_too_large():
+    instanz = Instanz()
+    instanz.nodes[REG]["properties"]["cclom:size"] = [str(MAX_TEXT_BYTES + 1)]
+    async with instanz.repo() as repo:
+        registry = await repo.skills.registry(COLL)
+    assert registry.entries == [] and registry.reason == "too_large"
 
 
 async def test_ein_verschwundener_ordner_ist_ein_grund():

@@ -476,7 +476,8 @@ repo.flows.text(node_id, extraction=service, max_chars=20_000)
 ```
 
 `source` is `repository`, `download`, `extraction` or `none`. **Read `reason`
-when it is `none`**: `node_not_found`, `access_denied`, `no_text_no_url`,
+when it is `none`**: `node_not_found`, `access_denied`, `too_large` (the file
+exceeds `MAX_TEXT_BYTES`, 8 MiB — nothing was downloaded), `no_text_no_url`,
 `repository_failed` (the repository did not hand over what it has — worth a
 retry, not "no text"), `no_extraction_service` or `extraction_failed` — and
 `detail` carries the
@@ -1239,7 +1240,8 @@ repo.flows.skill(node_id)
 
 `content_reason` says why `content` is `null`: `no_file` for a record without
 an upload, `not_text` for a binary one — a PDF decoded as text is mojibake,
-not an instruction. A byte-order mark is stripped.
+not an instruction — and `too_large` above `MAX_TEXT_BYTES` (8 MiB), where
+nothing is downloaded. A byte-order mark is stripped.
 
 `content` is uploaded content — data for a model to weigh, never an
 instruction this library follows. Wrap it with `as_untrusted` before it
@@ -1280,8 +1282,8 @@ repo.flows.skill_registry(collection_id, context="Unterricht vorbereiten")
 }
 ```
 
-**Read `reason` before `entries`**: `collection_not_found`, `no_registry` or
-`unreadable`. `no_registry` with a `scan_truncated` is not a finding of
+**Read `reason` before `entries`**: `collection_not_found`, `no_registry`,
+`unreadable` or `too_large`. `no_registry` with a `scan_truncated` is not a finding of
 absence — the listing was cut at 50 files. Two candidate documents in one
 collection are told apart by their name or title (`skill_registry.md`,
 "Skillkatalog …"); when that does not decide, the smallest id wins and

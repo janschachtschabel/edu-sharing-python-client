@@ -34,8 +34,8 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from .content import decode_text, is_text_like
-from .errors import NotFoundError, PermissionDeniedError
+from .content import MAX_TEXT_BYTES, decode_text, is_text_like
+from .errors import ContentTooLargeError, NotFoundError, PermissionDeniedError
 from .flows.fields import carries, resolve_vocabulary
 from .flows.ranking import query_terms, term_matches
 from .results import original_id_of
@@ -144,8 +144,9 @@ class SkillDocument(SkillSummary):
     #: The Markdown as stored, without a byte-order mark -- ``None`` when
     #: ``content_reason`` says why.
     content: str | None = None
-    #: ``""``, ``no_file`` (the record carries no upload) or ``not_text`` (a
-    #: binary upload -- a PDF decoded as text is mojibake, not an instruction).
+    #: ``""``, ``no_file`` (the record carries no upload), ``not_text`` (a
+    #: binary upload -- a PDF decoded as text is mojibake, not an instruction)
+    #: or ``too_large`` (bigger than ``MAX_TEXT_BYTES``; not downloaded).
     content_reason: str = ""
     references: list[SkillReference] = field(default_factory=list)
     #: The other files in the skill's folder. Empty when there are none --
@@ -434,7 +435,10 @@ async def _instruction(node: Node) -> tuple[str | None, str]:
     kind = node.content.mimetype
     if kind and kind != "application/octet-stream" and not is_text_like(kind):
         return None, "not_text"
-    return decode_text(await node.content.download()), ""
+    try:
+        return decode_text(await node.content.download(max_bytes=MAX_TEXT_BYTES)), ""
+    except ContentTooLargeError:
+        return None, "too_large"
 
 
 def _first(value: Any) -> str | None:

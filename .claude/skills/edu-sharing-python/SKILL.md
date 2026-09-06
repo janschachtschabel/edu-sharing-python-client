@@ -298,7 +298,8 @@ catches everything this library raises:
 
 `TransportError` · `AuthenticationError` · `PermissionDeniedError` ·
 `NotFoundError` · `ValidationError` · `ConflictError` · `SilentDropError` ·
-`ServerError` · `UnsafeUrlError`
+`ServerError` · `UnsafeUrlError` · `ContentTooLargeError` (a download above
+`max_bytes`; the text paths stop at `MAX_TEXT_BYTES`, 8 MiB, before downloading)
 
 `at_least(name, value, limit)` is the bounds check the clients apply to their settings;
 `details_withheld(…)` names what an error deliberately does not reveal.

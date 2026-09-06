@@ -17,7 +17,7 @@ import json
 import httpx
 import pytest
 
-from edusharing.errors import PermissionDeniedError, SilentDropError
+from edusharing.errors import ContentTooLargeError, PermissionDeniedError, SilentDropError
 from edusharing.nodes import Node, Nodes
 from edusharing.transport import Transport
 
@@ -504,6 +504,29 @@ async def test_download_ohne_datei_meldet_das_klar():
     assert node.content.has_content is False
     with pytest.raises(Exception, match="carries no file"):
         await node.content.download()
+
+
+async def test_download_lehnt_eine_zu_grosse_datei_vor_dem_abruf_ab():
+    """Audit SEC-2: die Groesse steht in cclom:size -- wer sie kennt, muss die
+    Datei nicht laden, um sie abzulehnen. Kein Abruf, ein Fehler mit beiden
+    Zahlen; unter dem Deckel kommt die Datei wie immer."""
+    geholt = []
+
+    class MitDownload(Server):
+        def __call__(self, request):
+            if "eduservlet/download" in str(request.url):
+                geholt.append(request)
+                return httpx.Response(200, content=b"x" * 50)
+            return super().__call__(request)
+
+    node = await _nodes(MitDownload()).get(NID)
+    node._data["downloadUrl"] = f"{REPO}/eduservlet/download?node={NID}"
+    node._data["content"] = {"hash": "-1222810457"}
+    node._data["properties"]["cclom:size"] = ["50"]
+    with pytest.raises(ContentTooLargeError, match="50"):
+        await node.content.download(max_bytes=10)
+    assert geholt == []
+    assert await node.content.download(max_bytes=50) == b"x" * 50
 
 
 async def test_leere_datei_gilt_als_inhalt():

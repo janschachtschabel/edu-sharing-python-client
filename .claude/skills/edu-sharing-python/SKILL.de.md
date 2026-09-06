@@ -310,7 +310,8 @@ muss — die Argument- und Rückgabeformen stehen in `docs/REFERENCE.de.md`.
 
 `TransportError` · `AuthenticationError` · `PermissionDeniedError` ·
 `NotFoundError` · `ValidationError` · `ConflictError` · `SilentDropError` ·
-`ServerError` · `UnsafeUrlError`
+`ServerError` · `UnsafeUrlError` · `ContentTooLargeError` (ein Download über
+`max_bytes`; die Textpfade halten bei `MAX_TEXT_BYTES`, 8 MiB, vor dem Laden an)
 
 `at_least(name, value, limit)` ist die Grenzprüfung, die die Clients auf ihre Einstellungen anwenden;
 `details_withheld(…)` benennt, was ein Fehler bewusst nicht preisgibt.

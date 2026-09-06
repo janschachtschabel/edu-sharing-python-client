@@ -27,6 +27,7 @@ __all__ = [
     "PermissionDeniedError",
     "NotFoundError",
     "ValidationError",
+    "ContentTooLargeError",
     "ConflictError",
     "ServerError",
     "SilentDropError",
@@ -129,6 +130,15 @@ class SilentDropError(EduSharingError):
     ) -> None:
         super().__init__(message, **kwargs)  # type: ignore[arg-type]
         self.dropped = dropped or []
+
+
+class ContentTooLargeError(EduSharingError):
+    """A download is larger than the caller allowed (``max_bytes``).
+
+    Raised before the request when the repository reports the size
+    (``NodeContent.size``), otherwise while the bytes arrive -- either way
+    nothing beyond the limit is held in memory (audit SEC-2, 2026-09-06).
+    """
 
 
 class ServerError(EduSharingError):

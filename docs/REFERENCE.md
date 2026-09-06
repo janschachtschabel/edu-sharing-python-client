@@ -93,6 +93,7 @@ Credentials never reach a log line — see *Logging* in the README.
 |---|---|
 | `repo.raw.json("GET", "/node/v1/nodes/-home-/{id}/metadata")` | the parsed body |
 | `repo.raw.request("POST", path, json=…)` | `httpx.Response` |
+| `repo.raw.download(path, max_bytes=…)` | `bytes` — streamed, capped, not retried |
 | `repo.raw.is_repository_url(url)` | `bool` — whether credentials would be attached |
 
 ```python
@@ -279,7 +280,8 @@ turns the same information into a breadcrumb that reads top-down.
 | `node.content.mimetype` | `str \| None` |
 | `node.content.size` | `int \| None` |
 | `node.content.download_url` | `str \| None` |
-| `node.content.download()` | `bytes` |
+| `node.content.download()` | `bytes` — read in chunks |
+| `node.content.download(max_bytes=…)` | `bytes` — `ContentTooLargeError` above the limit, before the request when `size` is known; the text paths pass `MAX_TEXT_BYTES` (8 MiB) |
 | `node.content.text()` | `str` — the extracted text the repository holds |
 | `node.content.upload(data, filename=…, mimetype=…)` | `Node` |
 | `node.content.set_preview(data, mimetype="image/png")` | `Node` |
@@ -533,10 +535,10 @@ and refused by `-default-`; a `SKILL.md` is read with `download()` because
 | `SkillConventions` | `type_property`, `skill_type`, `registry_type`, `registry_mark`, `markdown_mimetypes`, `block_kinds`, `skill_kind` |
 | `WLO_SKILLS` | the default conventions |
 | `SkillSummary` | `id`, `original_id`, `title`, `description`, `keywords`, `url`, `download_url` |
-| `SkillDocument` | the summary plus `content`, `content_reason` (`""`, "no_file", "not_text"), `references`, `files`, `files_reason` (`""`, "no_folder", "folder_unreadable", "too_many"), `folder_file_count` |
+| `SkillDocument` | the summary plus `content`, `content_reason` (`""`, "no_file", "not_text", "too_large"), `references`, `files`, `files_reason` (`""`, "no_folder", "folder_unreadable", "too_many"), `folder_file_count` |
 | `SkillFile` | `id`, `title`, `mimetype`, `size`, `download_url` |
 | `SkillSearch` | `hits`, `unresolved`, `truncated`, `unreadable` |
-| `SkillRegistry` | `collection_id`, `registry_id`, `registry_title`, `markdown`, `entries`, `unresolved`, `contexts`, `general`, `ambiguous`, `truncated`, `contexts_truncated`, `reason` (`""`, "collection_not_found", "no_registry", "unreadable"), `context_match` ("all", "exact", "missing"), `scan_truncated` |
+| `SkillRegistry` | `collection_id`, `registry_id`, `registry_title`, `markdown`, `entries`, `unresolved`, `contexts`, `general`, `ambiguous`, `truncated`, `contexts_truncated`, `reason` (`""`, "collection_not_found", "no_registry", "unreadable", "too_large"), `context_match` ("all", "exact", "missing"), `scan_truncated` |
 | `RegistryEntry` | `node_id`, `title`, `description`, `keywords`, `context` |
 | `load_registry(repo, collection_id, context=…, resolve=…, conventions=…)` | `SkillRegistry` — what `repo.skills.registry` calls |
 | `SKILL_SEARCH_PAGE` `SKILL_BUNDLE_MAX` `SKILL_VISIT_MAX` `SKILL_DEPTH_MAX` | `50` hits pooled · `50` companions listed before a folder counts as an inbox · `30` collections a walk may read · `2` levels below the given collection |
@@ -1267,6 +1269,7 @@ Every failure is an `EduSharingError`. Catch that one to catch them all.
 | `ConflictError` | the repository refuses the state (409) |
 | `ServerError` | the instance failed (5xx) |
 | `SilentDropError` | **the write returned 200 and stored nothing** |
+| `ContentTooLargeError` | a download is larger than max_bytes — before the request when the size is known |
 | `UnsafeUrlError` | `check_url` refused an address |
 
 ```python

@@ -20,6 +20,7 @@ import json
 import httpx
 
 from edusharing import AsyncRepository
+from edusharing.content import MAX_TEXT_BYTES
 from edusharing.extraction import TextExtraction
 
 REPO = "https://repo.test/edu-sharing"
@@ -138,6 +139,19 @@ async def test_markdown_kommt_per_download():
     assert got["source"] == "download"
     assert got["text"] == "# Titel\n\nDer Text."
     assert got["reason"] == ""
+
+
+async def test_eine_zu_grosse_textdatei_wird_nicht_geladen():
+    """Audit SEC-2: der Ablauf las jede Textdatei ganz in den Speicher. Ueber
+    MAX_TEXT_BYTES sagt er too_large -- ohne Abruf, wenn das Repositorium die
+    Groesse nennt."""
+    knoten = _knoten(datei=True, mimetype="text/plain")
+    knoten["properties"]["cclom:size"] = [str(MAX_TEXT_BYTES + 1)]
+    instanz = Instanz(knoten, datei=b"egal")
+    got = await _text(instanz)
+    assert got["source"] == "none" and got["reason"] == "too_large"
+    assert str(MAX_TEXT_BYTES) in got["detail"]
+    assert not any(p.endswith("/content") for p in instanz.pfade)
 
 
 async def test_eine_binaerdatei_wird_nicht_heruntergeladen():

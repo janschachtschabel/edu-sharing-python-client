@@ -55,8 +55,9 @@ async def skill(repo: AsyncRepository, node_id: str, **kwargs: Any) -> dict[str,
         ``{id, original_id, title, description, keywords, url, download_url,
         content, content_reason, references, files, files_reason,
         folder_file_count}``. **Read the reasons**: ``content_reason`` says
-        why ``content`` is ``None`` (``no_file``, or ``not_text`` for a binary
-        upload); an empty ``files`` with ``files_reason="folder_unreadable"``
+        why ``content`` is ``None`` (``no_file``, ``not_text`` for a binary
+        upload, ``too_large`` above ``MAX_TEXT_BYTES``); an empty ``files``
+        with ``files_reason="folder_unreadable"``
         means the folder needs rights (measured: 403 anonymously), not that
         the skill travels alone.
     """

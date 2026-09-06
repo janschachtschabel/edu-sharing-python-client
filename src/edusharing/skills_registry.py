@@ -21,8 +21,8 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from .content import decode_text
-from .errors import NotFoundError, PermissionDeniedError
+from .content import MAX_TEXT_BYTES, decode_text
+from .errors import ContentTooLargeError, NotFoundError, PermissionDeniedError
 from .nodes import Node
 from .skills import WLO_SKILLS, SkillConventions, registry_mark
 from .skills_markdown import RegistryContext, RegistryGeneral, layout_contexts, parse_blocks
@@ -79,7 +79,8 @@ class SkillRegistry:
     #: ``(listed, referenced)`` when the document declares more than one answer carries.
     truncated: tuple[int, int] | None = None
     contexts_truncated: tuple[int, int] | None = None
-    #: ``""``, ``collection_not_found``, ``no_registry`` or ``unreadable``.
+    #: ``""``, ``collection_not_found``, ``no_registry``, ``unreadable`` or
+    #: ``too_large`` (the document exceeds ``MAX_TEXT_BYTES``; not downloaded).
     reason: str = ""
     #: ``all`` (no context asked), ``exact``, or ``missing`` -- a miss never
     #: narrows, so ``entries`` then holds everything and ``contexts`` says what
@@ -142,9 +143,9 @@ async def load_registry(
         ambiguous=len(candidates) if len(candidates) > 1 else 0,
         scan_truncated=scan_truncated,
     )
-    markdown = await _document_of(repo, chosen, registry_id)
+    markdown, why = await _document_of(repo, chosen, registry_id)
     if markdown is None:
-        return _with(base, reason="unreadable")
+        return _with(base, reason=why)
 
     blocks = parse_blocks(markdown, conventions.block_kinds)
     layout = layout_contexts(markdown, blocks, skill_kind=conventions.skill_kind)
@@ -203,8 +204,8 @@ async def load_registry(
 
 async def _document_of(
     repo: AsyncRepository, chosen: dict[str, Any], registry_id: str
-) -> str | None:
-    """The registry Markdown, or ``None`` when it cannot be read.
+) -> tuple[str | None, str]:
+    """The registry Markdown, or ``None`` and why (``unreadable``, ``too_large``).
 
     The listing entry is a full record on this instance; only when it lacks
     what a download needs is the record read again. A candidate without a
@@ -215,10 +216,12 @@ async def _document_of(
         if "content" not in chosen or not record.content.download_url:
             record = await repo.node(registry_id)
         if not record.content.has_content:
-            return None
-        return decode_text(await record.content.download())
+            return None, "unreadable"
+        return decode_text(await record.content.download(max_bytes=MAX_TEXT_BYTES)), ""
     except (NotFoundError, PermissionDeniedError):
-        return None
+        return None, "unreadable"
+    except ContentTooLargeError:
+        return None, "too_large"
 
 
 async def _read_heads(repo: AsyncRepository, ids: list[str]) -> list[dict[str, Any] | None]:
