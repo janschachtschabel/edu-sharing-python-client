@@ -326,3 +326,20 @@ async def test_beschreibung_gehoert_in_das_collection_objekt():
     body = json.loads(post.content)
     assert body["collection"]["description"] == "Text"
     assert "description" not in body, "auf oberster Ebene lehnt die API sie ab"
+
+
+# --- COR-1: die Sammlungssuche ist ein POST, aber ein Lesen (Review 06.09.2026, F6)
+
+async def test_die_sammlungssuche_wird_nach_abbruch_wiederholt():
+    abgebrochen = []
+    router = _router()
+
+    def handler(request):
+        if request.method == "POST" and not abgebrochen:
+            abgebrochen.append(1)
+            raise httpx.ReadTimeout("abgebrochen", request=request)
+        return router(request)
+
+    ergebnis = await _collections(handler).find("Bruchrechnung")
+    assert abgebrochen == [1]
+    assert ergebnis.hits

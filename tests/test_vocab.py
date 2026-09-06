@@ -304,3 +304,20 @@ async def test_resolve_bleibt_die_einzahl():
     vocab = _vocab(lambda r: httpx.Response(200, json=DOPPELT))
     einer = await vocab.resolve("ccm:taxonid", "Biologie")
     assert einer in await vocab.resolve_all("ccm:taxonid", "Biologie")
+
+
+# --- COR-1: die Werteabfrage ist ein POST, aber ein Lesen (Review 06.09.2026, F6)
+
+async def test_werte_werden_nach_abbruch_erneut_geholt():
+    abgebrochen = []
+    liefert = _liefert(FAECHER)
+
+    def handler(request):
+        if not abgebrochen:
+            abgebrochen.append(1)
+            raise httpx.ReadTimeout("abgebrochen", request=request)
+        return liefert(request)
+
+    werte = await _vocab(handler).values("ccm:taxonid")
+    assert abgebrochen == [1]
+    assert len(werte) == 3

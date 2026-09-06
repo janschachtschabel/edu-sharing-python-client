@@ -357,3 +357,26 @@ async def test_reprs_nennen_das_wesentliche():
         rechte = await knoten.permissions.get()
     assert "public=True" in repr(rechte)
     assert repr(rechte.own[0]) == f"Ace('{EVERYONE}', {CONSUMER})"
+
+
+# --- COR-1: die ACL-Stelle sagt idempotent=True (Review 06.09.2026, F6) ------
+
+async def test_die_acl_wird_nach_abbruch_erneut_gesendet():
+    """Ein ganzes ACL zu ersetzen ist zweimal derselbe Zustand. Ohne diesen
+    Test hielte ein verlorenes Flag die Suite gruen."""
+    instanz = Instanz()
+    abgebrochen = []
+    echt = instanz.handler
+
+    def handler(request):
+        if request.method == "POST" and not abgebrochen:
+            abgebrochen.append(1)
+            raise httpx.ReadTimeout("abgebrochen", request=request)
+        return echt(request)
+
+    instanz.handler = handler
+    async with instanz.repo() as repo:
+        knoten = await repo.node("n1")
+        await knoten.permissions.grant("bob", "Consumer")
+    assert abgebrochen == [1]
+    assert len(instanz.geschrieben) == 1

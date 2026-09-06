@@ -130,6 +130,7 @@ class Comments:
             f"/comment/v1/comments/-home-/{path_segment(comment_id)}",
             content=text.encode("utf-8"),
             headers={"Content-Type": "application/json"},
+            idempotent=True,
         )
         for comment in await self.list():
             if comment.id == comment_id and comment.text == text:

@@ -571,10 +571,13 @@ einem Timeout nach dem Senden oder einem `5xx` weiß niemand, ob das
 Repositorium die Anfrage ausgeführt hat. Der Transport sendet dann nur erneut,
 was zweimal ankommen darf: Lesezugriffe und die Schreibvorgänge, die bloß einen
 Zustand setzen — `update`, `set_property`, Rechte, Bewertungen,
-`collections.update`. Anlegen, Löschen, in eine Sammlung legen werfen
-stattdessen `TransportError` mit dem Hinweis, dass die Anfrage ausgeführt
-worden sein könnte — nachsehen, dann entscheiden. Ein Verbindungsfehler von
-vor dem Senden wird für jede Methode wiederholt.
+`collections.update`, der Text eines Kommentars, das Vorschaubild. Anlegen,
+Löschen, in eine Sammlung legen werfen stattdessen `TransportError` mit dem
+Hinweis, dass die Anfrage ausgeführt worden sein könnte — nachsehen, dann
+entscheiden. Ein Verbindungsfehler von vor dem Senden wird für jede Methode
+wiederholt. Auf einer Instanz, die ihre Fehlermeldungen zurückhält, trägt ein
+`5xx` bei einem Schreibvorgang eine Notiz: es kann der gemessene
+Login-Ausrutscher sein, kein Serverfehler — zurücklesen, dann entscheiden.
 
 Dazu drei Fehler, die mit dem falschen Status ankommen — damit `except
 NotFoundError` sie wirklich fängt, und damit der Transport nicht dreimal

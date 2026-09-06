@@ -312,3 +312,19 @@ async def test_suchwort_wird_nicht_gecacht_wie_vokabular():
     await s.search("b")
     suchen = [r for r in aufrufe if "/ngsearch" in str(r.url)]
     assert len(suchen) == 2
+
+
+# --- COR-1: eine Suchanfrage ist ein POST, aber ein Lesen (Review 06.09.2026, F6)
+
+async def test_die_suche_wird_nach_abbruch_wiederholt():
+    abgebrochen = []
+
+    def handler(request):
+        if "/search/v1" in str(request.url) and not abgebrochen:
+            abgebrochen.append(1)
+            raise httpx.ReadTimeout("abgebrochen", request=request)
+        return _router(request)
+
+    e = await _suche(handler).search("Photosynthese")
+    assert abgebrochen == [1]
+    assert e.hits

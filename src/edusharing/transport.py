@@ -94,6 +94,22 @@ def _check_size(size: int, max_bytes: int | None, url: str) -> None:
         )
 
 
+def _noted(error: EduSharingError, method: str, repeatable: bool) -> EduSharingError:
+    """The error raised instead of a retry -- with a note when a withheld 5xx
+    meets a write. On an instance that hides its messages the measured "not
+    signed in" hiccup arrives as a 500: a read is retried once for it
+    (``may_retry_withheld``), a write is not, because nobody knows whether it
+    ran. Without the note the error would look like a server fault (review
+    2026-09-06)."""
+    if not repeatable and isinstance(error, ServerError) and details_withheld(error):
+        error.add_note(
+            f"Not retried: the {method} may already have been carried out. The "
+            "instance withholds its error details, so this may be a login hiccup "
+            "rather than a server fault -- read back before sending it again."
+        )
+    return error
+
+
 def _network_failure(
     exc: httpx.HTTPError, method: str, url: str, repeatable: bool
 ) -> TransportError:
@@ -333,7 +349,7 @@ class Transport:
             # means "not signed in" was already classified as
             # AuthenticationError and no longer counts as a ServerError here.
             if not isinstance(last, ServerError) or not repeatable:
-                raise last
+                raise _noted(last, method, repeatable)
             if details_withheld(last):
                 if not may_retry_withheld:
                     raise last

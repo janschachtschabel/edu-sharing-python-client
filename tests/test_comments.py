@@ -257,3 +257,24 @@ async def test_comments_repr_nennt_den_knoten():
     async with instanz.repo() as repo:
         knoten = await repo.node(NID)
         assert NID in repr(knoten.comments)
+
+
+# --- COR-1: den Text setzen ist zweimal derselbe Zustand (Review 06.09.2026, F5)
+
+async def test_bearbeiten_wird_nach_abbruch_erneut_gesendet():
+    instanz = Instanz(eintraege=[_eintrag("c-1", "alt")])
+    abgebrochen = []
+    echt = instanz.handler
+
+    def handler(request):
+        if request.method == "POST" and not abgebrochen:
+            abgebrochen.append(1)
+            raise httpx.ReadTimeout("abgebrochen", request=request)
+        return echt(request)
+
+    instanz.handler = handler
+    async with instanz.repo() as repo:
+        knoten = await repo.node(NID)
+        await knoten.comments.edit("c-1", "neu")
+    assert abgebrochen == [1]
+    assert instanz.eintraege[0]["comment"] == "neu"

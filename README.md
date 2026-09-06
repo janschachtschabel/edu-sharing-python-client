@@ -556,10 +556,13 @@ three would be a penalty for a typo in a password.
 timeout past the sending, or a `5xx`, nobody knows whether the repository
 carried the request out. The transport then re-sends only what may arrive
 twice: reads, and the writes that merely set a state — `update`,
-`set_property`, permissions, ratings, `collections.update`. Creating,
-deleting, adding to a collection raise `TransportError` instead, saying that
-the request may have been carried out — look before sending it again. A
-connection failure from before anything was sent is retried for every method.
+`set_property`, permissions, ratings, `collections.update`, a comment's text,
+the preview. Creating, deleting, adding to a collection raise
+`TransportError` instead, saying that the request may have been carried out —
+look before sending it again. A connection failure from before anything was
+sent is retried for every method. On an instance that withholds its error
+messages, a `5xx` on a write carries a note: it may be the measured login
+hiccup rather than a server fault — read back, then decide.
 
 And three errors that arrive wearing the wrong status, so that `except
 NotFoundError` actually catches them — and so the transport does not retry

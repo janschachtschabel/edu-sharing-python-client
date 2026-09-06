@@ -732,3 +732,22 @@ async def test_download_traegt_die_anmeldung_nur_zum_repositorium():
         await t.download("https://fremd.example.test/datei")
     assert gesehen["repositorium.example.test"] is not None
     assert gesehen["fremd.example.test"] is None
+
+
+async def test_vorenthaltener_5xx_bei_einem_post_nennt_den_verdacht():
+    """Review 06.09.2026 (F4): auf der Produktivinstanz (Meldungen versteckt)
+    kommt der gemessene 401-Ausrutscher als 500 "details hidden" an. Fuer ein
+    POST wird er nicht wiederholt -- ob es lief, weiss niemand -- aber der
+    Fehler sagt das, statt wie ein Serverfehler auszusehen."""
+    versuche = []
+
+    def handler(request):
+        versuche.append(1)
+        return httpx.Response(500, json={"error": "java.lang.Exception",
+                                         "message": "details hidden"})
+
+    async with _transport(handler, max_retries=2) as t:
+        with pytest.raises(ServerError) as fehler:
+            await t.request("POST", WRITE)
+    assert len(versuche) == 1
+    assert any("read back" in n for n in fehler.value.__notes__)

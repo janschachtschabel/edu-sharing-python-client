@@ -448,3 +448,25 @@ def test_repr_nennt_das_wesentliche():
         swimlanes=(Swimlane(heading="h", type="container", items=()),),
         readable=True)
     assert "v" in repr(variante) and "1" in repr(variante)
+
+
+# --- COR-1: die Seitenkonfiguration sagt idempotent=True (Review 06.09.2026, F6)
+
+async def test_die_seitenkonfiguration_wird_nach_abbruch_erneut_gesendet():
+    instanz = Instanz()
+    abgebrochen = []
+    echt = instanz.handler
+
+    def handler(request):
+        if (request.method == "POST" and request.url.path.endswith("/property")
+                and not abgebrochen):
+            abgebrochen.append(1)
+            raise httpx.ReadTimeout("abgebrochen", request=request)
+        return echt(request)
+
+    instanz.handler = handler
+    async with instanz.repo() as repo:
+        knoten = await repo.node(SAMMLUNG)
+        await knoten.page.render(V2)
+    assert abgebrochen == [1]
+    assert instanz.geschrieben == ["ccm:page_config"]

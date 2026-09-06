@@ -345,3 +345,42 @@ async def test_ein_nicht_angekommener_titel_wird_gemeldet():
                                           description="Auch neu")
     assert "cm:title" in fehler.value.dropped
     assert "cm:description" in fehler.value.dropped
+
+
+# --- COR-1: zwei Zustands-Schreibstellen (Review 06.09.2026, F5/F6) ----------
+
+def _bricht_beim_ersten(instanz: Instanz, methode: str, pfadende: str) -> list:
+    """Der erste Aufruf dieser Methode auf diesen Pfad bricht nach dem Senden ab."""
+    abgebrochen: list[int] = []
+    echt = instanz.handler
+
+    def handler(request):
+        if (request.method == methode and request.url.path.endswith(pfadende)
+                and not abgebrochen):
+            abgebrochen.append(1)
+            raise httpx.ReadTimeout("abgebrochen", request=request)
+        return echt(request)
+
+    instanz.handler = handler
+    return abgebrochen
+
+
+async def test_sammlung_aendern_wird_nach_abbruch_erneut_gesendet():
+    instanz = Instanz()
+    abgebrochen = _bricht_beim_ersten(instanz, "PUT", "/s-1")
+    async with instanz.repo() as repo:
+        knoten = await repo.collections.update("s-1", title="Neu")
+    assert abgebrochen == [1]
+    assert knoten.title == "Neu"
+
+
+async def test_vorschaubild_wird_nach_abbruch_erneut_gesendet():
+    """Ein Vorschaubild setzen ersetzt es -- zweimal angekommen ist derselbe
+    Zustand (F5: die Stelle war nicht markiert)."""
+    instanz = Instanz()
+    abgebrochen = _bricht_beim_ersten(instanz, "POST", "/preview")
+    async with instanz.repo() as repo:
+        knoten = await repo.node(NID)
+        await knoten.content.set_preview(PNG)
+    assert abgebrochen == [1]
+    assert instanz.eigenes_bild

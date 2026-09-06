@@ -178,6 +178,7 @@ class NodeContent:
             f"/node/v1/nodes/-home-/{path_segment(self._node.id)}/preview",
             params={"mimetype": mimetype},
             files={"image": ("preview", data, mimetype)},
+            idempotent=True,
         )
         return await self._node._nodes.get(self._node.id)
 

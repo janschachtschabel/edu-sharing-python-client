@@ -197,3 +197,24 @@ def test_rating_ist_unveraenderlich():
 
 def test_rating_repr_nennt_schnitt_und_zahl():
     assert repr(Rating(average=4.0, count=3, own=None)) == "Rating(4.0 aus 3)"
+
+
+# --- COR-1: die Bewertungs-Stelle sagt idempotent=True (Review 06.09.2026, F6)
+
+async def test_eine_bewertung_wird_nach_abbruch_erneut_gesendet():
+    instanz = Instanz()
+    abgebrochen = []
+    echt = instanz.handler
+
+    def handler(request):
+        if request.method == "PUT" and not abgebrochen:
+            abgebrochen.append(1)
+            raise httpx.ReadTimeout("abgebrochen", request=request)
+        return echt(request)
+
+    instanz.handler = handler
+    async with instanz.repo() as repo:
+        knoten = await repo.node(NID)
+        await knoten.rate(4)
+    assert abgebrochen == [1]
+    assert instanz.params("PUT")["rating"] == "4"
