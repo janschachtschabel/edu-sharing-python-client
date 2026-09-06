@@ -93,7 +93,7 @@ Credentials never reach a log line — see *Logging* in the README.
 |---|---|
 | `repo.raw.json("GET", "/node/v1/nodes/-home-/{id}/metadata")` | the parsed body |
 | `repo.raw.request("POST", path, json=…)` | `httpx.Response` |
-| `repo.raw.download(path, max_bytes=…)` | `bytes` — streamed, capped, not retried |
+| `repo.raw.download(path, max_bytes=…)` | `bytes` — streamed past `max_bytes`, retried like any GET |
 | `repo.raw.is_repository_url(url)` | `bool` — whether credentials would be attached |
 
 ```python

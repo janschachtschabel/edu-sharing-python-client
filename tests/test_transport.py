@@ -620,14 +620,83 @@ async def test_download_bricht_ueber_max_bytes_ab():
 
 
 async def test_download_lehnt_eine_angekuendigte_groesse_vor_dem_lesen_ab():
+    """Review 06.09.2026 (F7): MockTransport reicht einen bytes-Koerper als ein
+    Stueck durch, also bewies der Test nicht, dass vor dem ersten Byte
+    abgelehnt wird. Jetzt merkt sich der Koerper, ob er gezogen wurde."""
+    gezogen = []
+
+    async def koerper():
+        gezogen.append(1)
+        yield b"x" * 1000
+
     def handler(request):
-        return httpx.Response(200, content=b"x" * 1000)      # Content-Length: 1000
+        return httpx.Response(200, content=koerper(), headers={"Content-Length": "1000"})
 
     async with _transport(handler) as t:
         with pytest.raises(ContentTooLargeError, match="1000"):
             await t.download("/x", max_bytes=100)
+        assert gezogen == [], "kein Byte gelesen"
         assert len(await t.download("/x", max_bytes=1000)) == 1000
         assert len(await t.download("/x")) == 1000
+
+
+async def test_download_wird_wie_ein_get_wiederholt():
+    """Review 06.09.2026 (F2): die erste Fassung lief am Transport vorbei und
+    verlor alle Wiederholungen -- ein 502, ein Verbindungsfehler oder der
+    gemessene 401-Ausrutscher liessen jeden Datei-Fan-out scheitern, der
+    zuvor durchkam. Ein Download ist ein GET und wird wie eines wiederholt."""
+    versuche = []
+
+    def handler(request):
+        versuche.append(1)
+        if len(versuche) == 1:
+            return httpx.Response(502, text="")
+        if len(versuche) == 2:
+            raise httpx.ConnectError("weg", request=request)
+        return httpx.Response(200, content=b"Dateiinhalt")
+
+    async with _transport(handler, max_retries=3) as t:
+        assert await t.download("/x", max_bytes=100) == b"Dateiinhalt"
+    assert len(versuche) == 3
+
+
+async def test_zu_gross_wird_nicht_wiederholt():
+    versuche = []
+
+    def handler(request):
+        versuche.append(1)
+        return httpx.Response(200, content=b"x" * 200)
+
+    async with _transport(handler, max_retries=3) as t:
+        with pytest.raises(ContentTooLargeError):
+            await t.download("/x", max_bytes=100)
+    assert len(versuche) == 1
+
+
+async def test_eine_fehlerseite_wird_begrenzt_gelesen():
+    """Review 06.09.2026 (F10): max_bytes galt nicht fuer den Koerper eines
+    5xx. Eine Fehlerseite wird bei 64 KiB abgeschnitten, nicht abgelehnt --
+    der Fehler bleibt ein ServerError."""
+    def handler(request):
+        return httpx.Response(500, content=b"e" * 200_000)
+
+    async with _transport(handler, max_retries=0) as t:
+        with pytest.raises(ServerError) as fehler:
+            await t.download("/x", max_bytes=10)
+    assert len(str(fehler.value)) < 70_000
+
+
+async def test_download_mit_eigener_anmeldung():
+    """Review 06.09.2026 (F11): download() kennt credential= wie request()."""
+    gesehen = []
+
+    def handler(request):
+        gesehen.append(request.headers.get("authorization"))
+        return httpx.Response(200, content=b"x")
+
+    async with _transport(handler) as t:
+        await t.download("/x", credential=ANONYMOUS)
+    assert gesehen == [None]
 
 
 async def test_download_meldet_umleitung_status_und_netzfehler():

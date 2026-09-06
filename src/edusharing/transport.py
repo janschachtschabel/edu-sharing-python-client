@@ -63,6 +63,8 @@ _SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 # Failures from before anything went over the wire: nothing happened on the
 # server, so any method may try again.
 _BEFORE_SENDING = (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout)
+# How much of an error page a capped download keeps for the message.
+_ERROR_PAGE_LIMIT = 64 * 1024
 
 
 def _redirect_error(response: httpx.Response, url: str) -> EduSharingError:
@@ -259,6 +261,7 @@ class Transport:
         files: Any = None,
         headers: dict[str, str] | None = None,
         idempotent: bool | None = None,
+        max_bytes: int | None = None,
     ) -> httpx.Response:
         """Make a request and return the response.
 
@@ -270,11 +273,15 @@ class Transport:
                 and OPTIONS are, everything else is not. A write that merely
                 sets a state -- the metadata, one property, an ACL -- passes
                 ``True`` and is then retried like a read.
+            max_bytes: read the body in chunks and refuse one larger than
+                this -- the announced Content-Length before the first byte,
+                the count while they arrive. ``None`` reads the body whole.
 
         Raises:
             EduSharingError: on any status from 400 up, as the matching subtype.
             TransportError: when the request never reached the server -- or
                 may have, and must not be sent twice.
+            ContentTooLargeError: above ``max_bytes``.
         """
         url = self._resolve(path)
         cred = self.credential if credential is None else credential_from(credential)
@@ -303,10 +310,9 @@ class Transport:
             logger.debug("%s %s", method, self._for_log(url))
             try:
                 async with self._semaphore:
-                    response = await self._client.request(
-                        method, url,
-                        params=params, json=json, content=content,
-                        files=files, headers=request_headers,
+                    response = await self._send(
+                        method, url, params=params, json=json, content=content,
+                        files=files, headers=request_headers, max_bytes=max_bytes,
                     )
             except httpx.HTTPError as exc:
                 # Network layer: timeout, DNS, TLS, dropped connection.
@@ -344,46 +350,63 @@ class Transport:
         response = await self.request(method, path, **kwargs)
         return response.json()
 
-    async def download(self, path: str, *, max_bytes: int | None = None) -> bytes:
-        """GET a body in chunks; refuse one larger than ``max_bytes``.
+    async def download(
+        self, path: str, *, max_bytes: int | None = None, credential: object | None = None
+    ) -> bytes:
+        """GET a body, refusing one larger than ``max_bytes``.
 
-        ``request`` reads a whole body into memory before anyone can look at
-        its size (audit SEC-2). Here the announced ``Content-Length`` is
-        checked before the first byte and the count while they arrive.
-        Status handling is that of ``request``: a redirect is reported, a
-        status from 400 up becomes the matching error. Not retried -- a second
-        attempt would be a second full download, and a caller who wants one
-        can call again.
+        Goes through ``request`` and is retried like any GET -- the first
+        version bypassed the loop and lost every retry with it, the 401-once
+        rule included (review 2026-09-06). With ``max_bytes`` the body is read
+        in chunks: the announced Content-Length is checked before the first
+        byte, the count while they arrive, so nothing beyond the limit is
+        ever held. Without it the body is read whole, as before.
 
         Raises:
-            ContentTooLargeError: above ``max_bytes``, with the size so far.
+            ContentTooLargeError: above ``max_bytes``, naming both numbers.
             EduSharingError: on a redirect or any status from 400 up.
-            TransportError: on a network failure, before or during the read.
+            TransportError: on a network failure the retries did not cure.
         """
-        url = self._resolve(path)
-        request_headers = self._headers(url, self.credential, None)
-        logger.debug("GET %s (streaming)", self._for_log(url))
-        chunks: list[bytes] = []
-        received = 0
-        try:
-            async with self._semaphore, self._client.stream(
-                "GET", url, headers=request_headers
-            ) as response:
-                if 300 <= response.status_code < 400:
-                    raise _redirect_error(response, url)
-                if response.status_code >= 400:
-                    await response.aread()
-                    raise error_from_response(response.status_code, url, response.text)
-                announced = response.headers.get("content-length", "")
-                if announced.isdigit():
-                    _check_size(int(announced), max_bytes, url)
-                async for chunk in response.aiter_bytes():
-                    received += len(chunk)
+        response = await self.request("GET", path, credential=credential, max_bytes=max_bytes)
+        return bytes(response.content)
+
+    async def _send(
+        self, method: str, url: str, *, params: dict[str, Any] | None, json: Any,
+        content: bytes | str | None, files: Any, headers: dict[str, str],
+        max_bytes: int | None,
+    ) -> httpx.Response:
+        """One attempt. With ``max_bytes`` the body arrives in chunks and is
+        refused past the limit -- the announced Content-Length before the first
+        byte, the count while they arrive; an error page is cut at 64 KiB
+        instead of refused. The rest of ``request`` then sees an ordinary
+        response, so retries, the 401 rule and the status handling are the
+        same for a download as for any GET."""
+        if max_bytes is None:
+            return await self._client.request(
+                method, url, params=params, json=json, content=content,
+                files=files, headers=headers,
+            )
+        async with self._client.stream(
+            method, url, params=params, json=json, content=content,
+            files=files, headers=headers,
+        ) as response:
+            success = response.status_code < 300
+            announced = response.headers.get("content-length", "")
+            if success and announced.isascii() and announced.isdigit():
+                _check_size(int(announced), max_bytes, url)
+            chunks: list[bytes] = []
+            received = 0
+            async for chunk in response.aiter_bytes():
+                received += len(chunk)
+                if success:
                     _check_size(received, max_bytes, url)
-                    chunks.append(chunk)
-        except httpx.HTTPError as exc:
-            raise TransportError(f"{type(exc).__name__}: {exc}", url=url) from exc
-        return b"".join(chunks)
+                elif received > _ERROR_PAGE_LIMIT:
+                    break
+                chunks.append(chunk)
+            return httpx.Response(
+                response.status_code, headers=response.headers,
+                content=b"".join(chunks), request=response.request,
+            )
 
     def __repr__(self) -> str:
         return f"Transport({self.repository_url!r})"
