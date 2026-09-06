@@ -305,6 +305,7 @@ def test_mit_umgebungsvariable_entsteht_einer(monkeypatch):
     "ftp://extraktion.test",
     "https://extraktion.test/pfad?a=1",
     "https://alice:geheim@extraktion.test",           # SEC-1: Zugangsdaten
+    "alice:geheim@extraktion.test",                   # ... auch ohne Schema
     "   ",
 ])
 def test_unbrauchbare_basis_url_wird_abgelehnt(wert):
@@ -312,6 +313,20 @@ def test_unbrauchbare_basis_url_wird_abgelehnt(wert):
     schicken."""
     with pytest.raises(EduSharingError):
         TextExtraction(wert)
+
+
+@pytest.mark.parametrize("wert", [
+    "https://alice:geheim@extraktion.test",
+    "https:/alice:geheim@extraktion.test",
+    "alice:geheim@extraktion.test",
+])
+def test_zugangsdaten_stehen_nicht_in_der_meldung(wert):
+    """Review 06.09.2026 (F8): die Ablehnung war getestet, die Maskierung
+    nicht -- und "https:/user:pw@host" lief bis zur Schema-Pruefung, deren
+    Meldung die Adresse samt Passwort wiederholte."""
+    with pytest.raises(EduSharingError) as fehler:
+        TextExtraction(wert)
+    assert "geheim" not in str(fehler.value)
 
 
 def test_repr_nennt_den_dienst():

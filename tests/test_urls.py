@@ -10,8 +10,10 @@ import pytest
 from edusharing.errors import EduSharingError
 from edusharing.urls import (
     is_unroutable_host,
+    mask_userinfo,
     normalize_repository_url,
     path_segment,
+    refuse_userinfo,
     rest_base,
 )
 
@@ -80,6 +82,8 @@ def test_doppeltes_edu_sharing_wird_abgelehnt():
     "https://alice:geheim@repositorium.example.test",
     "alice:geheim@repositorium.example.test/edu-sharing",     # ohne Schema
     "https://alice@repositorium.example.test/edu-sharing",    # nur der Name
+    "https:/alice:geheim@repositorium.example.test",          # Tippfehler im Schema
+    "ftp://alice:geheim@repositorium.example.test",           # fremdes Schema
 ])
 def test_zugangsdaten_in_der_adresse_werden_abgewiesen(eingabe):
     """Audit SEC-1 (03.09.2026): ``user:pw@host`` ging durch -- und die
@@ -89,6 +93,43 @@ def test_zugangsdaten_in_der_adresse_werden_abgewiesen(eingabe):
         normalize_repository_url(eingabe)
     assert "geheim" not in str(fehler.value)
     assert "EDU_SHARING_USER" in str(fehler.value)
+
+
+@pytest.mark.parametrize("eingabe", [
+    "ftp://repositorium.example.test/edu-sharing",
+    "https:/repositorium.example.test",
+    "file:///tmp/edu-sharing",
+])
+def test_ein_fremdes_oder_verschriebenes_schema_wird_abgewiesen(eingabe):
+    """Review 06.09.2026 (F1): "https:/host" bekam "https://" vorangestellt und
+    wurde zu "https://https:/host" -- mit allem, was hinter dem Tippfehler
+    stand, im Pfad. Nur http(s) ist eine Repository-Adresse."""
+    with pytest.raises(EduSharingError, match="http"):
+        normalize_repository_url(eingabe)
+
+
+def test_ein_port_ist_kein_schema():
+    assert (normalize_repository_url("repositorium.example.test:8080")
+            == "https://repositorium.example.test:8080/edu-sharing")
+
+
+def test_refuse_userinfo_liest_die_autoritaet_nicht_urlsplit():
+    """urlsplit sieht in "user:pw@host" das Schema "user" und in
+    "https:/user:pw@host" den Pfad -- die Zugangsdaten stuenden dann trotzdem
+    in jeder Logzeile. Gelesen wird, was hinter Schema und Schraegstrichen bis
+    zum ersten "/" steht."""
+    for adresse in ("alice:geheim@host.test", "https:/alice:geheim@host.test",
+                    "//alice:geheim@host.test", "alice@host.test"):
+        with pytest.raises(EduSharingError) as fehler:
+            refuse_userinfo(adresse, instead="x")
+        assert "geheim" not in str(fehler.value), adresse
+    for harmlos in ("https://host.test/pfad@x", "host.test:8080/a?b=c@d", ""):
+        refuse_userinfo(harmlos, instead="x")
+
+
+def test_mask_userinfo_verbirgt_nur_die_zugangsdaten():
+    assert mask_userinfo("https:/alice:geheim@host.test/x") == "https:/***@host.test/x"
+    assert mask_userinfo("https://host.test/x") == "https://host.test/x"
 
 
 def test_zugangsdaten_werden_vor_dem_deep_link_geprueft():

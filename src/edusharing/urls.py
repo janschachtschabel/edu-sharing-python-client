@@ -4,16 +4,19 @@ Operators name their repository sometimes as a bare domain, sometimes with
 ``/edu-sharing``, sometimes with the ``/rest`` from the API docs appended. All
 of these mean the same thing, so all of them should work.
 
-Two forms do NOT mean it and are rejected rather than silently guessed at: a
-deep link to a page, and a doubled ``/edu-sharing``. Either would otherwise
-make every single call end in 404 with nothing anywhere saying why.
+Four forms do NOT mean it and are rejected rather than silently guessed at: a
+deep link to a page, a doubled ``/edu-sharing``, credentials inside the
+address, and a scheme that is not http(s) -- ``ftp://`` as much as the typo
+``https:/``. The first two would otherwise make every single call end in 404
+with nothing anywhere saying why; the last two would put a password into
+every log line.
 """
 
 from __future__ import annotations
 
 import ipaddress
 import re
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote
 
 from .errors import EduSharingError
 
@@ -21,26 +24,39 @@ __all__ = ["normalize_repository_url", "path_segment", "rest_base",
            "is_unroutable_host"]
 
 _APP_SEGMENT = "/edu-sharing"
+# An optional scheme, any slashes, then the authority: up to the first "/",
+# "?" or "#". Read by hand rather than with urlsplit, which sees the scheme
+# "user" in "user:pw@host" and only a path in the typo "https:/user:pw@host".
+_AUTHORITY = re.compile(r"^(?:[A-Za-z][A-Za-z0-9+.-]*:)?/*([^/?#]*)")
+_SCHEME_WITH_SLASH = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:/")
+_USERINFO = re.compile(r"[^/\s@]+@")
+
+
+def mask_userinfo(url: str) -> str:
+    """``user:password@`` replaced by ``***@`` -- for any message that repeats
+    an address, however malformed it is."""
+    return _USERINFO.sub("***@", url)
 
 
 def refuse_userinfo(url: str, *, instead: str) -> None:
-    """Refuse ``scheme://user:password@host`` (audit SEC-1, 2026-09-03).
+    """Refuse ``user:password@host`` anywhere in the authority (audit SEC-1).
 
     An address is logged, repeated in error messages and, for the repository,
     part of every viewer URL: credentials inside it leak everywhere at once.
-    ``instead`` says where they belong; the message masks them.
+    Caught in every spelling -- with a scheme, without one, with the typo
+    ``https:/`` (review 2026-09-06) -- because the address would be logged as
+    given. ``instead`` says where the credentials belong; the message masks
+    them.
 
     Raises:
-        EduSharingError: when the host part carries user information.
+        EduSharingError: when the authority carries user information.
     """
-    # Without "//" urlsplit reads "user:pw@host" as the scheme "user".
-    netloc = urlsplit(url if "//" in url else f"//{url}").netloc
-    if "@" not in netloc:
+    authority = _AUTHORITY.match(url)
+    if authority is None or "@" not in authority.group(1):
         return
-    shown = url.replace(netloc, "***@" + netloc.rsplit("@", 1)[1], 1)
     raise EduSharingError(
-        f"The address {shown!r} carries credentials (user:password@host) and is "
-        f"refused: an address is logged and repeated in error messages. {instead}"
+        f"The address {mask_userinfo(url)!r} carries credentials (user:password@host) "
+        f"and is refused: an address is logged and repeated in error messages. {instead}"
     )
 
 
@@ -51,8 +67,9 @@ def normalize_repository_url(raw: str) -> str:
     the viewer URLs ``/components/...`` derive from it.
 
     Raises:
-        EduSharingError: on empty input, a deep link, or a doubled
-            ``/edu-sharing``.
+        EduSharingError: on empty input, a deep link, a doubled
+            ``/edu-sharing``, credentials in the address, or a scheme other
+            than http(s).
     """
     url = (raw or "").strip()
     if not url:
@@ -65,14 +82,23 @@ def normalize_repository_url(raw: str) -> str:
     # We append /rest ourselves; anyone passing it would otherwise get /rest/rest.
     url = re.sub(r"/rest$", "", url, flags=re.IGNORECASE).rstrip("/")
 
-    if not re.match(r"^https?://", url, flags=re.IGNORECASE):
-        url = f"https://{url}"
-
+    # Credentials first: every message below repeats the address.
     refuse_userinfo(
         url,
         instead="Pass them as Repository(url, auth=(user, password)) or set "
         "EDU_SHARING_USER and EDU_SHARING_PASSWORD.",
     )
+    if _SCHEME_WITH_SLASH.match(url) and not re.match(r"^https?://", url, flags=re.IGNORECASE):
+        # "ftp://host" as much as the typo "https:/host": prepending https://
+        # would keep the wrong scheme -- and everything behind it -- as the
+        # path, and every call would go to an address that cannot answer.
+        raise EduSharingError(
+            f"The address {mask_userinfo(url)!r} does not start with http:// or "
+            "https://. Only those are repository addresses; a bare host is "
+            "completed with https://."
+        )
+    if not re.match(r"^https?://", url, flags=re.IGNORECASE):
+        url = f"https://{url}"
 
     if re.search(r"/components(/|$)", url, flags=re.IGNORECASE):
         raise EduSharingError(
