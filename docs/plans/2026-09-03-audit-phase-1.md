@@ -56,3 +56,34 @@ veralteter `search_all`-Test berichtigt war (Kurznamen erreichen seit dem
 02.09. den Sammlungskorb, nur rohe `filters` werden als ignoriert genannt);
 schreibend 79 bestanden in eigenen Wegwerf-Ordnern. CI grün auf jedem Commit.
 Audit-Bericht §4 trägt den Stand. Weiter mit Phase 2 der Roadmap (§9).
+
+## Review-Nachlese (06.09.2026)
+
+Ein frischer Review-Durchgang über den Phase-1-Diff: 3 MAJOR, 5 MINOR,
+9 NIT. Jeder Befund am Quelltext geprüft.
+
+- [x] **F1 MAJOR** Schema-Tippfehler (`https:/user:pw@host`, `ftp://…`)
+  umgingen SEC-1 → `refuse_userinfo` liest die Autorität selbst, nur http(s)
+  wird ergänzt, `mask_userinfo` in jeder Meldung.
+- [x] **F2 MAJOR** `download()` verlor alle Wiederholungen → läuft durch
+  `request(max_bytes=)`; `_send` streamt und deckelt, Fehlerseiten bei 64 KiB.
+- [x] **F3 MAJOR** Sync-Fläche ohne `download(max_bytes=)`/`raw.download` →
+  beides durchgereicht, gepinnt.
+- [x] **F4 MINOR** Vorenthaltener 5xx bei einem Schreibvorgang → Notiz am
+  Fehler (nicht wiederholt, Verdacht Login-Ausrutscher, zurücklesen).
+- [x] **F5 MINOR** Reine Zustands-Schreibvorgänge unmarkiert → `comments.edit`
+  und `set_preview` markiert. Bewusst nicht: Vorschlags-Status (PATCH),
+  Gruppenmitgliedschaft (PUT), Beziehung bestätigen (POST) — die Antwort
+  des Repositoriums auf eine Wiederholung ist nicht gemessen.
+- [x] **F6 MINOR** Markierte Stellen ohne Test → je ein Abbruch-Test.
+- [x] **F7 MINOR** Vorabprüfung nicht bewiesen → Körper zählt, ob er gezogen
+  wurde.
+- [x] **F8 MINOR** Schemalose Form und Maskierung ungetestet → Tests.
+- [x] **F9/F10/F11 NIT** ASCII-Ziffern, Fehlerseiten-Grenze, `credential=`.
+- [-] **F12 NIT** Wandzeit-Assertion (< 3 s bei gemessenen 0,08 s): bleibt;
+  ein Zählwerk brächte mehr Code als Sicherheit.
+- [-] **F13 NIT** `_BEZEICHNER` nur Kleinbuchstaben: die Bibliothek hat keine
+  camelCase-Parameter; bleibt.
+- [x] **F14/F15/F16/F17 NIT** Docstring `splitlines`, CHANGELOG (BOM),
+  Wortlaut „Verweigerung" → „Antwort des Repositoriums", `MAX_TEXT_BYTES`
+  aus dem Paket exportiert.

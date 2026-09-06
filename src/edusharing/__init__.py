@@ -38,6 +38,7 @@ from importlib.metadata import version as _metadata_version
 
 from .auth import ANONYMOUS, AnonymousCredential, BasicCredential, Credential
 from .content import NodeContent
+from .content import MAX_TEXT_BYTES
 from .errors import (
     AuthenticationError,
     ConflictError,
@@ -108,4 +109,5 @@ __all__ = [
     "ServerError",
     "SilentDropError",
     "ContentTooLargeError",
+    "MAX_TEXT_BYTES",
 ]

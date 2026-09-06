@@ -976,8 +976,9 @@ repo.flows.search_in_collection("abc-123", "zelle", depth=2)
 > **`failed` names each of them** with its id and the reason
 > (`"PermissionDeniedError: …"`). If not one collection could be read, the
 > flow raises instead — a wrong password refuses all of them, and that is no
-> partial answer. Only a refusal is part of the answer: any other error is
-> raised, not counted (audit COR-2).
+> partial answer. Only what the repository answered with — a refusal, a
+> 404, a 5xx, a timeout — is part of the answer; a bug is raised, not
+> counted (audit COR-2).
 
 > **A search cannot be scoped to a collection.** Measured three times — by
 > `wlo-mcp-sc` on 2026-07-17, here on 2026-08-27 and again on 2026-08-28 —

@@ -243,7 +243,9 @@ def _lines_outside_fences(text: str) -> Iterator[tuple[int, str]]:
 
     What is shown in a fence is not markup. One pointer walks the fenced
     spans alongside the lines, so the pass stays linear however many fences
-    a document has.
+    a document has. ``splitlines`` also breaks on a lone ``\r``, ``\f`` or
+    ``\u2028``, where the block regex before it knew only ``\n`` -- a
+    document with old-Mac line endings now parses as its author saw it.
     """
     spans = _fenced_spans(text)
     at = 0

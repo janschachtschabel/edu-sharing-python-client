@@ -248,12 +248,13 @@ async def search_in_collection(
 
 
 def _refused(ids: Sequence[str], pages: Sequence[object]) -> list[tuple[str, EduSharingError]]:
-    """The collections whose material listing the repository refused.
+    """The collections whose material listing the repository did not deliver.
 
-    A refusal -- 403, 404, a 401 -- is part of the answer. Anything else is a
-    bug of this library or of a dependency and is raised as such: ``gather``
-    with ``return_exceptions`` would otherwise report a ``TypeError`` as
-    "unreadable" (audit COR-2, 2026-09-03).
+    Whatever the repository answered with -- a 403, a 404, a 401, a 5xx, a
+    timeout -- is part of the answer under ``failed``, with its type and
+    words. Anything else is a bug of this library or of a dependency and is
+    raised as such: ``gather`` with ``return_exceptions`` would otherwise
+    report a ``TypeError`` as "unreadable" (audit COR-2, 2026-09-03).
     """
     refused: list[tuple[str, EduSharingError]] = []
     for cid, page in zip(ids, pages, strict=True):
