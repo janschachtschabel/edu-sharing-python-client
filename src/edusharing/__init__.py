@@ -37,8 +37,7 @@ from importlib.metadata import PackageNotFoundError as _PackageNotFound
 from importlib.metadata import version as _metadata_version
 
 from .auth import ANONYMOUS, AnonymousCredential, BasicCredential, Credential
-from .content import NodeContent
-from .content import MAX_TEXT_BYTES
+from .content import MAX_TEXT_BYTES, NodeContent
 from .errors import (
     AuthenticationError,
     ConflictError,
