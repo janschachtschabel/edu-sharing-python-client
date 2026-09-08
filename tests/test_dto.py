@@ -38,9 +38,10 @@ QUELLE = Path(__file__).resolve().parent.parent / "src" / "edusharing"
     (["a", "b"], "a"),
     ([], None),
     ("a", "a"),
-    ("", None),
+    ("", ""),
     (None, None),
-    (0, None),
+    (0, "0"),
+    (False, "False"),
     ([42], "42"),
     ([0], "0"),
     ([""], ""),
@@ -48,10 +49,21 @@ QUELLE = Path(__file__).resolve().parent.parent / "src" / "edusharing"
 def test_first_nimmt_den_ersten_wert(wert, erwartet):
     """edu-sharing liefert Eigenschaften immer als Liste, auch einzelne.
 
-    Die beiden letzten Faelle sind die ueberraschenden und darum die
-    wichtigsten: in einer Liste zaehlt, dass die Liste da ist, nicht ob ihr
-    erster Wert etwas taugt. ``[""]`` ergibt ``""``, nicht ``None``. Ein
-    blanker falscher Wert dagegen gilt als nicht gesetzt.
+    Eine Regel fuer beide Formen: **nur Abwesenheit und die leere Liste sind
+    keine Werte.** ``[""]`` ergibt ``""``, und ein blankes ``0`` ergibt
+    ``"0"``.
+
+    Der blanke Fall galt bis zum 08.09.2026 als nicht gesetzt, mit einem
+    eigenen Testfall. Diese Erwartung war falsch, nicht nur anders (Audit
+    COR-9): jeder Aufruf von ``first`` geht auf ``properties.get(...)``, der
+    Skalarzweig ist also ein Sicherheitsnetz -- und eines, das ``0``
+    verschluckt, macht bei ``cclom:size`` aus "0 Bytes" ein "keine Groesse".
+    Der leere Dateiname existiert; ``content.hash`` unterscheidet ihn
+    ausdruecklich vom fehlenden Inhalt.
+
+    ``flows/serialize.py`` schrieb diese Regel schon so auf: "``0`` und
+    ``False`` sind Werte; nur Abwesenheit und die leere Liste sind es
+    nicht." Jetzt gilt sie an beiden Stellen.
     """
     assert first(wert) == erwartet
 

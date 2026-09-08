@@ -32,18 +32,25 @@ __all__ = [
 def first(value: Any) -> str | None:
     """The first value of a property, or ``None``.
 
-    edu-sharing returns property values as lists, even single ones. In a list
-    what counts is that the list is there, not what its first value is worth:
-    ``[""]`` gives ``""``, only ``[]`` gives ``None``. A bare falsy value —
-    ``""``, ``0``, ``None`` — counts as not set. Callers that want one answer
-    for both write ``first(…) or ""``. Inside a list nothing is skipped, so a
-    JSON ``null`` there comes back as the string ``"None"`` -- edu-sharing has
-    not been seen to send one, and inventing a rule for it would hide it if it
-    ever did.
+    edu-sharing returns property values as lists, even single ones. **Only
+    absence and the empty list are not values**: ``[""]`` gives ``""``, a bare
+    ``0`` gives ``"0"``, and only ``None`` and ``[]`` give ``None``.
+
+    The bare case counted as not set until 2026-09-08, which was wrong rather
+    than merely different (audit COR-9). Every call site here reads
+    ``properties.get(...)``, so the scalar branch is a safety net -- and one
+    that swallows ``0`` turns "0 bytes" into "no size" at ``cclom:size``. The
+    empty file exists; ``content.hash`` tells it from missing content on
+    purpose. ``flows/serialize.py`` had already written the rule this way.
+
+    Callers that want ``""`` for a missing value write ``first(…) or ""``.
+    Inside a list nothing is skipped, so a JSON ``null`` there comes back as
+    the string ``"None"`` -- edu-sharing has not been seen to send one, and
+    inventing a rule for it would hide it if it ever did.
     """
     if isinstance(value, list):
         return str(value[0]) if value else None
-    return str(value) if value else None
+    return None if value is None else str(value)
 
 
 def node_id_of(raw: dict[str, Any]) -> str:
