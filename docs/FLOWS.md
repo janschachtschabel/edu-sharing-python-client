@@ -796,7 +796,10 @@ repo.flows.collection_contents("c32b0498-…", limit=20, offset=0)
   "materials": [{"id": "…", "title": "…", "url": "…", "fields": {…}}],
   "collections": [{"id": "…", "title": "Untersammlung", "url": "…", "fields": {}}],
   "total_materials": 26,
-  "returned_materials": 20
+  "returned_materials": 20,
+  "total_collections": 4,
+  "returned_collections": 4,
+  "collections_truncated": false
 }
 ```
 

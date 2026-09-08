@@ -439,3 +439,61 @@ async def test_unter_einem_elternbereich_wird_erst_beurteilt_und_dann_geschnitte
     assert [h["id"] for h in got["hits"]] == ["u7"]
     assert got["total"] == 1 and got["total_is_lower_bound"] is False
     assert got["warnings"] == []
+
+
+# --- API-3: die Untersammlungen werden gedeckelt --------------------------
+
+class MitVielenUntersammlungen(Instanz):
+    """Meldet mehr Untersammlungen, als sie ausliefert."""
+
+    def __init__(self, geliefert: int, gesamt: int | None) -> None:
+        super().__init__()
+        self.geliefert, self.gesamt = geliefert, gesamt
+
+    def __call__(self, request):
+        if request.url.path.endswith("/children/collections"):
+            self.anfragen.append(request)
+            koerper = {"collections": [
+                {"ref": {"id": f"unter-{i}"}, "title": f"Unter {i}",
+                 "collection": {"scope": "MY"}} for i in range(self.geliefert)]}
+            if self.gesamt is not None:
+                koerper["pagination"] = {
+                    "total": self.gesamt, "from": 0, "count": self.geliefert}
+            return httpx.Response(200, json=koerper)
+        return super().__call__(request)
+
+
+async def test_untersammlungen_nennen_ihre_gesamtzahl():
+    """Die Materialien tragen ``total_materials`` und ``returned_materials``,
+    die Untersammlungen trugen nichts (Audit API-3) -- gedeckelt bei ``limit``,
+    ohne dass der Aufrufer erfaehrt, ob es mehr gibt. Dieselbe Bauform, die
+    MNT-4 an ``node.children.list()`` behoben hat: eine gekuerzte Liste sieht
+    aus wie eine Sammlung mit weniger Kindern, als sie hat.
+
+    Der Endpunkt liefert eine echte Gesamtzahl -- gemessen am 08.09.2026 gegen
+    Staging: bei ``maxItems=1`` an einer Sammlung mit zwei Untersammlungen
+    kommt **ein** Eintrag und ``total: 2``. Das ist nicht selbstverstaendlich,
+    ``ngsearch`` antwortet mit ``pagination: null``.
+    """
+    async with _repo(MitVielenUntersammlungen(geliefert=5, gesamt=12)) as repo:
+        antwort = await repo.flows.collection_contents("c1", limit=5)
+    assert antwort["total_collections"] == 12
+    assert antwort["returned_collections"] == 5
+    assert antwort["collections_truncated"] is True
+
+
+async def test_untersammlungen_ohne_kappung_sind_nicht_gekuerzt():
+    """Gegenprobe -- ein Kennzeichen, das immer wahr ist, sagt nichts."""
+    async with _repo(MitVielenUntersammlungen(geliefert=2, gesamt=2)) as repo:
+        antwort = await repo.flows.collection_contents("c1", limit=5)
+    assert antwort["total_collections"] == 2
+    assert antwort["collections_truncated"] is False
+
+
+async def test_ohne_gesamtzahl_zaehlt_das_gelieferte():
+    """Nennt der Endpunkt keine Zahl, ist die Zahl der Datensaetze die beste
+    Auskunft -- und dann darf nichts als gekuerzt gelten, was niemand weiss."""
+    async with _repo(MitVielenUntersammlungen(geliefert=2, gesamt=None)) as repo:
+        antwort = await repo.flows.collection_contents("c1", limit=5)
+    assert antwort["total_collections"] == 2
+    assert antwort["collections_truncated"] is False

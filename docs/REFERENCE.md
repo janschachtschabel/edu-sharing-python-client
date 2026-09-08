@@ -726,7 +726,7 @@ than requested is otherwise indistinguishable from "these do not exist".
 
 | Call | Returns |
 |---|---|
-| `repo.flows.collection_contents(collection_id, limit=…, offset=…, properties=…)` | `{id, materials, collections, total_materials, returned_materials}` |
+| `repo.flows.collection_contents(collection_id, limit=…, offset=…, properties=…)` | `{id, materials, collections, total_materials, returned_materials, total_collections, returned_collections, collections_truncated}` |
 | `repo.flows.child_objects(node_id)` | `{id, count, children}` |
 | `repo.flows.relations(node_id)` | `{id, count, relations}` |
 
@@ -734,6 +734,7 @@ than requested is otherwise indistinguishable from "these do not exist".
 inside = await repo.flows.collection_contents(collection_id)
 inside["total_materials"]        # 12
 len(inside["collections"])       # 2      <- sub-collections, easily missed
+inside["collections_truncated"]  # False  <- they are capped at limit too
 
 kids = await repo.flows.child_objects(node_id)
 kids["children"][0]["name"]      # "loesung.pdf"

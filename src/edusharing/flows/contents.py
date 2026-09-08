@@ -57,8 +57,14 @@ async def collection_contents(
         limit, offset: page size and starting point, applied to the material.
 
     Returns:
-        ``{id, materials, collections, total_materials, returned_materials}``.
+        ``{id, materials, collections, total_materials, returned_materials,
+        total_collections, returned_collections, collections_truncated}``.
         Materials carry the same shape as search hits.
+
+        **Read ``collections_truncated``.** The sub-collections are capped at
+        ``limit`` like the materials are, and used to say nothing about it
+        (audit API-3) -- a shortened list of sub-collections looks like a
+        collection with fewer children than it has.
 
     Raises:
         NotFoundError: when no collection carries this id.
@@ -100,12 +106,20 @@ async def collection_contents(
         for node in (collections_response.get("collections") or [])
     ]
 
+    # Dieser Endpunkt nennt eine echte Gesamtzahl -- gemessen am 08.09.2026
+    # gegen Staging: bei ``maxItems=1`` an einer Sammlung mit zwei
+    # Untersammlungen kommt ein Eintrag und ``total: 2``. Das ist nicht
+    # selbstverstaendlich; ``ngsearch`` antwortet mit ``pagination: null``.
+    gesamt_unter = page_total(collections_response, default=len(children))
     return {
         "id": collection_id,
         "materials": materials,
         "collections": children,
         "total_materials": page_total(nodes_response),
         "returned_materials": len(materials),
+        "total_collections": gesamt_unter,
+        "returned_collections": len(children),
+        "collections_truncated": gesamt_unter > len(children),
     }
 
 

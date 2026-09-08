@@ -741,7 +741,7 @@ diese Knoten nicht gibt.
 
 | Aufruf | Liefert |
 |---|---|
-| `repo.flows.collection_contents(collection_id, limit=…, offset=…, properties=…)` | `{id, materials, collections, total_materials, returned_materials}` |
+| `repo.flows.collection_contents(collection_id, limit=…, offset=…, properties=…)` | `{id, materials, collections, total_materials, returned_materials, total_collections, returned_collections, collections_truncated}` |
 | `repo.flows.child_objects(node_id)` | `{id, count, children}` |
 | `repo.flows.relations(node_id)` | `{id, count, relations}` |
 
@@ -749,6 +749,7 @@ diese Knoten nicht gibt.
 inside = await repo.flows.collection_contents(collection_id)
 inside["total_materials"]        # 12
 len(inside["collections"])       # 2      <- Untersammlungen, leicht zu übersehen
+inside["collections_truncated"]  # False  <- auch sie sind bei limit gedeckelt
 
 kids = await repo.flows.child_objects(node_id)
 kids["children"][0]["name"]      # "loesung.pdf"
