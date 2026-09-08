@@ -1323,6 +1323,7 @@ Not needed for ordinary use; documented because they are importable.
 | `rest_base(repository_url)` | `str` — the REST root under it |
 | `path_segment(value)` | `str` — percent-encodes an identifier, `/` included |
 | `is_unroutable_host(host)` | `bool` — loopback, link-local, private ranges |
+| `unsafe_url_reason(url)` | `str \| None` — why an address must not be fetched: scheme, embedded credentials, a local name, an unroutable literal. `None` means it may. Names, it does not resolve — that needs a resolver |
 | `error_class_for(status, error_class=…, message=…)` | `type` — which error type a status stands for |
 | `first(value)` | `str \| None` — the first value of a property; `[]` gives `None` |
 | `title_of(raw)` | `str` — the one title chain: `title`, `cclom:title`, `cm:title`, `cm:name` |

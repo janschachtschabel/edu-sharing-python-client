@@ -16,12 +16,12 @@ from __future__ import annotations
 
 import ipaddress
 import re
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 from .errors import EduSharingError
 
 __all__ = ["normalize_repository_url", "path_segment", "rest_base",
-           "is_unroutable_host"]
+           "is_unroutable_host", "unsafe_url_reason"]
 
 _APP_SEGMENT = "/edu-sharing"
 # An optional scheme, any slashes, then the authority: up to the first "/",
@@ -169,6 +169,87 @@ def is_unroutable_host(host: str) -> bool:
         or address.is_reserved
         or address.is_multicast
     )
+
+
+#: Schemes a fetch may use. Everything else -- ``file:``, ``ftp:``, ``data:``
+#: -- is refused before anything is resolved.
+ALLOWED_SCHEMES = frozenset({"http", "https"})
+
+#: Names and suffixes that by convention never point at the public internet.
+#: An IP literal is already caught by the range check; this covers names that
+#: should not even be resolved.
+BLOCKED_NAMES = frozenset({"localhost"})
+BLOCKED_SUFFIXES = (".local", ".internal", ".localhost", ".home.arpa")
+
+
+def _address_reason(host: str) -> str | None:
+    """Why this literal must not be fetched -- as precisely as it allows.
+
+    ``is_unroutable_host`` owns the decision; this only names it. "Not
+    routable" is true for every case below but tells a caller far less than
+    "loopback" does.
+    """
+    if not is_unroutable_host(host):
+        return None
+    try:
+        address = ipaddress.ip_address(host.strip("[]"))
+    except ValueError:
+        return f"{host!r} is neither a valid hostname nor a dotted-quad address"
+    if address.is_loopback:
+        return f"{host} is a local (loopback) address"
+    if address.is_link_local:
+        # 169.254.169.254 is the metadata service of most cloud providers, and
+        # therefore the single most rewarding target of an SSRF attack.
+        return f"{host} is a link-local address"
+    if address.is_private or address.is_reserved or address.is_multicast:
+        return f"{host} is a private or reserved address"
+    return f"{host} is not a globally routable address"
+
+
+def unsafe_url_reason(url: str) -> str | None:
+    """Why ``url`` must not be fetched -- or ``None`` if it may.
+
+    Lives here rather than in ``agent.safety`` because more than the agent
+    needs it: the extraction service hands a URL to a third party, and it was
+    judging one on ``urlsplit().hostname`` alone (audit SEC-3). Everything
+    that fetches on a caller's behalf asks the same question, so it is asked
+    in one place.
+
+    What is deliberately *not* decided here: whether a **name** resolves to
+    something routable. That needs a resolver, and a resolver needs to be
+    async and cached; see ``TextExtraction._judge`` for the caller that does
+    it.
+    """
+    if not url or not url.strip():
+        return "empty address"
+
+    try:
+        parts = urlsplit(url.strip())
+    except ValueError as exc:
+        return f"unparseable ({exc})"
+
+    if parts.scheme.lower() not in ALLOWED_SCHEMES:
+        return f"scheme {parts.scheme or '(none)'!r} -- only http and https are allowed"
+
+    # Credentials in the URL are a known way to confuse checks: some parsers
+    # read the host differently than the later fetch does.
+    if "@" in parts.netloc:
+        return "the address embeds credentials (user:pass@host)"
+
+    try:
+        host = parts.hostname
+    except ValueError as exc:
+        return f"host unparseable ({exc})"
+    if not host:
+        return "no host"
+
+    host = host.lower().rstrip(".")
+    if host in BLOCKED_NAMES or host.endswith(BLOCKED_SUFFIXES):
+        return f"{host!r} is a local name"
+
+    # A literal, in any spelling. A name falls through -- see above on what is
+    # deliberately not checked here.
+    return _address_reason(host)
 
 
 def path_segment(value: str) -> str:

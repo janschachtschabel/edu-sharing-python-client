@@ -288,6 +288,7 @@ has to be guessed — argument and return shapes are in `docs/REFERENCE.md`.
 | a result as plain JSON | `result_as_dict(result)` / `hit_as_dict(hit)` |
 | the stopword and synonym lists | `LanguageProfile`: `.stopwords` `.framing` `.synonyms`; `GERMAN_SYNONYMS` |
 | normalise an instance URL | `normalize_repository_url(raw)` / `rest_base(repository_url)` / `path_segment(value)` / `is_unroutable_host(host)` |
+| judge whether an address may be fetched | `unsafe_url_reason(url)` — `None` means it may; anything else is the refusal, ready to log |
 | a search that reranks and reports both halves | `search_reranked(repo, text)` |
 | every sub-collection of one collection | `sub_collections(repo, id)` |
 | a node's rating, from a node you hold | `rating_of(node)` / `rate(…)` / `unrate(…)` |
