@@ -14,6 +14,32 @@ and in [`docs/audits/`](docs/audits/).
 
 ## [Unreleased]
 
+### Performance
+
+- **The vocabulary cache expires** (audit PRF-4). `ARCHITECTURE` claimed a TTL
+  and there was none: an entry lived as long as the object, so a service
+  running for days never saw an edited vocabulary. `DEFAULT_CACHE_SECONDS` is
+  one hour; `repo.vocab.cache_seconds` takes another span, `0` disables the
+  cache, `float("inf")` keeps an entry forever.
+- **Suggestions for unresolved filter values are capped** (audit PRF-4). Each
+  cost a request of its own, so fifty unknown labels cost fifty requests just
+  to build help text. `SUGGEST_LOOKUP_MAX` is 10; beyond it the value is still
+  reported, only without suggestions.
+- **`describe_many` has a ceiling** (audit PRF-2). It was the one uncapped
+  fan-out, and one node costs three requests. `DESCRIBE_MANY_MAX` is 50 and
+  the answer carries `truncated`.
+- **A level of the skills walk is fetched together** (audit PRF-3). Up to 30
+  collections meant up to 60 serial round-trips, although the collections of a
+  level are independent. The counting is unchanged: the two requests for one
+  collection stay in order, so a collection whose files are unreadable is
+  counted once and its subcollections are not asked for.
+- **The cold vocabulary loads run side by side** (audit PRF-3).
+  `resolve_vocabulary` resolves through the cache, so only the first value of
+  a property costs a request -- but those first ones ran one after the other.
+- **`whoami()` is asked once per credential** (audit PRF-5). `add_material`
+  finds the home folder through it, so a run without `parent_id` asked once
+  per piece of material.
+
 ### Security
 
 - **A client you bring along can no longer defeat two promises** (audit SEC-4,

@@ -41,7 +41,7 @@ Schritt 12.
   `unsafe_url_reason` ganz und hätte `private_host` und `dns_failed` durch
   `unsafe_url` ersetzt; dreizehn Tests haben das gezeigt, geteilt wird
   seitdem nur die Schreibweisen-Hälfte.
-- [ ] **13 · PRF-2, PRF-3, PRF-4, PRF-5** Die Deckel und die Bündel.
+- [x] **13 · PRF-2, PRF-3, PRF-4, PRF-5** Die Deckel und die Bündel.
   - PRF-2: `describe_many` ist das einzige unbegrenzte Fan-out.
   - PRF-3: serielle `await`s, wo die Aufrufe unabhängig sind. Enthält zwei
     Punkte, die der Bericht selbst als *needs verification* führt.
@@ -49,6 +49,29 @@ Schritt 12.
     behauptet.
   - PRF-5: `add_material` fragt bei jedem Aufruf ohne `parent_id` erneut
     `whoami()`.
+
+  Getan in vier Commits: `a7bbcb8` (Deckel für `describe_many`),
+  `df865c0` (Ebene als Bündel im Skills-Gang, vorgewärmte Vokabulare,
+  zwei richtiggestellte Begründungen), `f35eb9e` (TTL und
+  Vorschlagsdeckel) und `b0c4179` (`whoami` je Zugangsdaten).
+
+  Die zwei *needs-verification*-Punkte sind nachgemessen:
+  `REGISTRY_POOL` (10) bindet über dem Vorrat des Transports (8) bei
+  Vorgabe tatsächlich nie — tot ist die Schranke deswegen nicht, sie ist
+  die eigene Obergrenze des Flusses und gilt, sobald jemand den Transport
+  weiter öffnet; der Docstring sagt jetzt beides. Und das „Rennen" um die
+  Dublettenmenge in `flows/tree.py` gibt es nicht: zwischen der Prüfung
+  und dem `seen.add` steht kein `await`. Der wirkliche Grund, seriell zu
+  bleiben, ist die Antwort — welcher Zweig eine von zwei Eltern
+  erreichbare Sammlung bekommt, und was der Deckel abschneidet, hinge
+  sonst davon ab, welche Anfrage zuerst zurückkommt.
+
+  **Offen und bewusst nicht getan:** `build_collection` legt seine
+  Referenzen weiterhin nacheinander ein. Das sind Schreibvorgänge gegen
+  dieselbe Sammlung; ob die Instanz sie nebeneinander gleich behandelt,
+  ist nicht gemessen. Ein Fan-out von Schreibvorgängen ohne Messung wäre
+  geraten. Wer das aufgreift: erst live auf der Staging messen, dann
+  entscheiden.
 - [ ] **14 · TST-3, TST-6, OPS-2, OPS-3** Aufräumen, Pins, CI und die
   geschriebenen Abläufe.
 - [ ] **15 · DOC-3 bis DOC-7** Der Architektur-Nachweis, die Zahlen, die
