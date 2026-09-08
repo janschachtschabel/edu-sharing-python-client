@@ -199,7 +199,7 @@ class Node:
     async def parents(self) -> list[Node]:
         """The folders this node sits in, nearest first.
 
-        See ``placement.parents_of``. Not the collections it was curated into
+        See ``placement.ancestry_of``. Not the collections it was curated into
         -- those are ``collections()``, and a node in ten collections still has
         one parent chain.
         """

@@ -2,7 +2,7 @@
 
 Deutsche Fassung: [`ARCHITECTURE.de.md`](ARCHITECTURE.de.md)
 
-Last updated: 2026-08-31 · Status: **nine stages complete, audit findings closed** — 1122 tests offline, 96 live reading, 76 live writing (the live counts include the 20 examples, which run as test cases). Every public name **and every field of every object** is in [`REFERENCE.md`](REFERENCE.md) / [`REFERENCE.de.md`](REFERENCE.de.md), and the skill names all of them too; `tests/test_docs_complete.py` keeps all three complete.
+Last updated: 2026-09-08 · Status: **ten stages complete; the audit of 2026-09-03 is being worked through** — the worklists in [`docs/plans/`](plans/) say how far. No test counts stand here any more: the ones that did were wrong within a week (1122 claimed, 1303 collected — audit DOC-3). `uv run pytest --collect-only -q` counts the offline suite, `-m live` and `-m write` the two that need a real repository; those include every example in [`docs/examples/`](examples/), which run as test cases. Every public name **and every field of every object** is in [`REFERENCE.md`](REFERENCE.md) / [`REFERENCE.de.md`](REFERENCE.de.md), and the skill names all of them too; `tests/test_docs_complete.py` keeps all three complete, and `tests/test_docs_inventories.py` keeps the inventories in this document and the READMEs complete.
 
 A Python library that makes the REST API of an edu-sharing repository and the
 surrounding services (b-api) accessible with little code — **without**
@@ -59,9 +59,11 @@ layer, not a prerequisite.
 │                        NOT part of v1 — but v1 must carry them
 ├─ 3  Agent blocks ───── formatting · budget · confirm · sanitize · safety
 ├─ 2b Flows ──────────── one use case, one call, a dict back — see FLOWS.md
-├─ 2  Resources ──────── repo.search() · node.update() · collection.add()
+├─ 2  Resources ──────── repo.search() · node.update() · collection.add() · repo.skills
 ├─ 1  Profile & MDS ──── vocabulary resolution · property capabilities
 ├─ 0  Transport ──────── httpx · auth · retry · concurrency · read-back · errors
+├─ shared ────────────── fields · ranking · language · strings · dto · urls · retry
+│                        below everything that uses them, so nothing reaches up
 └─ _generated ────────── 389 operations · 378 models, from openapi.json
 
    beside it, not in it:
@@ -701,9 +703,9 @@ as they were taken. Three decisions are worth naming separately:
 nobody guesses `relations` or `child_objects` behind the name "discover". Split
 into `find` (which nodes), `describe` (what this node is) and `contents` (what
 hangs off it). The cuts came from the AST with a proof that the parts sum to the
-original character for character, and the public surface of `Flows` — 20 methods
-with every signature and default — was compared before and after and is
-identical.
+original character for character, and the public surface of `Flows` — its 20 methods
+at the time, with every signature and default — was compared before and after
+and is identical.
 
 `related` is the one that would not sit still: it starts from an id like the
 flows in `describe`, but what it answers is a search question, so it lives with
@@ -737,6 +739,35 @@ keeps structure, and **every consumer whose output format uses that
 structure must flatten it** (``one_line``, now exported). The URL decision
 moved down to ``urls.py`` so both callers share it.
 
+### 8.8 Stage 10 — skills, full text, and the flow helpers
+
+Ten modules were missing from every table above until 2026-09-08 (audit
+DOC-3). The skills subsystem is the largest of them: four modules, and the
+word "skills" did not appear in this document once. `tests/test_docs_inventories.py`
+now fails when a module is named nowhere here.
+
+| Module | Responsibility |
+|---|---|
+| `skills.py` | Skills — records whose content type says "instruction" and whose attached file is the `SKILL.md`. Reading, listing the files beside one, and the reasons an anonymous reader gets an empty answer (`files_reason`, `content_reason`) |
+| `skills_markdown.py` | What a skill document says about itself, read without any I/O: front matter, the `::: ki-skill` blocks, the headings that group them |
+| `skills_registry.py` | The registry of a collection — which skills it has approved, grouped into working contexts |
+| `flows/skills.py` | The same accessor as plain dictionaries: `find_skills`, `skill`, `skill_registry`, `pick_skill` |
+| `flows/text.py` | `text` — the full text of one material, and, when there is none, which of the measured reasons applies |
+| `flows/suggest.py` | `accept_suggestion` — apply a proposal, read it back, and only then mark it (audit COR-3) |
+| `flows/serialize.py` | Value objects into plain JSON structures. The leaf four flow modules share |
+| `flows/dedupe.py` | Collapsing hits that are the same material seen more than once |
+| `flows/duplicates.py` | Is there already a record for this address? |
+| `flows/expand.py` | Turning one query into a few variants worth asking (E10) |
+
+**Where the flow modules call each other.** §8.6 says the split of
+`flows/discover.py` left one cross-module call. That is true *within the three
+it produced* — `find` → `describe` — and was read here as a statement about
+`flows/` as a whole, which it is not. Measured 2026-09-08, seven of the fifteen
+modules import a sibling: `collections` draws on five (`find`, `pages`,
+`rerank`, `serialize`, `tree`), and `serialize` is a leaf that four of them
+share. `tests/test_import_direction.py` guards the direction between *layers*;
+inside this package there is no such rule, and none is claimed.
+
 ## 9. Open points
 
 1. **Second test instance** — partly closed. Reading was verified against
@@ -762,8 +793,11 @@ moved down to ``urls.py`` so both callers share it.
    pass-through to its own module. The reference redirection of 2026-09-02
    changed that: the write discipline -- field aliases, read-back check,
    keyword merge, the write-through to an original -- had become a reason to
-   change of its own. Its bodies are now in `nodes_write.py` (200 lines);
+   change of its own. Its bodies moved to `nodes_write.py`;
    `Node` keeps the methods as one-line delegations, so the public surface did
-   not move. `nodes.py` is at 537 lines: the read model and its doors.
+   not move. Measured on the day of the split: 537 lines left in `nodes.py`
+   -- the read model and its doors -- against 200 in `nodes_write.py`. The
+   numbers carry their date because they were the evidence for splitting, not
+   a description of the files as they stand today.
    `flows/discover.py` had grown a second responsibility earlier and was split
    the same way (§8.6).

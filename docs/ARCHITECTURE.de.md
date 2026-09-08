@@ -1,8 +1,13 @@
 # edu-sharing Python-Client — Architektur und Entwurf
 
-Stand: 31.08.2026 · Status: **neun Etappen abgeschlossen, Audit-Befunde
-behoben** — 1122 Tests offline, 96 live lesend, 76 live schreibend (die
-Live-Zahlen enthalten die 20 Beispiele, die als Testfälle laufen). Jeder
+Stand: 08.09.2026 · Status: **zehn Etappen abgeschlossen; der Audit vom
+03.09.2026 wird abgearbeitet** — wie weit, sagen die Arbeitslisten in
+[`docs/plans/`](plans/). Testzahlen stehen hier keine mehr: die, die hier
+standen, waren binnen einer Woche falsch (1122 behauptet, 1303 gesammelt —
+Audit DOC-3). `uv run pytest --collect-only -q` zählt die Offline-Suite,
+`-m live` und `-m write` die beiden, die ein echtes Repositorium brauchen;
+darin läuft jedes Beispiel aus [`docs/examples/`](examples/) als Testfall.
+Jeder
 öffentliche Name **und jedes Feld jedes Objekts** steht in
 [`REFERENCE.de.md`](REFERENCE.de.md) / [`REFERENCE.md`](REFERENCE.md), und der
 Skill nennt sie ebenfalls alle; `tests/test_docs_complete.py` hält alle drei
@@ -66,9 +71,11 @@ eine Bequemlichkeitsschicht, keine Voraussetzung.
 │                        NICHT Teil von v1 — aber v1 muss sie tragen
 ├─ 3  Agentenbausteine ─ Formatierung · Budget · Vorlegen · Aufbereiten · Sicherheit
 ├─ 2b Abläufe ────────── ein Anwendungsfall, ein Aufruf, ein dict — siehe FLOWS.de.md
-├─ 2  Ressourcen ─────── repo.search() · node.update() · collection.add()
+├─ 2  Ressourcen ─────── repo.search() · node.update() · collection.add() · repo.skills
 ├─ 1  Profil und MDS ─── Vokabularauflösung · Eigenschaften und ihre Wege
 ├─ 0  Transport ──────── httpx · Auth · Wiederholung · Nebenläufigkeit · Rückleseprobe · Fehler
+├─ geteilt ───────────── fields · ranking · language · strings · dto · urls · retry
+│                        unter allem, was sie benutzt, damit nichts nach oben greift
 └─ _generated ────────── 389 Operationen · 378 Modelle, aus openapi.json
 
    daneben, nicht darin:
@@ -762,7 +769,7 @@ drei Änderungsgründe, und niemand rät `relations` oder `child_objects` hinter
 dem Namen „discover". Aufgeteilt in `find` (welche Knoten), `describe` (was
 dieser Knoten ist) und `contents` (was an ihm hängt). Die Schnitte kamen aus
 dem AST, mit dem Nachweis, dass die Teile die Vorlage Zeichen für Zeichen
-ergeben, und die öffentliche Fläche von `Flows` — 20 Methoden mit jeder
+ergeben, und die öffentliche Fläche von `Flows` — ihre damals 20 Methoden mit jeder
 Signatur und jedem Vorgabewert — wurde davor und danach verglichen und ist
 identisch.
 
@@ -801,6 +808,38 @@ Ausgabeformat diese Struktur benutzt, muss sie abflachen** (``one_line``,
 jetzt exportiert). Die URL-Entscheidung ist nach ``urls.py`` gewandert,
 damit beide Aufrufer sie teilen.
 
+### 8.8 Etappe 10 — Skills, Volltext und die Ablauf-Helfer
+
+Zehn Module fehlten bis zum 08.09.2026 in jeder Tabelle darüber (Audit
+DOC-3). Das Skill-Teilsystem ist das größte davon: vier Module, und das Wort
+„Skills" kam in diesem Dokument kein einziges Mal vor.
+`tests/test_docs_inventories.py` schlägt jetzt an, wenn ein Modul hier
+nirgends genannt ist.
+
+| Modul | Verantwortung |
+|---|---|
+| `skills.py` | Skills — Datensätze, deren Inhaltsart „Anleitung" sagt und deren angehängte Datei die `SKILL.md` ist. Lesen, die Dateien daneben auflisten, und die Gründe, aus denen ein anonymer Leser eine leere Antwort bekommt (`files_reason`, `content_reason`) |
+| `skills_markdown.py` | Was ein Skill-Dokument über sich selbst sagt, gelesen ohne jede Ein- und Ausgabe: Kopfdaten, die `::: ki-skill`-Blöcke, die Überschriften, die sie gruppieren |
+| `skills_registry.py` | Das Register einer Sammlung — welche Skills sie freigegeben hat, nach Arbeitszusammenhängen gruppiert |
+| `flows/skills.py` | Derselbe Zugang als schlichte Wörterbücher: `find_skills`, `skill`, `skill_registry`, `pick_skill` |
+| `flows/text.py` | `text` — der Volltext eines Materials und, wenn es keinen gibt, welcher der gemessenen Gründe zutrifft |
+| `flows/suggest.py` | `accept_suggestion` — einen Vorschlag anwenden, zurücklesen, und erst dann abhaken (Audit COR-3) |
+| `flows/serialize.py` | Wertobjekte in schlichte JSON-Strukturen. Das Blatt, das sich vier Ablaufmodule teilen |
+| `flows/dedupe.py` | Treffer zusammenfassen, die dasselbe Material mehrfach zeigen |
+| `flows/duplicates.py` | Gibt es zu dieser Adresse schon einen Datensatz? |
+| `flows/expand.py` | Aus einer Anfrage die wenigen Varianten machen, die zu stellen sich lohnt (E10) |
+
+**Wo die Ablaufmodule einander rufen.** §8.6 sagt, die Teilung von
+`flows/discover.py` habe einen modulübergreifenden Aufruf übriggelassen. Das
+stimmt *innerhalb der drei*, die dabei entstanden — `find` → `describe` — und
+wurde hier als Aussage über `flows/` insgesamt gelesen, die es nicht ist.
+Gemessen am 08.09.2026 greifen sieben der fünfzehn Module auf ein
+Geschwistermodul zu: `collections` auf fünf (`find`, `pages`, `rerank`,
+`serialize`, `tree`), und `serialize` ist das Blatt, das sich vier von ihnen
+teilen. `tests/test_import_direction.py` wacht über die Richtung zwischen den
+*Schichten*; innerhalb dieses Pakets gibt es keine solche Regel, und es wird
+auch keine behauptet.
+
 ## 9. Offene Punkte
 
 1. **Zweite Testinstanz** — teilweise geschlossen. Lesend gegen die
@@ -827,9 +866,12 @@ damit beide Aufrufer sie teilen.
    Durchgriff auf ein eigenes Modul ist. Die Referenz-Umleitung vom 02.09.2026
    hat das geändert: die Schreibdisziplin -- Feldkürzel, Rückleseprobe,
    Schlagwort-Zusammenführung, das Durchschreiben ans Original -- war zu einem
-   eigenen Änderungsgrund geworden. Ihre Rümpfe liegen jetzt in
-   `nodes_write.py` (200 Zeilen); `Node` behält die Methoden als einzeilige
-   Durchgriffe, die öffentliche Oberfläche hat sich also nicht bewegt.
-   `nodes.py` steht bei 537 Zeilen: das Lesemodell und seine Türen.
+   eigenen Änderungsgrund geworden. Ihre Rümpfe sind nach
+   `nodes_write.py` gewandert; `Node` behält die Methoden als einzeilige
+   Durchgriffe, die öffentliche Oberfläche hat sich also nicht bewegt. Am Tag
+   der Teilung gemessen: 537 Zeilen blieben in `nodes.py` -- das Lesemodell
+   und seine Türen -- gegen 200 in `nodes_write.py`. Die Zahlen tragen ihr
+   Datum, weil sie der Beleg für die Teilung waren und keine Beschreibung der
+   Dateien, wie sie heute dastehen.
    `flows/discover.py` hatte früher eine zweite Verantwortung bekommen und
    wurde auf dieselbe Art geteilt (§8.6).

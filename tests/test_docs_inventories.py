@@ -112,3 +112,41 @@ def test_jedes_beispiel_steht_in_der_readme(name):
 
     fehlend = sorted(vorhanden - verzeichnet)
     assert not fehlend, f"{name}: nicht verzeichnet: {fehlend}"
+
+
+# --- Das Modulverzeichnis ---------------------------------------------------
+
+ARCHITEKTUR = {
+    "ARCHITECTURE.md": WURZEL / "docs" / "ARCHITECTURE.md",
+    "ARCHITECTURE.de.md": WURZEL / "docs" / "ARCHITECTURE.de.md",
+}
+QUELLE = WURZEL / "src" / "edusharing"
+
+
+def module() -> list[str]:
+    """Jedes Modul der Handschicht, als Pfad ab ``edusharing/``."""
+    return [p.relative_to(QUELLE).as_posix()
+            for p in sorted(QUELLE.rglob("*.py"))
+            if "_generated" not in p.parts and p.name != "__init__.py"]
+
+
+@pytest.mark.parametrize("name", sorted(ARCHITEKTUR))
+def test_jedes_modul_kommt_im_architekturnachweis_vor(name):
+    """Ein Teilsystem, das im Nachweis fehlt, gibt es fuer den Leser nicht.
+
+    Am 03.09.2026 kam das Wort "skills" in ARCHITECTURE ueberhaupt nicht vor,
+    obwohl vier Module es tragen -- rund 13 % der Schicht, ohne einen Satz
+    darueber, warum es sie gibt (Audit DOC-3). Zehn Module waren so unsichtbar.
+
+    Es genuegt, dass der Name faellt: als Pfad, als Dateiname oder in
+    Code-Schreibweise. Diese Wache verlangt keinen eigenen Absatz je Modul --
+    sie verlangt, dass keines vergessen wird.
+    """
+    text = ARCHITEKTUR[name].read_text(encoding="utf-8")
+    fehlend = [
+        m for m in module()
+        if m not in text and Path(m).name not in text and f"`{Path(m).stem}`" not in text
+    ]
+    assert not fehlend, (
+        f"{name}: {len(fehlend)} von {len(module())} Modulen kommen nicht vor:\n  "
+        + "\n  ".join(fehlend))
