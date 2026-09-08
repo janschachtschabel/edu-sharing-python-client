@@ -1065,14 +1065,21 @@ logging.getLogger("edusharing").setLevel(logging.DEBUG)  # zusätzlich jede Anfr
 welches b-api-Modell geantwortet hat, nachdem ein früherer Kandidat abgelehnt
 hatte. `DEBUG` ergänzt Methode und URL jeder Anfrage.
 
-`WARNING` ist die Ausnahme vom Schweigen, an vier Stellen, und das mit Absicht:
-Python gibt sie auch ohne konfiguriertes Protokoll auf stderr aus. Drei sind der
-Extraktionsdienst, der einen Host verweigert — eine private Adresse, eine, die
-sich nicht auflösen ließ, eine, die in einen privaten Bereich auflöste. Die
-vierte ist ein Kindknoten, der angelegt, dann aber weder gefüllt noch entfernt
-werden konnte; er bleibt leer stehen, und der Fehler, den der Aufrufer bekommt,
-handelt vom Hochladen und weiß nichts von ihm. Jede benennt etwas, das ein
-Aufrufer sonst nie erführe.
+`WARNING` ist die Ausnahme vom Schweigen, und das mit Absicht: Python gibt sie
+auch ohne konfiguriertes Protokoll auf stderr aus. Jede benennt etwas, das der
+Aufrufer sonst nie erführe:
+
+| Wo | Was sie sagt |
+|---|---|
+| `extraction.py` | Der Extraktionsdienst hat eine Adresse verweigert — eine private, eine, die sich nicht auflösen ließ, eine, die in einen privaten Bereich auflöste, oder eine, die zwei Parser verschieden lesen |
+| `childobjects.py` | Ein Kindknoten wurde angelegt, dann aber weder gefüllt noch entfernt. Er bleibt leer stehen, und der Fehler, den der Aufrufer bekommt, handelt vom Hochladen und weiß nichts von ihm |
+| `bapi/client.py` | Die **Bibliothek** hat ein Modell gewählt, das der Anbieter zurückgezogen hat. Es antwortet weiter, also wird es nicht ausgeschlossen — aber niemand sonst kann bemerken, dass die Wahl nicht die des Aufrufers war |
+| `_sync.py` | Die Hintergrundschleife hielt nicht rechtzeitig an. Sie bleibt offen, statt dass darüber geworfen wird, und das ist ein Leck, das eine Zeile wert ist |
+
+Eine Anzahl steht hier nicht mehr. Es hieß „an vier Stellen", als es fünf
+waren, und sieben, als jemand wieder nachzählte (Audit DOC-7);
+`tests/test_docs_inventories.py` schlägt jetzt an, wenn ein Modul warnt, ohne
+oben genannt zu sein.
 
 Header werden nie protokolliert. Dort stehen die Zugangsdaten, und eine
 Protokollzeile wird aggregiert, durchsucht und aufbewahrt.

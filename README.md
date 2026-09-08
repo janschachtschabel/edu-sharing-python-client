@@ -1039,13 +1039,21 @@ logging.getLogger("edusharing").setLevel(logging.DEBUG)  # every request as well
 which b-api model answered after an earlier candidate declined. `DEBUG` adds
 method and URL of every request.
 
-`WARNING` is the exception to the silence, in four places, and deliberately so:
-Python prints those to stderr even with no logging configured. Three are the
-extraction service refusing a host — a private address, one that would not
-resolve, one that resolved into a private range. The fourth is a child object
-that could be created but then neither filled nor removed; it stays behind
-empty, and the error the caller gets is about the upload and does not know it
-exists. Each names something a caller would otherwise never learn.
+`WARNING` is the exception to the silence, and deliberately so: Python prints
+those to stderr even with no logging configured. Each names something the caller
+would otherwise never learn:
+
+| Where | What it says |
+|---|---|
+| `extraction.py` | The extraction service refused an address — a private one, one that would not resolve, one that resolved into a private range, or one spelled so that two parsers read it differently |
+| `childobjects.py` | A child object was created but then neither filled nor removed. It stays behind empty, and the error the caller gets is about the upload and does not know it exists |
+| `bapi/client.py` | The **library** picked a model the provider has retired. It still answers, so it is not excluded — but nobody else is in a position to notice that the choice was not the caller's |
+| `_sync.py` | The background loop did not stop in time. It is left open rather than raised over, and that is a leak worth one line |
+
+No number stands here any more. It said "four places" when there were five, and
+seven by the time anybody counted again (audit DOC-7);
+`tests/test_docs_inventories.py` now fails when a module warns without being
+named above.
 
 Headers are never logged. That is where the credentials live, and a log line is
 aggregated, searched and kept.

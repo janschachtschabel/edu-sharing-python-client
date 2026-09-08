@@ -150,3 +150,38 @@ def test_jedes_modul_kommt_im_architekturnachweis_vor(name):
     assert not fehlend, (
         f"{name}: {len(fehlend)} von {len(module())} Modulen kommen nicht vor:\n  "
         + "\n  ".join(fehlend))
+
+
+# --- Die Warnstellen --------------------------------------------------------
+
+_WARNT = re.compile(r"\blogger\.warning\(")
+
+
+def warnende_module() -> list[str]:
+    """Jedes Modul, das mindestens einmal ``logger.warning`` ruft."""
+    return [p.relative_to(QUELLE).as_posix()
+            for p in sorted(QUELLE.rglob("*.py"))
+            if "_generated" not in p.parts
+            and _WARNT.search(p.read_text(encoding="utf-8"))]
+
+
+@pytest.mark.parametrize("name", sorted(READMES))
+def test_jedes_warnende_modul_steht_in_der_readme(name):
+    """WARNING ist die Ausnahme vom Schweigen -- also gehoert sie aufgezaehlt.
+
+    Die README zaehlte "vier Stellen" auf, es waren fuenf, als der Audit sie
+    zaehlte (DOC-7), und sieben, als diese Wache entstand: dazugekommen waren
+    die abgewiesene Adressschreibweise aus SEC-3 und die Hintergrundschleife,
+    die nicht anhaelt, aus COR-4. Beide sind fuer den Aufrufer die einzige
+    Nachricht ueber etwas, das sonst niemand bemerkt.
+
+    Gezaehlt werden **Module**, nicht Aufrufe: die drei Hostverweigerungen des
+    Extraktionsdienstes sind ein Absatz wert, nicht drei. Eine Anzahl steht in
+    der README deshalb nicht mehr -- eine Zahl, die niemand nachrechnet, wird
+    falsch, ohne dass sie aufhoert, ueberzeugend auszusehen.
+    """
+    pfad, _ = READMES[name]
+    text = pfad.read_text(encoding="utf-8")
+    fehlend = [m for m in warnende_module() if m not in text]
+    assert not fehlend, (
+        f"{name}: diese Module warnen, werden aber nicht genannt: {fehlend}")
