@@ -158,3 +158,27 @@ def test_die_suite_gehoert_nicht_ins_quellpaket():
     """
     include = _sdist_abschnitt()["include"]
     assert not any(e.rstrip("/") == "tests" for e in include)
+
+
+#: Was das Quellpaket mitnimmt -- die Entscheidung aus OPS-5, hier zum
+#: Nachschlagen. Wer sie aendert, aendert diesen Satz mit und denkt dabei
+#: nach: die Wachen darunter halten sonst nur den Boden, und das Wiederaufnehmen
+#: von ``openapi/`` -- den 1,3 MB, um die es ging -- faellt niemandem auf
+#: (Pruefung 08.09.2026).
+UMFANG = {
+    "src/edusharing", "pyproject.toml", "LICENSE",
+    "README.md", "README.de.md", "CHANGELOG.md", "SECURITY.md",
+}
+
+
+def test_das_quellpaket_nimmt_nichts_mit_das_niemand_beschlossen_hat():
+    """Die Decke, nicht der Boden.
+
+    Eine Positivliste kann nicht *unvollstaendig* werden -- das ist ihr Vorzug
+    --, aber sie kann wachsen, ohne dass jemand hinsieht. Diese Wache ist die
+    zweite Unterschrift.
+    """
+    dazu = sorted({e.rstrip("/") for e in _sdist_abschnitt()["include"]} - UMFANG)
+    assert not dazu, (
+        f"im Quellpaket, aber nicht in UMFANG: {dazu}. Wenn das so gewollt ist, "
+        "gehoert es dort eingetragen -- mit dem Grund.")

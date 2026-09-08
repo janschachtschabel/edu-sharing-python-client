@@ -357,7 +357,13 @@ def _redirect_target(location: str | None) -> str:
         return "to an address that does not parse"
     if not host:
         return "to an address without a host"
-    return f"to {f'{host}:{port}' if port else host!r}"
+    # ``hostname`` strips the brackets off an IPv6 literal, and ``::1:8080``
+    # reads as neither an address nor a port. Put them back when a port
+    # follows (review 2026-09-08).
+    if port:
+        eckig = f"[{host}]" if ":" in host else host
+        return f"to {f'{eckig}:{port}'!r}"
+    return f"to {host!r}"
 
 
 def redirect_error(

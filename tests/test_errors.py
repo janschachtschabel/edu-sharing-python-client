@@ -283,6 +283,14 @@ def test_eine_kaputte_adresse_verdeckt_nicht_den_eigentlichen_fehler():
     assert "GEHEIM" not in str(fehler)
 
 
+def test_ein_ipv6_ziel_bleibt_lesbar():
+    """``hostname`` nimmt die Klammern weg, und ``::1:8080`` liest sich als
+    weder Adresse noch Port (Pruefung 08.09.2026)."""
+    assert "'[::1]:8080'" in str(_umleitung("https://[::1]:8080/x"))
+    # Ohne Port ist nichts mehrdeutig, also auch nichts einzuklammern.
+    assert "'fe80::1'" in str(_umleitung("https://[fe80::1]/y"))
+
+
 def test_der_volle_wert_bleibt_zum_debuggen_erreichbar():
     """Verdeckt ist die *Meldung*, nicht die Angabe: wer die Umleitung
     nachvollziehen will, kommt an sie heran, ohne sie weiterzureichen."""
