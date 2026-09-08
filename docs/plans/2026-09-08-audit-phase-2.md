@@ -56,3 +56,55 @@ Exit-Code. Live nur auf der Staging, nur in selbst angelegten Wegwerf-Ordnern.
   ein zweiter Lauf ändert nichts mehr.
 
 Damit ist Phase 2 abgeschlossen. Weiter mit Phase 3 der Roadmap (§9).
+
+## Review-Nachlese (08.09.2026)
+
+Ein frischer Durchgang über den ganzen Phase-2-Diff: 3 MAJOR, 7 MINOR,
+5 NIT. Jeder Befund am Quelltext geprüft und reproduziert, bevor etwas
+geändert wurde.
+
+- [x] **F1 MAJOR** `Retry-After` galt für **jede** Fehlerantwort, nicht nur
+  für den 429. Damit bestimmte ein Proxy-Kopf den Backoff jedes 5xx (drei
+  Pausen von je 30 s statt 0,5–2 s) und ein langer Wert nahm alle
+  Wiederholungen; der Fehler kam obendrein als `ServerError` an, sodass die
+  dokumentierte Prüfung auf `RateLimitedError` ihn nie sah → nur noch der 429
+  trägt die Zahl, an allen drei Bau-Stellen (`d3b9ecf`).
+- [x] **F2 MAJOR** Der Verlaufsbeweis zählte nur die Länge und suchte dann im
+  **ganzen** Verlauf: wächst er aus fremdem Grund, wurde der alte gleiche
+  Schritt als der neue gemeldet → gesucht wird nur im neuen Präfix
+  (`bb2dff7`).
+- [x] **F3 MAJOR** Die vereinheitlichte Titelkette fällt auf `cm:name` zurück;
+  `collections.update` schrieb den so gelesenen Namen bei einer Sammlung ohne
+  Titel nach `cm:title` → neues `dto.stored_title_of` für die Schreibseite.
+  Dazu die Doku, die der Kette hinterherhing (`476e7dd`).
+- [x] **F4 MINOR** Der Richtungswächter übersah `from . import x` (die Form,
+  die `nodes.py` benutzt) und befreite über den Dateinamen auch
+  `flows/__init__.py` (`4de5fe0`).
+- [x] **F5/F6/F11 MINOR/NIT** `build_collection`s `warnings` und `public` in
+  beiden Referenzen, der Docstring von `add_material`, „fünf Funktionen" →
+  sieben (`476e7dd`).
+- [x] **F7 MINOR** `--from-instance` nannte den Hash einer Bytefolge, die es
+  nirgends gab → die geholte Spec wird geschrieben, dann gehasht (`4de5fe0`).
+- [x] **F8 MINOR** `page_total` gab bei einem ausdrücklichen `total: 0` die
+  Vorgabe zurück (`4de5fe0`).
+- [x] **F9 MINOR** Das Vorher-Lesen ist eine neue Voraussetzung fürs
+  Schreiben; beide Docstrings sagen sie jetzt (`4de5fe0`).
+- [x] **F10 MINOR** Die Abhängigkeitswache hätte bei leerer Liste geschwiegen
+  statt zu scheitern (`4de5fe0`).
+- [x] **F12/F13/F15 NIT** `first([None])`, `DEFAULT_MAX_RETRY_AFTER`
+  exportiert und dokumentiert, vier deutsche Kommentare im englischen
+  Quelltext übersetzt (`4de5fe0`).
+- [-] **F9, zweiter Teil** `comments.add` zusätzlich am Autor erkennen: nicht
+  gemacht. Der Vergleich der ids schließt jeden Kommentar aus, der vorher
+  schon dastand; offen bleibt nur, dass jemand anderes in derselben
+  Millisekunde denselben Text schreibt. Den eigenen Autorennamen zu kennen
+  kostete ein zusätzliches `whoami` bei jedem Kommentar — das wiegt schwerer
+  als der Rest dieses Rennens.
+- [x] **F14 NIT** Der Zweig, der eine zu lange Wartezeit weiterreicht, kann
+  seit F1 nur noch einen 429 sehen; der Kommentar sagt das, statt `_noted`
+  als Blindleistung zu rufen.
+
+Als sauber gemeldet und nachgeprüft: `weakref.finalize` hält den
+`LoopThread`, nicht das Repositorium, und `close()` bleibt einmalig; der
+Spiegelwächter ist nicht leerlaufend; `parse_retry_after` liest beide
+Schreibweisen richtig; keine Doku steht nur in einer Sprache.
