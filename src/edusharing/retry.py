@@ -24,7 +24,8 @@ from random import random
 
 from .errors import at_least
 
-__all__ = ["RETRYABLE_STATUS", "RetryPolicy", "parse_retry_after"]
+__all__ = ["DEFAULT_MAX_RETRY_AFTER", "RETRYABLE_STATUS", "RetryPolicy",
+           "parse_retry_after"]
 
 #: Status codes where a second attempt can succeed. 404 is deliberately
 #: absent: "This is not a chat model" will not become true on the fourth try.

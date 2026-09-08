@@ -95,6 +95,10 @@ class Comments:
             ValueError: on empty or blank text. Measured, the repository
                 accepts it with a 200 and stores an entry nobody can see.
             SilentDropError: when no comment appeared that was not there before.
+            EduSharingError: when the comments cannot be read. The snapshot is
+                taken **before** the write, so a principal who may write but
+                not read no longer gets as far as writing -- which is the
+                better half of that trade.
         """
         self._require_text(text)
         # The ids that were there before. Costs one request, and it is what

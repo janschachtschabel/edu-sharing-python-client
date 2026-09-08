@@ -307,7 +307,8 @@ short waits are sat out for you, a long one reaches you with the number)
 backoff_base=…, max_retry_after=…)`, whose `delay(attempt, retry_after=…)`
 returns the seconds to wait — jittered, so a fan-out does not come back in
 lockstep — or `None` when the server asked for longer than this client waits.
-`RETRYABLE_STATUS` is the status set the two sibling services retry, and
+`RETRYABLE_STATUS` is the status set the two sibling services retry,
+`DEFAULT_MAX_RETRY_AFTER` (60 s) is that ceiling, and
 `parse_retry_after(value)` reads the header in either form RFC 9110 allows.
 
 `edusharing.dto` is the one reading of a raw node record — `first(value)`

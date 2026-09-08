@@ -139,9 +139,9 @@ class TextExtraction:
         resolve: Callable[[str], Any] | None = None,
         client: httpx.AsyncClient | None = None,
     ) -> None:
-        # Budget und Wartezeit liegen in der Regel, die die drei Clients
-        # teilen; sie prueft ihre eigenen Grenzen (Audit ARC-2). Damit wird
-        # hier erstmals auch ``backoff_base`` geprueft.
+        # Budget and waiting live in the policy the three clients share; it
+        # checks its own bounds (audit ARC-2). That is also the first time
+        # ``backoff_base`` is checked here at all.
         self._retry = RetryPolicy(max_retries=max_retries, backoff_base=backoff_base)
         at_least("timeout", timeout, 0.001)
         self.base_url = _check_base(base_url)

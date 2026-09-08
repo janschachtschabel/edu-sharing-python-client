@@ -254,8 +254,8 @@ class Transport:
             timeout = DEFAULT_TIMEOUT
         at_least("timeout", timeout, 0.001)
         at_least("max_concurrency", max_concurrency, 1)
-        # Budget und Wartezeit liegen in einer Regel, die die drei Clients
-        # teilen -- sie prueft ihre eigenen Grenzen (Audit ARC-2).
+        # Budget and waiting live in one policy the three clients share --
+        # it checks its own bounds (audit ARC-2).
         self._retry = RetryPolicy(max_retries=max_retries, backoff_base=backoff_base)
 
         self.repository_url = normalize_repository_url(repository_url)

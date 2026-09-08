@@ -72,6 +72,9 @@ def test_jede_verlangte_abhaengigkeit_wird_auch_importiert(paket):
 def test_die_wache_findet_ein_phantom():
     """Ohne diesen Test waere eine Wache, die die Namen nicht mehr aufloest,
     gruen und wertlos."""
+    # Ohne diese Zeile waere eine leere Liste kein Fehlschlag, sondern ein
+    # uebersprungener Test -- die Wache waere still statt rot.
+    assert _verlangt(), "keine Laufzeit-Abhaengigkeit gelesen"
     assert "httpx" in _importierte_wurzeln()
     assert "gibtsnicht" not in _importierte_wurzeln()
 

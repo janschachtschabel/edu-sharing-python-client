@@ -108,6 +108,10 @@ class Workflow:
             ValueError: without a receiver or without a status.
             SilentDropError: when the history does not show the step
                 afterwards, although the repository reported 200.
+            EduSharingError: when the history cannot be read. It is read
+                **before** the write now, so a principal who may submit but
+                not read the history no longer gets as far as submitting --
+                which is the better half of that trade.
         """
         names = [receiver] if isinstance(receiver, str) else list(receiver)
         names = [n for n in names if n and n.strip()]

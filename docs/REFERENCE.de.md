@@ -1358,6 +1358,7 @@ sind.
 | `RetryPolicy(max_retries=…, backoff_base=…, max_retry_after=…)` | die eine Wiederholungs-Regel der drei Clients |
 | `RetryPolicy.delay(attempt, retry_after=…)` | `float \| None` — Sekunden Wartezeit; `None`, wenn sie zu lang zum Abwarten ist |
 | `RETRYABLE_STATUS` | `{429, 500, 502, 503, 504}` — die Status, die die beiden Nachbardienste erneut versuchen |
+| `DEFAULT_MAX_RETRY_AFTER` | `60.0` — die längste vom Dienst genannte Wartezeit, die noch abgewartet wird |
 | `parse_retry_after(value)` | `float \| None` — liest einen `Retry-After`-Kopf, Sekunden oder HTTP-Datum |
 | `LoopThread` / `SyncTransport` | wie die blockierende Fassade die asynchrone betreibt |
 

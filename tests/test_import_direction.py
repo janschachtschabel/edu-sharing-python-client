@@ -22,7 +22,7 @@ QUELLE = Path(__file__).resolve().parent.parent / "src" / "edusharing"
 #: haengt ``repo.flows`` an; ``__init__.py`` ist die Paketoberflaeche, die die
 #: oeffentlichen Namen aller Schichten nennt. Beide bauen nichts, sie reichen
 #: durch.
-MONTAGE = {"repository.py", "__init__.py"}
+MONTAGE = {"repository.py", "__init__.py"}  # relativ zu ``edusharing/``
 
 OBERE_SCHICHTEN = ("flows", "agent")
 
@@ -41,7 +41,15 @@ def _importe(pfad: Path) -> set[str]:
                     "edusharing.") else name)
                 continue
             wurzel = teile[: len(teile) - (knoten.level - 1)]
-            namen.add(".".join([*wurzel, *(knoten.module or "").split(".")]).strip("."))
+            pfad = [*wurzel, *(knoten.module or "").split(".")]
+            namen.add(".".join(pfad).strip("."))
+            # ``from . import flows`` nennt sein Ziel im Alias, nicht im
+            # Modul. Ohne diese Zeile war genau die Form unsichtbar, die
+            # ``nodes.py`` verwendet (``from . import nodes_write, placement,
+            # ratings``) -- ein Modul haette sich so ``flows`` holen koennen,
+            # ohne dass die Wache anschlaegt (Review 08.09.2026).
+            for alias in knoten.names:
+                namen.add(".".join([*pfad, alias.name]).strip("."))
         elif isinstance(knoten, ast.Import):
             for alias in knoten.names:
                 namen.add(alias.name.removeprefix("edusharing."))
@@ -57,7 +65,9 @@ def _module(unterhalb: str = "") -> list[Path]:
 def _verstoesse(pfade: list[Path], verboten: tuple[str, ...]) -> list[str]:
     gefunden = []
     for pfad in pfade:
-        if pfad.name in MONTAGE:
+        # Der Pfad, nicht der Dateiname: sonst waeren auch
+        # ``flows/__init__.py`` und ``agent/__init__.py`` von allem befreit.
+        if pfad.relative_to(QUELLE).as_posix() in MONTAGE:
             continue
         for name in sorted(_importe(pfad)):
             if name.split(".")[0] in verboten:
@@ -83,5 +93,10 @@ def test_der_waechter_findet_einen_verstoss():
     """Ohne diesen Test waere ein Waechter, der versehentlich nichts mehr
     liest, gruen -- und damit wertlos."""
     assert _importe(QUELLE / "repository.py") >= {"flows"}
-    assert _verstoesse([QUELLE / "flows" / "tree.py"], ("errors",)) == [
-        "flows/tree.py -> errors"]
+    # Die Form, die der Waechter frueher uebersah.
+    assert "placement" in _importe(QUELLE / "nodes.py")
+    # Enthalten, nicht gleich: seit der Waechter auch die Aliasse liest,
+    # meldet er zusaetzlich ``errors.EduSharingError`` -- beide Angaben sind
+    # richtig, und der Test soll nicht an ihrer Zahl haengen.
+    assert "flows/tree.py -> errors" in _verstoesse(
+        [QUELLE / "flows" / "tree.py"], ("errors",))

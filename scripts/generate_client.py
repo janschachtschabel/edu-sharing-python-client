@@ -119,7 +119,15 @@ def main() -> int:
     if args.from_instance:
         print(f"hole Spec von {args.from_instance}")
         spec = fetch_spec(args.from_instance)
-        spec_bytes = json.dumps(spec, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        # Erst schreiben, dann hashen. Ohne das Schreiben nannte GENERATED.md
+        # den Hash einer Bytefolge, die es nirgends gab -- nicht nachpruefbar,
+        # und die Herkunftswache in tests/test_dependencies.py war danach nur
+        # von Hand wieder gruen zu bekommen, an einer Datei, deren erste Zeile
+        # "nicht von Hand aendern" sagt (Review 08.09.2026).
+        spec_bytes = json.dumps(spec, ensure_ascii=False, indent=2).encode("utf-8")
+        args.spec.parent.mkdir(parents=True, exist_ok=True)
+        args.spec.write_bytes(spec_bytes)
+        print(f"Referenz-Spec aktualisiert: {args.spec.relative_to(ROOT).as_posix()}")
     else:
         if not args.spec.exists():
             print(f"Referenz-Spec fehlt: {args.spec}", file=sys.stderr)
@@ -181,7 +189,11 @@ def main() -> int:
         return 1
 
     # posix: die Notiz wird eingecheckt und darf nicht nach Windows aussehen.
-    quelle = args.from_instance or args.spec.relative_to(ROOT).as_posix()
+    # Auch bei --from-instance zeigt sie auf die Datei, denn dort steht jetzt,
+    # was gehasht wurde; die Adresse steht daneben.
+    quelle = args.spec.relative_to(ROOT).as_posix()
+    if args.from_instance:
+        quelle += f" (geholt von {args.from_instance})"
     write_provenance(args.output, spec_bytes, quelle, info)
     print(f"\nOK: {total} Dateien, keine Syntaxfehler.")
     return 0

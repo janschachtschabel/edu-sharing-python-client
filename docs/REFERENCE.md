@@ -1333,6 +1333,7 @@ Not needed for ordinary use; documented because they are importable.
 | `RetryPolicy(max_retries=…, backoff_base=…, max_retry_after=…)` | the one retry rule the three clients share |
 | `RetryPolicy.delay(attempt, retry_after=…)` | `float \| None` — seconds to wait; `None` when the wait is too long to sit out |
 | `RETRYABLE_STATUS` | `{429, 500, 502, 503, 504}` — the statuses the two sibling clients try again |
+| `DEFAULT_MAX_RETRY_AFTER` | `60.0` — the longest server-named wait still sat out |
 | `parse_retry_after(value)` | `float \| None` — reads a `Retry-After` header, seconds or HTTP date |
 | `LoopThread` / `SyncTransport` | how the blocking facade runs the async one |
 

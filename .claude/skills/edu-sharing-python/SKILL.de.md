@@ -322,7 +322,8 @@ der Zahl bei dir an).
 `delay(attempt, retry_after=…)` die Wartezeit liefert — gestreut, damit eine
 Fan-out-Welle nicht im Gleichschritt zurückkommt — oder `None`, wenn der Dienst
 um mehr gebeten hat, als dieser Client abwartet. `RETRYABLE_STATUS` ist der
-Statussatz, den die beiden Nachbardienste erneut versuchen, und
+Statussatz, den die beiden Nachbardienste erneut versuchen,
+`DEFAULT_MAX_RETRY_AFTER` (60 s) ist diese Obergrenze, und
 `parse_retry_after(value)` liest den Kopf in beiden Schreibweisen, die
 RFC 9110 erlaubt.
 

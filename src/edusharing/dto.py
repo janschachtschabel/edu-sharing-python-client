@@ -36,7 +36,10 @@ def first(value: Any) -> str | None:
     what counts is that the list is there, not what its first value is worth:
     ``[""]`` gives ``""``, only ``[]`` gives ``None``. A bare falsy value —
     ``""``, ``0``, ``None`` — counts as not set. Callers that want one answer
-    for both write ``first(…) or ""``.
+    for both write ``first(…) or ""``. Inside a list nothing is skipped, so a
+    JSON ``null`` there comes back as the string ``"None"`` -- edu-sharing has
+    not been seen to send one, and inventing a rule for it would hide it if it
+    ever did.
     """
     if isinstance(value, list):
         return str(value[0]) if value else None
@@ -120,6 +123,11 @@ def page_total(response: dict[str, Any], default: int = 0) -> int:
     ``default`` for a response that carries no total: ``ngsearch`` answers
     with ``pagination: null``, and what should count instead is the caller's
     decision — usually 0, sometimes the number of records in hand.
+
+    A stated ``0`` is an answer, not a missing one, and is returned as such.
+    The eight call sites this replaced all wrote ``or``, which handed a caller
+    with a non-zero ``default`` that default for an empty listing (review
+    2026-09-08).
     """
     total = (response.get("pagination") or {}).get("total")
-    return int(total) if total else default
+    return default if total is None else int(total)

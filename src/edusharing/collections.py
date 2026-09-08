@@ -311,9 +311,9 @@ class Collections:
 
         nodes = Nodes(self._transport)
         current = await nodes.get(collection_id)
-        # ``stored_title_of``, nicht ``current.title``: der Anzeigetitel faellt
-        # auf den Dateinamen zurueck, und den hier zu schreiben waere ein
-        # Schreibvorgang, den niemand verlangt hat (Review 08.09.2026).
+        # ``stored_title_of``, not ``current.title``: the display title falls
+        # back to the file name, and writing that here would be a write nobody
+        # asked for (review 2026-09-08).
         wanted_title = title if title is not None else stored_title_of(current.raw)
 
         body: dict[str, Any] = {

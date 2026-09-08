@@ -152,8 +152,8 @@ class BildungsAPI:
                 "BildungsAPI(api_key=...)."
             )
         at_least("timeout", timeout, 0.001)
-        # Budget und Wartezeit liegen in der Regel, die die drei Clients
-        # teilen; sie prueft ihre eigenen Grenzen (Audit ARC-2).
+        # Budget and waiting live in the policy the three clients share; it
+        # checks its own bounds (audit ARC-2).
         self._retry = RetryPolicy(max_retries=max_retries, backoff_base=backoff_base)
         at_least("max_concurrency", max_concurrency, 1)
         at_least("models_cache_seconds", models_cache_seconds, 0)
