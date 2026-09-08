@@ -17,15 +17,19 @@ Ergebnis liefert und keine Coroutine. Der Nachweis ist billig und faengt genau
 die Sorte Fehler, die zweimal durchgerutscht ist.
 """
 
+import gc
 import inspect
 import json
+import threading
+import time
+from unittest import mock
 
 import httpx
 import pytest
 
 from edusharing import Repository
 from edusharing._sync import LoopThread
-from edusharing.errors import ConflictError, ValidationError
+from edusharing.errors import ConflictError, EduSharingError, ValidationError
 
 REPO = "https://repo.test/edu-sharing"
 NID = "node-1"
@@ -715,3 +719,68 @@ def test_die_fuenf_neuen_ablaeufe_synchron(repo):
     _kein_coroutine(repo.flows.browse_tree("coll-1", depth=1))
     _kein_coroutine(repo.flows.search_in_collection("coll-1", "x", depth=1))
     _kein_coroutine(repo.flows.collection_stats("coll-1"))
+
+
+# --- COR-4: der Schleifen-Thread haengt am Leben der Verbindung -----------
+
+
+def _schleifen() -> int:
+    """Wie viele Schleifen-Threads gerade laufen."""
+    return sum(1 for t in threading.enumerate() if t.name == "edusharing-loop")
+
+
+def test_eine_gescheiterte_konstruktion_laesst_keinen_thread_zurueck():
+    """Gemessen am 03.09.2026: drei gescheiterte Konstruktionen, drei lebende
+    ``edusharing-loop``-Threads. Der Thread startete vor der Pruefung der
+    Argumente -- und ein Notizbuch fuehrt die Zelle wieder und wieder aus
+    (Audit COR-4)."""
+    vorher = _schleifen()
+    for _ in range(3):
+        with pytest.raises(EduSharingError):
+            Repository("ftp://kein-repositorium.test")
+    assert _schleifen() == vorher
+
+
+def test_auch_ein_widerspruechliches_argument_laesst_keinen_thread_zurueck():
+    """Der zweite gemessene Fall: ``timeout`` und ``client`` zusammen."""
+    vorher = _schleifen()
+    with pytest.raises(EduSharingError):
+        Repository("https://repo.test/edu-sharing", timeout=0.5,
+                   client=httpx.AsyncClient())
+    assert _schleifen() == vorher
+
+
+def test_eine_fallengelassene_verbindung_raeumt_ihren_thread_ab():
+    """Ein Notizbuch ruft ``close()`` selten. Ohne Aufraeumen bleibt je ein
+    Thread und ein Verbindungsvorrat pro Durchlauf liegen (Audit ARC-4)."""
+    vorher = _schleifen()
+    repo = Repository(
+        "https://repo.test/edu-sharing",
+        client=httpx.AsyncClient(transport=httpx.MockTransport(
+            lambda r: httpx.Response(200, json={}))))
+    assert _schleifen() == vorher + 1
+    del repo
+    gc.collect()
+    for _ in range(50):
+        if _schleifen() == vorher:
+            break
+        time.sleep(0.02)
+    assert _schleifen() == vorher
+
+
+def test_close_haengt_nicht_an_einer_schleife_die_nicht_stehen_bleibt():
+    """``loop.close()`` auf einer laufenden Schleife wirft und verdeckt damit,
+    was tatsaechlich haengt. Bleibt der Thread stehen, wird das gemeldet statt
+    geworfen -- er ist ein Daemon und haelt den Prozess nicht auf (Audit
+    COR-4)."""
+    schleife = LoopThread()
+    try:
+        with mock.patch.object(schleife._thread, "is_alive", return_value=True):
+            schleife.close()  # darf nicht werfen
+        assert not schleife._loop.is_closed(), (
+            "eine Schleife, die noch laeuft, wird offen gelassen, nicht halb zu")
+    finally:
+        schleife._loop.call_soon_threadsafe(schleife._loop.stop)
+        schleife._thread.join(timeout=5)
+        if not schleife._loop.is_closed():
+            schleife._loop.close()

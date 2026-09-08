@@ -13,6 +13,7 @@ arrives -- which synchronous code expects anyway.
 from __future__ import annotations
 
 import asyncio
+import logging
 import threading
 from collections.abc import Coroutine
 from typing import TYPE_CHECKING, Any, TypeVar
@@ -24,6 +25,8 @@ __all__ = ["LoopThread", "SyncTransport", "SyncNode", "SyncNodeContent",
            "SyncChildObjects", "SyncFlows", "SyncRelations", "SyncNodePage",
            "SyncNodePermissions", "SyncSuggestions", "SyncWorkflow", "SyncComments",
            "SyncSkills", "SyncPeople"]
+
+logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
@@ -51,11 +54,25 @@ class LoopThread:
 
         Calling it repeatedly is fine -- ``close()`` typically sits in a
         ``finally`` and is also called by the context manager.
+
+        When the thread does not stop within ``_STOP_TIMEOUT``, the loop is
+        left alone: ``loop.close()`` on a running loop raises "Cannot close a
+        running event loop", and that exception would replace whatever is
+        actually hanging with a message about the closing (audit COR-4). The
+        thread is a daemon, so it does not hold the process open; the warning
+        says what happened.
         """
         if self._loop.is_closed():
             return
         self._loop.call_soon_threadsafe(self._loop.stop)
         self._thread.join(timeout=_STOP_TIMEOUT)
+        if self._thread.is_alive():
+            logger.warning(
+                "the background loop did not stop within %.0f s -- leaving it "
+                "open rather than raising over it; something on it is still "
+                "running", _STOP_TIMEOUT,
+            )
+            return
         self._loop.close()
 
 

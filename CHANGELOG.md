@@ -58,6 +58,15 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Fixed
 
+- **The background loop thread lives and dies with the connection**
+  (audit COR-4, ARC-4). `Repository(...)` started the thread before checking
+  its arguments, so every failed construction left a live `edusharing-loop`
+  behind -- one thread and one connection pool per re-run of a notebook cell.
+  The async side is built first now, and the thread is tied to the object's
+  lifetime through `weakref.finalize`, so a dropped repository takes its loop
+  with it. `LoopThread.close()` no longer calls `loop.close()` after a join
+  timeout: on a running loop that raises and hides whatever is hanging; it
+  warns and leaves the daemon thread alone instead.
 - **A read-back now proves the write, not a coincidence** (audit COR-3).
   `comments.add` matched the stored comment on its text, so with the
   repository dropping the `PUT` it returned an older `"+1"` by another author

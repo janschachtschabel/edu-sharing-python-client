@@ -14,6 +14,7 @@ somewhere unrelated to the cause.
 from __future__ import annotations
 
 import os
+import weakref
 from dataclasses import replace
 from typing import Any, Self
 
@@ -327,9 +328,20 @@ class Repository:
     """
 
     def __init__(self, url: str, **kwargs: Any) -> None:
-        self._loop = LoopThread()
+        # The asynchronous side first. Its constructor checks the URL and the
+        # settings and may raise; starting the loop thread before that left a
+        # live ``edusharing-loop`` behind for every failed construction --
+        # measured 2026-09-03: three failures, three threads. A notebook runs
+        # the same cell again and again, so that was one thread and one
+        # connection pool per attempt (audit COR-4).
         self._async = AsyncRepository(url, **kwargs)
+        self._loop = LoopThread()
         self._closed = False
+        # And when the connection is simply dropped -- the normal case in a
+        # notebook, where ``close()`` is rarely called -- the loop goes with
+        # it. ``finalize`` holds the LoopThread, not this object, so it does
+        # not keep the repository alive.
+        self._finalizer = weakref.finalize(self, self._loop.close)
 
     @classmethod
     def from_env(cls, **kwargs: Any) -> Repository:
@@ -500,7 +512,9 @@ class Repository:
         try:
             self._loop.run(self._async.aclose())
         finally:
-            self._loop.close()
+            # Through the finalizer, so the closing happens exactly once
+            # whichever way it is reached.
+            self._finalizer()
 
     def __enter__(self) -> Self:
         return self
