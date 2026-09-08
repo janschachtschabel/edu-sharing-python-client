@@ -58,6 +58,15 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Fixed
 
+- **What was created stays reported** (audit COR-5). When `add_material` could
+  not place the new material in a collection, or could not publish it, the
+  error used to propagate and take the new id with it: orphan material with no
+  handle to retry or delete it, and a second run created a second record.
+  Both answers now carry the `id` and say what did not happen —
+  `collection: {"added": false, "reason": …}`, `public: false`, and the reason
+  in `warnings`. `build_collection` gained the same `warnings` key for a
+  refused publish. A failure to create the record itself still raises: when
+  nothing exists, there is nothing to report.
 - **Downloads are bounded** (audit SEC-2). `node.content.download(max_bytes=…)`
   refuses a file above the limit — before the request when the repository
   reports the size, else while the bytes arrive, streamed through the new

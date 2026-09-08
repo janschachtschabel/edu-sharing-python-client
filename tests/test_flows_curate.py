@@ -390,3 +390,86 @@ async def test_loeschen_einer_referenz_nennt_das_original_und_trifft_nur_die_ref
         ergebnis = await repo.flows.delete("ref-1")
     assert ergebnis["is_reference"] is True and ergebnis["original_id"] == "abc"
     assert instanz.geloescht == ["ref-1"]
+
+
+# --- COR-5: was angelegt ist, wird gemeldet -------------------------------
+
+
+class MitFehler(Instanz):
+    """Eine Instanz, die einen bestimmten Schritt nach dem Anlegen verweigert.
+
+    Genau die Lage aus dem Audit: der Knoten existiert schon, und erst der
+    naechste Schritt scheitert."""
+
+    def __init__(self, *, scheitert: str) -> None:
+        super().__init__()
+        self.scheitert = scheitert
+
+    def __call__(self, request):
+        pfad = request.url.path
+        if self.scheitert == "sammlung" and "/references/" in pfad:
+            self.anfragen.append(request)
+            return httpx.Response(404, json={
+                "error": "DAOMissingException",
+                "message": "Node does not exist: keine-sammlung"})
+        if self.scheitert == "publish" and "/permissions" in pfad:
+            self.anfragen.append(request)
+            return httpx.Response(403, json={
+                "error": "AccessDeniedException", "message": "no permission"})
+        return super().__call__(request)
+
+
+async def test_material_behaelt_seine_id_wenn_die_sammlung_fehlt():
+    """Vor dem Audit warf dieser Fall NotFoundError, nachdem der Knoten schon
+    angelegt war: verwaistes Material ohne Handhabe, es zu wiederholen oder zu
+    loeschen -- und ein zweiter Lauf legt einen zweiten Satz an (Audit COR-5)."""
+    instanz = MitFehler(scheitert="sammlung")
+    async with _repo(instanz) as repo:
+        ergebnis = await repo.flows.add_material(
+            "Feuerspuren", collection_id="keine-sammlung")
+    assert ergebnis["id"] == NEU
+    assert ergebnis["created"] is True
+    assert ergebnis["collection"] == {
+        "id": "keine-sammlung", "added": False,
+        "reason": ergebnis["collection"]["reason"]}
+    assert "404" in ergebnis["collection"]["reason"]
+    assert any("keine-sammlung" in w for w in ergebnis["warnings"])
+    json.dumps(ergebnis)
+
+
+async def test_material_behaelt_seine_id_wenn_das_veroeffentlichen_scheitert():
+    instanz = MitFehler(scheitert="publish")
+    async with _repo(instanz) as repo:
+        ergebnis = await repo.flows.add_material("Feuerspuren", publish=True)
+    assert ergebnis["id"] == NEU
+    assert ergebnis["public"] is False
+    assert any("veroeffentlich" in w.lower() or "publish" in w.lower()
+               for w in ergebnis["warnings"])
+    json.dumps(ergebnis)
+
+
+async def test_sammlung_behaelt_ihre_id_wenn_das_veroeffentlichen_scheitert():
+    """``build_collection`` faengt schon jeden einzelnen Knoten ab -- nur das
+    Veroeffentlichen danach nicht (Audit COR-5)."""
+    instanz = MitFehler(scheitert="publish")
+    async with _repo(instanz) as repo:
+        ergebnis = await repo.flows.build_collection("Sammlung", publish=True)
+    assert ergebnis["id"] == "sammlung-1"
+    assert ergebnis["public"] is False
+    assert ergebnis["warnings"]
+    json.dumps(ergebnis)
+
+
+async def test_ein_gescheitertes_anlegen_wirft_weiterhin():
+    """Die Grenze der Regel: wenn nichts entstanden ist, gibt es auch nichts
+    zu melden -- dann ist der Fehler die Antwort."""
+    class KeinAnlegen(Instanz):
+        def __call__(self, request):
+            if "/children" in request.url.path and request.method == "POST":
+                return httpx.Response(403, json={
+                    "error": "AccessDeniedException", "message": "no permission"})
+            return super().__call__(request)
+
+    async with _repo(KeinAnlegen()) as repo:
+        with pytest.raises(EduSharingError):
+            await repo.flows.add_material("Feuerspuren")

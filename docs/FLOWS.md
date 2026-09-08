@@ -1453,6 +1453,13 @@ repo.flows.add_material(
 }
 ```
 
+> **What is created stays reported.** When placing it in a collection or
+> publishing it is refused afterwards, the answer still carries the `id` —
+> `collection` says `"added": false` with a `reason`, `public` stays `false`,
+> and `warnings` names what did not happen. Raising there used to throw the id
+> away with the exception, leaving orphan material with no handle to retry or
+> delete it (audit COR-5).
+
 Three things the flow takes off your hands:
 
 **Where it goes.** Omit `parent_id` and it lands in your home folder — an id
@@ -1522,7 +1529,8 @@ repo.flows.build_collection(
   "url": "https://…/components/render/c32b0498-…",
   "added": ["abc-…", "def-…"],
   "failed": [{"id": "ghi-…", "reason": "HTTP 404 … Node does not exist"}],
-  "public": false
+  "public": false,
+  "warnings": []
 }
 ```
 
@@ -1532,7 +1540,10 @@ repo.flows.build_collection(
 
 > **The collection exists even when `failed` is non-empty.** Placing material is
 > one call per node and each can fail on its own. Aborting halfway would leave a
-> collection nobody asked for — so partial success is reported, not raised.
+> collection nobody asked for — so partial success is reported, not raised. The
+> same holds for the publish afterwards: a refusal leaves `public` at `false`
+> and names itself in `warnings`, rather than losing the collection's id with
+> the exception (audit COR-5).
 
 *Example: [`examples/07_flow_collection.py`](examples/07_flow_collection.py)*
 

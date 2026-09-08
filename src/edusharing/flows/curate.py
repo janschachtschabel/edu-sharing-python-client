@@ -26,6 +26,7 @@ from ..fields import name_from_title, resolve_vocabulary
 from .duplicates import check_before_create, validate_if_exists
 
 if TYPE_CHECKING:  # pragma: no cover
+    from ..nodes import Node
     from ..repository import AsyncRepository
 
 __all__ = ["add_material", "build_collection", "delete", "update_material"]
@@ -122,13 +123,8 @@ async def add_material(
 
     collection: dict[str, Any] | None = None
     if collection_id:
-        added = await repo.collections.add(collection_id, node.id)
-        collection = {"id": collection_id, "added": added}
-
-    public = node.is_public
-    if publish and not public:
-        await node.permissions.publish()
-        public = True
+        collection = await _place(repo, node.id, collection_id, warnings)
+    public = await _publish(node, publish, warnings)
 
     return {
         "id": node.id,
@@ -143,6 +139,40 @@ async def add_material(
         "created": True,
         "warnings": warnings,
     }
+
+
+async def _place(
+    repo: AsyncRepository, node_id: str, collection_id: str, warnings: list[str]
+) -> dict[str, Any]:
+    """Place the new material in a collection, reporting a refusal.
+
+    The node exists by the time this runs. Raising here used to throw its id
+    away with the exception: orphan material with no handle to retry or delete
+    it, and a second run creates a second record -- material without a URL has
+    no duplicate check to catch that (audit COR-5, 2026-09-03).
+    """
+    try:
+        added = await repo.collections.add(collection_id, node_id)
+    except EduSharingError as exc:
+        warnings.append(
+            f"Created, but not placed in collection {collection_id!r}: {exc}")
+        return {"id": collection_id, "added": False, "reason": str(exc)}
+    return {"id": collection_id, "added": added}
+
+
+async def _publish(node: Node, wanted: bool, warnings: list[str]) -> bool:
+    """Make the record public if asked, reporting a refusal rather than
+    raising it -- for the same reason as ``_place``: it already exists."""
+    if node.is_public:
+        return True
+    if not wanted:
+        return False
+    try:
+        await node.permissions.publish()
+    except EduSharingError as exc:
+        warnings.append(f"Created, but not published: {exc}")
+        return False
+    return True
 
 
 async def _home_folder(repo: AsyncRepository) -> str:
@@ -269,12 +299,14 @@ async def build_collection(
         scope: visibility, e.g. ``MY``. The library's default when omitted.
 
     Returns:
-        ``{id, title, url, added, failed, public}``. ``added`` holds the ids that went
-        in, ``failed`` holds ``{id, reason}`` for those that did not.
+        ``{id, title, url, added, failed, public, warnings}``. ``added`` holds
+        the ids that went in, ``failed`` holds ``{id, reason}`` for those that
+        did not, ``warnings`` names a publish that was refused.
 
         **The collection exists even when ``failed`` is non-empty.** Placing
         material is one call per node and each can fail on its own; aborting
-        halfway would leave a collection nobody asked for.
+        halfway would leave a collection nobody asked for. The same holds for
+        the publish afterwards (audit COR-5).
 
     Raises:
         EduSharingError: when the collection itself cannot be created.
@@ -301,10 +333,8 @@ async def build_collection(
             continue
         added.append(node_id)
 
-    public = collection.is_public
-    if publish and not public:
-        await collection.permissions.publish()
-        public = True
+    warnings: list[str] = []
+    public = await _publish(collection, publish, warnings)
 
     return {
         "id": collection.id,
@@ -313,6 +343,7 @@ async def build_collection(
         "added": added,
         "failed": failed,
         "public": public,
+        "warnings": warnings,
     }
 
 

@@ -1492,6 +1492,13 @@ repo.flows.add_material(
 }
 ```
 
+> **Was angelegt ist, wird gemeldet.** Scheitert danach das Einsortieren in
+> eine Sammlung oder das Veröffentlichen, trägt die Antwort trotzdem die `id` —
+> `collection` sagt `"added": false` samt `reason`, `public` bleibt `false`,
+> und `warnings` nennt, was nicht geschah. Bisher flog die id mit der Ausnahme
+> davon: verwaistes Material ohne Handhabe, es zu wiederholen oder zu löschen
+> (Audit COR-5).
+
 Drei Dinge nimmt der Ablauf ab:
 
 **Wohin es kommt.** Ohne `parent_id` landet es im Home-Verzeichnis — dessen ID
@@ -1562,7 +1569,8 @@ repo.flows.build_collection(
   "url": "https://…/components/render/c32b0498-…",
   "added": ["abc-…", "def-…"],
   "failed": [{"id": "ghi-…", "reason": "HTTP 404 … Node does not exist"}],
-  "public": false
+  "public": false,
+  "warnings": []
 }
 ```
 
@@ -1573,7 +1581,10 @@ repo.flows.build_collection(
 > **Die Sammlung existiert auch dann, wenn `failed` nicht leer ist.** Material
 > einzulegen ist ein Aufruf je Knoten, und jeder kann für sich scheitern. Ein
 > Abbruch auf halber Strecke hinterließe eine Sammlung, die niemand bestellt
-> hat — deshalb wird der Teilerfolg gemeldet, nicht geworfen.
+> hat — deshalb wird der Teilerfolg gemeldet, nicht geworfen. Dasselbe gilt für
+> das Veröffentlichen danach: eine Absage lässt `public` auf `false` und nennt
+> sich in `warnings`, statt die id der Sammlung mit der Ausnahme zu verlieren
+> (Audit COR-5).
 
 *Beispiel: [`examples/07_flow_collection.py`](examples/07_flow_collection.py)*
 
