@@ -40,8 +40,6 @@ USER = os.environ.get("EDU_SHARING_USER", "")
 PASSWORD = os.environ.get("EDU_SHARING_PASSWORD", "")
 LOGIN = (USER, PASSWORD) if USER else None
 
-METADATA_SET = os.environ.get("EDU_SHARING_METADATASET", "mds_oeh")
-
 
 def show_vocabulary(repo: Repository) -> None:
     """What values may I filter by?
