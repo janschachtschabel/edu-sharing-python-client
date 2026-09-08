@@ -396,6 +396,15 @@ comment.id                 # "c-91f0…"
 comment.text               # "Passt zu Klasse 6."
 ```
 
+> **Ein Kommentar und eine Übergabe werden gegen den Stand von vor dem
+> Schreiben geprüft.** Beide lesen den Knoten vorher einmal, damit die
+> Rückleseprobe einen Datensatz verlangen kann, den es vorher **nicht** gab.
+> Nur auf den Text zu prüfen ließ ein `"+1"` durchgehen, das jemand anderes
+> schon geschrieben hatte; eine Übergabe wurde an Status und Empfängern
+> erkannt, sodass die zweite Übergabe an dieselbe Warteschlange den älteren
+> Schritt zurückgab (Audit COR-3). Beides kostet je eine Anfrage mehr — ein
+> `SilentDropError`, auf den Verlass ist, ist das wert.
+
 ---
 
 ## Rechte und Veröffentlichen

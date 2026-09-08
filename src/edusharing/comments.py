@@ -94,19 +94,24 @@ class Comments:
         Raises:
             ValueError: on empty or blank text. Measured, the repository
                 accepts it with a 200 and stores an entry nobody can see.
-            SilentDropError: when the comment is absent after reading back.
+            SilentDropError: when no comment appeared that was not there before.
         """
         self._require_text(text)
+        # The ids that were there before. Costs one request, and it is what
+        # makes the read-back a proof: matching on the text alone accepted a
+        # comment somebody else had already written -- with the repository
+        # dropping the PUT, ``add("+1")`` returned an older "+1" by another
+        # author and called it stored (audit COR-3, 2026-09-03).
+        before = {comment.id for comment in await self.list()}
         params = {"commentReference": reply_to} if reply_to else None
         await self._node._nodes.transport.request(
             "PUT", self._path(), params=params, content=text.encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
-        # Read back and take the newest: the response carries nothing, and the
-        # id is not knowable in advance.
-        stored = await self.list()
-        for comment in reversed(stored):
-            if comment.text == text:
+        # The newest comment with this text that was not there a moment ago.
+        # The id is not knowable in advance, and the PUT answers with nothing.
+        for comment in reversed(await self.list()):
+            if comment.text == text and comment.id not in before:
                 return comment
         raise SilentDropError(
             f"The comment on node {self._node.id!r} was not there after reading "

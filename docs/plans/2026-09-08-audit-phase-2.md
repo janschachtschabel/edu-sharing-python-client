@@ -32,9 +32,13 @@ Exit-Code. Live nur auf der Staging, nur in selbst angelegten Wegwerf-Ordnern.
   neue `strings.py`, `field_property` zu `fields.py` (es löst einen Namen auf,
   es sucht nicht). `tests/test_import_direction.py` liest die Kanten per AST;
   Ausnahmen sind nur `repository.py` und `__init__.py`, benannt und begründet.
-- [ ] **9 · COR-5 + COR-3** Die Schreibabläufe behalten die angelegte id, wenn
+- [x] **9 · COR-5 + COR-3** Die Schreibabläufe behalten die angelegte id, wenn
   ein späterer Schritt scheitert; Rücklesen prüft gegen einen Stand von **vor**
   dem Schreiben, nicht gegen Textgleichheit.
+  Getan in zwei Commits: COR-5 (`_place`/`_publish` melden in `warnings`,
+  `build_collection` bekam den Schlüssel) und COR-3 (`comments.add` merkt
+  sich die ids, `workflow.submit` die Länge des Verlaufs -- je eine Anfrage
+  mehr, dafür ein `SilentDropError`, auf den Verlass ist).
 - [ ] **10 · TST-1 / MNT-2 + COR-4** Der Spiegel wird auf Verhalten geprüft und
   bekommt echte Rückgabetypen; der Schleifen-Thread wird auch bei gescheiterter
   Konstruktion geschlossen.

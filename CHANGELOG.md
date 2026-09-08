@@ -58,6 +58,14 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Fixed
 
+- **A read-back now proves the write, not a coincidence** (audit COR-3).
+  `comments.add` matched the stored comment on its text, so with the
+  repository dropping the `PUT` it returned an older `"+1"` by another author
+  and called it stored; `workflow.submit` matched on status and receivers, so
+  handing a node to the same queue a second time returned the older step. Both
+  now read the state once before writing and require a record that was not
+  there before — one extra request each, for a `SilentDropError` that can be
+  trusted.
 - **What was created stays reported** (audit COR-5). When `add_material` could
   not place the new material in a collection, or could not publish it, the
   error used to propagate and take the new id with it: orphan material with no

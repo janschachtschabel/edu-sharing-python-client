@@ -123,6 +123,14 @@ class Workflow:
                 "sensible to default to."
             )
 
+        # How long the history was before. Costs one request, and it is what
+        # makes the read-back a proof: matching on status and receivers alone
+        # accepted a submission somebody had made earlier -- with the
+        # repository dropping the PUT, a node already handed to the same queue
+        # returned that older step as if it were the new one (audit COR-3,
+        # 2026-09-03). The history only grows, so a length that did not change
+        # means nothing was written.
+        before = len(await self.history())
         await self._node._nodes.transport.request(
             "PUT",
             self._path(),
@@ -136,11 +144,13 @@ class Workflow:
             },
         )
         # The history comes back newest first -- measured 2026-08-28 by
-        # submitting twice. Taking the first match therefore takes the step
+        # submitting twice. So once it has grown, the first match is the step
         # just made, not an older one that looked the same.
-        for step in await self.history():
-            if step.status == status and set(step.receivers) == set(names):
-                return step
+        after = await self.history()
+        if len(after) > before:
+            for step in after:
+                if step.status == status and set(step.receivers) == set(names):
+                    return step
         raise SilentDropError(
             f"Node {self._node.id!r} shows no submission to "
             f"{', '.join(names)} with status {status!r} after reading the "

@@ -24,6 +24,7 @@ import pytest
 
 from edusharing import AsyncRepository
 from edusharing.comments import Comment
+from edusharing.errors import SilentDropError
 
 REPO = "https://repo.test/edu-sharing"
 NID = "k-1"
@@ -278,3 +279,50 @@ async def test_bearbeiten_wird_nach_abbruch_erneut_gesendet():
         await knoten.comments.edit("c-1", "neu")
     assert abgebrochen == [1]
     assert instanz.eintraege[0]["comment"] == "neu"
+
+
+# --- COR-3: Textgleichheit ist kein Beweis --------------------------------
+
+
+class Verschluckt(Instanz):
+    """Eine Instanz, die 200 sagt und nichts speichert -- der gemessene Fall,
+    fuer den die Rueckleseprobe ueberhaupt da ist."""
+
+    def handler(self, request):
+        if "/comment/v1" in request.url.path and request.method == "PUT":
+            self.anfragen.append(request)
+            return httpx.Response(200, content=b"")
+        return super().handler(request)
+
+
+async def test_ein_fremder_gleicher_kommentar_gilt_nicht_als_der_eigene():
+    """Auf dem Knoten steht schon ein "+1" von jemand anderem, und der Server
+    verschluckt das PUT. Bisher kam der fremde Kommentar als der eigene
+    zurueck: Textgleichheit ist kein Beweis, dass etwas geschrieben wurde
+    (Audit COR-3)."""
+    instanz = Verschluckt(eintraege=[_eintrag("c-alt", "+1", autor="bob")])
+    async with instanz.repo() as repo:
+        knoten = await repo.node(NID)
+        with pytest.raises(SilentDropError):
+            await knoten.comments.add("+1")
+
+
+async def test_ein_eigener_gleicher_kommentar_von_vorher_gilt_auch_nicht():
+    """Derselbe Autor, derselbe Text, nur aelter -- ohne die Aufnahme von
+    vorher waere auch das ein falscher Beweis."""
+    instanz = Verschluckt(eintraege=[_eintrag("c-alt", "+1")])
+    async with instanz.repo() as repo:
+        knoten = await repo.node(NID)
+        with pytest.raises(SilentDropError):
+            await knoten.comments.add("+1")
+
+
+async def test_der_neue_kommentar_wird_erkannt_obwohl_ein_gleicher_dasteht():
+    """Die andere Seite derselben Regel: der neue Eintrag zaehlt, auch wenn
+    ein wortgleicher schon dastand."""
+    instanz = Instanz(eintraege=[_eintrag("c-alt", "+1", autor="bob")])
+    async with instanz.repo() as repo:
+        knoten = await repo.node(NID)
+        neu = await knoten.comments.add("+1")
+    assert neu.id != "c-alt"
+    assert neu.text == "+1"

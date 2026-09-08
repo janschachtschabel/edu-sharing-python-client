@@ -388,6 +388,14 @@ comment.id                 # "c-91f0…"
 comment.text               # "Passt zu Klasse 6."
 ```
 
+> **A comment and a submission are proven against the state before the write.**
+> Both read the node once beforehand, so the read-back can require a record
+> that was **not** there before. Matching on the text alone used to accept a
+> `"+1"` somebody else had already written, and a submission was matched on
+> status and receivers, so handing a node to the same queue twice returned the
+> older step (audit COR-3). Each of the two costs one extra request; a
+> `SilentDropError` you can trust is worth it.
+
 ---
 
 ## Permissions and publishing

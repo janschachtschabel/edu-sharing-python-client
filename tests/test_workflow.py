@@ -26,6 +26,7 @@ import httpx
 import pytest
 
 from edusharing import AsyncRepository
+from edusharing.errors import SilentDropError
 from edusharing.workflow import WorkflowStep
 
 REPO = "https://repo.test/edu-sharing"
@@ -214,3 +215,38 @@ async def test_der_verlauf_kommt_neueste_zuerst():
         verlauf = await knoten.workflow.history()
     assert [s.status for s in verlauf] == ["200_tosave", "100_tocheck"]
     assert zweiter.status == "200_tosave"
+
+
+# --- COR-3: Status und Empfaenger sind kein Beweis ------------------------
+
+
+class Verschluckt(Instanz):
+    """Sagt 200 und schreibt den Verlauf nicht fort."""
+
+    def handler(self, request):
+        if request.url.path.endswith("/workflow") and request.method == "PUT":
+            self.anfragen.append(request)
+            return httpx.Response(200, content=b"")
+        return super().handler(request)
+
+
+async def test_ein_gleicher_schritt_von_vorher_gilt_nicht_als_der_neue():
+    """Der Knoten war schon einmal mit demselben Status an dieselben
+    Empfaenger uebergeben, und der Server verschluckt das PUT. Bisher kam der
+    aeltere Schritt zurueck statt eines SilentDropError (Audit COR-3)."""
+    instanz = Verschluckt(verlauf=[_eintrag("100_tocheck", empfaenger=["gruppe-a"])])
+    async with instanz.repo() as repo:
+        knoten = await repo.node(NID)
+        with pytest.raises(SilentDropError):
+            await knoten.workflow.submit("gruppe-a", status="100_tocheck")
+
+
+async def test_der_neue_schritt_wird_erkannt_obwohl_ein_gleicher_dasteht():
+    """Zweimal derselbe Status an dieselben Empfaenger ist erlaubt -- und der
+    zweite Vorgang ist kein verschluckter."""
+    instanz = Instanz(verlauf=[_eintrag("100_tocheck", empfaenger=["gruppe-a"])])
+    async with instanz.repo() as repo:
+        knoten = await repo.node(NID)
+        schritt = await knoten.workflow.submit("gruppe-a", status="100_tocheck")
+    assert schritt.status == "100_tocheck"
+    assert len(instanz.verlauf) == 2
