@@ -130,4 +130,8 @@ def page_total(response: dict[str, Any], default: int = 0) -> int:
     2026-09-08).
     """
     total = (response.get("pagination") or {}).get("total")
-    return default if total is None else int(total)
+    # ``""`` steht neben ``None`` fuer "nicht gesagt": ``int("")`` wuerde
+    # werfen, und eine Auflistung an einer leeren Zahl scheitern zu lassen
+    # waere schlechter als die Vorgabe zu nehmen. Eine genannte ``0`` ist
+    # davon nicht betroffen.
+    return default if total in (None, "") else int(total)

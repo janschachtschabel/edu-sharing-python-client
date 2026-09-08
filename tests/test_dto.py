@@ -202,3 +202,17 @@ def test_die_beiden_titelfragen_unterscheiden_sich_genau_dort():
     roh = {"properties": {"cm:name": ["arbeitsblatt.pdf"]}}
     assert title_of(roh) == "arbeitsblatt.pdf"
     assert stored_title_of(roh) == ""
+
+
+@pytest.mark.parametrize("wert", [None, ""])
+def test_page_total_nimmt_die_vorgabe_wenn_nichts_gesagt_ist(wert):
+    """``None`` und ``""`` heissen beide "nicht gesagt". Ein leeres Feld darf
+    die Auflistung nicht mit einem ValueError beenden."""
+    assert page_total({"pagination": {"total": wert}}, default=7) == 7
+
+
+def test_eine_genannte_null_ist_eine_antwort():
+    """Der Befund, um den es ging: acht Aufrufstellen schrieben ``or``, und
+    ein Aufrufer mit einer Vorgabe ungleich 0 bekam sie bei einer leeren
+    Auflistung zurueck (Review 08.09.2026)."""
+    assert page_total({"pagination": {"total": 0}}, default=7) == 0
