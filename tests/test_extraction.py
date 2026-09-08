@@ -22,12 +22,13 @@ die richtig antwortet, nachdem der Dienst die Anfrage schon gestellt hat, hat
 nichts geschuetzt.
 """
 
+import asyncio
 import json
 
 import httpx
 import pytest
 
-from edusharing.errors import EduSharingError
+from edusharing.errors import EduSharingError, RateLimitedError
 from edusharing.extraction import ExtractedText, TextExtraction
 
 BASE = "https://text-extraction.test"
@@ -383,3 +384,45 @@ def test_repr_des_ergebnisses_nennt_den_kern():
                          reason="private_host")
     assert "3 chars" in repr(mit)
     assert "private_host" in repr(ohne)
+
+
+# --- ARC-2/API-2: dieselbe Regel wie im Transport ---------------------------
+
+
+def _mit_429(retry_after: str) -> TextExtraction:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(429, headers={"Retry-After": retry_after},
+                              text="zu viele Anfragen")
+
+    return TextExtraction(
+        BASE, backoff_base=0.0, max_retries=2, resolve=_oeffentlich,
+        client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+
+
+async def test_ein_429_kommt_auch_hier_als_rate_limited_error(monkeypatch):
+    """Der Dienst nennt eine Wartezeit; bis zum Audit las sie niemand, und der
+    Fehler war von jedem anderen nicht zu unterscheiden (Audit ARC-2/API-2)."""
+    gewartet: list[float] = []
+
+    async def statt_schlaf(dauer):
+        gewartet.append(dauer)
+
+    monkeypatch.setattr(asyncio, "sleep", statt_schlaf)
+    async with _mit_429("9") as client:
+        with pytest.raises(RateLimitedError) as fehler:
+            await client.text_of("https://example.org/")
+    assert fehler.value.retry_after == 9.0
+    assert gewartet == [9.0, 9.0], "zweimal gewartet, wie der Dienst sagte"
+
+
+async def test_eine_zu_lange_wartezeit_wird_hier_ebenso_gereicht(monkeypatch):
+    gewartet: list[float] = []
+
+    async def statt_schlaf(dauer):
+        gewartet.append(dauer)
+
+    monkeypatch.setattr(asyncio, "sleep", statt_schlaf)
+    async with _mit_429("3600") as client:
+        with pytest.raises(RateLimitedError):
+            await client.text_of("https://example.org/")
+    assert gewartet == []

@@ -313,13 +313,27 @@ muss — die Argument- und Rückgabeformen stehen in `docs/REFERENCE.de.md`.
 `ServerError` · `UnsafeUrlError` · `ContentTooLargeError` (ein Download über
 `max_bytes`; die Textpfade halten bei `MAX_TEXT_BYTES`, 8 MiB, vor dem Laden an)
 
+`RateLimitedError` (429 — `retry_after` trägt die vom Dienst genannten
+Sekunden; kurze Wartezeiten werden für dich abgewartet, eine lange kommt mit
+der Zahl bei dir an).
+
+**Wiederholungen** folgen einer Regel für alle drei Clients:
+`RetryPolicy(max_retries=…, backoff_base=…, max_retry_after=…)`, deren
+`delay(attempt, retry_after=…)` die Wartezeit liefert — gestreut, damit eine
+Fan-out-Welle nicht im Gleichschritt zurückkommt — oder `None`, wenn der Dienst
+um mehr gebeten hat, als dieser Client abwartet. `RETRYABLE_STATUS` ist der
+Statussatz, den die beiden Nachbardienste erneut versuchen, und
+`parse_retry_after(value)` liest den Kopf in beiden Schreibweisen, die
+RFC 9110 erlaubt.
+
 `at_least(name, value, limit)` ist die Grenzprüfung, die die Clients auf ihre Einstellungen anwenden;
 `details_withheld(…)` benennt, was ein Fehler bewusst nicht preisgibt.
 
 **Der Rest von `__all__`** ist Maschinerie, die man nur anfasst, wenn man die
 Bibliothek erweitert statt sie zu benutzen: `Flows` (der Typ hinter `repo.flows`),
 `__version__`, die Konstruktoren `from_response` / `from_node` / `from_raw_header` /
-`error_from_response`, die b-api-Rumpfhelfer `build_body` / `read_answer` /
+`error_from_response` (und `error_class_for`, das nur sagt, welcher Typ zu
+einem Status gehört), die b-api-Rumpfhelfer `build_body` / `read_answer` /
 `reasoning_for_responses` und `field_property`, das einen Kurznamen auf seine
 Eigenschaft abbildet. Nichts oben setzt voraus, sie zu rufen.
 

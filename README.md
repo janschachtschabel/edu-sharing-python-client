@@ -564,6 +564,14 @@ sent is retried for every method. On an instance that withholds its error
 messages, a `5xx` on a write carries a note: it may be the measured login
 hiccup rather than a server fault — read back, then decide.
 
+**A `429` is the exception to that rule.** It says the request was refused,
+not carried out, so even a write goes again. It arrives as `RateLimitedError`,
+and `retry_after` carries the seconds the server named — waited out for you
+while the wait is short, handed to you with the number when it is long, because
+sleeping an hour inside one call is a hang, not a retry. The pause between
+attempts carries jitter, so eight calls of one fan-out do not come back in the
+same millisecond.
+
 And three errors that arrive wearing the wrong status, so that `except
 NotFoundError` actually catches them — and so the transport does not retry
 three times what can never succeed:

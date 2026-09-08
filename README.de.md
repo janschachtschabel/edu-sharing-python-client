@@ -579,6 +579,15 @@ wiederholt. Auf einer Instanz, die ihre Fehlermeldungen zurückhält, trägt ein
 `5xx` bei einem Schreibvorgang eine Notiz: es kann der gemessene
 Login-Ausrutscher sein, kein Serverfehler — zurücklesen, dann entscheiden.
 
+**Der `429` ist die Ausnahme von dieser Regel.** Er sagt, dass die Anfrage
+abgewiesen und nicht ausgeführt wurde — also darf auch ein Schreibvorgang
+erneut gehen. Er kommt als `RateLimitedError` an, und `retry_after` trägt die
+vom Dienst genannten Sekunden: kurze Wartezeiten werden für dich abgewartet,
+eine lange kommt mit der Zahl bei dir an, denn eine Stunde in einem Aufruf zu
+schlafen ist keine Wiederholung, sondern ein Aufhänger. Die Pause zwischen
+zwei Versuchen streut, damit acht Aufrufe einer Fan-out-Welle nicht in
+derselben Millisekunde zurückkommen.
+
 Dazu drei Fehler, die mit dem falschen Status ankommen — damit `except
 NotFoundError` sie wirklich fängt, und damit der Transport nicht dreimal
 wiederholt, was nie gelingen kann:

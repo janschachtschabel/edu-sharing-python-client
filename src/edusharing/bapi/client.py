@@ -39,8 +39,9 @@ from ..errors import (
     EduSharingError,
     ValidationError,
     at_least,
-    error_from_response,
+    error_class_for,
 )
+from ..retry import RETRYABLE_STATUS, RetryPolicy, parse_retry_after
 from ..urls import path_segment, refuse_userinfo
 from . import passthrough
 from .body import UNSET, ReasoningParam, build_body, read_answer
@@ -104,10 +105,6 @@ CACHE_FOREVER = float("inf")
 #: which waits as before.
 DEFAULT_RETRIES_BEFORE_SWITCHING = 1
 
-#: Status codes where a second attempt can succeed. 404 is deliberately absent:
-#: "This is not a chat model" will not improve on the fourth try.
-RETRYABLE = frozenset({429, 500, 502, 503, 504})
-
 #: How many models are tried in turn under automatic selection. Measured: a
 #: model can report ``status: ready`` and still not answer (``503 Model pricing
 #: unavailable``). With an explicit model id there is **no** fallback -- that
@@ -154,9 +151,10 @@ class BildungsAPI:
                 "BildungsAPI(api_key=...)."
             )
         at_least("timeout", timeout, 0.001)
-        at_least("max_retries", max_retries, 0)
+        # Budget und Wartezeit liegen in der Regel, die die drei Clients
+        # teilen; sie prueft ihre eigenen Grenzen (Audit ARC-2).
+        self._retry = RetryPolicy(max_retries=max_retries, backoff_base=backoff_base)
         at_least("max_concurrency", max_concurrency, 1)
-        at_least("backoff_base", backoff_base, 0)
         at_least("models_cache_seconds", models_cache_seconds, 0)
         at_least("retries_before_switching", retries_before_switching, 0)
         self._api_key = api_key
@@ -167,8 +165,8 @@ class BildungsAPI:
         )
         self.base_url = base_url.rstrip("/")
         self.provider = provider
-        self.max_retries = max_retries
-        self.backoff_base = backoff_base
+        self.max_retries = self._retry.max_retries
+        self.backoff_base = self._retry.backoff_base
         self.models_cache_seconds = models_cache_seconds
         self.retries_before_switching = retries_before_switching
         #: Names the caller gave to groups of models. ``chat(model="schnell")``
@@ -523,9 +521,14 @@ class BildungsAPI:
         budget = self.max_retries if max_retries is None else max_retries
 
         for attempt in range(budget + 1):
-            if attempt:
-                # No retry-after on the 429 -- exponential is all there is.
-                await asyncio.sleep(self.backoff_base * (2 ** (attempt - 1)))
+            if attempt and last is not None:
+                # Measured, the b-api names no wait. Should it name one, it
+                # counts: ``budget`` stays the number of attempts, the shared
+                # policy decides only how long each pause is (audit ARC-2).
+                pause = self._retry.delay(attempt, last.retry_after)
+                if pause is None:
+                    raise last
+                await asyncio.sleep(pause)
             try:
                 async with self._semaphore:
                     response = await self._client.request(
@@ -542,7 +545,7 @@ class BildungsAPI:
                 return response.json()
 
             last = self._error(response, url)
-            if response.status_code not in RETRYABLE:
+            if response.status_code not in RETRYABLE_STATUS:
                 raise last
 
         # ``max_retries >= 0`` is checked in the constructor, so the loop runs
@@ -562,10 +565,11 @@ class BildungsAPI:
             message = data.get("message") or data.get("error") or response.text
         except ValueError:
             message = response.text
-        base = error_from_response(response.status_code, url, "")
-        return type(base)(
+        failure = error_class_for(response.status_code)
+        return failure(
             f"b-api HTTP {response.status_code}: {str(message)[:300]}",
             status=response.status_code, url=url,
+            retry_after=parse_retry_after(response.headers.get("retry-after")),
         )
 
     def __repr__(self) -> str:

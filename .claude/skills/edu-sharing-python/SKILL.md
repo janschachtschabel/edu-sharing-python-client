@@ -299,14 +299,24 @@ catches everything this library raises:
 `TransportError` · `AuthenticationError` · `PermissionDeniedError` ·
 `NotFoundError` · `ValidationError` · `ConflictError` · `SilentDropError` ·
 `ServerError` · `UnsafeUrlError` · `ContentTooLargeError` (a download above
-`max_bytes`; the text paths stop at `MAX_TEXT_BYTES`, 8 MiB, before downloading)
+`max_bytes`; the text paths stop at `MAX_TEXT_BYTES`, 8 MiB, before downloading) ·
+`RateLimitedError` (429 — `retry_after` carries the seconds the server named;
+short waits are sat out for you, a long one reaches you with the number)
+
+**Retries** are one rule for all three clients: `RetryPolicy(max_retries=…,
+backoff_base=…, max_retry_after=…)`, whose `delay(attempt, retry_after=…)`
+returns the seconds to wait — jittered, so a fan-out does not come back in
+lockstep — or `None` when the server asked for longer than this client waits.
+`RETRYABLE_STATUS` is the status set the two sibling services retry, and
+`parse_retry_after(value)` reads the header in either form RFC 9110 allows.
 
 `at_least(name, value, limit)` is the bounds check the clients apply to their settings;
 `details_withheld(…)` names what an error deliberately does not reveal.
 
 **The rest of `__all__`** is machinery you only touch when extending the
 library rather than using it: `Flows` (the type behind `repo.flows`), `__version__`,
-the constructors `from_response` / `from_node` / `from_raw_header` / `error_from_response`, the b-api body helpers `build_body` / `read_answer` /
+the constructors `from_response` / `from_node` / `from_raw_header` / `error_from_response`
+(and `error_class_for`, which answers only which type a status stands for), the b-api body helpers `build_body` / `read_answer` /
 `reasoning_for_responses`, and `field_property`, which maps a short field name to
 its property. Nothing above depends on calling them.
 

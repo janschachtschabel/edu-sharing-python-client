@@ -1268,6 +1268,7 @@ Every failure is an `EduSharingError`. Catch that one to catch them all.
 | `ValidationError` | the request is wrong before it is sent — an unknown short name, an empty filename |
 | `ConflictError` | the repository refuses the state (409) |
 | `ServerError` | the instance failed (5xx) |
+| `RateLimitedError` | too many requests (429) — `retry_after` carries the seconds the server named |
 | `SilentDropError` | **the write returned 200 and stored nothing** |
 | `ContentTooLargeError` | a download is larger than max_bytes — before the request when the size is known |
 | `UnsafeUrlError` | `check_url` refused an address |
@@ -1308,9 +1309,24 @@ Not needed for ordinary use; documented because they are importable.
 | `rest_base(repository_url)` | `str` — the REST root under it |
 | `path_segment(value)` | `str` — percent-encodes an identifier, `/` included |
 | `is_unroutable_host(host)` | `bool` — loopback, link-local, private ranges |
+| `error_class_for(status, error_class=…, message=…)` | `type` — which error type a status stands for |
 | `Transport` | the HTTP layer: retries, backoff, the credential boundary |
 | `Transport.is_repository_url(url)` | `bool` |
+| `RetryPolicy(max_retries=…, backoff_base=…, max_retry_after=…)` | the one retry rule the three clients share |
+| `RetryPolicy.delay(attempt, retry_after=…)` | `float \| None` — seconds to wait; `None` when the wait is too long to sit out |
+| `RETRYABLE_STATUS` | `{429, 500, 502, 503, 504}` — the statuses the two sibling clients try again |
+| `parse_retry_after(value)` | `float \| None` — reads a `Retry-After` header, seconds or HTTP date |
 | `LoopThread` / `SyncTransport` | how the blocking facade runs the async one |
+
+**One rule for three loops.** `RetryPolicy` holds the budget
+(`max_retries`), the first pause (`backoff_base`, doubling from there) and the
+longest server-named wait still sat out (`max_retry_after`, 60 s). The pause
+carries jitter — between half a step and a full one — because eight calls of
+one fan-out otherwise meet the same 503 and come back in the same millisecond.
+A `Retry-After` outranks that curve and is never undercut. What each client
+still decides for itself is *which* failure earns another attempt: the
+transport by error type, because an edu-sharing 500 can mean "not signed in",
+the sibling services by `RETRYABLE_STATUS`.
 
 **`path_segment` is the single place identifiers are encoded** (decision E8). It
 encodes `/` too, so it cannot be applied to a multi-segment route — those are

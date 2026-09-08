@@ -14,6 +14,25 @@ and in [`docs/audits/`](docs/audits/).
 
 ## [Unreleased]
 
+### Added
+
+- **`RateLimitedError`** for HTTP 429 (audit API-2). It carries `retry_after`,
+  read from the header in either form RFC 9110 allows. Unlike a `5xx` a 429
+  says the request was refused rather than carried out, so even a write is
+  sent again; a short wait is sat out, a long one reaches the caller with the
+  number on it.
+
+### Changed
+
+- **One retry rule for the three clients** (audit ARC-2). The new
+  `RetryPolicy` holds budget, backoff and `Retry-After` for the transport, the
+  extraction service and the b-api; `RETRYABLE_STATUS` is the one status set.
+  The pause now carries jitter — between half a step and a full one — because
+  eight calls of one fan-out used to meet the same 503 and come back in the
+  same millisecond. What each client still decides for itself is which failure
+  earns another attempt: the transport by error type, the two others by status.
+  The extraction client now also checks its `backoff_base`, which it never did.
+
 ### Fixed
 
 - **Downloads are bounded** (audit SEC-2). `node.content.download(max_bytes=…)`

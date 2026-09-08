@@ -29,8 +29,10 @@ __all__ = [
     "ValidationError",
     "ContentTooLargeError",
     "ConflictError",
+    "RateLimitedError",
     "ServerError",
     "SilentDropError",
+    "error_class_for",
     "error_from_response",
 ]
 
@@ -47,6 +49,9 @@ class EduSharingError(Exception):
         error_class: the Java class name from the ``error`` field, if the
             response was JSON.
         stacktrace: the Java stack trace. For debugging only -- do not display.
+        retry_after: seconds the server asked to be left alone for, from the
+            ``Retry-After`` header. Filled for ``RateLimitedError``; ``None``
+            everywhere else, including when a 429 named no time.
     """
 
     def __init__(
@@ -57,12 +62,14 @@ class EduSharingError(Exception):
         url: str | None = None,
         error_class: str | None = None,
         stacktrace: str | None = None,
+        retry_after: float | None = None,
     ) -> None:
         super().__init__(message)
         self.status = status
         self.url = url
         self.error_class = error_class
         self.stacktrace = stacktrace
+        self.retry_after = retry_after
 
 
 class TransportError(EduSharingError):
@@ -138,6 +145,23 @@ class ContentTooLargeError(EduSharingError):
     Raised before the request when the repository reports the size
     (``NodeContent.size``), otherwise while the bytes arrive -- either way
     nothing beyond the limit is held in memory (audit SEC-2, 2026-09-06).
+    """
+
+
+class RateLimitedError(EduSharingError):
+    """HTTP 429: too many requests for now.
+
+    Unlike a 5xx this says the request was **not** carried out -- the server
+    refused it before doing anything -- so even a write may be sent again.
+    That is why the retry loops treat it apart from the idempotency rule
+    (audit API-2, 2026-09-03).
+
+    ``retry_after`` carries the seconds the server named, in either form
+    RFC 9110 allows, or ``None`` when it named none. While that wait is short
+    the loops sit it out themselves; when the server asks for longer than
+    ``retry.DEFAULT_MAX_RETRY_AFTER`` this error reaches the caller with the
+    number on it, because sleeping an hour inside a library call is a hang,
+    not a retry.
     """
 
 
@@ -217,33 +241,47 @@ def _short(error_class: str | None) -> str:
     return error_class.rsplit(".", 1)[-1] if error_class else ""
 
 
-def error_from_response(status: int, url: str, body: str) -> EduSharingError:
-    """Build the matching error type from a failure response.
+def error_class_for(
+    status: int, error_class: str | None = None, message: str = ""
+) -> type[EduSharingError]:
+    """Which error type a status stands for.
 
     The HTTP status is the first hint but not the last: for 5xx the content
     decides whether the server is genuinely broken or whether merely the
-    sign-in, respectively a permission, is missing.
+    sign-in, respectively a permission, is missing. Separate from
+    ``error_from_response`` because the b-api client needs the type without
+    the edu-sharing message shape -- it reports under ``message``.
     """
-    error_class, message, stacktrace = _parse_body(body)
-
     if status >= 500:
         lowered = message.lower()
         if _GUEST_HINT in lowered:
-            cls: type[EduSharingError] = AuthenticationError
-        elif _MISSING_HINT in lowered:
-            cls = NotFoundError
-        elif any(h in (error_class or "").lower() for h in _PERMISSION_HINTS):
-            cls = PermissionDeniedError
-        else:
-            cls = ServerError
-    else:
-        cls = {
-            400: ValidationError,
-            401: AuthenticationError,
-            403: PermissionDeniedError,
-            404: NotFoundError,
-            409: ConflictError,
-        }.get(status, EduSharingError)
+            return AuthenticationError
+        if _MISSING_HINT in lowered:
+            return NotFoundError
+        if any(h in (error_class or "").lower() for h in _PERMISSION_HINTS):
+            return PermissionDeniedError
+        return ServerError
+    return {
+        400: ValidationError,
+        401: AuthenticationError,
+        403: PermissionDeniedError,
+        404: NotFoundError,
+        409: ConflictError,
+        429: RateLimitedError,
+    }.get(status, EduSharingError)
+
+
+def error_from_response(
+    status: int, url: str, body: str, retry_after: float | None = None
+) -> EduSharingError:
+    """Build the matching error type from a failure response.
+
+    ``retry_after`` comes from the ``Retry-After`` header, already read by
+    ``retry.parse_retry_after`` -- this module stays a leaf and does not
+    import the retry policy.
+    """
+    error_class, message, stacktrace = _parse_body(body)
+    cls = error_class_for(status, error_class, message)
 
     parts = [f"HTTP {status}"]
     if error_class:
@@ -260,6 +298,7 @@ def error_from_response(status: int, url: str, body: str) -> EduSharingError:
         url=url,
         error_class=error_class,
         stacktrace=stacktrace,
+        retry_after=retry_after,
     )
 
 

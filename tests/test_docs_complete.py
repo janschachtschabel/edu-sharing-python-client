@@ -173,12 +173,40 @@ def _klassen_der_bibliothek() -> dict[str, type]:
 
 
 def _hat(klasse: type, feld: str) -> bool:
+    """Ob die Klasse dieses Feld wirklich hat -- auch geerbt.
+
+    Drei Wege, weil es drei Arten gibt, ein Feld zu haben: als
+    Klassenattribut, als Datenklassenfeld, und als etwas, das der Konstruktor
+    setzt. Das dritte sieht ``hasattr`` nicht, und ueber die MRO gilt es auch
+    fuer geerbte Konstruktoren -- ``RateLimitedError.retry_after`` kommt aus
+    ``EduSharingError.__init__`` (08.09.2026).
+    """
     import dataclasses
+    import inspect
     if hasattr(klasse, feld):
         return True
     if dataclasses.is_dataclass(klasse):
         return feld in {f.name for f in dataclasses.fields(klasse)}
-    return feld in getattr(klasse, "__annotations__", {})
+    if feld in getattr(klasse, "__annotations__", {}):
+        return True
+    try:
+        return feld in inspect.signature(klasse.__init__).parameters
+    except (TypeError, ValueError):  # ein Konstruktor ohne lesbare Signatur
+        return False
+
+
+def test_der_feldwaechter_kennt_geerbte_konstruktorfelder():
+    """``RateLimitedError.retry_after`` gibt es -- gesetzt in
+    ``EduSharingError.__init__``, von dem es erbt.
+
+    ``hasattr`` allein sieht das nicht: ein im Konstruktor gesetztes Feld ist
+    kein Klassenattribut. Ohne diesen Zusatz meldete der Waechter eine wahre
+    Zeile der Referenz als erfunden (08.09.2026).
+    """
+    from edusharing.errors import EduSharingError, RateLimitedError
+    assert _hat(RateLimitedError, "retry_after")
+    assert _hat(EduSharingError, "status")
+    assert not _hat(RateLimitedError, "wartezeit")
 
 
 def test_jedes_genannte_feld_gibt_es_wirklich():

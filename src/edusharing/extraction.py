@@ -55,7 +55,8 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from .errors import EduSharingError, at_least
+from .errors import EduSharingError, RateLimitedError, at_least
+from .retry import RETRYABLE_STATUS, RetryPolicy, parse_retry_after
 from .urls import is_unroutable_host, refuse_userinfo
 
 __all__ = ["ExtractedText", "TextExtraction", "METHODS"]
@@ -74,8 +75,6 @@ METHODS = ("simple", "browser")
 DEFAULT_TIMEOUT = 60.0
 DEFAULT_MAX_RETRIES = 2
 DEFAULT_BACKOFF_BASE = 1.0
-
-_RETRYABLE = frozenset({429, 500, 502, 503, 504})
 
 
 @dataclass(frozen=True)
@@ -140,11 +139,14 @@ class TextExtraction:
         resolve: Callable[[str], Any] | None = None,
         client: httpx.AsyncClient | None = None,
     ) -> None:
-        at_least("max_retries", max_retries, 0)
+        # Budget und Wartezeit liegen in der Regel, die die drei Clients
+        # teilen; sie prueft ihre eigenen Grenzen (Audit ARC-2). Damit wird
+        # hier erstmals auch ``backoff_base`` geprueft.
+        self._retry = RetryPolicy(max_retries=max_retries, backoff_base=backoff_base)
         at_least("timeout", timeout, 0.001)
         self.base_url = _check_base(base_url)
-        self.max_retries = max_retries
-        self.backoff_base = backoff_base
+        self.max_retries = self._retry.max_retries
+        self.backoff_base = self._retry.backoff_base
         self._resolve = resolve
         self._client = client or httpx.AsyncClient(timeout=timeout)
 
@@ -289,8 +291,13 @@ class TextExtraction:
     async def _request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
         last: EduSharingError | None = None
         for attempt in range(self.max_retries + 1):
-            if attempt:
-                await asyncio.sleep(self.backoff_base * (2 ** (attempt - 1)))
+            if attempt and last is not None:
+                pause = self._retry.delay(attempt, last.retry_after)
+                if pause is None:
+                    # Longer than this client waits -- ``retry_after`` carries
+                    # the number so the caller can schedule it.
+                    raise last
+                await asyncio.sleep(pause)
             try:
                 response = await self._client.request(
                     method, f"{self.base_url}{path}", **kwargs
@@ -302,11 +309,17 @@ class TextExtraction:
             # ``_result`` turns it into a reason.
             if response.status_code < 400 or response.status_code == 424:
                 return response
-            last = EduSharingError(
-                f"The extraction service answered HTTP {response.status_code} "
-                f"for {path}: {response.text[:200]}"
+            status = response.status_code
+            # Only the 429 gets a type of its own: it is the one status a
+            # caller acts on differently -- wait, then come back (audit API-2).
+            failure = RateLimitedError if status == 429 else EduSharingError
+            last = failure(
+                f"The extraction service answered HTTP {status} "
+                f"for {path}: {response.text[:200]}",
+                status=status,
+                retry_after=parse_retry_after(response.headers.get("retry-after")),
             )
-            if response.status_code not in _RETRYABLE:
+            if status not in RETRYABLE_STATUS:
                 raise last
         raise last  # type: ignore[misc]
 

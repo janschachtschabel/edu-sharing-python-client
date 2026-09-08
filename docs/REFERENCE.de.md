@@ -1290,6 +1290,7 @@ Jeder Fehlschlag ist ein `EduSharingError`. Wer den fängt, fängt alle.
 | `ValidationError` | die Anfrage ist falsch, bevor sie gesendet wird — unbekannter Kurzname, leerer Dateiname |
 | `ConflictError` | das Repository lehnt den Zustand ab (409) |
 | `ServerError` | die Instanz ist gescheitert (5xx) |
+| `RateLimitedError` | zu viele Anfragen (429) — `retry_after` trägt die vom Dienst genannten Sekunden |
 | `SilentDropError` | **der Schreibvorgang gab 200 zurück und speicherte nichts** |
 | `ContentTooLargeError` | ein Download ist größer als max_bytes — vor dem Abruf, wenn die Größe bekannt ist |
 | `UnsafeUrlError` | `check_url` hat eine Adresse abgelehnt |
@@ -1331,9 +1332,25 @@ sind.
 | `rest_base(repository_url)` | `str` — die REST-Wurzel darunter |
 | `path_segment(value)` | `str` — prozentkodiert einen Bezeichner, `/` eingeschlossen |
 | `is_unroutable_host(host)` | `bool` — Loopback, Link-Local, private Bereiche |
+| `error_class_for(status, error_class=…, message=…)` | `type` — welcher Fehlertyp zu einem Status gehört |
 | `Transport` | die HTTP-Schicht: Wiederholungen, Wartezeiten, Zugangsdaten-Grenze |
 | `Transport.is_repository_url(url)` | `bool` |
+| `RetryPolicy(max_retries=…, backoff_base=…, max_retry_after=…)` | die eine Wiederholungs-Regel der drei Clients |
+| `RetryPolicy.delay(attempt, retry_after=…)` | `float \| None` — Sekunden Wartezeit; `None`, wenn sie zu lang zum Abwarten ist |
+| `RETRYABLE_STATUS` | `{429, 500, 502, 503, 504}` — die Status, die die beiden Nachbardienste erneut versuchen |
+| `parse_retry_after(value)` | `float \| None` — liest einen `Retry-After`-Kopf, Sekunden oder HTTP-Datum |
 | `LoopThread` / `SyncTransport` | wie die blockierende Fassade die asynchrone betreibt |
+
+**Eine Regel für drei Schleifen.** `RetryPolicy` hält das Budget
+(`max_retries`), die erste Pause (`backoff_base`, danach verdoppelnd) und die
+längste vom Dienst genannte Wartezeit, die noch abgewartet wird
+(`max_retry_after`, 60 s). Die Pause streut — zwischen halbem und vollem
+Schritt —, weil sonst acht Aufrufe einer Fan-out-Welle denselben 503 treffen
+und in derselben Millisekunde zurückkommen. Ein `Retry-After` schlägt diese
+Kurve und wird nie unterschritten. Was jeder Client weiterhin selbst
+entscheidet, ist, *welcher* Fehlschlag einen weiteren Versuch verdient: der
+Transport nach Fehlertyp, weil ein edu-sharing-500 „nicht angemeldet" heißen
+kann, die Nachbardienste nach `RETRYABLE_STATUS`.
 
 **`path_segment` ist die eine Stelle, an der Bezeichner kodiert werden**
 (Entscheidung E8). Es kodiert auch `/` und kann deshalb nicht auf eine

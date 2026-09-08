@@ -17,6 +17,7 @@ from edusharing.errors import (
     ContentTooLargeError,
     EduSharingError,
     NotFoundError,
+    RateLimitedError,
     ServerError,
     TransportError,
 )
@@ -751,3 +752,97 @@ async def test_vorenthaltener_5xx_bei_einem_post_nennt_den_verdacht():
             await t.request("POST", WRITE)
     assert len(versuche) == 1
     assert any("read back" in n for n in fehler.value.__notes__)
+
+
+# --- ARC-2/API-2: der 429 ist eine Absage, kein Ergebnis --------------------
+
+
+def _gewartet(monkeypatch) -> list[float]:
+    """Zeichnet auf, was geschlafen worden waere, statt zu schlafen."""
+    dauern: list[float] = []
+
+    async def statt_schlaf(dauer):
+        dauern.append(dauer)
+
+    monkeypatch.setattr(asyncio, "sleep", statt_schlaf)
+    return dauern
+
+
+async def test_ein_429_kommt_als_rate_limited_error_mit_der_wartezeit():
+    """Bisher fiel der 429 auf die Basisklasse: nicht zu unterscheiden, und
+    die Zahl im Header las niemand (Audit API-2)."""
+    def handler(request):
+        return httpx.Response(429, headers={"Retry-After": "7"},
+                              json={"message": "rate limit"})
+
+    async with _transport(handler, max_retries=0) as t:
+        with pytest.raises(RateLimitedError) as fehler:
+            await t.request("GET", "/x")
+    assert fehler.value.status == 429
+    assert fehler.value.retry_after == 7.0
+
+
+async def test_ein_429_auf_ein_post_wird_wiederholt():
+    """Anders als ein 5xx sagt der 429, dass die Anfrage *nicht* ausgefuehrt
+    wurde -- der Server hat sie abgewiesen. Also darf auch ein Schreibvorgang
+    erneut gesendet werden, ohne dass er zweimal ankommt."""
+    versuche = []
+
+    def handler(request):
+        versuche.append(1)
+        if len(versuche) == 1:
+            return httpx.Response(429, headers={"Retry-After": "0"})
+        return httpx.Response(200, json={"ok": True})
+
+    async with _transport(handler, max_retries=2) as t:
+        antwort = await t.request("POST", WRITE)
+    assert len(versuche) == 2
+    assert antwort.json() == {"ok": True}
+
+
+async def test_die_genannte_wartezeit_wird_eingehalten(monkeypatch):
+    """Frueher wiederzukommen, als der Dienst gesagt hat, ist genau das, was
+    der 429 verhindern soll."""
+    dauern = _gewartet(monkeypatch)
+    versuche = []
+
+    def handler(request):
+        versuche.append(1)
+        if len(versuche) == 1:
+            return httpx.Response(429, headers={"Retry-After": "12"})
+        return httpx.Response(200, json={"ok": True})
+
+    async with _transport(handler, max_retries=2, backoff_base=0.0) as t:
+        await t.request("GET", "/x")
+    assert dauern == [12.0]
+
+
+async def test_eine_zu_lange_wartezeit_wird_dem_aufrufer_gegeben(monkeypatch):
+    """Eine Stunde in einem Bibliotheksaufruf zu schlafen waere ein
+    Aufhaenger. Der Fehler traegt die Zahl, der Aufrufer kann einplanen."""
+    dauern = _gewartet(monkeypatch)
+
+    def handler(request):
+        return httpx.Response(429, headers={"Retry-After": "3600"})
+
+    async with _transport(handler, max_retries=3) as t:
+        with pytest.raises(RateLimitedError) as fehler:
+            await t.request("GET", "/x")
+    assert dauern == []
+    assert fehler.value.retry_after == 3600.0
+
+
+async def test_der_backoff_streut(monkeypatch):
+    """Ohne Jitter kaeme eine Fan-out-Welle geschlossen zurueck. Gestreut
+    liegt die Wartezeit zwischen halbem und vollem Schritt (Audit ARC-2)."""
+    dauern = _gewartet(monkeypatch)
+
+    def handler(request):
+        return httpx.Response(503)
+
+    async with _transport(handler, max_retries=2, backoff_base=1.0) as t:
+        with pytest.raises(ServerError):
+            await t.request("GET", "/x")
+    assert len(dauern) == 2
+    assert 0.5 <= dauern[0] <= 1.0
+    assert 1.0 <= dauern[1] <= 2.0

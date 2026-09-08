@@ -15,7 +15,7 @@ import httpx
 import pytest
 
 from edusharing.bapi import CACHE_FOREVER, BildungsAPI
-from edusharing.errors import EduSharingError, ValidationError
+from edusharing.errors import EduSharingError, RateLimitedError, ValidationError
 
 #: Frei erfunden. Die Tests antworten ueber MockTransport; eine echte
 #: Adresse hier waere eine Instanz im Code.
@@ -719,3 +719,38 @@ async def test_ein_lebendes_modell_wird_nicht_gemeldet(caplog):
     async with _client(_router) as api:
         await api.chat("x")
     assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+
+
+# --- ARC-2/API-2: dieselbe Regel wie im Transport ---------------------------
+
+
+async def test_ein_429_kommt_als_rate_limited_error_mit_der_wartezeit():
+    """Gemessen antwortet die b-api ohne ``Retry-After``; nennt sie doch eine
+    Zahl, wird sie gelesen statt geraten (Audit API-2)."""
+    def handler(request):
+        return httpx.Response(429, headers={"Retry-After": "5"},
+                              json={"message": "API rate limit exceeded"})
+
+    async with _client(handler, max_retries=0) as client:
+        with pytest.raises(RateLimitedError) as fehler:
+            await client.models()
+    assert fehler.value.status == 429
+    assert fehler.value.retry_after == 5.0
+    assert "rate limit" in str(fehler.value)
+
+
+async def test_eine_zu_lange_wartezeit_wird_nicht_abgewartet(monkeypatch):
+    gewartet: list[float] = []
+
+    async def statt_schlaf(dauer):
+        gewartet.append(dauer)
+
+    monkeypatch.setattr(asyncio, "sleep", statt_schlaf)
+
+    def handler(request):
+        return httpx.Response(429, headers={"Retry-After": "3600"})
+
+    async with _client(handler, max_retries=2) as client:
+        with pytest.raises(RateLimitedError):
+            await client.models()
+    assert gewartet == []

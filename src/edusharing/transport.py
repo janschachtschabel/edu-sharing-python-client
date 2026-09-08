@@ -13,6 +13,9 @@ attempt is safe. The decision is made on the error type from ``errors``, not
 on the status code -- because with edu-sharing an HTTP 500 can simply mean
 "not signed in" -- and on the method: a write that may already have been
 carried out is not sent again unless it says it may be (``idempotent=True``).
+The 429 is the exception to that rule: it says the request was refused, not
+carried out, so even a write may go again. **How long** to wait is not decided
+here but in ``retry``, shared with the two sibling services.
 
 **How much runs at once.** A fan-out across many nodes otherwise creates more
 load than the repository tolerates.
@@ -22,6 +25,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from dataclasses import dataclass
 from typing import Any, Self
 
 import httpx
@@ -30,12 +34,14 @@ from .auth import ANONYMOUS, Credential, credential_from
 from .errors import (
     ContentTooLargeError,
     EduSharingError,
+    RateLimitedError,
     ServerError,
     TransportError,
     at_least,
     details_withheld,
     error_from_response,
 )
+from .retry import RetryPolicy, parse_retry_after
 from .urls import normalize_repository_url, rest_base
 
 __all__ = ["Transport"]
@@ -92,6 +98,60 @@ def _check_size(size: int, max_bytes: int | None, url: str) -> None:
             "NodeContent.size first and decide.",
             url=url,
         )
+
+
+def _repeatable(method: str, idempotent: bool | None) -> bool:
+    """Whether a second attempt is safe once the first may have arrived.
+
+    After a timeout past the sending or a 5xx, a POST may already have created
+    its child; a GET may not have done anything (audit COR-1, 2026-09-03).
+    """
+    if idempotent is None:
+        return method.upper() in _SAFE_METHODS
+    return idempotent
+
+
+@dataclass
+class _Once:
+    """The two budgets spent at most once per request, not once per attempt.
+
+    ``auth``: a signed-in request that comes back 401 is sent again after one
+    fresh sign-in -- measured 2026-08-28, 1, 0 and 0 of 100 requests over three
+    runs. ``withheld``: an instance that hides its error messages leaves a
+    disguised "not signed in" looking like a server fault; measured against
+    production, 4 requests where staging needs 1, to an address that can never
+    answer. Both are worth one attempt and no more.
+    """
+
+    auth: bool
+    withheld: bool
+
+
+def _worth_another_try(
+    error: EduSharingError, *, repeatable: bool, once: _Once
+) -> bool:
+    """Whether this failure earns another attempt, spending ``once`` as it goes.
+
+    Only what the server could temporarily not deliver, and only where a
+    second delivery is safe. A 500 that in truth means "not signed in" was
+    classified as ``AuthenticationError`` and no longer counts as a
+    ``ServerError`` here.
+    """
+    if isinstance(error, RateLimitedError):
+        # A 429 is a refusal, not a result: the server turned the request away
+        # before doing anything, so even a write may go again (audit API-2).
+        return True
+    if error.status == 401 and once.auth:
+        once.auth = False
+        return True
+    if not isinstance(error, ServerError) or not repeatable:
+        return False
+    if not details_withheld(error):
+        return True
+    if not once.withheld:
+        return False
+    once.withheld = False
+    return True
 
 
 def _noted(error: EduSharingError, method: str, repeatable: bool) -> EduSharingError:
@@ -193,15 +253,16 @@ class Transport:
         if timeout is None:
             timeout = DEFAULT_TIMEOUT
         at_least("timeout", timeout, 0.001)
-        at_least("max_retries", max_retries, 0)
         at_least("max_concurrency", max_concurrency, 1)
-        at_least("backoff_base", backoff_base, 0)
+        # Budget und Wartezeit liegen in einer Regel, die die drei Clients
+        # teilen -- sie prueft ihre eigenen Grenzen (Audit ARC-2).
+        self._retry = RetryPolicy(max_retries=max_retries, backoff_base=backoff_base)
 
         self.repository_url = normalize_repository_url(repository_url)
         self.rest_url = rest_base(self.repository_url)
         self.credential = credential_from(credential)
-        self.max_retries = max_retries
-        self.backoff_base = backoff_base
+        self.max_retries = self._retry.max_retries
+        self.backoff_base = self._retry.backoff_base
         self._semaphore = asyncio.Semaphore(max_concurrency)
         self._client = client or httpx.AsyncClient(timeout=timeout)
         self._owns_client = client is None
@@ -304,25 +365,22 @@ class Transport:
         request_headers = self._headers(url, cred, headers)
 
         last: EduSharingError | None = None
-        # A second attempt is safe when the first never reached the server, or
-        # when arriving twice changes nothing. After a timeout past the sending
-        # or a 5xx, a POST may already have created its child (audit COR-1).
-        repeatable = method.upper() in _SAFE_METHODS if idempotent is None else idempotent
-        # Spent at most once per request -- see the note at ``_retry_401``.
-        may_retry_401 = not cred.is_anonymous
-        # Likewise once, and for the same reason: an instance that withholds its
-        # error messages leaves a disguised "not signed in" looking like a
-        # server fault. Measured 2026-08-28 -- 4 requests against production
-        # where staging needs 1, to an address that can never answer.
-        may_retry_withheld = True
+        repeatable = _repeatable(method, idempotent)
+        once = _Once(auth=not cred.is_anonymous, withheld=True)
         for attempt in range(self.max_retries + 1):
-            if attempt:
+            if attempt and last is not None:
+                pause = self._retry.delay(attempt, last.retry_after)
+                if pause is None:
+                    # The server asked to be left alone for longer than this
+                    # client waits. Sleeping that out inside one call would be
+                    # a hang; ``last.retry_after`` carries the number instead.
+                    raise last
                 logger.info(
                     "retrying %s %s (attempt %d of %d) after %s",
                     method, self._for_log(url), attempt + 1, self.max_retries + 1,
                     type(last).__name__,
                 )
-                await asyncio.sleep(self.backoff_base * (2 ** (attempt - 1)))
+                await asyncio.sleep(pause)
             logger.debug("%s %s", method, self._for_log(url))
             try:
                 async with self._semaphore:
@@ -340,20 +398,12 @@ class Transport:
             if response.status_code < 400:
                 return response
 
-            last = error_from_response(response.status_code, url, response.text)
-            if response.status_code == 401 and may_retry_401:
-                may_retry_401 = False
-                continue
-            # Only what the server could temporarily not deliver gets retried,
-            # and only where a second delivery is safe. A 500 that in truth
-            # means "not signed in" was already classified as
-            # AuthenticationError and no longer counts as a ServerError here.
-            if not isinstance(last, ServerError) or not repeatable:
+            last = error_from_response(
+                response.status_code, url, response.text,
+                parse_retry_after(response.headers.get("retry-after")),
+            )
+            if not _worth_another_try(last, repeatable=repeatable, once=once):
                 raise _noted(last, method, repeatable)
-            if details_withheld(last):
-                if not may_retry_withheld:
-                    raise last
-                may_retry_withheld = False
 
         # ``max_retries >= 0`` is checked in the constructor, so the loop runs at
         # least once and has set ``last`` on every branch that does not itself
