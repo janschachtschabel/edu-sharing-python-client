@@ -200,6 +200,10 @@ async def test_echte_routen_gehen_durch(route):
     "embeddings?admin=1",             # eingeschmuggelte Anfrageparameter
     "embeddings#x",
     "embeddings account",
+    # ``$`` matcht auch **vor** einem abschliessenden Zeilenumbruch, also
+    # liess ``.match`` das hier durch -- ein Umbruch im Pfad einer Adresse
+    # (Pruefung 08.09.2026, gefunden an derselben Bauform in content.py).
+    "embeddings\n",
     "",
 ])
 async def test_eine_route_darf_ihren_pfad_nicht_verlassen(route):

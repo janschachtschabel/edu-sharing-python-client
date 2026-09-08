@@ -86,7 +86,10 @@ def _check_route(route: str) -> None:
     if not route:
         raise ValidationError("route must not be empty.")
     for segment in route.split("/"):
-        if not _SEGMENT.match(segment):
+        # ``fullmatch``, nicht ``match``: ``$`` steht auch vor einem
+        # abschliessenden ``\n``, sodass ``"embeddings\n"`` das Muster
+        # bestand (Pruefung 08.09.2026).
+        if not _SEGMENT.fullmatch(segment):
             raise ValidationError(
                 f"route={route!r} is not addressable: the segment "
                 f"{segment!r} is empty or carries something other than "

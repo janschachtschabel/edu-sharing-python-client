@@ -823,6 +823,12 @@ def test_hit_as_dict_nennt_das_original():
 # seine Sache -- die Bibliothek darf sie gar nicht erst schreiben.
 
 BOESE = [
+    # Der Fall, den die erste Fassung durchliess: ``re.match`` mit ``$``
+    # akzeptiert einen abschliessenden Zeilenumbruch (Pruefung 08.09.2026).
+    # Ein blankes LF im Kopfzeilenblock beendet fuer einen toleranten Parser
+    # die Kopfzeilen -- genau die Klasse, gegen die diese Wache steht.
+    "application/pdf\n",
+    "application/pdf\r\n",
     "application/pdf\r\nX-Injected: ja",
     "application/pdf\nX-Injected: ja",
     "application/pdf\r\n\r\nkoerper",

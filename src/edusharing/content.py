@@ -70,6 +70,10 @@ def is_text_like(mimetype: str | None) -> bool:
 
 
 #: ``type/subtype`` out of RFC 9110 token characters -- and nothing else.
+#: Read with ``fullmatch``: ``$`` also stands **before** a trailing ``\n``,
+#: so ``"application/pdf\n"`` passed ``match`` -- a bare LF inside the
+#: section's header block, which is the very class this check exists for
+#: (review 2026-09-08).
 #: Deliberately without parameters: ``text/plain; charset=utf-8`` is a valid
 #: header but not what the repository wants as a classification, and it gets the
 #: same value as a query parameter, where a parameter is wrong outright.
@@ -93,7 +97,7 @@ def _check_mimetype(mimetype: str) -> None:
             "mimetype is mandatory on upload (e.g. 'application/pdf' or "
             "'text/plain')."
         )
-    if not _MIMETYPE.match(mimetype):
+    if not _MIMETYPE.fullmatch(mimetype):
         raise ValidationError(
             f"mimetype must be a plain type/subtype, not {mimetype!r}. "
             "Parameters such as '; charset=utf-8' do not belong here -- the "
