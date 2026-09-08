@@ -298,7 +298,12 @@ def error_from_response(
         url=url,
         error_class=error_class,
         stacktrace=stacktrace,
-        retry_after=retry_after,
+        # Only the 429. RFC 9110 allows ``Retry-After`` on a 503 as well, but
+        # honouring it there was never measured and never documented -- and it
+        # rewrote the backoff for every 5xx: three pauses of 0.5 to 2 seconds
+        # became three of whatever a proxy said, and a long value took the
+        # retries away entirely (review 2026-09-08).
+        retry_after=retry_after if cls is RateLimitedError else None,
     )
 
 

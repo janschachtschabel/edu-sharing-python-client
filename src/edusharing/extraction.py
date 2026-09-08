@@ -317,7 +317,9 @@ class TextExtraction:
                 f"The extraction service answered HTTP {status} "
                 f"for {path}: {response.text[:200]}",
                 status=status,
-                retry_after=parse_retry_after(response.headers.get("retry-after")),
+                # Only the 429 -- see ``error_from_response`` for why.
+                retry_after=(parse_retry_after(response.headers.get("retry-after"))
+                             if failure is RateLimitedError else None),
             )
             if status not in RETRYABLE_STATUS:
                 raise last

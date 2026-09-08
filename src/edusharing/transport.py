@@ -371,9 +371,11 @@ class Transport:
             if attempt and last is not None:
                 pause = self._retry.delay(attempt, last.retry_after)
                 if pause is None:
-                    # The server asked to be left alone for longer than this
-                    # client waits. Sleeping that out inside one call would be
-                    # a hang; ``last.retry_after`` carries the number instead.
+                    # Only a 429 can land here -- it is the one status whose
+                    # ``Retry-After`` this library reads. The server asked to
+                    # be left alone for longer than this client waits, and
+                    # sleeping that out inside one call would be a hang;
+                    # ``RateLimitedError.retry_after`` carries the number.
                     raise last
                 logger.info(
                     "retrying %s %s (attempt %d of %d) after %s",

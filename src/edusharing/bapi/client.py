@@ -37,6 +37,7 @@ import httpx
 
 from ..errors import (
     EduSharingError,
+    RateLimitedError,
     ValidationError,
     at_least,
     error_class_for,
@@ -569,7 +570,9 @@ class BildungsAPI:
         return failure(
             f"b-api HTTP {response.status_code}: {str(message)[:300]}",
             status=response.status_code, url=url,
-            retry_after=parse_retry_after(response.headers.get("retry-after")),
+            # Only the 429 -- see ``error_from_response`` for why.
+            retry_after=(parse_retry_after(response.headers.get("retry-after"))
+                         if failure is RateLimitedError else None),
         )
 
     def __repr__(self) -> str:

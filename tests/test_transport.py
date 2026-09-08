@@ -846,3 +846,47 @@ async def test_der_backoff_streut(monkeypatch):
     assert len(dauern) == 2
     assert 0.5 <= dauern[0] <= 1.0
     assert 1.0 <= dauern[1] <= 2.0
+
+
+# --- Review 08.09.2026: Retry-After ist die Antwort auf den 429 -----------
+
+
+async def test_ein_retry_after_bei_einem_5xx_aendert_die_kurve_nicht(monkeypatch):
+    """RFC 9110 erlaubt ``Retry-After`` auch bei einem 503, aber diese
+    Bibliothek hat das nie gemessen und nie dokumentiert.
+
+    Beachtet machte es aus drei Pausen von 0,5 bis 2 s drei von je 30 s -- in
+    einem Fan-out mit acht Wegen ein Vielfaches -- und aus einem langen Wert
+    gar keine Wiederholung mehr. Der Fehler kam ausserdem als ``ServerError``
+    an, sodass niemand, der auf ``RateLimitedError`` prueft, die Zahl je zu
+    sehen bekam (Review 08.09.2026)."""
+    dauern = _gewartet(monkeypatch)
+
+    def handler(request):
+        return httpx.Response(503, headers={"Retry-After": "30"})
+
+    async with _transport(handler, max_retries=2, backoff_base=1.0) as t:
+        with pytest.raises(ServerError) as fehler:
+            await t.request("GET", "/x")
+    assert len(dauern) == 2, "beide Wiederholungen finden statt"
+    assert all(d <= 2.0 for d in dauern), f"die eigene Kurve, nicht 30 s: {dauern}"
+    assert fehler.value.retry_after is None
+
+
+async def test_eine_lange_wartezeit_bei_einem_5xx_kostet_keine_wiederholung(monkeypatch):
+    """Die andere Haelfte desselben Befunds: ein Proxy, der bei Wartung
+    ``Retry-After: 3600`` mitschickt, nahm dem Transport alle Versuche."""
+    dauern = _gewartet(monkeypatch)
+    versuche = []
+
+    def handler(request):
+        versuche.append(1)
+        if len(versuche) == 1:
+            return httpx.Response(503, headers={"Retry-After": "3600"})
+        return httpx.Response(200, json={"ok": True})
+
+    async with _transport(handler, max_retries=2) as t:
+        antwort = await t.request("GET", "/x")
+    assert len(versuche) == 2
+    assert antwort.json() == {"ok": True}
+    assert len(dauern) == 1
