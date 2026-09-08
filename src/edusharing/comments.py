@@ -53,6 +53,11 @@ class Comment:
 
     @classmethod
     def from_response(cls, data: dict[str, Any]) -> Comment:
+        """Read one entry of a ``GET /comment/v1/comments/...`` response.
+
+        The timestamp arrives in milliseconds and becomes an aware UTC
+        ``datetime``: a naive one silently compares wrong against any other.
+        """
         created = data.get("created") or 0
         return cls(
             id=node_id_of(data),

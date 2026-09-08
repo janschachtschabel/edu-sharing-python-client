@@ -220,6 +220,13 @@ class BildungsAPI:
     # --- Lifecycle --------------------------------------------------------
 
     async def aclose(self) -> None:
+        """Close the connection pool. ``async with`` does this itself.
+
+        Only the pool this client built. An ``httpx.AsyncClient`` passed
+        in belongs to whoever passed it, and closing it here would shut
+        down connections towards the b-api that someone else is still
+        using.
+        """
         if self._owns_client:
             await self._client.aclose()
 

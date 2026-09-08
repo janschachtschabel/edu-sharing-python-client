@@ -443,6 +443,11 @@ class Nodes:
 
     @property
     def repository_url(self) -> str:
+        """The normalised repository address, as the transport holds it.
+
+        Every viewer URL is built from it, which is why it hangs here and is
+        not passed along separately.
+        """
         return self.transport.repository_url
 
     async def get(self, node_id: str) -> Node:

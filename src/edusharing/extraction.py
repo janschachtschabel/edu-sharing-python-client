@@ -272,6 +272,11 @@ class TextExtraction:
         return _result(normalised, response, max_chars)
 
     async def aclose(self) -> None:
+        """Close the connection pool. ``async with`` does this itself.
+
+        Without it the pool towards the text extraction service stays open until the
+        interpreter ends.
+        """
         await self._client.aclose()
 
     async def __aenter__(self) -> Self:

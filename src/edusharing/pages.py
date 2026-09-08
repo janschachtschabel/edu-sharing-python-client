@@ -263,6 +263,12 @@ class CuratedPage:
         return not self.rendered_id
 
     def variant(self, variant_id: str) -> PageVariant | None:
+        """One variant by id, or ``None``.
+
+        The id is compared bare, so a reference id finds the variant it points
+        at -- the same id arrives in two spellings depending on where it was
+        read.
+        """
         return next((v for v in self.variants if v.id == bare_id(variant_id)), None)
 
     def __repr__(self) -> str:

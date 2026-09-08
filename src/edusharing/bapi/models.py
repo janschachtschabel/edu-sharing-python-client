@@ -85,6 +85,11 @@ class Model:
 
     @classmethod
     def from_response(cls, data: dict[str, Any]) -> Model:
+        """Read one model out of the b-api model list.
+
+        Every field stays optional: which of them a gateway fills is its own
+        decision, and a missing one is an answer rather than an error.
+        """
         return cls(
             id=data.get("id") or "",
             demand=data.get("demand"),

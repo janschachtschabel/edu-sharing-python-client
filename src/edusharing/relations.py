@@ -87,6 +87,11 @@ class Relation:
 
     @classmethod
     def from_response(cls, data: dict[str, Any]) -> Relation:
+        """Read one relation of a ``GET .../relations`` response.
+
+        Direction matters and is not symmetric: ``fromNode`` and ``toNode``
+        say which node makes the statement about which.
+        """
         source = data.get("fromNode") or {}
         target = data.get("toNode") or {}
         evaluation = data.get("evaluation") or {}

@@ -103,6 +103,12 @@ class Ace:
 
     @classmethod
     def from_response(cls, data: dict[str, Any]) -> Ace:
+        """Read one entry of an access control list.
+
+        The authority type is derived from the name when the response leaves
+        it out -- ``GROUP_`` and ``EVERYONE`` are recognisable by their
+        spelling.
+        """
         authority = data.get("authority") or {}
         name = str(authority.get("authorityName") or "")
         return cls(
@@ -122,6 +128,12 @@ class Ace:
         }
 
     def allows(self, permission: str) -> bool:
+        """Whether **this** entry grants this permission.
+
+        One entry, not the whole list: for the question a caller usually has
+        -- may this account do this? -- ``Permissions.allows`` is the one to
+        ask, since it also reads the inherited entries.
+        """
         return permission in self.permissions
 
     def __repr__(self) -> str:
@@ -146,6 +158,12 @@ class Permissions:
 
     @classmethod
     def from_response(cls, data: dict[str, Any]) -> Permissions:
+        """Read a ``GET .../permissions`` response.
+
+        Local and inherited entries stay apart: only the local ones can be
+        changed here, and the inherited ones explain why an account has more
+        than this node grants it.
+        """
         block = data.get("permissions") or {}
         local = block.get("localPermissions") or {}
         return cls(

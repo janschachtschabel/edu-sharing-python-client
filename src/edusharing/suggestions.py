@@ -76,6 +76,11 @@ class Suggestion:
 
     @classmethod
     def from_response(cls, data: dict[str, Any]) -> Suggestion:
+        """Read one proposal of a ``GET .../suggestions`` response.
+
+        ``status`` is what tells a pending proposal from a decided one -- a
+        list without that filter looks like a queue and is not one.
+        """
         return cls(
             id=str(data.get("id") or ""),
             property=str(data.get("propertyId") or ""),

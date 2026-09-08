@@ -46,6 +46,11 @@ class ChangePlan:
 
     @property
     def has_changes(self) -> bool:
+        """Whether this plan would change anything at all.
+
+        A plan without changes must not be put up for confirmation: asking
+        about nothing teaches whoever is asked to say yes without reading.
+        """
         return bool(self.changes)
 
     @property

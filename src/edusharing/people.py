@@ -73,6 +73,12 @@ class Group:
 
     @classmethod
     def from_response(cls, data: dict[str, Any]) -> Group:
+        """Read one group out of an ``iam`` response.
+
+        Three names for one group: the authority (``GROUP_...``), the short
+        one an API expects, and the display one. Whoever confuses them gets a
+        404 or writes to the wrong group.
+        """
         profile = data.get("profile") or {}
         name = str(data.get("authorityName") or "")
         return cls(
@@ -102,6 +108,11 @@ class Member:
 
     @classmethod
     def from_response(cls, data: dict[str, Any]) -> Member:
+        """Read one member -- a person or a group.
+
+        Which of the two is what decides how it may be addressed, and it is
+        not visible in the name.
+        """
         return cls(
             name=str(data.get("authorityName") or ""),
             is_group=str(data.get("authorityType") or "").upper() == "GROUP",

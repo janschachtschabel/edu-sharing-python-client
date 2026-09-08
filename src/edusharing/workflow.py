@@ -57,6 +57,11 @@ class WorkflowStep:
 
     @classmethod
     def from_response(cls, data: dict[str, Any]) -> WorkflowStep:
+        """Read one entry of the editorial history.
+
+        Several receivers per step are the normal case, which is why they are
+        a tuple and not one name.
+        """
         receivers = data.get("receiver") or []
         return cls(
             status=str(data.get("status") or ""),
