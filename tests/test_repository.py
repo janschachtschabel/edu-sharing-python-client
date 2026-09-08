@@ -10,6 +10,7 @@ import httpx
 import pytest
 
 from edusharing import AsyncRepository, Repository
+from edusharing.auth import credential_from
 from edusharing.errors import EduSharingError
 
 REPO = "https://repositorium.example.test/edu-sharing"
@@ -429,3 +430,43 @@ def test_ohne_variable_bleibt_die_vorgabe(monkeypatch):
     monkeypatch.delenv("EDU_SHARING_USER", raising=False)
     monkeypatch.delenv("EDU_SHARING_PASSWORD", raising=False)
     assert AsyncRepository.from_env().metadataset == "-default-"
+
+
+async def test_whoami_fragt_nur_einmal():
+    """add_material ohne parent_id sucht den Heimatordner ueber whoami --
+    bei jedem Aufruf erneut, also einmal je angelegtem Material
+    (Audit PRF-5). Die Antwort haengt an den Zugangsdaten, nicht am
+    Zeitpunkt."""
+    aufrufe: list[httpx.Request] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        aufrufe.append(request)
+        return httpx.Response(200, json=ME_ALICE)
+
+    async with AsyncRepository(
+        REPO, auth=("alice", "geheim"),
+        client=httpx.AsyncClient(transport=httpx.MockTransport(handle)),
+    ) as repo:
+        erst = await repo.whoami()
+        wieder = await repo.whoami()
+    assert erst.authority == wieder.authority == "alice"
+    assert len(aufrufe) == 1, "die zweite Frage kostet keine Anfrage"
+
+
+async def test_andere_zugangsdaten_fragen_neu():
+    """Der Cache haengt an den Zugangsdaten: wer sie wechselt, ist jemand
+    anderes und bekommt eine frische Antwort."""
+    aufrufe: list[httpx.Request] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        aufrufe.append(request)
+        return httpx.Response(200, json=ME_ALICE)
+
+    async with AsyncRepository(
+        REPO, auth=("alice", "geheim"),
+        client=httpx.AsyncClient(transport=httpx.MockTransport(handle)),
+    ) as repo:
+        await repo.whoami()
+        repo.raw.credential = credential_from(("bob", "auch-geheim"))
+        await repo.whoami()
+    assert len(aufrufe) == 2

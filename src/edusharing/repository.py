@@ -131,6 +131,9 @@ class AsyncRepository:
         )
         self.metadataset = metadataset
         self.query = query
+        #: Who this connection is, keyed by the credential it was asked
+        #: under -- see ``whoami`` (audit PRF-5).
+        self._identity: tuple[Credential, Identity] | None = None
         # Created once and kept: the vocabulary cache lives inside it, and a
         # fresh object per access would discard it on every call.
         self._vocab = Vocabulary(self._transport, metadataset=metadataset, query=query)
@@ -301,9 +304,22 @@ class AsyncRepository:
 
         Anonymous is not an error but a valid mode -- but the application should
         know it rather than assume it.
+
+        The answer is remembered per credential. ``add_material`` finds the
+        home folder through it, so a run without ``parent_id`` asked once per
+        piece of material (audit PRF-5); the answer depends on who is signed
+        in, not on when the question is asked. Change ``raw.credential`` and
+        the next call asks again -- that is a different person. What it does
+        not notice is the same account being edited server-side; build a
+        fresh repository for that.
         """
+        cred = self._transport.credential
+        if self._identity is not None and self._identity[0] is cred:
+            return self._identity[1]
         data = await self._transport.json("GET", "/iam/v1/people/-home-/-me-")
-        return Identity.from_response(data)
+        identity = Identity.from_response(data)
+        self._identity = (cred, identity)
+        return identity
 
     # --- Lifecycle --------------------------------------------------------
 
