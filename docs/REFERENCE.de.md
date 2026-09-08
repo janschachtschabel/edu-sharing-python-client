@@ -629,7 +629,9 @@ page.by_position             # True
 
 | Aufruf | Ergebnis |
 |---|---|
-| `repo.vocab.values(prop, locale=…)` | `list[VocabularyValue]` — gemerkt |
+| `repo.vocab.values(prop, locale=…)` | `list[VocabularyValue]` — gemerkt für `DEFAULT_CACHE_SECONDS` (1 h); `repo.vocab.cache_seconds` setzt eine andere Frist, `0` schaltet ab, `float("inf")` behält für immer |
+| `DEFAULT_CACHE_SECONDS` | `3600.0` — wie lange ein geladenes Vokabular gilt |
+| `SUGGEST_LOOKUP_MAX` | `10` — unauflösbare Filterwerte, für die Vorschläge geholt werden; darüber wird der Wert weiterhin gemeldet, nur ohne sie |
 | `repo.vocab.suggest(prop, text)` | `list[VocabularyValue]` — Teilzeichenkette, nicht gemerkt |
 | `repo.vocab.resolve(prop, "Biologie")` | `str \| None` — die erste URI |
 | `repo.vocab.resolve_all(prop, "Biologie")` | `list[str]` — **alle**; ein Label kann in zwei Vokabularen stehen |

@@ -188,7 +188,7 @@ built are. Derived from `wlo-mcp-sc`:
 | **Concurrency + rate limiting** | Fan-out across many nodes without overwhelming the repository. | ✅ `transport`, `bapi/client` |
 | **Resolution feedback** | "subject 'Bio' unresolvable — did you mean Biologie?" instead of silent emptiness. | ✅ `search`, `results` |
 | **Dedupe** | Merge the two collection legs on the node id. | ✅ `collections` |
-| **Cache with TTL** | Vocabulary and model lists are costly and change rarely. | ✅ `vocab`, `bapi/client` |
+| **Cache with TTL** | Vocabulary and model lists are costly and change rarely. | ✅ `vocab` (`DEFAULT_CACHE_SECONDS`, 1 h — real since 2026-09-08, audit PRF-4), `bapi/client` (`models_cache_seconds`, 30 s) |
 
 That is layer 3 (`edusharing.agent`). It is **framework-neutral** — no MCP, no
 LangChain import. The MCP server is then a thin adapter project.

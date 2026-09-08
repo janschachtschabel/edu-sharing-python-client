@@ -321,3 +321,46 @@ async def test_werte_werden_nach_abbruch_erneut_geholt():
     werte = await _vocab(handler).values("ccm:taxonid")
     assert abgebrochen == [1]
     assert len(werte) == 3
+
+
+# --- PRF-4: der Cache laeuft ab ------------------------------------------
+
+
+async def test_der_cache_laeuft_nach_der_ttl_ab(monkeypatch):
+    """ARCHITECTURE behauptete seit je "Cache mit TTL" -- es gab keine. Ein
+    Dienst, der tagelang laeuft, sah eine geaenderte Systematik nie
+    (Audit PRF-4)."""
+    jetzt = [1000.0]
+    monkeypatch.setattr("edusharing.vocab.time.monotonic", lambda: jetzt[0])
+    aufrufe: list = []
+    v = _vocab(_liefert(FAECHER, aufrufe), cache_seconds=60.0)
+
+    await v.values("ccm:taxonid")
+    jetzt[0] += 59.0
+    await v.values("ccm:taxonid")
+    assert len(aufrufe) == 1, "innerhalb der Frist wird nicht neu geholt"
+
+    jetzt[0] += 2.0
+    await v.values("ccm:taxonid")
+    assert len(aufrufe) == 2, "nach der Frist schon"
+
+
+async def test_cache_seconds_null_holt_jedes_mal():
+    aufrufe: list = []
+    v = _vocab(_liefert(FAECHER, aufrufe), cache_seconds=0.0)
+    await v.values("ccm:taxonid")
+    await v.values("ccm:taxonid")
+    assert len(aufrufe) == 2
+
+
+async def test_unendlich_holt_genau_einmal(monkeypatch):
+    """Wie ``CACHE_FOREVER`` bei der b-api -- fuer ein Skript, das ohnehin
+    endet, bevor sich ein Vokabular aendert."""
+    jetzt = [1000.0]
+    monkeypatch.setattr("edusharing.vocab.time.monotonic", lambda: jetzt[0])
+    aufrufe: list = []
+    v = _vocab(_liefert(FAECHER, aufrufe), cache_seconds=float("inf"))
+    await v.values("ccm:taxonid")
+    jetzt[0] += 10_000.0
+    await v.values("ccm:taxonid")
+    assert len(aufrufe) == 1

@@ -198,7 +198,7 @@ nicht bauen ließe, schon. Abgeleitet aus `wlo-mcp-sc`:
 | **Nebenläufigkeit und Drosselung** | Auffächern über viele Knoten, ohne das Repositorium zu überfahren. | ✅ `transport`, `bapi/client` |
 | **Rückmeldung zur Auflösung** | „subject 'Bio' nicht auflösbar — meintest du Biologie?" statt stiller Leere. | ✅ `search`, `results` |
 | **Doppelte zusammenführen** | Die beiden Sammlungswege auf der Knoten-ID vereinen. | ✅ `collections` |
-| **Cache mit Verfallszeit** | Vokabulare und Modelllisten sind teuer und ändern sich selten. | ✅ `vocab`, `bapi/client` |
+| **Cache mit Verfallszeit** | Vokabulare und Modelllisten sind teuer und ändern sich selten. | ✅ `vocab` (`DEFAULT_CACHE_SECONDS`, 1 h — erst seit 08.09.2026 wirklich, Audit PRF-4), `bapi/client` (`models_cache_seconds`, 30 s) |
 
 Das ist Schicht 3 (`edusharing.agent`). Sie ist **frameworkneutral** — kein MCP,
 kein LangChain-Import. Der MCP-Server ist danach ein dünnes Adapterprojekt.

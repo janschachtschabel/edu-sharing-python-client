@@ -37,7 +37,13 @@ from .transport import Transport
 from .urls import path_segment
 from .vocab import DEFAULT_METADATASET, DEFAULT_QUERY, Vocabulary
 
-__all__ = ["Search", "STANDARD_FIELD_ALIASES"]
+__all__ = ["SUGGEST_LOOKUP_MAX", "Search", "STANDARD_FIELD_ALIASES"]
+
+#: How many unresolved filter values get suggestions looked up. Each is a
+#: request of its own, and suggestions only help a caller ask again --
+#: past this many, the value is still reported, just without them
+#: (audit PRF-4).
+SUGGEST_LOOKUP_MAX = 10
 
 #: Short names for commonly filtered properties.
 #:
@@ -226,6 +232,7 @@ class Search:
         """Resolve filter labels. What cannot be resolved is reported, not sent."""
         criteria: list[dict[str, Any]] = []
         unresolved: list[UnresolvedFilter] = []
+        lookups = 0
 
         for prop, raw in filters.items():
             values = [raw] if isinstance(raw, str) else list(raw)
@@ -237,16 +244,21 @@ class Search:
                 uris = await self._vocab.resolve_all(prop, value)
                 if uris:
                     resolved.extend(uris)
-                else:
-                    unresolved.append(
-                        UnresolvedFilter(
-                            field=prop,
-                            value=value,
-                            suggestions=[
-                                v.label for v in await self._vocab.suggest(prop, value)
-                            ][:5],
-                        )
-                    )
+                    continue
+                # Suggestions are a courtesy, not the answer, and each costs a
+                # request of its own: fifty unknown labels cost fifty requests
+                # just to build help text (audit PRF-4). Past the ceiling the
+                # value is still reported -- only without suggestions, which
+                # is the part a caller can do without.
+                suggestions: list[str] = []
+                if lookups < SUGGEST_LOOKUP_MAX:
+                    lookups += 1
+                    suggestions = [
+                        v.label for v in await self._vocab.suggest(prop, value)
+                    ][:5]
+                unresolved.append(
+                    UnresolvedFilter(field=prop, value=value, suggestions=suggestions)
+                )
             if resolved:
                 criteria.append({"property": prop, "values": resolved})
 

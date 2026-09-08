@@ -116,7 +116,8 @@ der Platte.)*
 | der beste Skill, geladen, mit den Übrigen | `repo.flows.pick_skill(text)` → `reason` lesen |
 | mehr wie dieser Knoten | `repo.flows.related(node_id, on=["subject", "level"])` |
 | welche Werte lässt ein Feld zu | `repo.flows.vocabulary("subject")` |
-| alle Werte eines Feldes, oder eine Teilzeichenkette | `repo.vocab.values(prop)` / `repo.vocab.suggest(prop, "ysik")` |
+| alle Werte eines Feldes, oder eine Teilzeichenkette | `repo.vocab.values(prop)` / `repo.vocab.suggest(prop, "ysik")` — `values` gilt `DEFAULT_CACHE_SECONDS` (1 h) |
+| bei unbekannten Filterlabels zurückfragen | höchstens `SUGGEST_LOOKUP_MAX` (10) bekommen Vorschläge; der Rest wird ohne sie gemeldet |
 | der Filterwert zu einem Label — **alle** davon | `repo.vocab.resolve_all(prop, "Biologie")` |
 | eine schlecht formulierte Anfrage („irgendwas mit Brüchen") | `repo.flows.search(text, rerank=True)` |
 | *innerhalb* einer Sammlung suchen | `repo.flows.search_in_collection(collection_id, query)` |

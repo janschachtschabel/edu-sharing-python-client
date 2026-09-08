@@ -11,7 +11,7 @@ import httpx
 import pytest
 
 from edusharing.errors import ValidationError
-from edusharing.search import Search
+from edusharing.search import SUGGEST_LOOKUP_MAX, Search
 from edusharing.transport import Transport
 from edusharing.vocab import Vocabulary
 
@@ -328,3 +328,17 @@ async def test_die_suche_wird_nach_abbruch_wiederholt():
     e = await _suche(handler).search("Photosynthese")
     assert abgebrochen == [1]
     assert e.hits
+
+
+async def test_vorschlaege_sind_gedeckelt():
+    """Vorschlaege sind eine Hoeflichkeit, keine Antwort. Je unaufloesbarem
+    Wert ging bisher eine eigene Anfrage hinaus -- fuenfzig unbekannte Labels
+    kosteten fuenfzig Anfragen, nur um Hilfstext zu bauen (Audit PRF-4).
+    Ueber der Grenze wird der Wert weiterhin gemeldet, nur ohne Vorschlaege."""
+    aufrufe = []
+    viele = [f"Unbekannt-{i}" for i in range(SUGGEST_LOOKUP_MAX + 3)]
+    e = await _suche(_router, aufrufe).search("x", filters={"ccm:taxonid": viele})
+    assert len(e.unresolved) == len(viele), "gemeldet wird jeder"
+    mit_vorschlag = [u for u in e.unresolved if u.suggestions]
+    assert len(mit_vorschlag) <= SUGGEST_LOOKUP_MAX
+    assert all(u.suggestions == [] for u in e.unresolved[SUGGEST_LOOKUP_MAX:])

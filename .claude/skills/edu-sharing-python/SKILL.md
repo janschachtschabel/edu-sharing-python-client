@@ -105,7 +105,8 @@ table.
 | the best skill, loaded, with the runners-up | `repo.flows.pick_skill(text)` → read `reason` |
 | more like this node | `repo.flows.related(node_id, on=["subject", "level"])` |
 | which values does a field allow | `repo.flows.vocabulary("subject")` |
-| every value of a field, or a substring of one | `repo.vocab.values(prop)` / `repo.vocab.suggest(prop, "ysik")` |
+| every value of a field, or a substring of one | `repo.vocab.values(prop)` / `repo.vocab.suggest(prop, "ysik")` — `values` is cached for `DEFAULT_CACHE_SECONDS` (1 h) |
+| ask again for unknown filter labels | at most `SUGGEST_LOOKUP_MAX` (10) of them get suggestions; the rest are reported without |
 | a label's filter value — **all** of them | `repo.vocab.resolve_all(prop, "Biologie")` |
 | a poorly phrased query ("something about fractions") | `repo.flows.search(text, rerank=True)` |
 | search *inside* one collection | `repo.flows.search_in_collection(collection_id, query)` |

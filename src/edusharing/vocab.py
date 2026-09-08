@@ -25,15 +25,26 @@ a topic search into an image search. A ``None`` plus a suggestion from
 from __future__ import annotations
 
 import asyncio
+import time
 from dataclasses import dataclass
 
+from .errors import at_least
 from .transport import Transport
 from .urls import path_segment
 
-__all__ = ["VocabularyValue", "Vocabulary"]
+__all__ = ["DEFAULT_CACHE_SECONDS", "VocabularyValue", "Vocabulary"]
 
 DEFAULT_METADATASET = "-default-"
 DEFAULT_QUERY = "ngsearch"
+
+#: How long a loaded vocabulary stays valid. Vocabularies are edited
+#: rarely, so an hour costs almost nothing and still lets a service that
+#: runs for days pick up a change -- before this, an entry was kept for
+#: the life of the object and such a service never saw one (audit PRF-4).
+#: ``0`` disables the cache, ``float('inf')`` keeps an entry forever --
+#: the same value the b-api exports as ``CACHE_FOREVER``, right for a
+#: script that ends before any vocabulary could change.
+DEFAULT_CACHE_SECONDS = 3600.0
 
 #: ``pattern`` meaning "all values" -- see the module docstring.
 _ALL = ""
@@ -74,11 +85,14 @@ class Vocabulary:
         *,
         metadataset: str = DEFAULT_METADATASET,
         query: str = DEFAULT_QUERY,
+        cache_seconds: float = DEFAULT_CACHE_SECONDS,
     ) -> None:
+        at_least("cache_seconds", cache_seconds, 0)
         self._transport = transport
         self.metadataset = metadataset
         self.query = query
-        self._cache: dict[tuple[str, str | None], list[VocabularyValue]] = {}
+        self.cache_seconds = cache_seconds
+        self._cache: dict[tuple[str, str | None], tuple[float, list[VocabularyValue]]] = {}
         self._locks: dict[tuple[str, str | None], asyncio.Lock] = {}
 
     # --- Values -----------------------------------------------------------
@@ -88,9 +102,13 @@ class Vocabulary:
     ) -> list[VocabularyValue]:
         """Every value this instance knows for ``prop``.
 
-        The result is cached -- vocabularies change rarely, and the same
-        property is needed many times over during a fan-out. A failure does not
-        enter the cache.
+        The result is cached for ``cache_seconds`` -- vocabularies change
+        rarely, and the same property is needed many times over during a
+        fan-out. A failure does not enter the cache.
+
+        The entry used to be kept forever, although the architecture record
+        claimed a TTL: a service that runs for days never saw an edited
+        vocabulary (audit PRF-4).
 
         Args:
             prop: property name, e.g. ``ccm:taxonid``.
@@ -100,18 +118,33 @@ class Vocabulary:
             An empty list when the property has no vocabulary.
         """
         key = (prop, locale)
-        if key in self._cache:
-            return self._cache[key]
+        fresh = self._fresh(key)
+        if fresh is not None:
+            return fresh
 
         # Without a lock, concurrent access loads the same vocabulary once per
         # caller -- during a fan-out, many times over.
         lock = self._locks.setdefault(key, asyncio.Lock())
         async with lock:
-            if key in self._cache:
-                return self._cache[key]
+            # Checked again: whoever held the lock may have just filled it.
+            fresh = self._fresh(key)
+            if fresh is not None:
+                return fresh
             values = await self._fetch(prop, _ALL, locale)
-            self._cache[key] = values
+            self._cache[key] = (time.monotonic(), values)
             return values
+
+    def _fresh(
+        self, key: tuple[str, str | None]
+    ) -> list[VocabularyValue] | None:
+        """The cached values while they are still valid, otherwise ``None``."""
+        entry = self._cache.get(key)
+        if entry is None:
+            return None
+        loaded_at, values = entry
+        if time.monotonic() - loaded_at >= self.cache_seconds:
+            return None
+        return values
 
     async def suggest(
         self, prop: str, text: str, *, locale: str | None = None

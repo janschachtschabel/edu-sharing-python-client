@@ -616,7 +616,9 @@ page.by_position             # True
 
 | Call | Result |
 |---|---|
-| `repo.vocab.values(prop, locale=…)` | `list[VocabularyValue]` — cached |
+| `repo.vocab.values(prop, locale=…)` | `list[VocabularyValue]` — cached for `DEFAULT_CACHE_SECONDS` (1 h); set `repo.vocab.cache_seconds` for another span, `0` to disable, `float("inf")` to keep forever |
+| `DEFAULT_CACHE_SECONDS` | `3600.0` — how long a loaded vocabulary stays valid |
+| `SUGGEST_LOOKUP_MAX` | `10` — unresolved filter values that get suggestions looked up; beyond it the value is still reported, without them |
 | `repo.vocab.suggest(prop, text)` | `list[VocabularyValue]` — substring, not cached |
 | `repo.vocab.resolve(prop, "Biologie")` | `str \| None` — the first URI |
 | `repo.vocab.resolve_all(prop, "Biologie")` | `list[str]` — **all** of them; one label can sit in two vocabularies |
