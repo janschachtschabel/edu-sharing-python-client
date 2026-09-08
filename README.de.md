@@ -265,8 +265,8 @@ if plan.has_changes:
 
 **Ein Skill für Coding-Agenten liegt der Bibliothek bei.**
 [`.claude/skills/edu-sharing-python/`](.claude/skills/edu-sharing-python/SKILL.de.md)
-ist eine Wegweisertabelle — *diese Aufgabe, dieser Aufruf* — über alle 20
-Abläufe, die API-Ebene, die Nachbardienste und die gemessenen Fallen. Er ist
+ist eine Wegweisertabelle — *diese Aufgabe, dieser Aufruf* — über jeden
+Ablauf, die API-Ebene, die Nachbardienste und die gemessenen Fallen. Er ist
 für jeden Agenten aktiv, der in diesem Repositorium arbeitet, und liegt auf
 [deutsch](.claude/skills/edu-sharing-python/SKILL.de.md) und
 [englisch](.claude/skills/edu-sharing-python/SKILL.md) vor. Damit er überall
@@ -448,9 +448,11 @@ Bruchrechnung"* **null**. Die Neuordnung fragt mehrere Anfragevarianten und
 sortiert nach Relevanz — sie kostet eine Anfrage je Variante und ist aus.
 
 **Nicht alles hat einen Ablauf, und das mit Absicht.** Bewertungen,
-Kommentare, Vorschläge, die redaktionelle Weitergabe, Gruppen,
-Vorschaubilder und das Umbenennen einer Sammlung bleiben jeweils bei einer
-Endpunktfamilie. Ein Ablauf verdient seinen Platz dadurch, dass er mehrere
+Kommentare, das Stellen und das Ablehnen eines Vorschlags, die redaktionelle
+Weitergabe, Gruppen, Vorschaubilder und das Umbenennen einer Sammlung
+bleiben jeweils bei einer Endpunktfamilie. Das *Annehmen* eines Vorschlags
+ist der eine, der daraus erwachsen ist: es schreibt, liest zurück und hakt
+erst dann ab — drei Aufrufe, also hat es `accept_suggestion` verdient. Ein Ablauf verdient seinen Platz dadurch, dass er mehrere
 zusammenführt — `placement` fragt zwei, `search_all` drei. Eine einzelne
 Familie zu umhüllen änderte die Form der Antwort und spart nichts. Diese
 Anwendungsfälle stehen oben, auf der API-Ebene.

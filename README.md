@@ -440,8 +440,10 @@ naturally phrased question finds nothing: measured, *"Bruchrechnung"* has
 it costs one request per variant and is off by default.
 
 **Not everything has a flow, and that is deliberate.** Ratings, comments,
-proposals, the editorial handover, groups, preview images and renaming a
-collection each stay with one endpoint family. A flow earns its place by
+making and declining a proposal, the editorial handover, groups, preview
+images and renaming a collection each stay with one endpoint family.
+*Accepting* a proposal is the one that grew out of that: it writes, reads
+back and only then marks — three calls, so it earned `accept_suggestion`. A flow earns its place by
 composing several — `placement` asks two, `search_all` three. Wrapping a
 single family would change the shape of the answer and save nothing. Those
 use cases live at the API level, above.

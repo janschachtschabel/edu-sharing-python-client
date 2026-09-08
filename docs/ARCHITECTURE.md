@@ -63,7 +63,8 @@ layer, not a prerequisite.
 ├─ 1  Profile & MDS ──── vocabulary resolution · property capabilities
 ├─ 0  Transport ──────── httpx · auth · retry · concurrency · read-back · errors
 ├─ shared ────────────── fields · ranking · language · strings · dto · urls · retry
-│                        below everything that uses them, so nothing reaches up
+│                        pulled out of flows/ on 2026-09-08 (ARC-1), so that
+│                        layer 2 stopped reaching up into layer 2b
 └─ _generated ────────── 389 operations · 378 models, from openapi.json
 
    beside it, not in it:
@@ -468,8 +469,8 @@ Four decisions made while building, each justified in the code:
    `asyncio.run()`. Otherwise it fails inside Jupyter — precisely the audience
    it exists for.
 3. **A second service is built on its own, not attached to the repository.**
-   The b-api and the text-extraction service both live beside edu-sharing, not
-   inside it, and a connection to a repository says nothing about whether
+   The b-api, the text-extraction service and the metadata agent all live
+   beside edu-sharing, not inside it, and a connection to a repository says nothing about whether
    either exists. So neither hangs off `Repository`: they have their own
    address, their own environment variable and their own client. **None of the three
    carries a default address** — not the b-api, not the extraction service, not
@@ -693,8 +694,10 @@ as they were taken. Three decisions are worth naming separately:
    exactly that code. Keeping both visible is the point: an application that
    outgrows a flow should be able to see what it is stepping into, not
    rediscover it.
-2. **Not every surface gets a flow.** Ratings, comments, suggestions, workflow
-   and groups stay API-level only. A flow earns its place by composing several
+2. **Not every surface gets a flow.** Ratings, comments, making and declining
+   a proposal, workflow and groups stay API-level only. *Accepting* one does
+   have a flow: `accept_suggestion` writes, reads back and only then marks,
+   which is three endpoints — so it follows this rule rather than breaking it. A flow earns its place by composing several
    endpoints; these each stay with one family, and wrapping them would add a
    name without removing a step. The flow chapter says so, because otherwise a
    reader searches FLOWS.md for a rating flow.
@@ -712,8 +715,9 @@ and is identical.
 
 `related` is the one that would not sit still: it starts from an id like the
 flows in `describe`, but what it answers is a search question, so it lives with
-`find`. That is the only cross-module call left, `find` → `describe`, in one
-direction. The module docstring says so rather than claiming a boundary that
+`find`. Among the three, that is the only cross-module call left, `find` →
+`describe`, in one direction — across `flows/` as a whole there are more,
+measured in §8.8. The module docstring says so rather than claiming a boundary that
 does not hold.
 
 **A test gap of the same family as §8.3's two.** `SyncRelations` was constructed
@@ -757,7 +761,7 @@ now fails when a module is named nowhere here.
 | `flows/skills.py` | The same accessor as plain dictionaries: `find_skills`, `skill`, `skill_registry`, `pick_skill` |
 | `flows/text.py` | `text` — the full text of one material, and, when there is none, which of the measured reasons applies |
 | `flows/suggest.py` | `accept_suggestion` — apply a proposal, read it back, and only then mark it (audit COR-3) |
-| `flows/serialize.py` | Value objects into plain JSON structures. The leaf four flow modules share |
+| `flows/serialize.py` | Value objects into plain JSON structures. The leaf that four flow modules share |
 | `flows/dedupe.py` | Collapsing hits that are the same material seen more than once |
 | `flows/duplicates.py` | Is there already a record for this address? |
 | `flows/expand.py` | Turning one query into a few variants worth asking (E10) |

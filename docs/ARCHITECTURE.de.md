@@ -11,7 +11,8 @@ Jeder
 öffentliche Name **und jedes Feld jedes Objekts** steht in
 [`REFERENCE.de.md`](REFERENCE.de.md) / [`REFERENCE.md`](REFERENCE.md), und der
 Skill nennt sie ebenfalls alle; `tests/test_docs_complete.py` hält alle drei
-vollständig.
+vollständig, und `tests/test_docs_inventories.py` hält die Verzeichnisse in
+diesem Dokument und in den READMEs vollständig.
 
 Eine Python-Bibliothek, die die REST-API eines edu-sharing-Repositoriums und
 der Dienste daneben (b-api) mit wenig Code zugänglich macht — **ohne** die
@@ -75,7 +76,8 @@ eine Bequemlichkeitsschicht, keine Voraussetzung.
 ├─ 1  Profil und MDS ─── Vokabularauflösung · Eigenschaften und ihre Wege
 ├─ 0  Transport ──────── httpx · Auth · Wiederholung · Nebenläufigkeit · Rückleseprobe · Fehler
 ├─ geteilt ───────────── fields · ranking · language · strings · dto · urls · retry
-│                        unter allem, was sie benutzt, damit nichts nach oben greift
+│                        am 08.09.2026 aus flows/ herausgeholt (ARC-1), damit
+│                        Schicht 2 nicht mehr in Schicht 2b hinaufgreift
 └─ _generated ────────── 389 Operationen · 378 Modelle, aus openapi.json
 
    daneben, nicht darin:
@@ -518,8 +520,8 @@ Vier Entscheidungen, die beim Bauen fielen, jede im Code begründet:
    statt `asyncio.run()`. Sonst scheitert sie in Jupyter — genau bei dem
    Publikum, für das sie existiert.
 3. **Ein zweiter Dienst wird für sich gebaut, nicht ans Repositorium
-   gehängt.** Die b-api und der Textextraktionsdienst stehen beide neben
-   edu-sharing, nicht darin, und eine Verbindung zu einem Repositorium sagt
+   gehängt.** Die b-api, der Textextraktionsdienst und der Metadaten-Agent
+   stehen alle neben edu-sharing, nicht darin, und eine Verbindung zu einem Repositorium sagt
    nichts darüber, ob es einen von beiden gibt. Deshalb hängt keiner an
    `Repository`: sie haben eine eigene Adresse, eine eigene Umgebungsvariable
    und einen eigenen Client. **Keiner der drei trägt eine
@@ -757,8 +759,11 @@ Nennung:
    FLOWS.de.md zeigt genau diesen Code. Beides sichtbar zu halten ist der
    Punkt: eine Anwendung, die einem Ablauf entwächst, soll sehen können, worin
    sie tritt, statt es neu herauszufinden.
-2. **Nicht jede Fläche bekommt einen Ablauf.** Bewertungen, Kommentare,
-   Vorschläge, Workflow und Gruppen bleiben nur auf der API-Ebene. Ein Ablauf
+2. **Nicht jede Fläche bekommt einen Ablauf.** Bewertungen, Kommentare, das
+   Stellen und das Ablehnen eines Vorschlags, Workflow und Gruppen bleiben
+   nur auf der API-Ebene. Das *Annehmen* hat einen: `accept_suggestion`
+   schreibt, liest zurück und hakt erst dann ab, das sind drei Endpunkte —
+   es folgt dieser Regel also, statt sie zu brechen. Ein Ablauf
    verdient seinen Platz dadurch, dass er mehrere Endpunkte verkettet; diese
    bleiben jeweils bei einer Familie, und sie zu umhüllen fügte einen Namen
    hinzu, ohne einen Schritt zu sparen. Das Ablauf-Kapitel sagt das, weil ein
@@ -778,8 +783,9 @@ identisch.
 
 `related` ist der eine, der nicht stillhalten wollte: er beginnt bei einer ID
 wie die Abläufe in `describe`, aber was er beantwortet, ist eine Suchfrage,
-also wohnt er bei `find`. Das ist der einzige verbliebene modulübergreifende
-Aufruf, `find` → `describe`, in eine Richtung. Der Modul-Docstring sagt das,
+also wohnt er bei `find`. Unter den dreien ist das der einzige verbliebene
+modulübergreifende Aufruf, `find` → `describe`, in eine Richtung — über
+`flows/` insgesamt gibt es mehr, nachgemessen in §8.8. Der Modul-Docstring sagt das,
 statt eine Grenze zu behaupten, die nicht hält.
 
 **Eine Testlücke aus derselben Familie wie die zwei in §8.3.** `SyncRelations`
