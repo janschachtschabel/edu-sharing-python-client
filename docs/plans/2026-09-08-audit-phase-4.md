@@ -78,8 +78,8 @@ gemeldet.
   einzige Auflistung dieser Bibliothek, die kürzt, ohne es auszuweisen. Jetzt
   heißt der Deckel `LIST_MAX` und was darüber liegt, wirft: es gibt keine
   Verwendung, für die die ersten 200 richtig wären, und `list[Node]` hat
-  keinen Platz für „unvollständig". Sagt der Server keine Gesamtzahl, wird
-  nicht geworfen — die Wache gilt dem, was er nennt.
+  keinen Platz für „unvollständig". Sagt der Server keine Gesamtzahl, gilt eine
+  volle Seite als verdächtig — nachgetragen in `e9d249b`, siehe Schritt 21.
 
   `add()` brauchte nur eine Zahl und holte dafür bis zu 200 Datensätze mit
   `propertyFilter=-all-`. Eine Seite mit einem Eintrag trägt dieselbe
@@ -91,7 +91,8 @@ gemeldet.
   *hinter den bestehenden*, nicht *lückenlos* — eine Nummer zu überspringen
   kostet nichts, zwei Anhänge auf einer Position kosten die Reihenfolge.
 
-- [x] **19 · MNT-5** Die zwanzig Member ohne Docstring, `1a0d963`.
+- [x] **19 · MNT-5** Die zwanzig Member ohne Docstring, `1a0d963` — und
+  sechzehn weitere, die der Audit-Zuschnitt nicht sah, in `2243748`.
 
   Nachgemessen: dieselben zwanzig wie am 03.09.2026. Ein erster Messversuch
   fand 26 — und lag falsch: sechs davon sind Datenfelder, von denen zwei
@@ -144,4 +145,59 @@ gemeldet.
   die es geht: eine Aussage über die Sammlung wird zum Grund, alles andere
   fliegt weiter.
 
-Danach: die Roadmap ist abgearbeitet.
+- [x] **21 · Prüfungsnachlese** Sechs Commits, `6e1b7dc` … `1572479`.
+
+  Die Prüfung mit frischem Blick fand **drei MAJOR, und alle drei waren
+  echt.** Zwei davon trafen Code, den ich in dieser Phase geschrieben habe.
+
+  **Eine Regression, die ich selbst ausgeliefert hatte** (`6e1b7dc`).
+  `_count` gab `page_total(response)` ungeprüft weiter, und ohne
+  `pagination` ist dessen Vorgabe **0** — also bekam jeder Anhang die
+  Position 0, und alle konkurrierten um dieselbe Stelle. Genau das, was die
+  Position verhindern soll. Diesen Server gibt es: `list()` trägt ihm
+  ausdrücklich Rechnung und hat dafür einen Test. Meine Commit-Nachricht
+  argumentierte nur über den Fall *mit* Gesamtzahl — der ungeprüfte war der
+  teure.
+
+  **Die SEC-7-Wache ließ ihre eigene Angriffsklasse durch** (`5aee40b`).
+  Pythons `$` steht auch **vor** einem abschließenden `\n`, und `re.match`
+  hört dort auf: `"application/pdf\n"` bestand die Prüfung, die gegen
+  Zeilenumbrüche in einem Kopfzeilenwert gebaut war. Beim Beheben dieselbe
+  Bauform gesucht und an einer zweiten Stelle gefunden, die die Prüfung
+  nicht nannte: `bapi/passthrough._check_route` ließ `"embeddings\n"` durch
+  — einen Umbruch im Pfad einer Adresse, in der Wache, die verhindert, dass
+  eine Route ihren Pfad verlässt und den `X-API-KEY` mitnimmt.
+
+  **Die Fassadenwache las zwei von drei Stellen** (`f36b430`). Ihr eigener
+  Modul-Docstring nennt drei Orte, an denen die dreizehn Namen stehen; das
+  Lesen des Aufrufs fehlte. Belegt: `offset=offset` aus dem Aufruf entfernt,
+  Signatur unverändert — die **ganze** Suite blieb grün, und
+  `repo.flows.search(offset=20)` gäbe still Seite 1 zurück. Zweimal in zwei
+  Phasen dieselbe Lehre: eine Wache, die aus dem falschen Grund grün ist,
+  ist schlimmer als keine.
+
+  Aus den MINOR/NIT-Befunden dazu (`e9d249b`, `2243748`, `1572479`): der
+  Deckel gilt jetzt auch, wenn der Server keine Gesamtzahl nennt — vier
+  Dokumente behaupteten das unbedingt, und statt die Aussage einzuschränken
+  war die Lücke zu schließen. `EduSharingError.location` stand nur im
+  CHANGELOG, während sein Vorbild `retry_after` in sechs Dokumenten steht.
+  `child_objects` verschwieg seinen neuen Fehlerausgang.
+
+  **Die Docstring-Wache hielt nicht, was ihre Überschrift sagt.** Sie sah
+  die 29 Klassen aus `__all__` — so hatte der Audit MNT-5 eingegrenzt, und
+  die Zahl zwanzig stimmt dafür. Erreichbar sind mehr: dort fehlten weitere
+  **16**, genau die Geschwister der zwanzig. Und `cached_property` war
+  unsichtbar; ein Umstellen darauf nahm einen Member ohne ein Wort aus der
+  Wache. Jetzt meldet eine Gegenprobe jede Bauform, die sie nicht kennt —
+  und fand sofort die `member_descriptor` der `slots=True`-Dataclasses, die
+  nun mit ihrem Grund ausgenommen sind.
+
+  **Nicht behoben:** zwei Zahlen in Commit-Nachrichten (`4fda0d4` sagt
+  „sechs Tests", es sind fünf; `d113f1e` sagt 82 Zeilen, `ast` zählt 83).
+  Eine Geschichte umzuschreiben, die schon gepusht ist, kostet mehr als die
+  Ungenauigkeit wiegt; hier steht sie richtig.
+
+Danach: die Roadmap ist abgearbeitet — und die Deckung der Roadmap selbst
+gemessen. Der Bericht führt 61 Befunde, §9 plant 44 davon ein. Von den 17
+übrigen sind sechs Verweise (`DOC-8 = MNT-5`) oder positive Feststellungen;
+die restlichen elf standen in keiner Phase.

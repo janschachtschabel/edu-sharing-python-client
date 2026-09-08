@@ -140,7 +140,10 @@ and in [`docs/audits/`](docs/audits/).
   `Content-Type` of a multipart section, and httpx percent-encodes the filename
   there but not the content type -- measured with httpx 0.28.1, a `\r\n` in it
   produces a second header line. Checked against `type/subtype` from RFC 9110
-  token characters now, at both places that upload.
+  token characters now, at both places that upload -- with `fullmatch`, since
+  `$` also stands before a trailing `\n` and `re.match` stops there. The same
+  shape let `"embeddings\n"` through `bapi.passthrough`, the check that keeps a
+  route from leaving its path with the `X-API-KEY`.
 - **A client you bring along can no longer defeat two promises** (audit SEC-4,
   SEC-8). `follow_redirects=True` is refused by all four clients: httpx keeps
   custom headers across a cross-origin redirect, so a following client carries
