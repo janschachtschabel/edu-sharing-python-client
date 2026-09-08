@@ -56,8 +56,26 @@ and in [`docs/audits/`](docs/audits/).
   earns another attempt: the transport by error type, the two others by status.
   The extraction client now also checks its `backoff_base`, which it never did.
 
+### Removed
+
+- **`python-dateutil` and `typing-extensions`** as runtime dependencies (audit
+  DEP-1). Neither was imported anywhere; the generated layer parses dates with
+  `datetime.fromisoformat` and uses `typing.Self`. Two runtime dependencies
+  remain, `httpx` and `attrs`, and a guard fails if a declared one is unused.
+
 ### Fixed
 
+- **The generated layer can be rebuilt** (audit DEP-2). Regeneration ran the
+  latest `openapi-python-client` from PyPI while the lock pinned 0.29.0, and
+  discarded the generator's exit code -- a failed run left half a tree and
+  reported success. It now runs the pinned generator, checks the exit code and
+  writes `_generated/GENERATED.md` with the generator version and the spec's
+  SHA-256. Measured on the way: the generator must run inside the project,
+  where it reads `requires-python` and the line length; outside it the same
+  spec yields 556 differently shaped files.
+- **CI's lock guard now asserts** (audit OPS-1). `uv sync --frozen` installed
+  what the lock said but never compared it with `pyproject.toml`, which is
+  what the step's own comment promised. `--locked` does both.
 - **The mirror guard calls instead of comparing signatures** (audit TST-1).
   `tests/test_sync_surface.py` exists because a forgotten pass-through
   silently returns a coroutine, but its completeness check compared signatures

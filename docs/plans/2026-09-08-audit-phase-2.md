@@ -47,5 +47,12 @@ Exit-Code. Live nur auf der Staging, nur in selbst angelegten Wegwerf-Ordnern.
   (der Wächter ruft vierzehn Spiegelpaare wirklich auf, samt Gegenbeweis).
   Offen aus MNT-2: die 67 `Any`-Annotationen der Spiegel -- die Wache deckt
   jetzt das Verhalten ab, die Typen bleiben für Phase 3.
-- [ ] **11 · DEP-2 / DEP-1 / OPS-1** Regenerierung gepinnt und mit Herkunft
+- [x] **11 · DEP-2 / DEP-1 / OPS-1** Regenerierung gepinnt und mit Herkunft
   vermerkt, Phantom-Abhängigkeiten weg, CI mit `--locked`.
+  Getan. Der Fund unterwegs: der Generator muss im Projekt laufen, dann wählt
+  er `typing.Self` und die Zeilenbreite selbst -- außerhalb ergeben dieselbe
+  Spec und derselbe Generator 556 anders geformte Dateien. Nach der
+  Regenerierung bleiben vier Dateien mit bedeutungsgleicher Union-Reihenfolge;
+  ein zweiter Lauf ändert nichts mehr.
+
+Damit ist Phase 2 abgeschlossen. Weiter mit Phase 3 der Roadmap (§9).
