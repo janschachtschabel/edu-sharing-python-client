@@ -375,7 +375,16 @@ class Skills:
             )
             for collection_id, answer in zip(level, answers, strict=True):
                 if isinstance(answer, BaseException):
-                    if collection_id == root:
+                    # Nur die zwei erwarteten Absagen werden gezaehlt, alles
+                    # andere muss durch: eine gesperrte Sammlung ist eine
+                    # Antwort, ein kaputtes Repositorium keine. ``gather`` mit
+                    # ``return_exceptions`` reicht jede Ausnahme als Wert
+                    # zurueck -- ohne diese Pruefung wurde ein 500 still zu
+                    # ``unreadable`` (Regression aus df865c0, gefunden durch
+                    # den Pin aus Audit TST-6).
+                    if collection_id == root or not isinstance(
+                        answer, (PermissionDeniedError, NotFoundError)
+                    ):
                         raise answer
                     unreadable += 1
                     continue

@@ -470,3 +470,26 @@ async def test_mehr_untersammlungen_als_eine_seite_sind_abgeschnitten():
         suche = await repo.flows.search_in_collection("wurzel", "Zellteilung")
     assert baum["truncated"] is True
     assert suche["truncated"] is True
+
+
+# --- TST-6: der Rohsatz bleibt drin, wo er hingehoert --------------------
+
+
+async def test_browse_tree_gibt_keinen_rohsatz_heraus():
+    """``walk_collections`` behaelt den Satz je Sammlung, weil
+    ``find_collections`` seine Filter darauf prueft. ``browse_tree`` ist die
+    Fassung zum Anschauen und laesst ihn weg -- auf jeder Ebene, nicht nur der
+    obersten (Audit TST-6)."""
+    instanz = Instanz()
+    async with instanz.repo() as repo:
+        baum = await repo.flows.browse_tree("wurzel", depth=2)
+
+    def schluessel(knoten: list[dict]) -> set[str]:
+        gesehen: set[str] = set()
+        for k in knoten:
+            gesehen |= set(k)
+            gesehen |= schluessel(k["collections"])
+        return gesehen
+
+    assert schluessel(baum["collections"]) == {"id", "title", "collections"}
+    assert "raw" not in baum

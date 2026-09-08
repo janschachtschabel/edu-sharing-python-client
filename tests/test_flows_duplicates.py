@@ -196,3 +196,23 @@ async def test_eine_schemalose_adresse_kostet_keine_anfrage():
         with pytest.raises(ValidationError):
             await find_by_url(repo, "www.example.org/x")
     assert instanz.anfragen == []
+
+
+# --- TST-6: warum die zweite Verteidigungslinie nie anschlaegt -----------
+
+
+async def test_eine_http_adresse_ist_nie_unaufloesbar():
+    """``find_by_url`` prueft das Schema und wirft davor; danach reicht
+    ``resolve_all`` jedes ``http(s)://`` unveraendert durch. Der
+    ``unresolved``-Zweig darunter ist deshalb ueber diesen Weg **nicht
+    erreichbar** -- er ist zweite Verteidigungslinie, so auch im Kommentar
+    benannt.
+
+    Dieser Test pinnt die Annahme, auf der das beruht. Wer ``_is_uri`` oder
+    die Schemapruefung aendert, faellt hier auf und nicht erst im Betrieb
+    (Audit TST-6)."""
+    instanz = Instanz()
+    async with instanz.repo() as repo:
+        ergebnis = await repo.search(
+            filters={"ccm:wwwurl": "https://beispiel.test/seite"}, limit=5)
+    assert ergebnis.unresolved == []

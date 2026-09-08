@@ -769,3 +769,15 @@ async def test_zwei_gesperrte_untersammlungen_zaehlen_zweimal():
     async with instanz.repo() as repo:
         got = await repo.skills.search("", collection_id=COLL, include_subcollections=True)
     assert got.unreadable == 2
+
+
+async def test_ein_serverfehler_in_einer_untersammlung_wird_geworfen():
+    """Eine gesperrte Sammlung ist eine Antwort und wird gezaehlt; ein
+    kaputtes Repositorium ist keine. Nur 403 und 404 werden gefangen -- alles
+    andere muss durch, sonst sieht ein Ausfall aus wie eine Teilantwort
+    (Audit TST-6)."""
+    instanz = Instanz(unter={"u1": 500})
+    async with instanz.repo() as repo:
+        with pytest.raises(ServerError):
+            await repo.skills.search("", collection_id=COLL,
+                                     include_subcollections=True)
