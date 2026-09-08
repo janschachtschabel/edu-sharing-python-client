@@ -16,6 +16,13 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Added
 
+- **Two guards over the surface itself** (`tests/test_docstrings.py`,
+  `tests/test_flows_surface.py`, audit MNT-5/MNT-3). Every public class, method
+  and property carries a docstring -- not every data field, because a `#: The
+  value.` above `value: str` is narration and what needs a judgement is not
+  guarded. And every method of `Flows` offers each knob of the flow it forwards
+  to, with the same default: the thirteen parameters of `search` are written
+  out in four places, of which only the last was tied down.
 - **Guards over the documentation's inventories**
   (`tests/test_docs_inventories.py`, audit DOC-3/DOC-5/DOC-7). Five of them:
   every flow has a chapter in FLOWS, the README enumerates every flow, every
@@ -36,6 +43,25 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Changed
 
+- **The source distribution names what it carries** (audit OPS-5). Without a
+  section of its own hatchling took everything under version control: 1318
+  files and 1.2 MB, `.claude/`, `.github/`, `uv.lock` and the 1.3 MB
+  specification among them. Now 1204 files and 556 KB. A positive list, not an
+  exclude list -- an exclude list ages with every new directory. The suite
+  stays out, and that is the actual decision: it checks the *repository*, and
+  without the documents, `uv.lock` and `.github/` its guards do not go red,
+  they go quiet.
+- **`node.children.list()` says when there are more** (audit MNT-4). It read
+  200 and kept silent about the rest -- the one listing in this library that
+  shortened without saying so. The cap is `LIST_MAX` now and anything above it
+  raises: there is no use for which the first 200 would be right, and
+  `list[Node]` has no room to say "incomplete". `add()` no longer fetches up to
+  200 records to count them; a one-record page carries the same total.
+- **Twenty public members explain themselves** (audit MNT-5, also DOC-8).
+  `name` is the file and `title` the display, `raw` is not a copy, `properties`
+  carries keys and no labels, `NodeContent.mimetype` is only settled after an
+  upload. Their explanation used to live in the reference only -- which is
+  where nobody looks who is standing in their editor.
 - **The documentation states counts where a guard can derive them, and nowhere
   else** (audit DOC-3, DOC-5, DOC-7). "Twenty flows" while there were 26,
   "1122 tests offline" while 1303 were collected, "`WARNING` in four places"
@@ -98,6 +124,23 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Security
 
+- **Foreign text on the error path stays on one line** (audit SEC-5).
+  `as_result` passed `str(exc)` on as `text`, and that message carries the
+  server's response body: whoever could provoke an error whose text they choose
+  wrote their own lines into a model context. The same for the unresolved
+  filter in `format_results`, whose `__str__` joins three server-supplied
+  values -- the warnings next to it were flattened, this branch was not.
+- **A redirect names its target, not the whole address** (audit SEC-6). The
+  full `Location` stood in `str(exc)`, and so in the logs and, via
+  `as_result`, in a model context -- a presigned link carries its authority in
+  the query string, a login bounce its ticket in the path. The message names
+  the host, which answers the question it exists for; the whole value is on the
+  exception as `.location`.
+- **A `mimetype` must be a type, not a header** (audit SEC-7). It goes into the
+  `Content-Type` of a multipart section, and httpx percent-encodes the filename
+  there but not the content type -- measured with httpx 0.28.1, a `\r\n` in it
+  produces a second header line. Checked against `type/subtype` from RFC 9110
+  token characters now, at both places that upload.
 - **A client you bring along can no longer defeat two promises** (audit SEC-4,
   SEC-8). `follow_redirects=True` is refused by all four clients: httpx keeps
   custom headers across a cross-origin redirect, so a following client carries
