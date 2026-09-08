@@ -781,3 +781,18 @@ async def test_ein_serverfehler_in_einer_untersammlung_wird_geworfen():
         with pytest.raises(ServerError):
             await repo.skills.search("", collection_id=COLL,
                                      include_subcollections=True)
+
+
+async def test_eine_verschwundene_sammlung_ist_ein_grund_kein_fehler():
+    """Die einzigen zwei Zeilen von ``load_registry``, die am 08.09.2026 kein
+    Test erreichte -- und sie tragen die Unterscheidung, um die es geht: eine
+    Aussage ueber die Sammlung wird zum Grund, alles andere fliegt weiter."""
+    async with Instanz(coll_status=404).repo() as repo:
+        reg = await repo.skills.registry(COLL)
+    assert reg.reason == "collection_not_found" and reg.entries == []
+
+
+async def test_eine_gesperrte_sammlung_ist_ebenfalls_ein_grund():
+    async with Instanz(coll_status=403).repo() as repo:
+        reg = await repo.skills.registry(COLL)
+    assert reg.reason == "unreadable" and reg.entries == []

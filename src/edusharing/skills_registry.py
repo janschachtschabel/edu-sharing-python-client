@@ -18,6 +18,7 @@ weigh, never an instruction this library follows.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -26,7 +27,13 @@ from .dto import first, node_id_of, page_total, title_of
 from .errors import ContentTooLargeError, NotFoundError, PermissionDeniedError
 from .nodes import Node
 from .skills import WLO_SKILLS, SkillConventions, registry_mark
-from .skills_markdown import RegistryContext, RegistryGeneral, layout_contexts, parse_blocks
+from .skills_markdown import (
+    RegistryContext,
+    RegistryGeneral,
+    SkillReference,
+    layout_contexts,
+    parse_blocks,
+)
 from .urls import path_segment
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -92,6 +99,63 @@ class SkillRegistry:
     scan_truncated: tuple[int, int] | None = None
 
 
+def _entries_of(
+    with_id: list[tuple[SkillReference, str | None]],
+    heads: dict[str, dict[str, Any] | None],
+    *,
+    resolve: bool,
+) -> tuple[list[RegistryEntry], list[dict[str, str]]]:
+    """The catalogue entries, plus the ones whose record could not be read.
+
+    A block names a skill; the record says what it currently is. Both are
+    needed, which is why this is a merge and not a mapping.
+    """
+    entries: list[RegistryEntry] = []
+    unresolved: list[dict[str, str]] = []
+    for block, path in with_id:
+        head = heads[block.node_id]
+        if resolve and head is None:
+            unresolved.append({"title": block.title, "node_id": block.node_id})
+            continue
+        props = (head or {}).get("properties") or {}
+        entries.append(RegistryEntry(
+            node_id=block.node_id,
+            # The record wins over the block: the document goes stale, the
+            # record is what ``get`` will actually return.
+            title=(head or {}).get("title") or block.title,
+            description=first(props.get("cclom:general_description")) or "",
+            keywords=[str(k) for k in (props.get("cclom:general_keyword") or [])],
+            context=path,
+        ))
+    return entries, unresolved
+
+
+def _by_context(
+    entries: list[RegistryEntry],
+    contexts: Sequence[RegistryContext],
+    context: str | None,
+) -> tuple[list[RegistryEntry], str]:
+    """The entries under one heading, and whether the heading was found.
+
+    ``"all"`` when nothing was asked for, ``"missing"`` for a heading this
+    document does not have -- and then **everything** comes back, unnarrowed.
+    A wrong heading must not look like an empty catalogue.
+
+    The general part always travels along: those skills belong to every
+    context, which is what makes them general.
+    """
+    if context is None:
+        return entries, "all"
+    wanted = context.strip().lower()
+    exact = next((c for c in contexts if c.path.lower() == wanted), None)
+    if exact is None:
+        return entries, "missing"
+    prefix = exact.path + "/"
+    return [e for e in entries
+            if e.context is None or e.context == exact.path
+            or e.context.startswith(prefix)], "exact"
+
+
 async def load_registry(
     repo: AsyncRepository,
     collection_id: str,
@@ -155,7 +219,7 @@ async def load_registry(
     capped = skills[:REGISTRY_MAX]
     truncated = (len(capped), len(skills)) if len(skills) > len(capped) else None
 
-    unresolved = [{"title": b.title, "node_id": ""} for b, _ in capped if not b.node_id]
+    ohne_id = [{"title": b.title, "node_id": ""} for b, _ in capped if not b.node_id]
     with_id = [(b, path) for b, path in capped if b.node_id]
     # One read per record: a skill filed under two contexts is two entries,
     # not two requests.
@@ -163,35 +227,9 @@ async def load_registry(
     heads: dict[str, dict[str, Any] | None] = dict.fromkeys(unique)
     if resolve:
         heads = dict(zip(unique, await _read_heads(repo, unique), strict=True))
-    entries: list[RegistryEntry] = []
-    for block, path in with_id:
-        head = heads[block.node_id]
-        if resolve and head is None:
-            unresolved.append({"title": block.title, "node_id": block.node_id})
-            continue
-        props = (head or {}).get("properties") or {}
-        entries.append(RegistryEntry(
-            node_id=block.node_id,
-            # The record wins over the block: the document goes stale, the
-            # record is what ``get`` will actually return.
-            title=(head or {}).get("title") or block.title,
-            description=first(props.get("cclom:general_description")) or "",
-            keywords=[str(k) for k in (props.get("cclom:general_keyword") or [])],
-            context=path,
-        ))
-
-    match = "all"
-    if context is not None:
-        wanted = context.strip().lower()
-        exact = next((c for c in layout.contexts if c.path.lower() == wanted), None)
-        if exact is None:
-            match = "missing"
-        else:
-            match = "exact"
-            prefix = exact.path + "/"
-            entries = [e for e in entries
-                       if e.context is None or e.context == exact.path
-                       or e.context.startswith(prefix)]
+    entries, ungelesen = _entries_of(with_id, heads, resolve=resolve)
+    unresolved = ohne_id + ungelesen
+    entries, match = _by_context(entries, layout.contexts, context)
 
     return SkillRegistry(
         collection_id, registry_id=registry_id, registry_title=base.registry_title,
