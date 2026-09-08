@@ -17,7 +17,12 @@ import json
 import httpx
 import pytest
 
-from edusharing.errors import ContentTooLargeError, PermissionDeniedError, SilentDropError
+from edusharing.errors import (
+    ContentTooLargeError,
+    PermissionDeniedError,
+    SilentDropError,
+    ValidationError,
+)
 from edusharing.nodes import Node, Nodes
 from edusharing.transport import Transport
 
@@ -804,3 +809,70 @@ def test_hit_as_dict_nennt_das_original():
     from edusharing.results import SearchHit
     hit = SearchHit.from_node({"ref": {"id": "r-1"}, "originalId": "o-1", "properties": {}}, REPO)
     assert hit_as_dict(hit, {})["original_id"] == "o-1"
+
+
+# --- SEC-7: der mimetype landet in einer Kopfzeile -------------------------
+#
+# httpx schreibt ``Content-Type: <mimetype>`` in den Teilabschnitt, ohne den
+# Wert zu pruefen -- gemessen mit httpx 0.28.1 am 08.09.2026:
+#
+#     files={"file": ("n.pdf", b"xy", "application/pdf\r\nX-Injected: ja")}
+#
+# ergibt zwei Kopfzeilen statt einer. Den Dateinamen kodiert httpx (``%0D%0A``),
+# den Inhaltstyp nicht. Was ein Server aus einer zweiten Kopfzeile macht, ist
+# seine Sache -- die Bibliothek darf sie gar nicht erst schreiben.
+
+BOESE = [
+    "application/pdf\r\nX-Injected: ja",
+    "application/pdf\nX-Injected: ja",
+    "application/pdf\r\n\r\nkoerper",
+    "application/pdf; charset=\"a\r\nb\"",
+    "text/plain\x00",
+]
+
+
+@pytest.mark.parametrize("mimetype", BOESE)
+async def test_ein_mimetype_der_eine_kopfzeile_faelscht_wird_abgelehnt(mimetype):
+    node = await _nodes(Server()).get(NID)
+    with pytest.raises(ValidationError, match="mimetype"):
+        await node.content.upload(b"x", filename="p.txt", mimetype=mimetype)
+
+
+@pytest.mark.parametrize("mimetype", BOESE)
+async def test_auch_das_vorschaubild_prueft_seinen_mimetype(mimetype):
+    """Derselbe Weg, dieselbe Kopfzeile -- eine Wache an einer der beiden
+    Stellen ist keine."""
+    node = await _nodes(Server()).get(NID)
+    with pytest.raises(ValidationError, match="mimetype"):
+        await node.content.set_preview(b"x", mimetype=mimetype)
+
+
+@pytest.mark.parametrize("mimetype", [
+    "application/pdf",
+    "image/png",
+    "text/plain",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/x-tar",
+    "audio/mp4",
+    "application/vnd.oasis.opendocument.text",
+])
+async def test_gewoehnliche_typen_gehen_durch(mimetype):
+    """Gegenprobe. Die Regel darf nichts treffen, was in einem Bestand
+    vorkommt -- die langen Office-Typen sind der Ernstfall."""
+    class MitDatei(Server):
+        def __call__(self, request):
+            if request.method == "POST" and request.url.path.endswith("/content"):
+                return httpx.Response(200, json=_node_antwort({}))
+            return super().__call__(request)
+
+    node = await _nodes(MitDatei()).get(NID)
+    await node.content.upload(b"x", filename="p", mimetype=mimetype)
+
+
+async def test_ein_typ_mit_parameter_wird_benannt_nicht_nur_verweigert():
+    """``text/plain; charset=utf-8`` ist eine gueltige Kopfzeile, aber nicht
+    das, was das Repositorium als Klassifizierung erwartet -- es bekommt den
+    Wert auch als Abfrageparameter. Wer ihn schickt, soll lesen warum."""
+    node = await _nodes(Server()).get(NID)
+    with pytest.raises(ValidationError, match=r"charset|parameter|type/subtype"):
+        await node.content.upload(b"x", filename="p", mimetype="text/plain; charset=utf-8")

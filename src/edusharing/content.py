@@ -33,6 +33,7 @@ success.
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, Any
 
 from .errors import ContentTooLargeError, EduSharingError, ValidationError
@@ -66,6 +67,40 @@ def is_text_like(mimetype: str | None) -> bool:
     kind = (mimetype or "").lower()
     return (kind.startswith("text/") or kind in ("application/json", "application/xml")
             or kind.endswith(("+json", "+xml")))
+
+
+#: ``type/subtype`` out of RFC 9110 token characters -- and nothing else.
+#: Deliberately without parameters: ``text/plain; charset=utf-8`` is a valid
+#: header but not what the repository wants as a classification, and it gets the
+#: same value as a query parameter, where a parameter is wrong outright.
+_MIMETYPE = re.compile(r"^[A-Za-z0-9!#$%&'*+.^_`|~-]+/[A-Za-z0-9!#$%&'*+.^_`|~-]+$")
+
+
+def _check_mimetype(mimetype: str) -> None:
+    """Refuse a ``mimetype`` that would write more than its own header.
+
+    It goes into two places: the query parameter, and the ``Content-Type`` of
+    the multipart section. httpx percent-encodes the *filename* there and the
+    content type not at all -- measured with httpx 0.28.1 on 2026-09-08, a
+    ``\r\n`` in it produces a second header line (audit SEC-7). What a server
+    makes of that is its business; this library must not write it.
+
+    Raises:
+        ValidationError: when it is missing or is not ``type/subtype``.
+    """
+    if not mimetype:
+        raise ValidationError(
+            "mimetype is mandatory on upload (e.g. 'application/pdf' or "
+            "'text/plain')."
+        )
+    if not _MIMETYPE.match(mimetype):
+        raise ValidationError(
+            f"mimetype must be a plain type/subtype, not {mimetype!r}. "
+            "Parameters such as '; charset=utf-8' do not belong here -- the "
+            "same value goes to the repository as a classification -- and "
+            "anything outside a token would be written into a header line "
+            "unchanged."
+        )
 
 
 class NodeContent:
@@ -129,13 +164,10 @@ class NodeContent:
             afterwards.
 
         Raises:
-            ValidationError: when ``mimetype`` is missing.
+            ValidationError: when ``mimetype`` is missing or is not a plain
+                ``type/subtype`` (audit SEC-7).
         """
-        if not mimetype:
-            raise ValidationError(
-                "mimetype is mandatory on upload (e.g. 'application/pdf' or "
-                "'text/plain')."
-            )
+        _check_mimetype(mimetype)
         params: dict[str, Any] = {"mimetype": mimetype}
         if version_comment:
             params["versionComment"] = version_comment
@@ -167,7 +199,9 @@ class NodeContent:
         Raises:
             ValueError: on empty data. The endpoint would answer 200 and store
                 a preview of nothing.
+            ValidationError: when ``mimetype`` is not a plain ``type/subtype``.
         """
+        _check_mimetype(mimetype)
         if not data:
             raise ValueError(
                 "A preview image cannot be empty -- the repository would store "
