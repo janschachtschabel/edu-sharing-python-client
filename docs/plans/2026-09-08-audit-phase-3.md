@@ -104,8 +104,53 @@ Schritt 12.
   `resolve_all` reicht jede URI durch. Ein Test, der ihn künstlich
   erzwingt, hielte Fiktion fest; stattdessen pinnt der Test die Annahme,
   auf der die Unerreichbarkeit beruht.
-- [ ] **15 · DOC-3 bis DOC-7** Der Architektur-Nachweis, die Zahlen, die
+- [x] **15 · DOC-3 bis DOC-7** Der Architektur-Nachweis, die Zahlen, die
   Beispiele und die Docstrings — die Zahlen möglichst abgeleitet, damit die
   Wächter sie besitzen statt der Prosa.
+  Getan in acht Commits: `80b89c6` (DOC-6, die Beispiele lesen die Variable,
+  die es gibt), `1c6d97e` (DOC-5, die Verzeichnisse zählen auf, was es gibt),
+  `b193019` (DOC-4, keiner der drei Dienste trägt eine Vorgabeadresse),
+  `a3fd5f2` (DOC-3, zehn fehlende Module und fünf falsche Zahlen), `58562b0`
+  (DOC-7, die Warnstellen), dann nach der Prüfung `8702a8c` (die Wachen halten,
+  was sie versprechen), `01e7328` (sieben Aussagen, die keine Wache sieht) und
+  `9f3a06f` (eine doppelte Zuweisung).
+
+  **Der Wächter für DOC-6 war um die Abweichung herum gebaut.** Es gab ihn
+  schon — „jeder in der Dokumentation genannte Variablenname kommt im Code
+  vor" — und er nahm als Beleg ausdrücklich auch ein Vorkommen im
+  Beispielordner, mit `EDU_SHARING_MDS` als genanntem Beispiel im Docstring.
+  Die Abweichung war der Wache beigebracht worden, nicht behoben. Jetzt zählt
+  nur `src/`, und der alte Test ist strenger als vorher.
+
+  **DOC-7 war schlimmer als gemeldet.** Der Befund zählte fünf WARNING-Stellen
+  statt der behaupteten vier; es sind sieben. Dazugekommen waren die
+  abgewiesene Adressschreibweise aus SEC-3 und die Hintergrundschleife, die
+  nicht anhält, aus COR-4 — ausgerechnet in dem Abschnitt, der erklärt, warum
+  diese Bibliothek sonst schweigt. Zwei andere Teile von DOC-7 waren beim
+  Nachmessen bereits behoben; sie sind geprüft, nicht „behoben" gemeldet.
+
+  **Die Prüfung fand drei MAJOR, und alle drei waren echt.** Der wichtigste
+  traf meine eigene Wache: sie nahm als Beleg auch den blossen Dateinamen, und
+  `collections.py` steckt als Teilzeichenkette in der Zeile für das *andere*
+  Modul dieses Namens — `flows/collections.py` stand damit in keiner Tabelle,
+  und die Wache schwieg. Eine Wache, die aus dem falschen Grund grün ist, ist
+  schlimmer als keine. Das Verschärfen legte die eigentliche Lücke frei: §8.6
+  führte alle Ablaufmodule in **einer** Sammelzeile, die sieben von fünfzehn
+  nannte und vollständig aussah — genau die Bauform, gegen die DOC-3 sich
+  richtet. Die anderen beiden: die deutsche README trug „über alle 20 Abläufe"
+  weiter, und vier Stellen sagten, Vorschläge hätten keinen Ablauf, während
+  `accept_suggestion` neun Zeilen weiter oben als Ablauf steht.
+
+  Alle fünf Wachen sind mutationsgeprüft — Doku kaputtmachen, Test muss rot
+  werden. Vier Mutationen einzeln nachgewiesen.
+
+  **Nicht gemacht:** ein Wächter über die drei Kantenzahlen in §8.8 („sieben
+  der fünfzehn", „auf fünf", „vier von ihnen"), den die Prüfung anregt. Die
+  *Listen* sind Zusagen — unvollständig führen sie in die Irre. Die
+  Kantenzahlen sind eine datierte Messung, die eine Aussage belegt („innerhalb
+  dieses Pakets gibt es keine Richtungsregel"), und sie stehen unter demselben
+  „Gemessen am …" wie die Zeilenzahlen von `nodes.py`, für die dieselbe
+  Entscheidung schon getroffen wurde. Ein Wächter darüber schlüge bei jedem
+  ordentlichen Umbau an, ohne dass etwas falsch wäre.
 
 Danach: Phase 4 (Politur) der Roadmap.

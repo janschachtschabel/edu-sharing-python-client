@@ -16,6 +16,14 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Added
 
+- **Guards over the documentation's inventories**
+  (`tests/test_docs_inventories.py`, audit DOC-3/DOC-5/DOC-7). Five of them:
+  every flow has a chapter in FLOWS, the README enumerates every flow, every
+  example has a row in both README tables, every module of the hand-written
+  layer is named in ARCHITECTURE by its path, and the modules that log a
+  `WARNING` are exactly the ones the README lists. A stale enumeration is
+  invisible when read — it stays plausible and complete-looking while something
+  has been added behind it.
 - **`SECURITY.md`** and a **Releasing** section in both READMEs (audit OPS-3).
   A library that handles repository passwords and API keys had nowhere to send
   a finding, and two tags existed with nothing saying how the next is cut. The
@@ -28,6 +36,29 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Changed
 
+- **The documentation states counts where a guard can derive them, and nowhere
+  else** (audit DOC-3, DOC-5, DOC-7). "Twenty flows" while there were 26,
+  "1122 tests offline" while 1303 were collected, "`WARNING` in four places"
+  while there were seven, an example table that stopped at number 20. Those
+  numbers are gone: the documents enumerate, the guards count, and the header
+  of ARCHITECTURE points at `pytest --collect-only` instead of repeating a
+  figure that was wrong within a week.
+- **ARCHITECTURE says what the code does again** (audit DOC-3, DOC-4). The
+  record claimed the b-api carries a default address and gave the reason — the
+  exact reasoning that was dropped on 2026-08-28 for a security one, since
+  setting only `B_API_KEY` then sent the key to a host nobody chose. It also
+  left ten modules unmentioned, the whole skills subsystem among them, and
+  called `find` → `describe` "the only cross-module call left" when seven of
+  the fifteen flow modules import a sibling. Stage 10 has its table now, the
+  flow modules have one row each instead of one summary line that named seven
+  of fifteen, the measured import edges are written down, and the line counts
+  carry the date they were taken on, because they were evidence for a split and
+  not a description of today.
+- **Proposals are no longer described as having no flow.** Four places said so
+  while `accept_suggestion` was listed as a flow a few lines above — and it
+  meets the criterion those same sentences give, since it writes, reads back and
+  only then marks. Making and declining a proposal stay at the API level;
+  accepting has a flow.
 - **CI is hardened and runs on Windows too** (audit OPS-2). `permissions:
   contents: read`, a 15-minute timeout, one run per branch with
   `cancel-in-progress`, actions pinned by commit rather than by a movable tag,
@@ -152,6 +183,15 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Fixed
 
+- **The examples read the environment variable that exists** (audit DOC-6).
+  Nineteen of the 21 read `EDU_SHARING_MDS`; the library and every document say
+  `EDU_SHARING_METADATASET`. Whoever set the documented one was quietly ignored
+  by almost every example. The guard that was supposed to catch this had been
+  widened to let it through — a documented name counted as proven if an
+  *example* used it. It only looks at `src/` now, which makes it stricter than
+  before.
+- **`nodes.py` pointed at `placement.parents_of`**, which does not exist. The
+  function is `ancestry_of`, and the next line calls it that.
 - **Live write tests clean up after themselves** (audit TST-3). Their fixtures
   tore down with `delete()`, which recycles: every run left
   `pytest-edusharing-…` folders in the account's bin. They delete for good
