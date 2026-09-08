@@ -324,6 +324,11 @@ class AsyncRepository:
     # --- Lifecycle --------------------------------------------------------
 
     async def aclose(self) -> None:
+        """Close the connection pool. ``async with`` does this itself.
+
+        Without it the pool stays open until the interpreter ends -- which in
+        a notebook means one pool per cell that was run again.
+        """
         await self._transport.aclose()
 
     async def __aenter__(self) -> Self:
@@ -367,10 +372,12 @@ class Repository:
 
     @property
     def url(self) -> str:
+        """As ``AsyncRepository.url``."""
         return self._async.url
 
     @property
     def credential(self) -> Credential:
+        """As ``AsyncRepository.credential``."""
         return self._async.credential
 
     @property
@@ -383,6 +390,7 @@ class Repository:
 
     @property
     def metadataset(self) -> str:
+        """As ``AsyncRepository.metadataset``."""
         return self._async.metadataset
 
     @property

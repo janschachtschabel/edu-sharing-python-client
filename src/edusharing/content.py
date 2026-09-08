@@ -134,6 +134,12 @@ class NodeContent:
 
     @property
     def mimetype(self) -> str | None:
+        """The content type the repository determined, or ``None``.
+
+        Settled only after an upload -- a freshly created node without
+        content has none. It is what the repository made of the file, not
+        the value passed to ``upload``.
+        """
         return self._node.raw.get("mimetype")
 
     @property

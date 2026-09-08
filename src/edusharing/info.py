@@ -40,6 +40,12 @@ class About:
 
     @classmethod
     def from_response(cls, data: dict[str, Any]) -> About:
+        """Read a ``GET /_about`` response.
+
+        Every field stays optional: what an instance reports depends on its
+        version and on which services are installed, and a missing entry is
+        an answer, not an error.
+        """
         version = data.get("version") or {}
         major, minor = version.get("major"), version.get("minor")
         return cls(
@@ -81,6 +87,12 @@ class Identity:
 
     @classmethod
     def from_response(cls, data: dict[str, Any]) -> Identity:
+        """Read a ``GET /iam/v1/people/-home-/-me-`` response.
+
+        The display name is assembled from the profile; an account with
+        neither first nor last name gets an empty one rather than a
+        placeholder that would then be shown as if it were a name.
+        """
         person = data.get("person") or {}
         authority = person.get("authorityName") or ""
         profile = person.get("profile") or {}

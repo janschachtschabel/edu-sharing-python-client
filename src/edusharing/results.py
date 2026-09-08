@@ -39,6 +39,11 @@ class SearchHit:
     original_id: str | None = None
 
     def properties(self) -> dict[str, Any]:
+        """The raw property map of the hit -- as on ``Node.properties``.
+
+        A search response carries fewer of them than a node request: what
+        the index returns, not the whole record.
+        """
         return self.raw.get("properties") or {}
 
     @property
@@ -72,6 +77,13 @@ class SearchHit:
 
     @classmethod
     def from_node(cls, node: dict[str, Any], repository_url: str) -> SearchHit:
+        """Build a hit from one record of a search response.
+
+        ``repository_url`` is needed for ``url``: a record says which node it
+        is, not where it can be looked at. Title, id and description come
+        from the shared readers in ``dto`` -- the same record must not become
+        a different hit here than it does a node (audit MNT-1).
+        """
         node_id = node_id_of(node)
         props = node.get("properties") or {}
         return cls(

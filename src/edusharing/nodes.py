@@ -51,18 +51,39 @@ class Node:
 
     @property
     def id(self) -> str:
+        """The node id, or ``""`` when the record carries none.
+
+        Never ``None``: this goes into URLs and routes, where a ``None``
+        surfaces far away from where it was lost. Read out of ``ref``, which
+        is where every response puts it -- see ``dto.node_id_of``.
+        """
         return node_id_of(self._data)
 
     @property
     def name(self) -> str:
+        """The file name (``cm:name``) -- what a download is called.
+
+        Not the title: ``arbeitsblatt.pdf`` where ``title`` says
+        "Bruchrechnung". ``""`` when the record does not say.
+        """
         return self._data.get("name") or ""
 
     @property
     def title(self) -> str:
+        """The display title, from one chain for every record shape.
+
+        Four objects used to answer this differently, so the same record
+        arrived as "arbeitsblatt.pdf" from a search and as "Bruchrechnung"
+        as a node (audit MNT-1). ``dto.title_of`` carries the chain.
+        """
         return title_of(self._data)
 
     @property
     def type(self) -> str:
+        """The repository type, e.g. ``ccm:io`` for material or ``cm:folder``.
+
+        Not the mimetype -- that lives on ``node.content``.
+        """
         return self._data.get("type") or ""
 
     @property
@@ -158,10 +179,21 @@ class Node:
 
     @property
     def properties(self) -> dict[str, Any]:
+        """The raw property map, values as lists of strings.
+
+        Untranslated: a vocabulary field holds the key, not the label. For
+        the readable form use ``labels()``.
+        """
         return self._data.get("properties") or {}
 
     @property
     def raw(self) -> dict[str, Any]:
+        """The whole record as the repository sent it.
+
+        The way out for a field this class does not surface. Not a copy --
+        writing into it changes what this node answers, without any of it
+        reaching the repository.
+        """
         return self._data
 
     def labels(self, prop: str) -> list[str]:

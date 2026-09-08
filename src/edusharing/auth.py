@@ -47,10 +47,12 @@ class AnonymousCredential:
     """No sign-in. A valid mode -- much is publicly readable."""
 
     def headers(self) -> dict[str, str]:
+        """None -- and that is the point: nothing is sent that could leak."""
         return {}
 
     @property
     def is_anonymous(self) -> bool:
+        """Always true. Write paths check this before they try."""
         return True
 
     def __repr__(self) -> str:
@@ -114,14 +116,21 @@ class BasicCredential:
         return cls(user, password)
 
     def headers(self) -> dict[str, str]:
+        """The ``Authorization`` header, built once in the constructor.
+
+        The password is not kept as text -- only this header is, so it is
+        in one place rather than in every request.
+        """
         return {"Authorization": self._header}
 
     @property
     def is_anonymous(self) -> bool:
+        """Always false -- these credentials name someone."""
         return False
 
     @property
     def username(self) -> str:
+        """The name signed in with. The password has no counterpart here."""
         return self._username
 
     def __repr__(self) -> str:
