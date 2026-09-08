@@ -14,7 +14,7 @@ Schritt 12.
 
 ## Schritte
 
-- [ ] **12 · SEC-4, SEC-8, API-1, SEC-3** Die Wachen, die nur in einem Client
+- [x] **12 · SEC-4, SEC-8, API-1, SEC-3** Die Wachen, die nur in einem Client
   stehen, in gemeinsamen Code.
   - SEC-4: ein eingeschleuster Client mit `follow_redirects=True` hebelt die
     3xx-Wache aus. httpx behält eigene Kopfzeilen über Ursprungsgrenzen hinweg,
@@ -29,6 +29,18 @@ Schritt 12.
     3xx-Behandlung, die nur der Transport hat.
   - SEC-3: `extraction.text_of` leitet Adressen weiter, die `agent.safety`
     ablehnt — `http://127.0.0.1\@example.com/` und Anmeldedaten im Netloc.
+
+  Getan in vier Commits: `ec51ab7` (eine `check_client`-Wache, vier
+  Aufrufer), `a6f7994` (`redirect_error` und `non_json_error` für alle
+  vier), `d5df08a` (die Adressregel verhaltenserhaltend nach `urls.py`)
+  und `1aec372` (`unsafe_url_syntax`, von Agent und Extraktion gerufen).
+  Der Befund SEC-3 war als *needs verification* geführt und ist
+  nachgemessen: `urlsplit` liest `http://127.0.0.1\@example.com/` als
+  `example.com`, ein WHATWG-Parser als `127.0.0.1`.
+  Beim Zuschnitt einmal zu grob gegriffen — der erste Anlauf rief
+  `unsafe_url_reason` ganz und hätte `private_host` und `dns_failed` durch
+  `unsafe_url` ersetzt; dreizehn Tests haben das gezeigt, geteilt wird
+  seitdem nur die Schreibweisen-Hälfte.
 - [ ] **13 · PRF-2, PRF-3, PRF-4, PRF-5** Die Deckel und die Bündel.
   - PRF-2: `describe_many` ist das einzige unbegrenzte Fan-out.
   - PRF-3: serielle `await`s, wo die Aufrufe unabhängig sind. Enthält zwei

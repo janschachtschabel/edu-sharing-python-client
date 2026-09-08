@@ -14,6 +14,36 @@ and in [`docs/audits/`](docs/audits/).
 
 ## [Unreleased]
 
+### Security
+
+- **A client you bring along can no longer defeat two promises** (audit SEC-4,
+  SEC-8). `follow_redirects=True` is refused by all four clients: httpx keeps
+  custom headers across a cross-origin redirect, so a following client carries
+  an API key to wherever a gateway points -- verified, the second request to
+  another host still had it. And `timeout` beside a client is refused
+  everywhere, not just in the transport: the value belongs to the client, and
+  accepting both meant validating a parameter and then discarding it.
+- **An address two parsers read differently is not sent on** (audit SEC-3).
+  `extraction.text_of` judged a URL on `urlsplit().hostname` and then forwarded
+  it verbatim. Measured: `http://127.0.0.1\@example.com/` is host
+  `example.com` to `urlsplit` and `127.0.0.1` to a browser, so the check was
+  not checking the address that gets fetched; `http://user:pw@example.com/`
+  carried credentials to a third-party service. The spelling rules now live in
+  `urls.unsafe_url_syntax`, shared with the agent, and a backslash anywhere is
+  refused as well. New `reason` value: `unsafe_url`.
+
+### Fixed
+
+- **A 3xx and a body that is not JSON stay inside the error contract**
+  (audit API-1). `response.json()` raised `json.JSONDecodeError` -- a
+  standard-library exception `agent.result.as_result` does not catch, and a
+  reverse proxy answering a login page with HTTP 200 was enough to produce
+  one. It arrives as `ServerError` now, with the first 200 characters of the
+  body. The 3xx guard existed only in the transport: the metadata agent and
+  the b-api saw a redirect as an empty success, and the extraction service
+  turned one into `no_text` -- a statement about the page, although it is one
+  about the service.
+
 ### Added
 
 - **`RateLimitedError`** for HTTP 429 (audit API-2). It carries `retry_after`,
