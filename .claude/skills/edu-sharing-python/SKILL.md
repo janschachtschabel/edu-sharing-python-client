@@ -364,7 +364,7 @@ so the value has a name instead of being buried in a signature.
 | Constant | Value | Why it has a name |
 |---|---|---|
 | `KEYWORD_PROPERTY` | `cclom:general_keyword` | the shared keyword list (see 4.6) |
-| `CHILD_ASPECT` / `ORDER_PROPERTY` | `ccm:io_childobject` / `ccm:childobject_order` | what marks and orders a child object |
+| `CHILD_ASPECT` / `ORDER_PROPERTY` / `LIST_MAX` | `ccm:io_childobject` / `ccm:childobject_order` / `200` | what marks and orders a child object, and how many one listing reads before it raises |
 | `PAGE_REF` / `PAGE_CONFIG` / `VARIANT_CONFIG` | `ccm:page_config_ref` / `ccm:page_config` / `ccm:page_variant_config` | the three properties a curated page hangs on |
 | `EVERYONE` / `CONSUMER` | `GROUP_EVERYONE` / `Consumer` | the authority and right that make a node public |
 | `GUEST_AUTHORITY` | `esguest` | who you are when nobody signed in |

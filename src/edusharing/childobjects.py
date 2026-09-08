@@ -26,17 +26,26 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from .dto import page_total
 from .errors import EduSharingError, ValidationError
 from .urls import path_segment
 
 if TYPE_CHECKING:  # pragma: no cover
     from .nodes import Node, Nodes
 
-__all__ = ["CHILD_ASPECT", "ORDER_PROPERTY", "ChildObjects"]
+__all__ = ["CHILD_ASPECT", "LIST_MAX", "ORDER_PROPERTY", "ChildObjects"]
 
 #: See ``edusharing.transport.logger``. Used for one thing only: a child node
 #: that was created, could not be filled, and could not be removed either.
 logger = logging.getLogger(__name__)
+
+#: How many child objects one listing reads. Every other listing in this
+#: library either takes a ``limit`` or has a named ceiling with a reason
+#: (``DESCRIBE_MANY_MAX`` 50, ``SKILL_VISIT_MAX`` 30); this one took a bare
+#: ``200`` and said nothing when there were more (audit MNT-4). 200 is kept:
+#: attachments to one piece of material are a handful in practice, and the
+#: number was the measured default here long before it had a name.
+LIST_MAX = 200
 
 #: The aspect that marks a child node as one of these. Other children exist
 #: under a node -- versions, for instance -- and filtering on this is what tells
@@ -68,12 +77,27 @@ class ChildObjects:
 
         Ordered by ``ccm:childobject_order``, then by creation time. The second
         key matters: two documents added in the same request can share a number.
+
+        Raises:
+            EduSharingError: when the node has more children than ``LIST_MAX``.
+                A shortened list of attachments is wrong for every use there
+                is -- downloading them, showing them, counting them -- and the
+                return type has no room to say "incomplete" (audit MNT-4).
         """
         response = await self._nodes.transport.json(
             "GET",
             f"/node/v1/nodes/-home-/{path_segment(self._node.id)}/children",
-            params={"maxItems": 200, "propertyFilter": "-all-"},
+            params={"maxItems": LIST_MAX, "propertyFilter": "-all-"},
         )
+        gesamt = page_total(response)
+        if gesamt > LIST_MAX:
+            raise EduSharingError(
+                f"This node has {gesamt} children and this listing reads at "
+                f"most {LIST_MAX}. Returning the first {LIST_MAX} would look "
+                f"like the whole set. Read them through the children endpoint "
+                f"with your own paging.",
+                url=self._node.id,
+            )
         from .nodes import Node  # local: nodes imports this module
 
         children = [
@@ -83,6 +107,26 @@ class ChildObjects:
         ]
         children.sort(key=_order_key)
         return [Node(data, self._nodes) for data in children]
+
+    async def _count(self) -> int:
+        """How many children this node has, from a one-record page.
+
+        ``add()`` needed a number and fetched up to ``LIST_MAX`` records with
+        ``propertyFilter=-all-`` for it (audit MNT-4). The page total is the
+        same number and costs one record.
+
+        It counts **every** child, versions included, where ``list()`` then
+        filters on the aspect. The position therefore skips numbers when a node
+        carries other children -- which is right: what is promised is *after
+        the existing ones*, not *without gaps*. A skipped number costs nothing;
+        two attachments on one position cost the order.
+        """
+        response = await self._nodes.transport.json(
+            "GET",
+            f"/node/v1/nodes/-home-/{path_segment(self._node.id)}/children",
+            params={"maxItems": 1, "propertyFilter": "-all-"},
+        )
+        return page_total(response)
 
     async def add(
         self,
@@ -104,6 +148,7 @@ class ChildObjects:
             mimetype: content type of the file.
             order: display position. Appended after the existing ones when
                 omitted -- otherwise two documents compete for the same slot.
+                Passing it saves the counting request.
 
         Returns:
             The new child node, with its content already uploaded.
@@ -120,7 +165,7 @@ class ChildObjects:
             )
 
         if order is None:
-            order = len(await self.list())
+            order = await self._count()
 
         response = await self._nodes.transport.json(
             "POST",

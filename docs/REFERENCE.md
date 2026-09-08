@@ -309,10 +309,11 @@ rather than beside it.
 
 | Call | Result |
 |---|---|
-| `node.children.list()` | `list[Node]` |
+| `node.children.list()` | `list[Node]` — raises above `LIST_MAX` rather than shortening |
 | `node.children.add(data, filename=…, mimetype=…, order=…)` | `Node` |
 | `CHILD_ASPECT` | `"ccm:io_childobject"` — the aspect, not a type |
 | `ORDER_PROPERTY` | `"ccm:childobject_order"` |
+| `LIST_MAX` | `200` — what one listing reads. More than that raises: a shortened list of attachments looks like the whole set |
 
 ```python
 await node.children.add(pdf, filename="loesung.pdf",

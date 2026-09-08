@@ -317,10 +317,11 @@ Hauptknoten, nicht daneben.
 
 | Aufruf | Ergebnis |
 |---|---|
-| `node.children.list()` | `list[Node]` |
+| `node.children.list()` | `list[Node]` — wirft oberhalb von `LIST_MAX`, statt zu kürzen |
 | `node.children.add(data, filename=…, mimetype=…, order=…)` | `Node` |
 | `CHILD_ASPECT` | `"ccm:io_childobject"` — ein Aspekt, kein Typ |
 | `ORDER_PROPERTY` | `"ccm:childobject_order"` |
+| `LIST_MAX` | `200` — was eine Auflistung liest. Darüber wirft sie: eine gekürzte Anhangsliste sieht aus wie die ganze |
 
 ```python
 await node.children.add(pdf, filename="loesung.pdf",

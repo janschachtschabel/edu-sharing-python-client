@@ -382,7 +382,7 @@ zu verschwinden.
 | Konstante | Wert | Warum sie einen Namen hat |
 |---|---|---|
 | `KEYWORD_PROPERTY` | `cclom:general_keyword` | die gemeinsame Schlagwortliste (siehe 4.6) |
-| `CHILD_ASPECT` / `ORDER_PROPERTY` | `ccm:io_childobject` / `ccm:childobject_order` | was ein Kindobjekt kennzeichnet und ordnet |
+| `CHILD_ASPECT` / `ORDER_PROPERTY` / `LIST_MAX` | `ccm:io_childobject` / `ccm:childobject_order` / `200` | was ein Kindobjekt kennzeichnet und ordnet, und wie viele eine Auflistung liest, bevor sie wirft |
 | `PAGE_REF` / `PAGE_CONFIG` / `VARIANT_CONFIG` | `ccm:page_config_ref` / `ccm:page_config` / `ccm:page_variant_config` | die drei Eigenschaften, an denen eine redaktionelle Seite hängt |
 | `EVERYONE` / `CONSUMER` | `GROUP_EVERYONE` / `Consumer` | die Autorität und das Recht, die einen Knoten öffentlich machen |
 | `GUEST_AUTHORITY` | `esguest` | wer man ist, wenn sich niemand angemeldet hat |

@@ -302,3 +302,101 @@ async def test_flow_meldet_none_wenn_ein_kind_keine_position_traegt():
         ergebnis = await repo.flows.child_objects(HAUPT)
     assert [k["order"] for k in ergebnis["children"]] == [None, None]
     json.dumps(ergebnis)
+
+
+# --- Der Deckel (Audit MNT-4) ---------------------------------------------
+#
+# Die Auflistung nahm hart 200 und sagte nichts. Sie ist die einzige in dieser
+# Bibliothek, die kuerzt, ohne es auszuweisen -- jede andere nimmt ein
+# ``limit`` und gibt ein ``total`` zurueck. Wer ``len(node.children.list())``
+# liest, liest die Zahl der Anhaenge; bei 250 bekam er 200 und nichts sonst.
+
+class MitVielen(Instanz):
+    """Meldet mehr Kinder, als sie ausliefert -- wie eine Instanz mit einem
+    Bestand ueber der Seitengroesse."""
+
+    def __init__(self, gesamt: int, geliefert: int) -> None:
+        super().__init__(kinder=[_kind(f"k{i}", f"{i}.txt", str(i))
+                                 for i in range(geliefert)])
+        self.gesamt = gesamt
+
+    def __call__(self, request):
+        if request.method == "GET" and request.url.path.endswith("/children"):
+            self.anfragen.append(request)
+            return httpx.Response(200, json={
+                "nodes": self.kinder,
+                "pagination": {"total": self.gesamt, "from": 0,
+                               "count": len(self.kinder)}})
+        return super().__call__(request)
+
+
+async def test_eine_gekuerzte_liste_wird_gemeldet_statt_ausgeliefert():
+    """Es gibt keine Verwendung, fuer die die ersten 200 richtig waeren: man
+    laedt sie herunter, zeigt sie an oder zaehlt sie. Die Rueckgabe ist eine
+    Liste und hat keinen Platz fuer "unvollstaendig", also muss es der Fehler
+    sagen."""
+    async with _repo(MitVielen(gesamt=250, geliefert=200)) as repo:
+        node = await repo.node(HAUPT)
+        with pytest.raises(EduSharingError, match="250"):
+            await node.children.list()
+
+
+async def test_genau_am_deckel_ist_kein_fehler():
+    """Gegenprobe: die Grenze selbst ist noch vollstaendig."""
+    async with _repo(MitVielen(gesamt=200, geliefert=200)) as repo:
+        node = await repo.node(HAUPT)
+        assert len(await node.children.list()) == 200
+
+
+async def test_ohne_gesamtzahl_wird_nicht_geworfen():
+    """``pagination`` fehlt bei manchen Antworten ganz. Eine Auflistung an
+    einer nicht gemachten Angabe scheitern zu lassen waere schlechter als sie
+    auszuliefern -- die Wache gilt dem, was der Server *sagt*."""
+    class OhneZaehlung(Instanz):
+        def __call__(self, request):
+            if request.method == "GET" and request.url.path.endswith("/children"):
+                self.anfragen.append(request)
+                return httpx.Response(200, json={"nodes": self.kinder})
+            return super().__call__(request)
+
+    async with _repo(OhneZaehlung(kinder=[_kind("a", "a.txt", "0")])) as repo:
+        node = await repo.node(HAUPT)
+        assert len(await node.children.list()) == 1
+
+
+# --- Die Zaehlung beim Anhaengen ------------------------------------------
+
+async def test_anlegen_holt_nicht_die_ganze_liste():
+    """``add()`` brauchte nur eine Zahl und holte dafuer bis zu 200 Datensaetze
+    mit ``propertyFilter=-all-`` (Audit MNT-4). Eine Seite mit einem Eintrag
+    traegt dieselbe Gesamtzahl."""
+    instanz = Instanz(kinder=[_kind("a", "a.txt", "0")])
+    async with _repo(instanz) as repo:
+        node = await repo.node(HAUPT)
+        await node.children.add(b"x", filename="b.txt", mimetype="text/plain")
+
+    gezaehlt = [r for r in instanz.anfragen
+                if r.method == "GET" and r.url.path.endswith("/children")]
+    assert gezaehlt, "es wird weiterhin gezaehlt, nur klein"
+    assert all(r.url.params.get("maxItems") == "1" for r in gezaehlt), \
+        [str(r.url) for r in gezaehlt]
+
+
+async def test_die_position_zaehlt_jedes_kind_nicht_nur_die_serienobjekte():
+    """``pagination.total`` zaehlt alle Kinder, Versionen eingeschlossen -- die
+    Auflistung filtert danach auf den Aspekt.
+
+    Die Position wird dadurch groesser als die Zahl der Anhaenge, und das ist
+    richtig so: zugesagt ist *hinter den bestehenden*, nicht *lueckenlos*.
+    Eine Nummer zu ueberspringen kostet nichts, zwei Anhaenge auf derselben
+    Position kosten die Reihenfolge.
+    """
+    instanz = Instanz(kinder=[_kind("a", "a.txt", "0"),
+                              _kind("v", "alt.txt", None, serie=False)])
+    async with _repo(instanz) as repo:
+        node = await repo.node(HAUPT)
+        await node.children.add(b"x", filename="b.txt", mimetype="text/plain")
+
+    angelegt = next(r for r in instanz.anfragen
+                    if r.method == "POST" and r.url.path.rstrip("/").endswith("/children"))
+    assert json.loads(angelegt.content)["ccm:childobject_order"] == ["2"]
