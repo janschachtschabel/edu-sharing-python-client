@@ -515,12 +515,22 @@ Vier Entscheidungen, die beim Bauen fielen, jede im Code begründet:
    edu-sharing, nicht darin, und eine Verbindung zu einem Repositorium sagt
    nichts darüber, ob es einen von beiden gibt. Deshalb hängt keiner an
    `Repository`: sie haben eine eigene Adresse, eine eigene Umgebungsvariable
-   und einen eigenen Client. In einem Punkt unterscheiden sie sich mit Absicht:
-   die b-api trägt eine Vorgabeadresse, der Extraktionsdienst keine. Die b-api
-   ist ein Gateway, das viele Installationen teilen; ein Extraktionsdienst
-   gehört zu einem Repositorium, und der MCP hat gemessen, was eine Vorgabe
-   dort kostet — auf Staging zeigend schickte er Produktions-URLs in eine
-   andere Umgebung.
+   und einen eigenen Client. **Keiner der drei trägt eine
+   Vorgabeadresse** — weder die b-api noch der Extraktionsdienst noch der
+   Metadaten-Agent. Jeder wirft, wenn seine Variable fehlt; je ein Test in
+   `test_bapi_client.py`, `test_extraction.py` und `test_metadata_agent.py`
+   hält das fest.
+
+   Bis zum 08.09.2026 stand hier das Gegenteil über die b-api, mitsamt
+   Begründung: ein Gateway, das viele Installationen teilen. So war es bis zum
+   28.08.2026, dann wurde es als brechende Änderung entfernt — mit einem fest
+   eingetragenen Gateway schickte schon das bloße Setzen von `B_API_KEY` den
+   Schlüssel an einen Host, den niemand gewählt hatte. Der Extraktionsdienst
+   hatte das von Anfang an verweigert, weil der MCP gemessen hatte, was eine
+   Vorgabe dort kostet: auf Staging zeigend schickte er Produktions-URLs in
+   eine andere Umgebung. Ein Nachweis, der eine Sicherheitsentscheidung
+   umdreht, ist schlimmer als keiner — er liest sich wie eine Begründung, sie
+   rückgängig zu machen.
 4. **Zugangsdaten gehen nur an die konfigurierte Repository-URL**, geprüft mit
    Präfix *und* Grenze. Ein blankes `startswith` ließe
    `https://repo.example.test.attacker.test` durch.
@@ -743,8 +753,8 @@ Nennung:
    bleiben jeweils bei einer Familie, und sie zu umhüllen fügte einen Namen
    hinzu, ohne einen Schritt zu sparen. Das Ablauf-Kapitel sagt das, weil ein
    Leser sonst in FLOWS.de.md nach einem Bewertungs-Ablauf sucht.
-3. **Der Extraktionsdienst trägt keine Vorgabeadresse.** Die b-api tut es, und
-   der Unterschied ist Absicht — siehe §8.1, Entscheidung 3.
+3. **Kein Dienst trägt eine Vorgabeadresse.** Weder die b-api noch der
+   Extraktionsdienst noch der Metadaten-Agent — siehe §8.1, Entscheidung 3.
 
 **Ein Umbau.** `flows/discover.py` erreichte 671 Zeilen, das 2,2-fache der
 Schwelle und das 2,3-fache des nächstgrößten Moduls in seinem Paket. Es hatte

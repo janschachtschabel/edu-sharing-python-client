@@ -469,12 +469,19 @@ Four decisions made while building, each justified in the code:
    The b-api and the text-extraction service both live beside edu-sharing, not
    inside it, and a connection to a repository says nothing about whether
    either exists. So neither hangs off `Repository`: they have their own
-   address, their own environment variable and their own client. They differ in
-   one point, deliberately: the b-api carries a default address, the extraction
-   service carries none. The b-api is one gateway many installations share; an
-   extraction service belongs to one repository, and the MCP measured what a
-   default costs there — pointing at staging, it sent production material URLs
-   into another environment.
+   address, their own environment variable and their own client. **None of the three
+   carries a default address** — not the b-api, not the extraction service, not
+   the metadata agent. Each raises when its variable is unset, one test each in
+   `test_bapi_client.py`, `test_extraction.py` and `test_metadata_agent.py`.
+
+   Until 2026-09-08 this document said the opposite of the b-api, and gave the
+   reason: one gateway that many installations share. That was the design until
+   2026-08-28, when it was removed as a breaking change — with a gateway wired
+   in, setting only `B_API_KEY` sent the key to a host nobody had chosen. The
+   extraction service had refused that from the start, because the MCP measured
+   what a default costs there: pointing at staging, it sent production material
+   URLs into another environment. A record that reverses a security decision is
+   worse than a missing one, because it reads like a rationale for undoing it.
 4. **Credentials go only to the configured repository URL**, checked with prefix
    *and* boundary. A plain `startswith` would let
    `https://repo.example.test.attacker.test` through.
@@ -686,8 +693,8 @@ as they were taken. Three decisions are worth naming separately:
    endpoints; these each stay with one family, and wrapping them would add a
    name without removing a step. The flow chapter says so, because otherwise a
    reader searches FLOWS.md for a rating flow.
-3. **The extraction service carries no default address.** The b-api does, and
-   the difference is deliberate — see §8.1, decision 3.
+3. **No service carries a default address.** Not the b-api, not the extraction
+   service, not the metadata agent — see §8.1, decision 3.
 
 **One refactor.** `flows/discover.py` reached 671 lines, 2.2× the threshold and
 2.3× the next largest module in its package. It had three reasons to change, and
