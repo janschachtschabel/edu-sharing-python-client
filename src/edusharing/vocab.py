@@ -94,6 +94,10 @@ class Vocabulary:
         self.cache_seconds = cache_seconds
         self._cache: dict[tuple[str, str | None], tuple[float, list[VocabularyValue]]] = {}
         self._locks: dict[tuple[str, str | None], asyncio.Lock] = {}
+        #: Raised by every ``clear_cache``. A fetch that started before it
+        #: must not write its result afterwards -- see ``values`` (audit
+        #: COR-6).
+        self._generation = 0
 
     # --- Values -----------------------------------------------------------
 
@@ -130,8 +134,16 @@ class Vocabulary:
             fresh = self._fresh(key)
             if fresh is not None:
                 return fresh
+            # Read **before** the await: whoever clears while this request
+            # is in flight clears something this fetch predates, and
+            # writing it afterwards would put the old values back into the
+            # emptied cache -- so whoever cleared because the vocabulary
+            # changed would go on working with the old one, unknowingly
+            # (audit COR-6).
+            generation = self._generation
             values = await self._fetch(prop, _ALL, locale)
-            self._cache[key] = (time.monotonic(), values)
+            if generation == self._generation:
+                self._cache[key] = (time.monotonic(), values)
             return values
 
     def _fresh(
@@ -210,7 +222,13 @@ class Vocabulary:
         The locks go too. They are only useful while a fetch is in flight, and
         a long-running service would otherwise accumulate one per field-locale
         pair for as long as it runs (audit F6).
+
+        A fetch already in flight still finishes and still answers its own
+        caller -- it just no longer fills the cache. Its values are from
+        before this call, and this call says they are not to be trusted
+        (audit COR-6).
         """
+        self._generation += 1
         self._cache.clear()
         self._locks.clear()
 

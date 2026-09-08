@@ -364,3 +364,47 @@ async def test_unendlich_holt_genau_einmal(monkeypatch):
     jetzt[0] += 10_000.0
     await v.values("ccm:taxonid")
     assert len(aufrufe) == 1
+
+
+async def test_ein_laufender_abruf_fuellt_den_geleerten_cache_nicht_wieder():
+    """Audit COR-6, dort *verified*.
+
+    Zwischen ``await self._fetch(...)`` und der Zuweisung an ``_cache`` liegt
+    ein Zeitfenster. Faellt ``clear_cache()`` hinein, schreibt der fertige
+    Abruf die **alten** Werte in den gerade geleerten Speicher zurueck -- und
+    wer geleert hat, weil sich das Vokabular geaendert hat, arbeitet
+    weiter mit dem alten Stand, ohne es zu merken.
+
+    Nachgestellt mit einer Antwort, die auf ein Ereignis wartet: so liegt das
+    Leeren nachweislich *im* Abruf und nicht davor oder danach.
+    """
+    haelt = asyncio.Event()
+    laeuft = asyncio.Event()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        laeuft.set()
+        return httpx.Response(200, json=FAECHER)
+
+    async def langsam(request):
+        laeuft.set()
+        await haelt.wait()
+        return httpx.Response(200, json=FAECHER)
+
+    v = _vocab(langsam)
+    aufgabe = asyncio.create_task(v.values("ccm:taxonid"))
+    await laeuft.wait()          # der Abruf laeuft, die Antwort steht aus
+    v.clear_cache()
+    haelt.set()
+    assert len(await aufgabe) == 3, "der laufende Abruf liefert weiterhin"
+
+    assert not v._cache, (
+        "der fertige Abruf hat den geleerten Speicher wieder gefuellt")
+
+
+async def test_ein_abruf_nach_dem_leeren_fuellt_den_cache_wieder():
+    """Gegenprobe: die Zaehlung darf den Normalfall nicht treffen."""
+    v = _vocab(_liefert(FAECHER))
+    await v.values("ccm:taxonid")
+    v.clear_cache()
+    await v.values("ccm:taxonid")
+    assert v._cache, "nach dem Leeren gestartet, also gehoert das Ergebnis hinein"
