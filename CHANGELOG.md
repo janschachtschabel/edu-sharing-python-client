@@ -24,6 +24,15 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Changed
 
+- **The layers point one way again** (audit ARC-1). `fields`, `ranking` and
+  `language` moved out of `flows/` into the resource layer they belong to, and
+  `cap_text` out of `agent/` into the new `edusharing.strings`; `repo.skills`
+  no longer needs the whole flow package to load. `field_property` moved with
+  `fields` -- it resolves a name, it does not search. Import paths changed for
+  anyone reaching past the package surface: `edusharing.flows.language` is now
+  `edusharing.language`, likewise `ranking` and `fields`. `edusharing.GERMAN`,
+  `LanguageProfile` and `edusharing.agent.cap_text` are unchanged.
+  `tests/test_import_direction.py` now fails when a layer reaches upward.
 - **One title for a record, whichever object it arrives as** (audit MNT-1).
   Four chains became one: `title`, then `cclom:title`, `cm:title`, `cm:name`.
   A record whose LOM title is set but whose file name differs used to come

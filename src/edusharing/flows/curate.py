@@ -22,8 +22,8 @@ from typing import TYPE_CHECKING, Any
 
 from ..dto import render_url
 from ..errors import EduSharingError, ValidationError
+from ..fields import name_from_title, resolve_vocabulary
 from .duplicates import check_before_create, validate_if_exists
-from .fields import name_from_title, resolve_vocabulary
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..repository import AsyncRepository

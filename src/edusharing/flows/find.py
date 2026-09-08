@@ -12,10 +12,11 @@ from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
 from ..errors import ValidationError
+from ..fields import field_property
+from ..language import GERMAN, LanguageProfile
 from ..search import DEFAULT_FACET_LIMIT
 from . import dedupe
 from .describe import describe
-from .language import GERMAN, LanguageProfile
 from .rerank import DEFAULT_POOL, search_reranked
 from .serialize import result_as_dict
 
@@ -24,7 +25,6 @@ if TYPE_CHECKING:  # pragma: no cover
 __all__ = [
     "EXCLUSION_MAX",
     "RELATED_ON",
-    "field_property",
     "related",
     "search",
     "vocabulary",
@@ -35,27 +35,6 @@ __all__ = [
 #: ``limit`` is never capped. A long exclusion list must not turn one call
 #: into a request for thousands -- ``warnings`` says so instead.
 EXCLUSION_MAX = 200
-
-
-def field_property(repo: AsyncRepository, field: str) -> str:
-    """A short name or a property -- both are allowed as input.
-
-    A property is recognised by its namespace colon. Anything else must be a
-    configured short name, and an unknown one is an error rather than a silent
-    fallback: searching without the intended constraint and presenting the
-    result anyway is the worse outcome.
-    """
-    if ":" in field:
-        return field
-    aliases = repo.searcher.field_aliases
-    prop = aliases.get(field)
-    if prop is None:
-        known = ", ".join(sorted(aliases)) or "(none)"
-        raise ValidationError(
-            f"Unknown field {field!r}. Known are: {known}. "
-            "A property can also be given directly, e.g. 'ccm:taxonid'."
-        )
-    return prop
 
 
 async def search(

@@ -10,12 +10,33 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any
 
-from .find import field_property
+from .errors import ValidationError
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ..repository import AsyncRepository
+    from .repository import AsyncRepository
 
-__all__ = ["carries", "name_from_title", "resolve_vocabulary"]
+__all__ = ["carries", "field_property", "name_from_title", "resolve_vocabulary"]
+
+
+def field_property(repo: AsyncRepository, field: str) -> str:
+    """A short name or a property -- both are allowed as input.
+
+    A property is recognised by its namespace colon. Anything else must be a
+    configured short name, and an unknown one is an error rather than a silent
+    fallback: searching without the intended constraint and presenting the
+    result anyway is the worse outcome.
+    """
+    if ":" in field:
+        return field
+    aliases = repo.searcher.field_aliases
+    prop = aliases.get(field)
+    if prop is None:
+        known = ", ".join(sorted(aliases)) or "(none)"
+        raise ValidationError(
+            f"Unknown field {field!r}. Known are: {known}. "
+            "A property can also be given directly, e.g. 'ccm:taxonid'."
+        )
+    return prop
 
 
 #: ``cm:name`` is the key inside the parent folder, not a display title. These

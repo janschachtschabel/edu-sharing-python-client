@@ -31,11 +31,11 @@ import asyncio
 from typing import TYPE_CHECKING, Any
 
 from ..errors import EduSharingError, ValidationError
+from ..language import GERMAN, LanguageProfile
+from ..ranking import score_hit
 from ..results import SearchHit, SearchResult
 from ..search import DEFAULT_FACET_LIMIT
 from .expand import QueryVariant, expand_query
-from .language import GERMAN, LanguageProfile
-from .ranking import score_hit
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..repository import AsyncRepository

@@ -28,7 +28,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from ..agent.format import cap_text
 from ..content import MAX_TEXT_BYTES, decode_text, is_text_like
 from ..errors import (
     ContentTooLargeError,
@@ -36,6 +35,7 @@ from ..errors import (
     NotFoundError,
     PermissionDeniedError,
 )
+from ..strings import cap_text
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..extraction import TextExtraction

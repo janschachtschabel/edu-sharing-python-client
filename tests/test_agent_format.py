@@ -11,8 +11,9 @@ eine Token-Schaetzung ohne den Tokenizer des Zielmodells waere geraten.
 
 import pytest
 
-from edusharing.agent.format import cap_text, format_hit, format_results
+from edusharing.agent.format import format_hit, format_results
 from edusharing.results import SearchHit, SearchResult, UnresolvedFilter
+from edusharing.strings import cap_text
 
 REPO = "https://repo.test/edu-sharing"
 

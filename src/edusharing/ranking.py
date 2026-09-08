@@ -26,8 +26,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from ..results import SearchHit
 from .language import GERMAN, LanguageProfile
+from .results import SearchHit
 
 __all__ = [
     "query_terms",

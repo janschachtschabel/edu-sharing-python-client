@@ -37,8 +37,8 @@ from typing import TYPE_CHECKING, Any
 from .content import MAX_TEXT_BYTES, decode_text, is_text_like
 from .dto import first, node_id_of, page_total, render_url, title_of
 from .errors import ContentTooLargeError, NotFoundError, PermissionDeniedError
-from .flows.fields import carries, resolve_vocabulary
-from .flows.ranking import query_terms, term_matches
+from .fields import carries, resolve_vocabulary
+from .ranking import query_terms, term_matches
 from .results import original_id_of
 from .skills_markdown import SkillReference, parse_blocks
 from .urls import path_segment

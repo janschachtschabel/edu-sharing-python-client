@@ -31,12 +31,12 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
+from ..language import GERMAN, LanguageProfile
 from ..search import DEFAULT_FACET_LIMIT
 from . import collections as collection_search
 from . import contents, curate, describe, find, pages, suggest, tree
 from . import skills as skill_flows
 from . import text as text_flow
-from .language import GERMAN, LanguageProfile
 from .rerank import DEFAULT_POOL
 
 if TYPE_CHECKING:  # pragma: no cover

@@ -7,12 +7,15 @@ a plain API client does not bring along.
 * ``safety``   -- may this URL be fetched? (SSRF)
 * ``sanitize`` -- prepare foreign content for a model context
 * ``format``   -- hits, compact, budgeted, without losing the citation
+  (``cap_text`` moved to ``edusharing.strings``, a layer below, and is
+  re-exported here -- audit ARC-1)
 * ``result``   -- errors as results rather than exceptions
 * ``confirm``  -- show what would happen, then do it
 """
 
+from ..strings import cap_text
 from .confirm import ChangePlan, plan_update
-from .format import cap_text, format_hit, format_results
+from .format import format_hit, format_results
 from .result import ToolResult, as_result
 from .safety import UnsafeUrlError, check_url, is_safe_url
 from .sanitize import UNTRUSTED_MARKER, as_untrusted, one_line, sanitize_text

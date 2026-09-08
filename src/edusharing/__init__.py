@@ -51,8 +51,8 @@ from .errors import (
     TransportError,
     ValidationError,
 )
-from .flows.language import GERMAN, LanguageProfile
 from .info import About, Identity, MetadataSet
+from .language import GERMAN, LanguageProfile
 from .nodes import WRITE_FIELD_ALIASES, Node
 from .repository import AsyncRepository, Repository
 from .results import Facet, FacetValue, SearchHit, SearchResult, UnresolvedFilter

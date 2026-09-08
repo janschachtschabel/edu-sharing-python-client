@@ -656,7 +656,11 @@ the overlap remains in the documentation, where it belongs.
 
 | Module | Responsibility |
 |---|---|
-| `flows/` | The second level (E9): `find`, `describe`, `contents`, `curate`, `tree`, `pages`, plus `rerank`/`ranking`/`language` for E10 |
+| `flows/` | The second level (E9): `find`, `describe`, `contents`, `curate`, `tree`, `pages`, plus `rerank` for E10 |
+| `fields.py`, `ranking.py`, `language.py` | Reusable pieces of layer 2, moved out of `flows/` on 2026-09-08: short name → property and vocabulary resolution, the scoring, the word lists behind E10. They were pulled upward from below (audit ARC-1); `tests/test_import_direction.py` now guards the direction |
+| `strings.py` | `cap_text` — a string function, below every layer that uses it |
+| `dto.py` | One reading of a raw node record: `first`, `title_of`, `node_id_of`, `bare_id`, `render_url`, `page_total` (audit MNT-1) |
+| `retry.py` | Budget, backoff with jitter and `Retry-After` — one rule for the transport, the extraction service and the b-api (audit ARC-2) |
 | `relations.py` | Links between nodes that stand side by side |
 | `childobjects.py` | Further documents belonging to one main document |
 | `permissions.py` | Publishing, and the access control list behind it |

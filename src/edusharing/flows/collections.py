@@ -16,12 +16,12 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
 from ..errors import EduSharingError, ValidationError
+from ..fields import carries, resolve_vocabulary
+from ..language import GERMAN, LanguageProfile
+from ..ranking import query_terms, term_matches
 from ..results import SearchHit, SearchResult
-from .fields import carries, resolve_vocabulary
 from .find import search
-from .language import GERMAN, LanguageProfile
 from .pages import pages_among
-from .ranking import query_terms, term_matches
 from .rerank import DEFAULT_POOL
 from .serialize import result_as_dict
 from .tree import DEFAULT_MAX_COLLECTIONS, walk_collections

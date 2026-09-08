@@ -711,7 +711,11 @@ entdoppelt, Gesamtzahl als Untergrenze gekennzeichnet). Die Messung der
 
 | Modul | Verantwortung |
 |---|---|
-| `flows/` | Die zweite Ebene (E9): `find`, `describe`, `contents`, `curate`, `tree`, `pages`, dazu `rerank`/`ranking`/`language` für E10 |
+| `flows/` | Die zweite Ebene (E9): `find`, `describe`, `contents`, `curate`, `tree`, `pages`, dazu `rerank` für E10 |
+| `fields.py`, `ranking.py`, `language.py` | Wiederverwendbare Teile der Schicht 2, am 08.09.2026 aus `flows/` heraus verschoben: Kurzname → Eigenschaft und Vokabularauflösung, die Bewertung, die Wortlisten hinter E10. Sie waren von unten nach oben geholt worden (Audit ARC-1); `tests/test_import_direction.py` wacht jetzt über die Richtung |
+| `strings.py` | `cap_text` — eine Zeichenkettenfunktion, unter jeder Schicht, die sie benutzt |
+| `dto.py` | Eine Lesart eines rohen Knotensatzes: `first`, `title_of`, `node_id_of`, `bare_id`, `render_url`, `page_total` (Audit MNT-1) |
+| `retry.py` | Budget, Backoff mit Jitter und `Retry-After` — eine Regel für den Transport, den Extraktionsdienst und die b-api (Audit ARC-2) |
 | `relations.py` | Verknüpfungen zwischen Knoten, die nebeneinander stehen |
 | `childobjects.py` | Weitere Dokumente, die zu einem Hauptdokument gehören |
 | `permissions.py` | Veröffentlichen und die Rechteliste dahinter |

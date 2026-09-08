@@ -24,7 +24,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from .language import GERMAN, LanguageProfile
+from ..language import GERMAN, LanguageProfile
 
 __all__ = ["MAX_VARIANTS", "QueryVariant", "expand_query"]
 

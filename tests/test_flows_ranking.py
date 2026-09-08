@@ -11,8 +11,8 @@ kommen aus den konfigurierten Kurznamen statt aus festen WLO-Eigenschaften.
 
 import pytest
 
-from edusharing.flows.language import GERMAN, LanguageProfile
-from edusharing.flows.ranking import query_terms, score_hit, term_matches
+from edusharing.language import GERMAN, LanguageProfile
+from edusharing.ranking import query_terms, score_hit, term_matches
 from edusharing.results import SearchHit
 
 ALIASES = {"subject": "ccm:taxonid", "level": "ccm:educationalcontext",

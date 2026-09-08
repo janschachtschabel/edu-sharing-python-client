@@ -18,7 +18,7 @@ glaubt es.
 import pytest
 
 from edusharing.flows.expand import expand_query
-from edusharing.flows.language import GERMAN, LanguageProfile
+from edusharing.language import GERMAN, LanguageProfile
 
 
 def _labels(varianten) -> list[str]:

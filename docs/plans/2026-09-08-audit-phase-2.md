@@ -26,8 +26,12 @@ Exit-Code. Live nur auf der Staging, nur in selbst angelegten Wegwerf-Ordnern.
   als die eine Titelkette. Nicht zusammengefuehrt: die drei `as_list`-artigen
   Funktionen -- sie tun Verschiedenes (schreiben, lesen, aus einem Iterable
   eine Liste machen) und sind keine Kopien.
-- [ ] **8 · ARC-1** `fields`, `ranking`, `language` aus `flows/` heraus,
+- [x] **8 · ARC-1** `fields`, `ranking`, `language` aus `flows/` heraus,
   `cap_text` aus `agent/` heraus; dazu ein Test über die Import-Richtung.
+  Getan: die drei Module per `git mv` eine Schicht tiefer, `cap_text` in das
+  neue `strings.py`, `field_property` zu `fields.py` (es löst einen Namen auf,
+  es sucht nicht). `tests/test_import_direction.py` liest die Kanten per AST;
+  Ausnahmen sind nur `repository.py` und `__init__.py`, benannt und begründet.
 - [ ] **9 · COR-5 + COR-3** Die Schreibabläufe behalten die angelegte id, wenn
   ein späterer Schritt scheitert; Rücklesen prüft gegen einen Stand von **vor**
   dem Schreiben, nicht gegen Textgleichheit.

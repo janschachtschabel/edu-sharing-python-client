@@ -20,9 +20,10 @@ written by arbitrary people.
 from __future__ import annotations
 
 from ..results import SearchHit, SearchResult
+from ..strings import cap_text
 from .sanitize import one_line
 
-__all__ = ["cap_text", "format_hit", "format_results", "DEFAULT_HIT_CHARS",
+__all__ = ["format_hit", "format_results", "DEFAULT_HIT_CHARS",
            "DEFAULT_RESULT_CHARS"]
 
 #: Character budget per hit unless stated otherwise.
@@ -30,38 +31,6 @@ DEFAULT_HIT_CHARS = 400
 
 #: Character budget for a whole result list.
 DEFAULT_RESULT_CHARS = 4000
-
-_ELLIPSIS = "…"
-
-
-def cap_text(text: str | None, max_chars: int, *, marker: str = _ELLIPSIS) -> str:
-    """Shorten ``text`` to at most ``max_chars`` characters.
-
-    Cuts at the last word boundary before the limit -- text severed mid-word
-    reads like a typo. The truncation is visible through the marker: text cut
-    silently looks complete, and a model will quote it as such.
-
-    Raises:
-        ValueError: for a budget below 1.
-    """
-    if max_chars < 1:
-        raise ValueError(f"max_chars must be at least 1, was {max_chars}.")
-    if not text:
-        return ""
-    if len(text) <= max_chars:
-        return text
-
-    room = max_chars - len(marker)
-    if room <= 0:
-        return marker[:max_chars]
-
-    body = text[:room]
-    last_space = body.rfind(" ")
-    # Only cut at the word boundary when that does not throw away nearly all.
-    if last_space > room // 2:
-        body = body[:last_space]
-    return body.rstrip() + marker
-
 
 def format_hit(
     hit: SearchHit,
