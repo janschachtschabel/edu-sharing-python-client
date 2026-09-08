@@ -120,6 +120,17 @@ class Collections:
             return_exceptions=True,
         )
 
+        # ``return_exceptions=True`` reicht **jede** Ausnahme als Wert
+        # zurueck, auch einen Abbruch und einen Programmierfehler. Nur was
+        # das Repositorium selbst verweigert, ist eine Teilantwort; alles
+        # andere als Warnung zu verpacken macht aus einem Defekt eine
+        # Aussage ueber die Instanz und verbirgt ihn (Audit COR-10, dieselbe
+        # Klasse wie die Regression aus Schritt 14).
+        for zweig in (leg_a, leg_b):
+            if isinstance(zweig, BaseException) and not isinstance(
+                    zweig, EduSharingError):
+                raise zweig
+
         warnings: list[str] = []
         from_a: list[SearchHit] = []
         from_b: list[SearchHit] = []

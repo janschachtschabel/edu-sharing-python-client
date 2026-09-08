@@ -10,6 +10,8 @@ stattgefunden hat. Der Unterschied entscheidet, ob ein Sprachmodell "nichts
 gefunden" oder "ich konnte nicht suchen" sagt.
 """
 
+import asyncio
+
 import httpx
 import pytest
 
@@ -288,3 +290,44 @@ async def test_rerank_ohne_suchtext_faellt_auf_die_normale_suche_zurueck():
         ergebnis = await repo.flows.search(None, rerank=True, subject="Biologie")
     assert "reranked" not in ergebnis["query"]
     assert len(instanz.gesuchte_texte) == 1
+
+
+async def test_ein_abbruch_beendet_die_neuordnung(monkeypatch):
+    """Audit COR-10. ``gather(return_exceptions=True)`` reicht jede Ausnahme
+    als Wert zurueck; ein ``CancelledError`` wurde damit zu einer
+    fehlgeschlagenen Variante gezaehlt, und die Antwort kam aus den uebrigen.
+
+    Wer abbricht, will abgebrochen haben -- und nicht eine Rangliste aus dem,
+    was noch fertig wurde.
+    """
+    from edusharing.search import Search
+
+    echte = Search.search
+
+    async def erste_bricht_ab(self, text, **kwargs):
+        if text == "Optik":
+            raise asyncio.CancelledError
+        return await echte(self, text, **kwargs)
+
+    monkeypatch.setattr(Search, "search", erste_bricht_ab)
+    async with _repo(Instanz({"Optik": [_knoten("a", "A")]})) as repo:
+        with pytest.raises(asyncio.CancelledError):
+            await repo.flows.search("Optik", rerank=True)
+
+
+async def test_ein_programmierfehler_beendet_die_neuordnung(monkeypatch):
+    """Ein ``TypeError`` in einer Variante ist ein Defekt und darf nicht als
+    "diese Variante lieferte nichts" durchgehen."""
+    from edusharing.search import Search
+
+    echte = Search.search
+
+    async def erste_ist_kaputt(self, text, **kwargs):
+        if text == "Optik":
+            raise TypeError("ein Defekt")
+        return await echte(self, text, **kwargs)
+
+    monkeypatch.setattr(Search, "search", erste_ist_kaputt)
+    async with _repo(Instanz({"Optik": [_knoten("a", "A")]})) as repo:
+        with pytest.raises(TypeError):
+            await repo.flows.search("Optik", rerank=True)

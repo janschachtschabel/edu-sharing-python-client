@@ -343,3 +343,48 @@ async def test_die_sammlungssuche_wird_nach_abbruch_wiederholt():
     ergebnis = await _collections(handler).find("Bruchrechnung")
     assert abgebrochen == [1]
     assert ergebnis.hits
+
+
+# --- Ein Zweig bricht ab oder ist kaputt (Audit COR-10) -------------------
+#
+# ``gather(return_exceptions=True)`` reicht **jede** Ausnahme als Wert
+# zurueck. Wer sie nicht nach ihrem Typ fragt, macht aus einem Abbruch und aus
+# einem Programmierfehler eine Teilantwort mit Warnung -- und die liest sich
+# wie eine Aussage ueber die Instanz. Dieselbe Klasse fand Schritt 14 im
+# Skills-Gang, wo ein 500 still zu "unlesbar" wurde.
+
+async def test_ein_abbruch_wird_nicht_zur_teilantwort():
+    """``CancelledError`` erbt von ``BaseException``, nicht von ``Exception``.
+
+    Wer eine Suche abbricht, will sie abgebrochen haben -- und nicht ein halbes
+    Ergebnis mit einer Warnung, die nach einem Ausfall der Instanz klingt.
+    """
+    async def bricht_ab(self, text, limit):
+        raise asyncio.CancelledError
+
+    c = _collections(_router())
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(type(c), "_rest_leg", bricht_ab)
+        with pytest.raises(asyncio.CancelledError):
+            await c.find("Optik")
+
+
+async def test_ein_programmierfehler_wird_nicht_zur_teilantwort():
+    """Ein ``TypeError`` in einem Zweig ist ein Defekt dieser Bibliothek und
+    keine Aussage ueber die Instanz. Als Warnung verpackt bleibt er
+    unauffindbar."""
+    async def kaputt(self, text, limit):
+        raise TypeError("ein Defekt")
+
+    c = _collections(_router())
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(type(c), "_mds_leg", kaputt)
+        with pytest.raises(TypeError):
+            await c.find("Optik")
+
+
+async def test_eine_absage_der_instanz_bleibt_eine_teilantwort():
+    """Gegenprobe: was das Repositorium selbst verweigert, ist weiterhin ein
+    halbes Ergebnis mit Vermerk -- das ist der Sinn der Aufteilung."""
+    e = await _collections(_router(b=404)).find("Optik")
+    assert e.hits and e.warnings
