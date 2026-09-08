@@ -520,6 +520,13 @@ the `ccm:io_childobject` aspect are returned — a node has other children,
 versions among them, and returning those as attachments would be wrong in a way
 nobody notices until a version appears in a download list.
 
+**It raises above `LIST_MAX` (200) rather than shortening.** A node with
+more attachments than one listing reads gets an `EduSharingError`, not the
+first 200 — a shortened attachment list is wrong for downloading them,
+showing them and counting them alike, and `count` would be quietly too
+small. Read them through `GET /node/v1/nodes/-home-/{id}/children` with your
+own paging.
+
 **Behind it** — 2 requests:
 
 ```python

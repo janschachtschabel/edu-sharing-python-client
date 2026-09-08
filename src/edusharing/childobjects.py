@@ -26,7 +26,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from .dto import page_total
+from .dto import page_total, render_url
 from .errors import EduSharingError, ValidationError
 from .urls import path_segment
 
@@ -79,30 +79,40 @@ class ChildObjects:
         key matters: two documents added in the same request can share a number.
 
         Raises:
-            EduSharingError: when the node has more children than ``LIST_MAX``.
-                A shortened list of attachments is wrong for every use there
-                is -- downloading them, showing them, counting them -- and the
-                return type has no room to say "incomplete" (audit MNT-4).
+            EduSharingError: when the node has more children than ``LIST_MAX``,
+                and when a response without a total fills the page exactly --
+                nobody can then say whether it is all of them. A shortened list
+                of attachments is wrong for every use there is -- downloading
+                them, showing them, counting them -- and the return type has no
+                room to say "incomplete" (audit MNT-4).
         """
         response = await self._nodes.transport.json(
             "GET",
             f"/node/v1/nodes/-home-/{path_segment(self._node.id)}/children",
             params={"maxItems": LIST_MAX, "propertyFilter": "-all-"},
         )
-        gesamt = page_total(response)
-        if gesamt > LIST_MAX:
+        roh = list(response.get("nodes") or [])
+        # -1 for "not stated": some responses carry no ``pagination`` at all,
+        # and a full page is then indistinguishable from a cut one. Exactly
+        # ``LIST_MAX`` records is the picture of a cut, so it is treated as
+        # one -- the rare "exactly 200 children, no count given" is refused
+        # wrongly, which is visible and fixable; a quietly shortened list of
+        # attachments is neither (review 2026-09-08).
+        gesamt = page_total(response, default=-1)
+        if gesamt > LIST_MAX or (gesamt < 0 and len(roh) >= LIST_MAX):
+            wie_viele = str(gesamt) if gesamt >= 0 else f"at least {len(roh)}"
             raise EduSharingError(
-                f"This node has {gesamt} children and this listing reads at "
+                f"This node has {wie_viele} children and this listing reads at "
                 f"most {LIST_MAX}. Returning the first {LIST_MAX} would look "
                 f"like the whole set. Read them through the children endpoint "
                 f"with your own paging.",
-                url=self._node.id,
+                url=render_url(self._nodes.repository_url, self._node.id),
             )
         from .nodes import Node  # local: nodes imports this module
 
         children = [
             data
-            for data in (response.get("nodes") or [])
+            for data in roh
             if CHILD_ASPECT in (data.get("aspects") or [])
         ]
         children.sort(key=_order_key)

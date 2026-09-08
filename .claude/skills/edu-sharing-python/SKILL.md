@@ -313,6 +313,9 @@ lockstep — or `None` when the server asked for longer than this client waits.
 `RETRYABLE_STATUS` is the status set the two sibling services retry,
 `DEFAULT_MAX_RETRY_AFTER` (60 s) is that ceiling, and
 `parse_retry_after(value)` reads the header in either form RFC 9110 allows.
+A refused 3xx names only the target host -- a presigned address carries its
+authority in the query string -- and puts the whole `Location` on the
+exception as `.location`.
 
 `edusharing.dto` is the one reading of a raw node record — `first(value)`
 (the first value of a property, `None` for an empty list), `title_of(raw)`

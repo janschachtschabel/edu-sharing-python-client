@@ -534,6 +534,13 @@ andere Kinder, Versionen etwa, und die als Anhänge auszugeben wäre auf eine
 Weise falsch, die erst auffällt, wenn eine Version in einer Download-Liste
 auftaucht.
 
+**Oberhalb von `LIST_MAX` (200) wirft er, statt zu kürzen.** Ein Knoten mit
+mehr Anhängen, als eine Auflistung liest, ergibt einen `EduSharingError` und
+nicht die ersten 200 — eine gekürzte Anhangsliste ist zum Herunterladen,
+Anzeigen und Zählen gleichermaßen falsch, und `count` wäre still zu klein.
+Wer sie braucht, liest sie über `GET /node/v1/nodes/-home-/{id}/children` mit
+eigener Seitenschaltung.
+
 **Was dahinter läuft** — 2 Anfragen:
 
 ```python

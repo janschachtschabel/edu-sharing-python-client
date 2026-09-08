@@ -430,3 +430,41 @@ async def test_ohne_gesamtzahl_zaehlt_das_anlegen_trotzdem_richtig():
     angelegt = next(r for r in instanz.anfragen
                     if r.method == "POST" and r.url.path.rstrip("/").endswith("/children"))
     assert json.loads(angelegt.content)["ccm:childobject_order"] == ["2"]
+
+
+async def test_eine_volle_seite_ohne_gesamtzahl_gilt_als_verdaechtig():
+    """Die Luecke, die MNT-4 offen liess (Pruefung 08.09.2026).
+
+    Ohne ``pagination`` kann niemand sagen, ob die Seite alles ist -- und genau
+    ``LIST_MAX`` Datensaetze sind das Bild einer Kappung. Der seltene Fall
+    "genau 200 Kinder, Server nennt keine Zahl" wird damit faelschlich
+    abgelehnt; das ist sichtbar und behebbar. Eine still gekuerzte
+    Anhangsliste ist es nicht.
+    """
+    class VollOhneZaehlung(Instanz):
+        def __call__(self, request):
+            if request.method == "GET" and request.url.path.endswith("/children"):
+                self.anfragen.append(request)
+                return httpx.Response(200, json={"nodes": self.kinder})
+            return super().__call__(request)
+
+    voll = VollOhneZaehlung(kinder=[_kind(f"k{i}", f"{i}.txt", str(i))
+                                    for i in range(200)])
+    async with _repo(voll) as repo:
+        node = await repo.node(HAUPT)
+        with pytest.raises(EduSharingError, match="200"):
+            await node.children.list()
+
+
+async def test_eine_halbe_seite_ohne_gesamtzahl_ist_unverdaechtig():
+    """Gegenprobe: weniger als der Deckel *kann* nicht gekuerzt sein."""
+    class HalbOhneZaehlung(Instanz):
+        def __call__(self, request):
+            if request.method == "GET" and request.url.path.endswith("/children"):
+                self.anfragen.append(request)
+                return httpx.Response(200, json={"nodes": self.kinder})
+            return super().__call__(request)
+
+    async with _repo(HalbOhneZaehlung(kinder=[_kind("a", "a.txt", "0")])) as repo:
+        node = await repo.node(HAUPT)
+        assert len(await node.children.list()) == 1

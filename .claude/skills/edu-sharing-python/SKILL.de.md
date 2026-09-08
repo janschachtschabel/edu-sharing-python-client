@@ -328,7 +328,9 @@ um mehr gebeten hat, als dieser Client abwartet. `RETRYABLE_STATUS` ist der
 Statussatz, den die beiden Nachbardienste erneut versuchen,
 `DEFAULT_MAX_RETRY_AFTER` (60 s) ist diese Obergrenze, und
 `parse_retry_after(value)` liest den Kopf in beiden Schreibweisen, die
-RFC 9110 erlaubt.
+RFC 9110 erlaubt. Eine abgewiesene 3xx nennt nur den Zielhost — eine
+vorsignierte Adresse trägt ihre Vollmacht in der Abfrage — und legt die
+ganze `Location` als `.location` an die Ausnahme.
 
 `edusharing.dto` ist die eine Lesart eines rohen Knotensatzes —
 `first(value)` (der erste Wert einer Eigenschaft, `None` bei leerer Liste),

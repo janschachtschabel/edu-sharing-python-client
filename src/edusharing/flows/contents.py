@@ -174,6 +174,10 @@ async def child_objects(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
 
     Raises:
         NotFoundError: when no node carries this id.
+        EduSharingError: when the node carries more children than
+            ``childobjects.LIST_MAX``. The listing refuses to shorten, and this
+            flow hands that on rather than answering with a count that is too
+            small (audit MNT-4).
     """
     node = await repo.nodes.get(node_id)
     children = await node.children.list()
