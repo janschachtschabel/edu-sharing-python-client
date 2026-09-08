@@ -17,6 +17,7 @@ a message an application shows its users.
 from __future__ import annotations
 
 import json
+from urllib.parse import urlsplit
 
 __all__ = [
     "at_least",
@@ -55,6 +56,10 @@ class EduSharingError(Exception):
         retry_after: seconds the server asked to be left alone for, from the
             ``Retry-After`` header. Filled for ``RateLimitedError``; ``None``
             everywhere else, including when a 429 named no time.
+        location: the ``Location`` of a redirect this client refused to
+            follow, in full. Filled by ``redirect_error``; ``None``
+            everywhere else. The message names only the host (audit SEC-6),
+            so this is where the whole address is to be read.
     """
 
     def __init__(
@@ -66,6 +71,7 @@ class EduSharingError(Exception):
         error_class: str | None = None,
         stacktrace: str | None = None,
         retry_after: float | None = None,
+        location: str | None = None,
     ) -> None:
         super().__init__(message)
         self.status = status
@@ -73,6 +79,7 @@ class EduSharingError(Exception):
         self.error_class = error_class
         self.stacktrace = stacktrace
         self.retry_after = retry_after
+        self.location = location
 
 
 class TransportError(EduSharingError):
@@ -322,6 +329,37 @@ def details_withheld(error: EduSharingError) -> bool:
     return _HIDDEN_NOTE in str(error)
 
 
+def _redirect_target(location: str | None) -> str:
+    """Where a redirect points, in the least that still diagnoses it.
+
+    A half-sentence rather than a value, so that the one case with no
+    address to name does not have to be phrased as one.
+
+    The whole ``Location`` must not go into a message: a presigned link carries
+    its authority in the query string and a login bounce carries its ticket in
+    the path, and both are handed on once the message is logged or reaches a
+    model context (audit SEC-6). The host answers the question the message
+    exists for -- *my proxy, or a stranger?* -- and is not itself a secret.
+
+    ``hostname`` rather than ``netloc``: the latter still carries
+    ``user:password@``.
+
+    The header comes from the other side, so a malformed value is a case and
+    not a defect. Building this must never raise -- an exception here would
+    replace the redirect with a bug from the reporting code.
+    """
+    if not location:
+        return "without a Location header"
+    try:
+        teile = urlsplit(location)
+        host, port = teile.hostname, teile.port
+    except ValueError:
+        return "to an address that does not parse"
+    if not host:
+        return "to an address without a host"
+    return f"to {f'{host}:{port}' if port else host!r}"
+
+
 def redirect_error(
     status: int, location: str | None, url: str, *, service: str, env_var: str
 ) -> EduSharingError:
@@ -333,14 +371,18 @@ def redirect_error(
     redirect body came back as success, which for ``Content.download`` means
     zero bytes instead of the file (audit A8) and for the extraction service
     meant "this page has no text" (audit API-1).
+
+    The message names the host only; ``exc.location`` carries the whole
+    value. See ``_redirect_target``.
     """
     return EduSharingError(
-        f"HTTP {status}: {service} redirected to "
-        f"{location or '(no Location header)'!r}. This client does not follow "
-        f"redirects -- a redirect off {service} would take the credentials "
-        f"with it. If your installation sits behind a proxy that bounces, "
-        f"point {env_var} at the address it bounces to.",
-        status=status, url=url,
+        f"HTTP {status}: {service} redirected {_redirect_target(location)}"
+        f"{' (the full address is on the exception as `.location`)' if location else ''}"
+        f". This client "
+        f"does not follow redirects -- a redirect off {service} would take the "
+        f"credentials with it. If your installation sits behind a proxy that "
+        f"bounces, point {env_var} at the address it bounces to.",
+        status=status, url=url, location=location,
     )
 
 

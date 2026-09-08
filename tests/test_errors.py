@@ -16,6 +16,7 @@ from edusharing.errors import (
     ServerError,
     ValidationError,
     error_from_response,
+    redirect_error,
 )
 
 URL = "https://repo.example.test/edu-sharing/rest/node/v1/nodes/-home-/x/metadata"
@@ -231,3 +232,66 @@ def test_sichtbare_details_bekommen_keinen_zusatz():
     exc = error_from_response(
         500, URL, _body("java.lang.Exception", "Something genuinely broke"))
     assert "could not tell" not in str(exc)
+
+
+# --- Umleitungen -----------------------------------------------------------
+#
+# Eine ``Location`` ist Fremdtext: sie kommt vom Server, landet in ``str(exc)``,
+# in den Logs und ueber ``as_result`` im Modellkontext. Eine vorsignierte
+# Adresse traegt ihre Vollmacht in der Abfrage (``X-Amz-Signature=...``), ein
+# Anmelde-Bounce sein Ticket -- beides einmal ausgesprochen ist beides
+# weitergegeben. Das *Ziel* ist die Diagnose, der Rest ist es nicht (Audit
+# SEC-6).
+
+def _umleitung(location):
+    return redirect_error(302, location, "https://repo.test/rest/_about",
+                          service="the repository", env_var="EDU_SHARING_URL")
+
+
+def test_eine_umleitung_nennt_den_host():
+    """Ohne das Ziel ist die Meldung nutzlos -- es ist die eine Angabe, mit der
+    jemand entscheidet, ob sein Proxy oder ein Fremder umgelenkt hat."""
+    assert "cdn.test" in str(_umleitung("https://cdn.test/datei.pdf"))
+
+
+def test_eine_vorsignierte_adresse_wird_nicht_ausgesprochen():
+    fehler = _umleitung(
+        "https://cdn.test/d.pdf?X-Amz-Signature=GEHEIM&X-Amz-Expires=900")
+    assert "cdn.test" in str(fehler)
+    assert "GEHEIM" not in str(fehler)
+    assert "X-Amz-Signature" not in str(fehler)
+
+
+def test_anmeldedaten_im_ziel_werden_nicht_ausgesprochen():
+    """``netloc`` traegt die Anmeldedaten mit; der Hostname nicht."""
+    fehler = _umleitung("https://nutzer:GEHEIM@cdn.test/datei.pdf")
+    assert "cdn.test" in str(fehler)
+    assert "GEHEIM" not in str(fehler)
+
+
+def test_eine_relative_umleitung_spricht_gar_nichts_aus():
+    """``/login?ticket=...`` hat keinen Host, aber ein Geheimnis im Pfad."""
+    fehler = _umleitung("/login?ticket=GEHEIM")
+    assert "GEHEIM" not in str(fehler)
+
+
+def test_eine_kaputte_adresse_verdeckt_nicht_den_eigentlichen_fehler():
+    """Den Header bestimmt die Gegenseite. Ein ``ValueError`` beim Bauen der
+    Meldung wuerde die Umleitung durch einen Programmfehler ersetzen."""
+    fehler = _umleitung("https://[::1/datei")
+    assert fehler.status == 302
+    assert "GEHEIM" not in str(fehler)
+
+
+def test_der_volle_wert_bleibt_zum_debuggen_erreichbar():
+    """Verdeckt ist die *Meldung*, nicht die Angabe: wer die Umleitung
+    nachvollziehen will, kommt an sie heran, ohne sie weiterzureichen."""
+    voll = "https://cdn.test/d.pdf?X-Amz-Signature=GEHEIM"
+    assert _umleitung(voll).location == voll
+
+
+def test_ohne_location_bleibt_es_bei_none():
+    fehler = _umleitung(None)
+    assert fehler.location is None
+    assert "without a Location header" in str(fehler)
+    assert "`.location`" not in str(fehler), "es gibt nichts nachzulesen"
