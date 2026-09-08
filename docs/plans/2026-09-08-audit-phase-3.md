@@ -72,8 +72,38 @@ Schritt 12.
   ist nicht gemessen. Ein Fan-out von Schreibvorgängen ohne Messung wäre
   geraten. Wer das aufgreift: erst live auf der Staging messen, dann
   entscheiden.
-- [ ] **14 · TST-3, TST-6, OPS-2, OPS-3** Aufräumen, Pins, CI und die
+- [x] **14 · TST-3, TST-6, OPS-2, OPS-3** Aufräumen, Pins, CI und die
   geschriebenen Abläufe.
+  Getan in fünf Commits: `9396854` (Wegwerf-Objekte werden weggeworfen),
+  `6b9c3bb` (die drei Pins — und der erste fand sofort eine Regression aus
+  meinem eigenen `df865c0`: `gather(return_exceptions=True)` fing **jede**
+  Ausnahme und zählte einen 500 als „unlesbar"), `4b42925` (CI gehärtet,
+  Windows-Lauf, `SECURITY.md`, Veröffentlichungs-Ablauf), `7042322` (ein
+  roter Lauf sagt jetzt, woran er scheitert) und `684f633`
+  (`.gitattributes`).
+
+  **Der Windows-Lauf hat beim ersten Mal sofort etwas gefunden** — genau
+  wofür der Befund ihn verlangt hat. Der Herkunfts-Hash aus DEP-2 stimmte
+  dort nicht, weil ein Checkout auf Windows LF zu CRLF macht und der Hash
+  Bytes zählt. Das ist OPS-4, eigentlich Phase 4, hier vorgezogen: es war
+  die Ursache, nicht ein Symptom. Der Index war schon durchgehend LF, also
+  kostet die Regel keinen einzigen Inhaltsunterschied.
+
+  Der Log eines Laufs ist nur angemeldet lesbar. Ich habe mich **nicht**
+  angemeldet, sondern die Ausgabe über eine Annotation öffentlich gemacht —
+  das ist ohnehin die bessere Lösung, und die Diagnose lief danach in einem
+  Durchgang.
+
+  **Nicht gemacht:** der Abhängigkeits-Cache, den OPS-2 auch nennt. Dafür
+  bräuchte es eine weitere fremde Action im Vertrauenskreis, und sie spart
+  gegen einen Lauf von gut einer Minute wenige Sekunden. Der Tausch lohnt
+  nicht.
+
+  **Zu TST-6, dritter Pin:** der `unresolved`-Zweig in `find_by_url` ist
+  über diesen Weg **nicht erreichbar** — das Schema wird davor geprüft und
+  `resolve_all` reicht jede URI durch. Ein Test, der ihn künstlich
+  erzwingt, hielte Fiktion fest; stattdessen pinnt der Test die Annahme,
+  auf der die Unerreichbarkeit beruht.
 - [ ] **15 · DOC-3 bis DOC-7** Der Architektur-Nachweis, die Zahlen, die
   Beispiele und die Docstrings — die Zahlen möglichst abgeleitet, damit die
   Wächter sie besitzen statt der Prosa.

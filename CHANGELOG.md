@@ -14,6 +14,31 @@ and in [`docs/audits/`](docs/audits/).
 
 ## [Unreleased]
 
+### Added
+
+- **`SECURITY.md`** and a **Releasing** section in both READMEs (audit OPS-3).
+  A library that handles repository passwords and API keys had nowhere to send
+  a finding, and two tags existed with nothing saying how the next is cut. The
+  changelog also has its link references at the foot at last.
+- **`.gitattributes`** (audit OPS-4). Line endings are part of a file's bytes,
+  and `_generated/GENERATED.md` records the SHA-256 of the committed spec: a
+  Windows checkout turned LF into CRLF, so the same spec hashed differently
+  there. `* text=auto eol=lf` — the index was already all LF, so nothing's
+  content changed; only what a checkout writes.
+
+### Changed
+
+- **CI is hardened and runs on Windows too** (audit OPS-2). `permissions:
+  contents: read`, a 15-minute timeout, one run per branch with
+  `cancel-in-progress`, actions pinned by commit rather than by a movable tag,
+  and `uv` and `pip-audit` pinned. The Windows leg is new: the library is
+  developed and used there, but CI only ever ran on Linux, so the
+  encoding/line-ending/path class of bug never ran here. It found one on its
+  first run.
+- **A red CI run says what failed.** The log needs a sign-in; annotations are
+  public. The tail of a failing pytest run now goes out as an error
+  annotation.
+
 ### Performance
 
 - **The vocabulary cache expires** (audit PRF-4). `ARCHITECTURE` claimed a TTL
@@ -127,6 +152,17 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Fixed
 
+- **Live write tests clean up after themselves** (audit TST-3). Their fixtures
+  tore down with `delete()`, which recycles: every run left
+  `pytest-edusharing-…` folders in the account's bin. They delete for good
+  now, each item is caught on its own so one failure does not strand the rest,
+  and a teardown failure is warned about rather than raised over the test's
+  own result.
+- **A server error during a skills walk is raised, not counted as unreadable**
+  (audit TST-6, and a regression from this release's own level-batching).
+  `gather(return_exceptions=True)` returned every exception as a value, and
+  the fold counted all of them as "collection unreadable" -- so a 500 looked
+  like a closed collection, an outage disguised as a partial answer.
 - **The generated layer can be rebuilt** (audit DEP-2). Regeneration ran the
   latest `openapi-python-client` from PyPI while the lock pinned 0.29.0, and
   discarded the generator's exit code -- a failed run left half a tree and
