@@ -38,6 +38,7 @@ from .errors import (
     ServerError,
     TransportError,
     at_least,
+    check_client,
     details_withheld,
     error_from_response,
 )
@@ -239,17 +240,7 @@ class Transport:
         backoff_base: float = DEFAULT_BACKOFF_BASE,
         client: httpx.AsyncClient | None = None,
     ) -> None:
-        if timeout is not None and client is not None:
-            # The timeout belongs to the client. Accepting both silently meant
-            # the parameter was validated and then discarded -- measured,
-            # ``timeout=0.5`` with an injected client yielded ``Timeout(5.0)``
-            # (audit A11). Saying so beats guessing which one the caller meant.
-            raise EduSharingError(
-                "timeout and client cannot both be given: a client carries its "
-                "own timeout, and this one would be ignored. Set it on the "
-                "client -- httpx.AsyncClient(timeout=...) -- or leave the "
-                "client out."
-            )
+        check_client(client, timeout=timeout)
         if timeout is None:
             timeout = DEFAULT_TIMEOUT
         at_least("timeout", timeout, 0.001)

@@ -320,6 +320,9 @@ lockstep — or `None` when the server asked for longer than this client waits.
 through them, so the same record always reads the same way.
 
 `at_least(name, value, limit)` is the bounds check the clients apply to their settings;
+`check_client(client, timeout=…)` holds the two rules for a client the caller brings
+along -- no `timeout` beside it, and no `follow_redirects=True`, because httpx keeps
+custom headers across a cross-origin redirect and an API key would travel with them;
 `details_withheld(…)` names what an error deliberately does not reveal.
 
 **The rest of `__all__`** is machinery you only touch when extending the

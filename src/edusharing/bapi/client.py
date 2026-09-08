@@ -40,6 +40,7 @@ from ..errors import (
     RateLimitedError,
     ValidationError,
     at_least,
+    check_client,
     error_class_for,
 )
 from ..retry import RETRYABLE_STATUS, RetryPolicy, parse_retry_after
@@ -137,7 +138,7 @@ class BildungsAPI:
         *,
         base_url: str,
         provider: str = DEFAULT_PROVIDER,
-        timeout: float = DEFAULT_TIMEOUT,
+        timeout: float | None = None,
         max_retries: int = DEFAULT_MAX_RETRIES,
         max_concurrency: int = DEFAULT_MAX_CONCURRENCY,
         backoff_base: float = DEFAULT_BACKOFF_BASE,
@@ -151,6 +152,9 @@ class BildungsAPI:
                 f"The b-api needs a key. Either set {ENV_KEY} or pass "
                 "BildungsAPI(api_key=...)."
             )
+        check_client(client, timeout=timeout)
+        if timeout is None:
+            timeout = DEFAULT_TIMEOUT
         at_least("timeout", timeout, 0.001)
         # Budget and waiting live in the policy the three clients share; it
         # checks its own bounds (audit ARC-2).

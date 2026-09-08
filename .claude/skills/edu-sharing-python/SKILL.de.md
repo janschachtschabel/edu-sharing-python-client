@@ -336,6 +336,9 @@ Schreibvorgang erhält), `node_id_of(raw)`, `bare_id(ref)`, `render_url(reposito
 über sie, damit derselbe Datensatz sich immer gleich liest.
 
 `at_least(name, value, limit)` ist die Grenzprüfung, die die Clients auf ihre Einstellungen anwenden;
+`check_client(client, timeout=…)` trägt die zwei Regeln für einen mitgebrachten Client —
+kein `timeout` daneben, kein `follow_redirects=True`, weil httpx eigene Kopfzeilen über
+Ursprungsgrenzen hinweg behält und ein API-Schlüssel damit mitwandert;
 `details_withheld(…)` benennt, was ein Fehler bewusst nicht preisgibt.
 
 **Der Rest von `__all__`** ist Maschinerie, die man nur anfasst, wenn man die

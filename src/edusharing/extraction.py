@@ -55,7 +55,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from .errors import EduSharingError, RateLimitedError, at_least
+from .errors import EduSharingError, RateLimitedError, at_least, check_client
 from .retry import RETRYABLE_STATUS, RetryPolicy, parse_retry_after
 from .urls import is_unroutable_host, refuse_userinfo
 
@@ -133,12 +133,15 @@ class TextExtraction:
         self,
         base_url: str,
         *,
-        timeout: float = DEFAULT_TIMEOUT,
+        timeout: float | None = None,
         max_retries: int = DEFAULT_MAX_RETRIES,
         backoff_base: float = DEFAULT_BACKOFF_BASE,
         resolve: Callable[[str], Any] | None = None,
         client: httpx.AsyncClient | None = None,
     ) -> None:
+        check_client(client, timeout=timeout)
+        if timeout is None:
+            timeout = DEFAULT_TIMEOUT
         # Budget and waiting live in the policy the three clients share; it
         # checks its own bounds (audit ARC-2). That is also the first time
         # ``backoff_base`` is checked here at all.

@@ -754,3 +754,21 @@ async def test_eine_zu_lange_wartezeit_wird_nicht_abgewartet(monkeypatch):
         with pytest.raises(RateLimitedError):
             await client.models()
     assert gewartet == []
+
+
+# --- SEC-4 und SEC-8: derselbe Massstab wie beim Transport ----------------
+
+
+def test_bapi_lehnt_einen_folgenden_client_ab():
+    """Der Fall, an dem der Befund gemessen wurde: der X-API-KEY geht bei
+    einer Umleitung ueber Ursprungsgrenzen mit (Audit SEC-4)."""
+    with pytest.raises(EduSharingError, match="follow_redirects"):
+        BildungsAPI(api_key="k", base_url=GATEWAY,
+                    client=httpx.AsyncClient(follow_redirects=True))
+
+
+def test_bapi_lehnt_timeout_und_client_zusammen_ab():
+    """Audit SEC-8."""
+    with pytest.raises(EduSharingError, match="timeout and client"):
+        BildungsAPI(api_key="k", base_url=GATEWAY, timeout=0.5,
+                    client=httpx.AsyncClient())

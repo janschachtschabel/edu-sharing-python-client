@@ -890,3 +890,22 @@ async def test_eine_lange_wartezeit_bei_einem_5xx_kostet_keine_wiederholung(monk
     assert len(versuche) == 2
     assert antwort.json() == {"ok": True}
     assert len(dauern) == 1
+
+
+# --- SEC-4: ein folgender Client hebelt die 3xx-Wache aus -----------------
+
+
+def test_ein_client_der_umleitungen_folgt_wird_abgelehnt():
+    """httpx behaelt eigene Kopfzeilen ueber Ursprungsgrenzen hinweg. Ein
+    Client mit ``follow_redirects=True`` traegt damit den Anmeldekopf dorthin,
+    wohin ein Gateway zeigt -- gemessen: die zweite Anfrage an einen anderen
+    Host hatte den Schluessel noch (Audit SEC-4). Und jede der vier Wachen
+    gegen 3xx laeuft nie, wenn der Client die Umleitung schon genommen hat."""
+    with pytest.raises(EduSharingError, match="follow_redirects"):
+        Transport(REPO, client=httpx.AsyncClient(follow_redirects=True))
+
+
+def test_ein_client_ohne_umleitungen_geht_durch():
+    """Die Gegenprobe: die Vorgabe von httpx ist False, und die ist richtig."""
+    t = Transport(REPO, client=httpx.AsyncClient())
+    assert t._client.follow_redirects is False

@@ -253,3 +253,18 @@ async def test_ein_netzfehler_wird_zu_einem_edusharingerror():
     async with _agent(kaputt) as agent:
         with pytest.raises(EduSharingError, match="ConnectError"):
             await agent.schemas()
+
+
+# --- SEC-4 und SEC-8: derselbe Massstab wie beim Transport ----------------
+
+
+def test_agent_lehnt_einen_folgenden_client_ab():
+    """Audit SEC-4."""
+    with pytest.raises(EduSharingError, match="follow_redirects"):
+        MetadataAgent(AGENT, client=httpx.AsyncClient(follow_redirects=True))
+
+
+def test_agent_lehnt_timeout_und_client_zusammen_ab():
+    """Audit SEC-8."""
+    with pytest.raises(EduSharingError, match="timeout and client"):
+        MetadataAgent(AGENT, timeout=0.5, client=httpx.AsyncClient())

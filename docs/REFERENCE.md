@@ -1307,6 +1307,7 @@ rather than reporting success.
 | `error_from_response(status, url, body)` | picks the class for a status code |
 | `details_withheld(error)` | `bool` — the instance hides its error details |
 | `at_least(name, value, limit)` | the bounds check the clients apply to their settings; raises `EduSharingError` naming the setting |
+| `check_client(client, timeout=…)` | the two rules for an injected `httpx.AsyncClient`: no `timeout` beside it, and no `follow_redirects=True` |
 
 ---
 

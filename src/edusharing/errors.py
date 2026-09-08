@@ -20,6 +20,7 @@ import json
 
 __all__ = [
     "at_least",
+    "check_client",
     "details_withheld",
     "EduSharingError",
     "TransportError",
@@ -317,6 +318,51 @@ def details_withheld(error: EduSharingError) -> bool:
     than the server's phrasing, which may differ between versions.
     """
     return _HIDDEN_NOTE in str(error)
+
+
+def check_client(client: object | None, *, timeout: float | None) -> None:
+    """Refuse an injected ``httpx.AsyncClient`` that would defeat a promise.
+
+    Two rules, both measured, both easy to get wrong when a caller brings
+    their own client. All four clients of this library ask them, so they live
+    here rather than four times over.
+
+    ``timeout`` together with a client. The timeout belongs to the client;
+    accepting both meant the parameter was validated and then discarded --
+    measured, ``timeout=0.5`` with an injected client yielded ``Timeout(5.0)``
+    (audit A11). The three sibling services had the same hole (audit SEC-8).
+
+    ``follow_redirects=True``. httpx keeps custom headers across a
+    cross-origin redirect, so a following client carries an ``X-API-KEY`` --
+    or any other credential header -- to wherever a gateway points; verified,
+    the second request to another host still had the key (audit SEC-4). Each
+    of the four clients reports a 3xx instead of following it, and a client
+    that follows them never lets that check run.
+
+    Args:
+        client: what the caller passed, or ``None``.
+        timeout: what the caller passed, or ``None`` for "not given".
+
+    Raises:
+        EduSharingError: for either rule, naming the way out.
+    """
+    if client is None:
+        return
+    if timeout is not None:
+        raise EduSharingError(
+            "timeout and client cannot both be given: a client carries its "
+            "own timeout, and this one would be ignored. Set it on the "
+            "client -- httpx.AsyncClient(timeout=...) -- or leave the "
+            "client out."
+        )
+    if getattr(client, "follow_redirects", False) is True:
+        raise EduSharingError(
+            "a client with follow_redirects=True cannot be used: httpx keeps "
+            "custom headers across a cross-origin redirect, so an API key "
+            "would travel to wherever the answer points. Leave it at httpx's "
+            "default -- httpx.AsyncClient() -- and read the 3xx this library "
+            "reports instead."
+        )
 
 
 def at_least(name: str, value: float, limit: float) -> None:

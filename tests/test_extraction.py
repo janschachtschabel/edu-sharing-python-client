@@ -426,3 +426,24 @@ async def test_eine_zu_lange_wartezeit_wird_hier_ebenso_gereicht(monkeypatch):
         with pytest.raises(RateLimitedError):
             await client.text_of("https://example.org/")
     assert gewartet == []
+
+
+# --- SEC-4 und SEC-8: derselbe Massstab wie beim Transport ----------------
+
+
+def test_extraction_lehnt_einen_folgenden_client_ab():
+    """Audit SEC-4 -- die Wache stand nur im Transport."""
+    with pytest.raises(EduSharingError, match="follow_redirects"):
+        TextExtraction(BASE, client=httpx.AsyncClient(follow_redirects=True))
+
+
+def test_extraction_lehnt_timeout_und_client_zusammen_ab():
+    """``timeout`` wurde geprueft und dann mit dem Client verworfen -- der
+    Parameter war eine Zusage, die niemand einhielt (Audit SEC-8)."""
+    with pytest.raises(EduSharingError, match="timeout and client"):
+        TextExtraction(BASE, timeout=0.5, client=httpx.AsyncClient())
+
+
+def test_extraction_nimmt_den_client_allein():
+    dienst = TextExtraction(BASE, client=httpx.AsyncClient())
+    assert dienst._client is not None

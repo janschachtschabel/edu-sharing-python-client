@@ -1331,6 +1331,7 @@ dieser Bibliothek liest zurück und wirft ihn, statt Erfolg zu melden.
 | `error_from_response(status, url, body)` | wählt die Klasse zu einem Statuscode |
 | `details_withheld(error)` | `bool` — die Instanz verschweigt ihre Fehlerdetails |
 | `at_least(name, value, limit)` | die Grenzprüfung, die die Clients auf ihre Einstellungen anwenden; wirft `EduSharingError` mit dem Namen der Einstellung |
+| `check_client(client, timeout=…)` | die zwei Regeln für einen mitgebrachten `httpx.AsyncClient`: kein `timeout` daneben, kein `follow_redirects=True` |
 
 ---
 

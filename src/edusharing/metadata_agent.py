@@ -42,7 +42,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from .errors import EduSharingError, at_least, error_from_response
+from .errors import EduSharingError, at_least, check_client, error_from_response
 from .urls import path_segment, refuse_userinfo
 
 __all__ = ["ContentType", "MetadataAgent", "SchemaInfo"]
@@ -106,9 +106,12 @@ class MetadataAgent:
         self,
         base_url: str,
         *,
-        timeout: float = DEFAULT_TIMEOUT,
+        timeout: float | None = None,
         client: httpx.AsyncClient | None = None,
     ) -> None:
+        check_client(client, timeout=timeout)
+        if timeout is None:
+            timeout = DEFAULT_TIMEOUT
         at_least("timeout", timeout, 0.001)
         self.base_url = _check_base(base_url)
         self._client = client or httpx.AsyncClient(timeout=timeout)
