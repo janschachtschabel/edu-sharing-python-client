@@ -43,6 +43,22 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Changed
 
+- **A zero is a value** (audit COR-9). `first` discarded every bare falsy
+  value -- `0`, `False`, `""` -- while `flows/serialize.py` held the opposite in
+  writing. The old behaviour was pinned by a test and argued for in a docstring;
+  the argument was wrong. Every call site reads `properties.get(...)`, so the
+  scalar branch is a safety net, and one that swallows `0` turns "0 bytes" into
+  "no size" at `cclom:size`.
+- **`collection_contents` says how many sub-collections there are** (audit
+  API-3). They are capped at `limit` like the materials, and used to say nothing
+  about it -- a shortened list looks like a collection with fewer children than
+  it has. `total_collections`, `returned_collections` and
+  `collections_truncated` now, after measuring that the endpoint carries a real
+  total.
+- **`Nodes.wrap(data)`** turns a record from any response into a `Node` without
+  a request (audit ARC-3). The factory this class already was -- and it replaces
+  four imports that sat inside function bodies, holding a cycle open rather than
+  resolving it.
 - **The source distribution names what it carries** (audit OPS-5). Without a
   section of its own hatchling took everything under version control: 1318
   files and 1.2 MB, `.claude/`, `.github/`, `uv.lock` and the 1.3 MB
@@ -229,6 +245,25 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Fixed
 
+- **Empty and padded keywords stay out of the list** (audit COR-8).
+  `add_keywords("", "   ", " Optik ")` sent `['Physik', '', ' Optik ']`:
+  compared stripped and case-folded, **stored** raw. `cclom:general_keyword` is
+  a shared list, so an empty keyword is an empty line in every display and a
+  nameless entry in every facet, for everyone who looks in afterwards.
+- **A fetch in flight no longer refills a cleared vocabulary cache** (audit
+  COR-6). Between `await self._fetch(...)` and the assignment lies a window;
+  a `clear_cache()` falling into it had the finished fetch write the **old**
+  values back. Whoever cleared because a vocabulary changed went on working
+  with the old one.
+- **A cancellation is not a partial failure** (audit COR-10).
+  `gather(return_exceptions=True)` hands back every exception as a value, and
+  two places did not ask for the type -- so a `CancelledError` and a `TypeError`
+  became a partial answer with a warning that reads like a statement about the
+  instance.
+- **Emptying a collection's description is not a silent drop** (audit COR-11).
+  `description=""` means *delete it*, and afterwards it is gone -- which is the
+  desired state. A deleted property reads as `None`, and `None != ""` made that
+  a loss.
 - **The examples read the environment variable that exists** (audit DOC-6).
   Nineteen of the 21 read `EDU_SHARING_MDS`; the library and every document say
   `EDU_SHARING_METADATASET`. Whoever set the documented one was quietly ignored
