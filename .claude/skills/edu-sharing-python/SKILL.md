@@ -1,6 +1,6 @@
 ---
 name: edu-sharing-python
-description: Using the edu-sharing-python-client library (import `edusharing`) — both levels (API objects and flow dicts), all 20 flows, the complete public surface object by object, how edu-sharing stores metadata (list-valued properties, the cm:/cclom:/ccm:/virtual: namespaces, cm:name versus cclom:title, vocabulary URIs, metadata sets), the neighbouring services (b-api LLM gateway, text extraction, metadata agent), the measured traps, and the rules for putting it behind a model. Use when writing Python against an edu-sharing repository, building an MCP server or agent tool over WLO/OpenEduHub content, or when a call returned HTTP 200 and stored nothing. Trigger u.a. "edu-sharing Python", "edusharing library", "repo.flows", "SilentDropError", "Bibliothek nutzen", "Suche in Python", "Material anlegen Python", "MCP-Werkzeug edu-sharing", "b-api Python", "Textextraktion", "metadata agent schema", "welcher Aufruf für", "unresolved", "total_is_lower_bound", "cm:name", "cclom:title", "propertyFilter", "Metadatensatz", "properties leer", "Eigenschaft schreiben".
+description: Using the edu-sharing-python-client library (import `edusharing`) — both levels (API objects and flow dicts), every flow, the complete public surface object by object, how edu-sharing stores metadata (list-valued properties, the cm:/cclom:/ccm:/virtual: namespaces, cm:name versus cclom:title, vocabulary URIs, metadata sets), the neighbouring services (b-api LLM gateway, text extraction, metadata agent), the measured traps, and the rules for putting it behind a model. Use when writing Python against an edu-sharing repository, building an MCP server or agent tool over WLO/OpenEduHub content, or when a call returned HTTP 200 and stored nothing. Trigger u.a. "edu-sharing Python", "edusharing library", "repo.flows", "SilentDropError", "Bibliothek nutzen", "Suche in Python", "Material anlegen Python", "MCP-Werkzeug edu-sharing", "b-api Python", "Textextraktion", "metadata agent schema", "welcher Aufruf für", "unresolved", "total_is_lower_bound", "cm:name", "cclom:title", "propertyFilter", "Metadatensatz", "properties leer", "Eigenschaft schreiben".
 ---
 
 # edu-sharing for Python — how to use it
@@ -151,7 +151,7 @@ table.
 | make it publicly readable | `node.permissions.publish()` |
 | keywords | `node.add_keywords([...])` / `node.remove_keywords([...])` |
 
-### Editorial surfaces (no flow — API level only)
+### Editorial surfaces (API level, except accepting a proposal)
 
 | The task | The call |
 |---|---|
@@ -195,7 +195,7 @@ table.
 
 ### The whole surface, object by object
 
-The tables above route the twenty common jobs. Everything else is reached
+The tables above route the common jobs. Everything else is reached
 through an object you already hold. This names every public member, so nothing
 has to be guessed — argument and return shapes are in `docs/REFERENCE.md`.
 

@@ -432,12 +432,13 @@ if angelegt["unresolved"]:            # Werte, die NICHT ankamen
     ...
 ```
 
-Zwanzig Abläufe: `search`, `search_all`, `vocabulary`, `describe`,
-`describe_many`, `related`, `placement`, `relations`, `child_objects`,
-`browse_tree`, `search_in_collection`, `collection_stats`,
-`find_collections`, `collection_contents`, `page`, `find_pages`,
-`add_material`, `update_material`,
-`build_collection`, `delete`. Ein- und Ausgabe im Einzelnen in
+Alle Abläufe: `search`, `search_all`, `vocabulary`, `describe`,
+`describe_many`, `text`, `related`, `placement`, `relations`,
+`child_objects`, `browse_tree`, `search_in_collection`,
+`collection_stats`, `find_collections`, `collection_contents`, `page`,
+`find_pages`, `find_skills`, `skill`, `skill_registry`, `pick_skill`,
+`add_material`, `update_material`, `build_collection`,
+`accept_suggestion`, `delete`. Ein- und Ausgabe im Einzelnen in
 **[docs/FLOWS.de.md](docs/FLOWS.de.md)**.
 
 `search` nimmt zusätzlich `rerank=True`. edu-sharing UND-verknüpft jedes
@@ -973,7 +974,7 @@ wird:
 | [`04_agent_blocks.py`](docs/examples/04_agent_blocks.py) | die Bausteine für KI-Nutzung: Sicherheit, Bereinigung, Formatierung |
 | [`11_publish.py`](docs/examples/11_publish.py) | Material für andere sichtbar machen — der Schritt, den nichts von allein tut |
 | [`15_full_text.py`](docs/examples/15_full_text.py) | der Volltext eines Materials, aus dem Repositorium oder vom Extraktionsdienst |
-| [`16_editorial.py`](docs/examples/16_editorial.py) | kommentieren, bewerten, vorschlagen, zur Prüfung geben — die Flächen ohne Ablauf |
+| [`16_editorial.py`](docs/examples/16_editorial.py) | kommentieren, bewerten, vorschlagen, zur Prüfung geben — die redaktionellen Flächen auf der API-Ebene |
 
 **Über Abläufe** — es kommt ein `dict` zurück, fertig zum Weiterreichen:
 
@@ -991,6 +992,7 @@ wird:
 | [`18_video_recommendation.py`](docs/examples/18_video_recommendation.py) | zehn Videos zu einem Thema, umsortiert, dann empfiehlt ein Modell eines |
 | [`19_collection_audit.py`](docs/examples/19_collection_audit.py) | eine Sammlung prüfen — und warum ein leerer `path` nicht „nirgends“ heißt |
 | [`20_provider_load.py`](docs/examples/20_provider_load.py) | welches Modell antworten soll, und woran man das misst - Auslastung, Verbünde, Verweigerung |
+| [`21_skills.py`](docs/examples/21_skills.py) | welche Skills eine Sammlung freigibt, und was einer davon sagt |
 
 **Beide Ebenen nebeneinander:**
 
@@ -1008,7 +1010,7 @@ Arbeit — und wo ein Ablauf wirklich einen Umlauf spart.
 | Schicht | Inhalt |
 |---|---|
 | `edusharing.agent` | Bausteine für KI-Anwendungen: Formatierung, Token-Budget, Preview-then-confirm, Sanitisierung |
-| `edusharing.flows` | zwanzig Abläufe: ein Anwendungsfall, ein Aufruf, ein `dict` zurück |
+| `edusharing.flows` | ein Anwendungsfall, ein Aufruf, ein `dict` zurück |
 | `edusharing` (Ressourcen) | `search()`, `node()`, `collection()` — Objekte zurück |
 | Profil & MDS | Vokabular-Auflösung, Property-Fähigkeiten, Wahl des Schreibwegs |
 | Transport | httpx, Auth, Retry, Concurrency, Rückleseprobe |

@@ -1,0 +1,114 @@
+"""Jedes Verzeichnis in der Dokumentation zaehlt auf, was es wirklich gibt.
+
+``test_docs_complete.py`` fragt: *steht jeder oeffentliche Name irgendwo?*
+Hier steht die andere Frage: *stimmen die Listen?* Eine Aufzaehlung veraltet
+anders als ein fehlender Name -- sie bleibt lesbar, plausibel und vollstaendig
+aussehend, waehrend hinter ihr etwas dazugekommen ist.
+
+Genau das war passiert (Audit DOC-5): die README zaehlte am 03.09.2026
+"Twenty flows" auf, ``Flows`` hatte 26; die Beispieltabelle endete bei
+``20_provider_load.py``, obwohl ``21_skills.py`` seit dem 02.09.2026 im Ordner
+lag und in keinem Verzeichnis stand. Beides faellt niemandem auf, der die Liste
+nur liest.
+
+Deshalb gehoeren die Zahlen den Waechtern und nicht der Prosa: die Dokumente
+nennen **keine** Anzahl mehr, sie zaehlen auf -- und hier wird gezaehlt.
+"""
+
+import re
+from pathlib import Path
+
+import pytest
+
+WURZEL = Path(__file__).resolve().parent.parent
+BEISPIELE = WURZEL / "docs" / "examples"
+
+
+def ablaeufe() -> set[str]:
+    """Die oeffentlichen Ablaeufe, aus der Klasse gelesen statt gezaehlt."""
+    from edusharing.flows import Flows
+
+    return {n for n in dir(Flows) if not n.startswith("_")}
+
+
+# --- Das Kapitelverzeichnis in FLOWS ---------------------------------------
+
+FLUSSDATEIEN = {
+    "FLOWS.md": WURZEL / "docs" / "FLOWS.md",
+    "FLOWS.de.md": WURZEL / "docs" / "FLOWS.de.md",
+}
+
+#: ``## `name` `` -- jeder Ablauf hat in FLOWS ein eigenes Kapitel.
+_KAPITEL = re.compile(r"^## `([a-z_]+)", re.M)
+
+
+@pytest.mark.parametrize("name", sorted(FLUSSDATEIEN))
+def test_flows_hat_ein_kapitel_je_ablauf(name):
+    """FLOWS ist das gueltige Verzeichnis -- also muss es vollstaendig sein."""
+    pfad = FLUSSDATEIEN[name]
+    assert pfad.exists(), f"{name} fehlt"
+    kapitel = set(_KAPITEL.findall(pfad.read_text(encoding="utf-8")))
+    echte = ablaeufe()
+
+    fehlend = sorted(echte - kapitel)
+    assert not fehlend, f"{name}: kein Kapitel fuer {fehlend}"
+
+    erfunden = sorted(kapitel - echte)
+    assert not erfunden, f"{name}: Kapitel fuer Ablaeufe, die es nicht gibt: {erfunden}"
+
+
+# --- Die Aufzaehlung in der README -----------------------------------------
+#
+# Die README nennt die Ablaeufe in einem Satz. Der Satz beginnt mit einer festen
+# Wendung, damit diese Wache ihn findet: wer sie umschreibt, faellt hier auf und
+# nicht erst dem Leser.
+
+READMES = {
+    "README.md": (WURZEL / "README.md", "Every flow:"),
+    "README.de.md": (WURZEL / "README.de.md", "Alle Abläufe:"),
+}
+
+_SPANNE = re.compile(r"`([a-z_]+)`")
+
+
+@pytest.mark.parametrize("name", sorted(READMES))
+def test_die_readme_zaehlt_jeden_ablauf_auf(name):
+    """Die Aufzaehlung nennt jeden Ablauf und erfindet keinen."""
+    pfad, anfang = READMES[name]
+    text = pfad.read_text(encoding="utf-8")
+    beginn = text.find(anfang)
+    assert beginn != -1, (
+        f"{name}: die Aufzaehlung faengt nicht mehr mit {anfang!r} an. "
+        "Entweder die Wendung wiederherstellen oder diese Wache mitfuehren.")
+    ende = text.find("\n\n", beginn)
+    genannt = set(_SPANNE.findall(text[beginn:ende]))
+    echte = ablaeufe()
+
+    fehlend = sorted(echte - genannt)
+    assert not fehlend, (
+        f"{name}: {len(fehlend)} von {len(echte)} Ablaeufen fehlen in der "
+        f"Aufzaehlung: {fehlend}")
+
+    erfunden = sorted(genannt - echte)
+    assert not erfunden, f"{name}: aufgezaehlt, aber kein Ablauf: {erfunden}"
+
+
+# --- Das Beispielverzeichnis ------------------------------------------------
+
+_VERWEIS = re.compile(r"docs/examples/([0-9]{2}_[a-z_]+\.py)")
+
+
+@pytest.mark.parametrize("name", sorted(READMES))
+def test_jedes_beispiel_steht_in_der_readme(name):
+    """Ein Beispiel, das in keiner Tabelle steht, findet niemand.
+
+    Der umgekehrte Weg -- zeigt jeder Verweis auf eine Datei, die es gibt --
+    steht in ``test_docs_complete.py``. Beide Richtungen zusammen halten das
+    Verzeichnis deckungsgleich mit dem Ordner.
+    """
+    pfad, _ = READMES[name]
+    verzeichnet = set(_VERWEIS.findall(pfad.read_text(encoding="utf-8")))
+    vorhanden = {p.name for p in BEISPIELE.glob("*.py")}
+
+    fehlend = sorted(vorhanden - verzeichnet)
+    assert not fehlend, f"{name}: nicht verzeichnet: {fehlend}"

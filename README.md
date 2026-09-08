@@ -263,7 +263,7 @@ if plan.has_changes:
 
 **A skill for coding agents ships with the library.**
 [`.claude/skills/edu-sharing-python/`](.claude/skills/edu-sharing-python/SKILL.md)
-is a routing table — *this task, that call* — covering all 20 flows, the API
+is a routing table — *this task, that call* — covering every flow, the API
 level, the neighbouring services and the measured traps. It is active for any
 agent working in this repository, and comes in
 [English](.claude/skills/edu-sharing-python/SKILL.md) and
@@ -424,12 +424,13 @@ if created["unresolved"]:             # values that did NOT stick
     ...
 ```
 
-Twenty flows: `search`, `search_all`, `vocabulary`, `describe`,
-`describe_many`, `related`, `placement`, `relations`, `child_objects`,
-`browse_tree`, `search_in_collection`, `collection_stats`,
-`find_collections`, `collection_contents`, `page`, `find_pages`,
-`add_material`, `update_material`,
-`build_collection`, `delete`. Full input and output for each in
+Every flow: `search`, `search_all`, `vocabulary`, `describe`,
+`describe_many`, `text`, `related`, `placement`, `relations`,
+`child_objects`, `browse_tree`, `search_in_collection`,
+`collection_stats`, `find_collections`, `collection_contents`, `page`,
+`find_pages`, `find_skills`, `skill`, `skill_registry`, `pick_skill`,
+`add_material`, `update_material`, `build_collection`,
+`accept_suggestion`, `delete`. Full input and output for each in
 **[docs/FLOWS.md](docs/FLOWS.md)**.
 
 `search` also takes `rerank=True`. edu-sharing ANDs every query word, so a
@@ -947,7 +948,7 @@ them:
 | [`04_agent_blocks.py`](docs/examples/04_agent_blocks.py) | the building blocks for AI use: safety, sanitising, formatting |
 | [`11_publish.py`](docs/examples/11_publish.py) | make material visible to others — the step nothing does for you |
 | [`15_full_text.py`](docs/examples/15_full_text.py) | the full text of a material, from the repository or the extraction service |
-| [`16_editorial.py`](docs/examples/16_editorial.py) | comment, rate, propose, hand over for review — the surfaces with no flow |
+| [`16_editorial.py`](docs/examples/16_editorial.py) | comment, rate, propose, hand over for review — the editorial surfaces at the API level |
 
 **Working through flows** — a `dict` comes back, ready to hand on:
 
@@ -965,6 +966,7 @@ them:
 | [`18_video_recommendation.py`](docs/examples/18_video_recommendation.py) | ten videos on a topic, reranked, then a model recommends one |
 | [`19_collection_audit.py`](docs/examples/19_collection_audit.py) | audit a collection - and why an empty `path` is not `nowhere` |
 | [`20_provider_load.py`](docs/examples/20_provider_load.py) | which model should answer, and on what basis - load, groups, and a refusal |
+| [`21_skills.py`](docs/examples/21_skills.py) | which skills a collection approves, and what one of them says |
 
 **Both levels side by side:**
 
@@ -982,7 +984,7 @@ save a round trip.
 | Layer | Content |
 |---|---|
 | `edusharing.agent` | Building blocks for AI use: formatting, token budget, preview-then-confirm, sanitising |
-| `edusharing.flows` | Twenty flows: one use case, one call, a `dict` back |
+| `edusharing.flows` | One use case, one call, a `dict` back |
 | `edusharing` (resources) | `search()`, `node()`, `collection()` — objects back |
 | Profile & MDS | Vocabulary resolution, property capabilities, choosing the write route |
 | Transport | httpx, auth, retry, concurrency, read-back check |

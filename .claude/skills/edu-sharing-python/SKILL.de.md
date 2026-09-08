@@ -162,7 +162,7 @@ der Platte.)*
 | öffentlich lesbar machen | `node.permissions.publish()` |
 | Schlagwörter | `node.add_keywords([...])` / `node.remove_keywords([...])` |
 
-### Redaktionelle Flächen (kein Ablauf — nur API-Ebene)
+### Redaktionelle Flächen (API-Ebene, außer dem Annehmen eines Vorschlags)
 
 | Die Aufgabe | Der Aufruf |
 |---|---|
@@ -206,7 +206,7 @@ der Platte.)*
 
 ### Die ganze Fläche, Objekt für Objekt
 
-Die Tabellen oben weisen den Weg für die zwanzig häufigen Aufgaben. Alles
+Die Tabellen oben weisen den Weg für die häufigen Aufgaben. Alles
 Übrige erreicht man über ein Objekt, das man ohnehin schon in der Hand hält.
 Hier steht jedes öffentliche Glied beim Namen, damit nichts geraten werden
 muss — die Argument- und Rückgabeformen stehen in `docs/REFERENCE.de.md`.
