@@ -44,13 +44,21 @@ OUTPUT = ROOT / "src" / "edusharing" / "_generated"
 METHODS = ("get", "post", "put", "delete", "patch")
 
 
-def fetch_spec(instance_url: str) -> dict:
-    """Hole die Spec einer laufenden Instanz. ``swagger.json`` gibt es nicht."""
+def fetch_spec(instance_url: str) -> bytes:
+    """Hole die Spec einer laufenden Instanz. ``swagger.json`` gibt es nicht.
+
+    Gibt die Bytes zurueck, wie sie kamen, nicht das geparste Objekt: die
+    Referenz-Spec wird daraus geschrieben, und eine Neufassung durch
+    ``json.dumps`` aenderte alle 45912 Zeilen (Jackson schreibt ``"key" :
+    value``), ohne dass sich am Inhalt etwas geaendert haette. Ein Diff, in
+    dem alles anders ist, sagt nichts mehr (Review 08.09.2026).
+    """
     url = instance_url.rstrip("/")
     if not url.endswith("/rest"):
         url = f"{url}/rest" if url.endswith("/edu-sharing") else f"{url}/edu-sharing/rest"
     with urllib.request.urlopen(f"{url}/openapi.json", timeout=120) as r:
-        return json.load(r)
+        body: bytes = r.read()
+    return body
 
 
 def strip_path_param_defaults(spec: dict) -> int:
@@ -118,16 +126,16 @@ def main() -> int:
 
     if args.from_instance:
         print(f"hole Spec von {args.from_instance}")
-        spec = fetch_spec(args.from_instance)
-        # Erst schreiben, dann hashen. Ohne das Schreiben nannte GENERATED.md
-        # den Hash einer Bytefolge, die es nirgends gab -- nicht nachpruefbar,
-        # und die Herkunftswache in tests/test_dependencies.py war danach nur
-        # von Hand wieder gruen zu bekommen, an einer Datei, deren erste Zeile
-        # "nicht von Hand aendern" sagt (Review 08.09.2026).
-        spec_bytes = json.dumps(spec, ensure_ascii=False, indent=2).encode("utf-8")
+        # Erst schreiben, dann lesen wie sonst auch. Ohne das Schreiben nannte
+        # GENERATED.md den Hash einer Bytefolge, die es nirgends gab -- nicht
+        # nachpruefbar, und die Herkunftswache in tests/test_dependencies.py
+        # war danach nur von Hand wieder gruen zu bekommen, an einer Datei,
+        # deren erste Zeile "nicht von Hand aendern" sagt (Review 08.09.2026).
+        spec_bytes = fetch_spec(args.from_instance)
         args.spec.parent.mkdir(parents=True, exist_ok=True)
         args.spec.write_bytes(spec_bytes)
         print(f"Referenz-Spec aktualisiert: {args.spec.relative_to(ROOT).as_posix()}")
+        spec = json.loads(spec_bytes.decode("utf-8"))
     else:
         if not args.spec.exists():
             print(f"Referenz-Spec fehlt: {args.spec}", file=sys.stderr)
