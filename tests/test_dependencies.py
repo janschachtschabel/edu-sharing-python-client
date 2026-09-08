@@ -102,3 +102,59 @@ def test_die_generierte_schicht_sagt_woraus_sie_entstand():
     assert digest in text, (
         "die Notiz nennt einen anderen Spec-Hash als die eingecheckte Spec -- "
         "entweder ist die Schicht aelter als die Spec oder umgekehrt")
+
+
+# --- Der Umfang des Quellpakets (Audit OPS-5) ------------------------------
+#
+# Ohne einen eigenen Abschnitt nimmt hatchling alles, was unter Versionskontrolle
+# steht. Gemessen am 08.09.2026: 1318 Dateien, 1,2 MB -- darunter `.claude/`
+# (Werkzeugkonfiguration), `.github/`, `uv.lock` und die 1,3 MB grosse
+# Spezifikation, die nur zum Regenerieren gebraucht wird.
+
+def _sdist_abschnitt() -> dict:
+    text = (WURZEL / "pyproject.toml").read_text(encoding="utf-8")
+    return tomllib.loads(text)["tool"]["hatch"]["build"]["targets"]["sdist"]
+
+
+def test_das_quellpaket_zaehlt_auf_was_es_mitnimmt():
+    """Eine Positivliste, keine Ausschlussliste.
+
+    Eine Ausschlussliste veraltet bei jedem neuen Ordner: was dazukommt, ist
+    ausgeliefert, bis jemand daran denkt. Eine Einschlussliste ist die
+    Definition und kann nicht unvollstaendig werden -- sie kann nur zu wenig
+    mitnehmen, und das faellt beim ersten Installieren auf.
+    """
+    abschnitt = _sdist_abschnitt()
+    assert "include" in abschnitt, (
+        "ohne `include` nimmt hatchling alles, was git kennt")
+    assert "exclude" not in abschnitt, (
+        "eine Ausschlussliste veraltet mit jedem neuen Ordner")
+
+
+def test_das_quellpaket_traegt_das_paket_und_seine_lizenz():
+    """Das Minimum, ohne das die Auslieferung falsch waere."""
+    include = _sdist_abschnitt()["include"]
+    for pflicht in ("src/edusharing", "LICENSE", "README.md", "pyproject.toml"):
+        assert any(e.rstrip("/") == pflicht for e in include), f"{pflicht} fehlt"
+
+
+def test_jeder_genannte_pfad_existiert():
+    """Ein Eintrag, der ins Leere zeigt, nimmt still nichts mit -- und ein
+    leeres Quellpaket faellt erst dem auf, der es installiert."""
+    fehlend = [e for e in _sdist_abschnitt()["include"]
+               if not (WURZEL / e.rstrip("/")).exists()]
+    assert not fehlend, f"im include, aber nicht im Baum: {fehlend}"
+
+
+def test_die_suite_gehoert_nicht_ins_quellpaket():
+    """Sie prueft das *Repositorium*, nicht das Paket.
+
+    ``test_docs_*`` liest ``docs/`` und die READMEs, ``test_dependencies``
+    liest ``uv.lock`` und die Spezifikation, ``test_no_secrets`` durchsucht
+    ``.github/`` und ``.claude/``. Fehlen die, laufen die Wachen nicht rot --
+    ``rglob`` auf einem Ordner, den es nicht gibt, liefert einfach nichts.
+    Eine Suite, die im Quellpaket aus dem falschen Grund gruen ist, verspricht
+    eine Pruefbarkeit, die es dort nicht gibt.
+    """
+    include = _sdist_abschnitt()["include"]
+    assert not any(e.rstrip("/") == "tests" for e in include)

@@ -36,6 +36,41 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/edusharing"]
 
+# The source distribution names what it carries. Without this section hatchling
+# takes everything under version control -- measured 2026-09-08: 1318 files and
+# 1.2 MB, among them `.claude/`, `.github/`, `uv.lock` and the 1.3 MB
+# specification (audit OPS-5).
+#
+# A positive list, not an exclude list. An exclude list ages with every new
+# directory: whatever is added ships until someone remembers it. This one is
+# the definition -- it cannot become incomplete, only too small, and that
+# shows on the first install.
+#
+# `.env` is not here, and with a positive list that no longer depends on
+# hatchling reading `.gitignore` -- which is what kept it out until now.
+#
+# What is deliberately left out:
+#   tests/    checks the *repository*, not the package -- the documents,
+#             `uv.lock`, `.github/`. Without those its guards do not go red,
+#             they go quiet: `rglob` over a directory that is not there returns
+#             nothing. Shipping them would promise a check that is not
+#             happening.
+#   openapi/  1.3 MB, needed only to regenerate. The hash in
+#             `_generated/GENERATED.md` is what ties the generated layer to it;
+#             whoever verifies that clones the repository.
+#   docs/     read on GitHub, and linked from the README as such.
+#   .github/, .claude/, scripts/, uv.lock  the development environment.
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/edusharing",
+    "pyproject.toml",
+    "LICENSE",
+    "README.md",
+    "README.de.md",
+    "CHANGELOG.md",
+    "SECURITY.md",
+]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
