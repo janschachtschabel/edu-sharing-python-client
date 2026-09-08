@@ -39,8 +39,13 @@ Exit-Code. Live nur auf der Staging, nur in selbst angelegten Wegwerf-Ordnern.
   `build_collection` bekam den Schlüssel) und COR-3 (`comments.add` merkt
   sich die ids, `workflow.submit` die Länge des Verlaufs -- je eine Anfrage
   mehr, dafür ein `SilentDropError`, auf den Verlass ist).
-- [ ] **10 · TST-1 / MNT-2 + COR-4** Der Spiegel wird auf Verhalten geprüft und
+- [x] **10 · TST-1 / MNT-2 + COR-4** Der Spiegel wird auf Verhalten geprüft und
   bekommt echte Rückgabetypen; der Schleifen-Thread wird auch bei gescheiterter
   Konstruktion geschlossen.
+  Getan in zwei Commits: COR-4 (asynchrone Seite zuerst, `weakref.finalize`,
+  `close()` wirft nicht mehr über eine Schleife, die stehen bleibt) und TST-1
+  (der Wächter ruft vierzehn Spiegelpaare wirklich auf, samt Gegenbeweis).
+  Offen aus MNT-2: die 67 `Any`-Annotationen der Spiegel -- die Wache deckt
+  jetzt das Verhalten ab, die Typen bleiben für Phase 3.
 - [ ] **11 · DEP-2 / DEP-1 / OPS-1** Regenerierung gepinnt und mit Herkunft
   vermerkt, Phantom-Abhängigkeiten weg, CI mit `--locked`.

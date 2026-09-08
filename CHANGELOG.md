@@ -58,6 +58,13 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Fixed
 
+- **The mirror guard calls instead of comparing signatures** (audit TST-1).
+  `tests/test_sync_surface.py` exists because a forgotten pass-through
+  silently returns a coroutine, but its completeness check compared signatures
+  only -- seven pass-throughs had never been executed. It now walks fourteen
+  (async, blocking) pairs, calls every mirror method for real, and reports
+  anything it cannot reach. A deliberately forgetful mirror is fed to it as
+  proof that it finds one.
 - **The background loop thread lives and dies with the connection**
   (audit COR-4, ARC-4). `Repository(...)` started the thread before checking
   its arguments, so every failed construction left a live `edusharing-loop`

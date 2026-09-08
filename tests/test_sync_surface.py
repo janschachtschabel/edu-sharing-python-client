@@ -784,3 +784,153 @@ def test_close_haengt_nicht_an_einer_schleife_die_nicht_stehen_bleibt():
         schleife._thread.join(timeout=5)
         if not schleife._loop.is_closed():
             schleife._loop.close()
+
+
+# --- TST-1: der Waechter ruft, statt Signaturen zu vergleichen ------------
+
+
+@pytest.fixture
+def unversehrt():
+    """Der Waechter ruft auch schreibende Methoden. Der Modulzustand geht
+    danach zurueck auf den Stand von vorher, damit die Reihenfolge der Tests
+    nichts bedeutet."""
+    stand = (dict(_PROPS), list(_ACL), list(_COMMENTS), list(_WORKFLOW),
+             list(_SUGGESTIONS))
+    yield
+    for gehalten, gesichert in zip(
+            (_PROPS, _ACL, _COMMENTS, _WORKFLOW, _SUGGESTIONS), stand, strict=True):
+        gehalten.clear()
+        if isinstance(gehalten, dict):
+            gehalten.update(gesichert)
+        else:
+            gehalten.extend(gesichert)
+
+
+#: Werte, mit denen der Waechter eine Methode ueberhaupt rufen kann. Sie
+#: muessen nichts Sinnvolles bewirken -- gefragt ist allein, ob eine Coroutine
+#: zurueckkommt. Nach Parametername, sonst nach Annotation.
+_ARGUMENT = {
+    "node_id": NID, "collection_id": "coll-1", "comment_id": "c-1",
+    "suggestion_id": "s-1", "parent_id": "parent", "parent": "parent",
+    "group": "GROUP_x", "authority": "alice", "user": "alice",
+    "receiver": "GROUP_x", "status": "100_tocheck", "prop": "ccm:taxonid",
+    "property": "ccm:taxonid", "text": "Probe", "title": "Probe",
+    "name": "probe.txt", "query": "Probe", "value": "Probe",
+    "node_ids": [NID], "ids": ["s-1"], "path": "/_about", "method": "GET",
+    "url": f"{REPO}/eduservlet/download?node={NID}", "data": b"x",
+    "mimetype": "text/plain", "variant": "v-1", "variant_id": "v-1",
+    "keywords": ["Probe"], "relation": "isPartOf", "other_id": NID,
+    "field": "subject", "role": "Consumer", "permission": "Consumer",
+    "filename": "probe.txt", "from_node": NID, "to_node": "reihe-1",
+    "relation_type": "isPartOf", "reason": "Weil",
+}
+
+#: Was der Waechter nicht ruft, und warum. ``aclose`` ist der asynchrone
+#: Abschluss; blockierend heisst er ``close`` und ist eigens geprueft.
+_OHNE_SPIEGEL = {"Repository.aclose", "Transport.aclose"}
+
+
+def _argumente(fn):
+    """Die Pflichtparameter einer Methode, mit Werten belegt -- oder ``None``,
+    wenn der Waechter einen davon nicht bedienen kann."""
+    werte = []
+    for name, p in inspect.signature(fn).parameters.items():
+        if name == "self" or p.kind is inspect.Parameter.VAR_KEYWORD:
+            continue
+        if p.kind is inspect.Parameter.VAR_POSITIONAL or p.default is not p.empty:
+            continue
+        if name in _ARGUMENT:
+            werte.append(_ARGUMENT[name])
+            continue
+        return None
+    return werte
+
+
+def _paare(repo):
+    """Jedes (asynchrones Objekt, sein blockierendes Spiegelbild)."""
+    knoten = repo.node(NID)
+    return [
+        ("Repository", repo._async, repo),
+        ("Flows", repo._async.flows, repo.flows),
+        ("Skills", repo._async.skills, repo.skills),
+        ("People", repo._async.people, repo.people),
+        ("Transport", repo._async.raw, repo.raw),
+        ("Node", knoten._node, knoten),
+        ("NodeContent", knoten._node.content, knoten.content),
+        ("ChildObjects", knoten._node.children, knoten.children),
+        ("Relations", repo._async.relations, repo.relations),
+        ("Comments", knoten._node.comments, knoten.comments),
+        ("Workflow", knoten._node.workflow, knoten.workflow),
+        ("Suggestions", knoten._node.suggestions, knoten.suggestions),
+        ("NodePage", knoten._node.page, knoten.page),
+        ("NodePermissions", knoten._node.permissions, knoten.permissions),
+    ]
+
+
+def _pruefe(paare):
+    """Ruft jedes Spiegelbild und meldet, was zurueckkam.
+
+    Dass ein Aufruf scheitert, ist erlaubt: gefragt ist allein, ob eine
+    Coroutine zurueckkommt -- eine Coroutine wirft nicht, sie kommt zurueck.
+    """
+    coroutinen, unerreichbar, gerufen = [], [], 0
+    for klasse, asynchron, spiegel in paare:
+        for name, fn in inspect.getmembers(type(asynchron), inspect.isfunction):
+            if name.startswith("_") or not inspect.iscoroutinefunction(fn):
+                continue
+            if f"{klasse}.{name}" in _OHNE_SPIEGEL:
+                continue
+            methode = getattr(spiegel, name, None)
+            if methode is None:
+                unerreichbar.append(f"{klasse}.{name}: kein Spiegelbild")
+                continue
+            werte = _argumente(fn)
+            if werte is None:
+                unerreichbar.append(f"{klasse}.{name}: kein Argument bekannt")
+                continue
+            try:
+                ergebnis = methode(*werte)
+            except Exception:
+                gerufen += 1
+                continue
+            gerufen += 1
+            if inspect.iscoroutine(ergebnis):
+                ergebnis.close()
+                coroutinen.append(f"{klasse}.{name}")
+    return coroutinen, unerreichbar, gerufen
+
+
+def test_jede_blockierende_methode_liefert_ein_ergebnis(repo, unversehrt):
+    """Der Kern dieser Datei, endlich als Wache.
+
+    Bisher verglich die Vollstaendigkeitspruefung nur Signaturen -- ein
+    Spiegelbild, das ``self._loop.run(...)`` vergisst, kam durch, und sieben
+    Durchgriffe waren nie ausgefuehrt worden (Audit TST-1). Jetzt wird jeder
+    gerufen.
+    """
+    coroutinen, unerreichbar, gerufen = _pruefe(_paare(repo))
+    assert not coroutinen, (
+        "diese blockierenden Methoden geben eine Coroutine zurueck -- der "
+        "Durchgriff fehlt: " + ", ".join(coroutinen))
+    assert not unerreichbar, (
+        "der Waechter kommt an diese Methoden nicht heran; entweder fehlt das "
+        "Spiegelbild oder _ARGUMENT braucht einen Eintrag: "
+        + ", ".join(unerreichbar))
+    assert gerufen >= 60, f"nur {gerufen} Methoden gerufen -- die Wache greift ins Leere"
+
+
+def test_der_waechter_faengt_einen_vergessenen_durchgriff(repo, unversehrt):
+    """Eine Wache, die nichts findet, ist gruen und wertlos. Hier bekommt sie
+    genau den Fehler vorgelegt, gegen den diese Datei geschrieben ist."""
+    class Vergesslich:
+        """Ein Spiegelbild, das ``self._loop.run(...)`` vergisst."""
+
+        def __init__(self, echt):
+            self._echt = echt
+
+        def list(self):
+            return self._echt.list()
+
+    echte = repo.node(NID)._node.comments
+    coroutinen, _, _ = _pruefe([("Comments", echte, Vergesslich(echte))])
+    assert coroutinen == ["Comments.list"]
