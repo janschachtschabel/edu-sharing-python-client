@@ -1310,6 +1310,11 @@ Not needed for ordinary use; documented because they are importable.
 | `path_segment(value)` | `str` — percent-encodes an identifier, `/` included |
 | `is_unroutable_host(host)` | `bool` — loopback, link-local, private ranges |
 | `error_class_for(status, error_class=…, message=…)` | `type` — which error type a status stands for |
+| `first(value)` | `str \| None` — the first value of a property; `[]` gives `None` |
+| `node_id_of(raw)` | `str` — the id from a record's `ref`, `""` when there is none |
+| `bare_id(ref)` | `str` — a node id without its `workspace://SpacesStore/` prefix |
+| `render_url(repository_url, node_id)` | `str` — the viewer URL, `""` for an empty id |
+| `page_total(response, default=0)` | `int` — `pagination.total` from a listing |
 | `Transport` | the HTTP layer: retries, backoff, the credential boundary |
 | `Transport.is_repository_url(url)` | `bool` |
 | `RetryPolicy(max_retries=…, backoff_base=…, max_retry_after=…)` | the one retry rule the three clients share |
@@ -1327,6 +1332,14 @@ A `Retry-After` outranks that curve and is never undercut. What each client
 still decides for itself is *which* failure earns another attempt: the
 transport by error type, because an edu-sharing 500 can mean "not signed in",
 the sibling services by `RETRYABLE_STATUS`.
+
+**One reading of a node record.** The five functions above are
+`edusharing.dto`, and every object of this library is built from a raw record
+through them. They used to be copied: four different title chains, three
+`_first` (one answering `""` where the others answered `None`), two `bare_id`,
+the viewer URL built at five places, the reference id read at twelve. The same
+record could therefore show a different title depending on which object it
+arrived as (audit MNT-1).
 
 **`path_segment` is the single place identifiers are encoded** (decision E8). It
 encodes `/` too, so it cannot be applied to a multi-segment route — those are

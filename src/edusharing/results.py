@@ -11,6 +11,8 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
+from .dto import first, node_id_of, render_url
+
 __all__ = ["SearchHit", "FacetValue", "Facet", "UnresolvedFilter", "SearchResult"]
 
 
@@ -52,12 +54,12 @@ class SearchHit:
     @property
     def license(self) -> str | None:
         """The licence key as stored, e.g. ``CC_BY``."""
-        return _first(self.properties().get("ccm:commonlicense_key"))
+        return first(self.properties().get("ccm:commonlicense_key"))
 
     @property
     def size(self) -> int | None:
         """Size in bytes, where the repository reports it."""
-        value = _first(self.properties().get("cclom:size"))
+        value = first(self.properties().get("cclom:size"))
         return int(value) if value and str(value).isdigit() else None
 
     def labels(self, prop: str) -> list[str]:
@@ -70,15 +72,15 @@ class SearchHit:
 
     @classmethod
     def from_node(cls, node: dict[str, Any], repository_url: str) -> SearchHit:
-        node_id = (node.get("ref") or {}).get("id") or ""
+        node_id = node_id_of(node)
         props = node.get("properties") or {}
         return cls(
             id=node_id,
-            title=node.get("title") or _first(props.get("cm:name")) or "",
-            url=f"{repository_url}/components/render/{node_id}",
-            description=_first(props.get("cclom:general_description"))
-            or _first(props.get("cm:description")),
-            source_url=_first(props.get("ccm:wwwurl")),
+            title=node.get("title") or first(props.get("cm:name")) or "",
+            url=render_url(repository_url, node_id),
+            description=first(props.get("cclom:general_description"))
+            or first(props.get("cm:description")),
+            source_url=first(props.get("ccm:wwwurl")),
             mimetype=node.get("mimetype"),
             mediatype=node.get("mediatype"),
             raw=node,
@@ -106,8 +108,8 @@ def original_id_of(node: dict[str, Any]) -> str | None:
     dto = node.get("originalId")
     if dto:
         return str(dto)
-    node_id = (node.get("ref") or {}).get("id") or ""
-    prop = _first((node.get("properties") or {}).get("ccm:original"))
+    node_id = node_id_of(node)
+    prop = first((node.get("properties") or {}).get("ccm:original"))
     return prop if prop and prop != node_id else None
 
 
@@ -186,13 +188,6 @@ class SearchResult:
 
     def __iter__(self) -> Iterator[SearchHit]:
         return iter(self.hits)
-
-
-def _first(value: Any) -> str | None:
-    """edu-sharing always returns property values as lists, even single ones."""
-    if isinstance(value, list):
-        return str(value[0]) if value else None
-    return str(value) if value else None
 
 
 def preview_url_of(node: dict[str, Any]) -> str | None:

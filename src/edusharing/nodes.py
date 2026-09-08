@@ -16,6 +16,7 @@ from . import nodes_write, placement, ratings
 from .childobjects import ChildObjects
 from .comments import Comments
 from .content import NodeContent
+from .dto import node_id_of, render_url
 from .errors import ValidationError
 from .nodes_write import KEYWORD_PROPERTY, WRITE_FIELD_ALIASES, as_list
 from .pages import NodePage
@@ -50,7 +51,7 @@ class Node:
 
     @property
     def id(self) -> str:
-        return (self._data.get("ref") or {}).get("id") or ""
+        return node_id_of(self._data)
 
     @property
     def name(self) -> str:
@@ -67,7 +68,7 @@ class Node:
     @property
     def url(self) -> str:
         """The viewer URL -- what you hand on to someone."""
-        return f"{self._nodes.repository_url}/components/render/{self.id}"
+        return render_url(self._nodes.repository_url, self.id)
 
     @property
     def access(self) -> list[str]:

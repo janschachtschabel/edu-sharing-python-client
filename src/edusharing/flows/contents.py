@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 from ..childobjects import ORDER_PROPERTY
+from ..dto import page_total, render_url
 from ..results import SearchHit
 from ..urls import path_segment
 from .serialize import hit_as_dict
@@ -99,12 +100,11 @@ async def collection_contents(
         for node in (collections_response.get("collections") or [])
     ]
 
-    pagination = nodes_response.get("pagination") or {}
     return {
         "id": collection_id,
         "materials": materials,
         "collections": children,
-        "total_materials": int(pagination.get("total") or 0),
+        "total_materials": page_total(nodes_response),
         "returned_materials": len(materials),
     }
 
@@ -144,7 +144,7 @@ async def relations(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
             "type": relation.type,
             "id": other_id,
             "title": other_title,
-            "url": f"{repo.url}/components/render/{other_id}" if other_id else "",
+            "url": render_url(repo.url, other_id),
             "ai_generated": relation.ai_generated,
             "approved": relation.approved,
         })

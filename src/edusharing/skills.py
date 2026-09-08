@@ -35,6 +35,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from .content import MAX_TEXT_BYTES, decode_text, is_text_like
+from .dto import first, node_id_of, page_total, render_url
 from .errors import ContentTooLargeError, NotFoundError, PermissionDeniedError
 from .flows.fields import carries, resolve_vocabulary
 from .flows.ranking import query_terms, term_matches
@@ -303,15 +304,15 @@ class Skills:
 
     def _summary(self, raw: dict[str, Any]) -> SkillSummary:
         props = raw.get("properties") or {}
-        node_id = (raw.get("ref") or {}).get("id") or ""
+        node_id = node_id_of(raw)
         return SkillSummary(
             id=node_id,
             original_id=original_id_of(raw) or node_id,
-            title=(raw.get("title") or _first(props.get("cclom:title"))
-                   or _first(props.get("cm:name")) or ""),
-            description=_first(props.get("cclom:general_description")) or "",
+            title=(raw.get("title") or first(props.get("cclom:title"))
+                   or first(props.get("cm:name")) or ""),
+            description=first(props.get("cclom:general_description")) or "",
             keywords=[str(k) for k in (props.get("cclom:general_keyword") or [])],
-            url=f"{self._repo.url}/components/render/{node_id}",
+            url=render_url(self._repo.url, node_id),
             download_url=raw.get("downloadUrl") or None,
         )
 
@@ -398,7 +399,7 @@ class Skills:
                     "propertyFilter": ["-all-", conventions.type_property]},
         )
         nodes = list(listing.get("nodes") or [])
-        return nodes, int((listing.get("pagination") or {}).get("total") or 0) > _PAGE
+        return nodes, page_total(listing) > _PAGE
 
     async def _subs_of(self, collection_id: str) -> tuple[list[str], bool]:
         """The ids of a collection's sub-collections, and whether there were more."""
@@ -408,8 +409,8 @@ class Skills:
             params={"maxItems": _PAGE},
         )
         ids = [sid for sub in subs.get("collections") or []
-               if (sid := (sub.get("ref") or {}).get("id"))]
-        return ids, int((subs.get("pagination") or {}).get("total") or 0) > _PAGE
+               if (sid := node_id_of(sub))]
+        return ids, page_total(subs) > _PAGE
 
 
 def _enqueue(subs: list[str], visited: set[str], next_level: list[str]) -> bool:
@@ -439,12 +440,6 @@ async def _instruction(node: Node) -> tuple[str | None, str]:
         return decode_text(await node.content.download(max_bytes=MAX_TEXT_BYTES)), ""
     except ContentTooLargeError:
         return None, "too_large"
-
-
-def _first(value: Any) -> str | None:
-    if isinstance(value, list):
-        return str(value[0]) if value else None
-    return str(value) if value else None
 
 
 def _is(raw: dict[str, Any], prop: str, value: str) -> bool:

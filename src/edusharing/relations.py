@@ -23,6 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from .dto import node_id_of
 from .errors import SilentDropError, ValidationError
 from .transport import Transport
 from .urls import path_segment
@@ -92,8 +93,8 @@ class Relation:
         creator = data.get("createdBy") or {}
         return cls(
             type=data.get("type") or "",
-            from_id=(source.get("ref") or {}).get("id") or "",
-            to_id=(target.get("ref") or {}).get("id") or "",
+            from_id=node_id_of(source),
+            to_id=node_id_of(target),
             from_title=source.get("title") or source.get("name") or "",
             to_title=target.get("title") or target.get("name") or "",
             # The response carries both spellings; they agree, and reading only

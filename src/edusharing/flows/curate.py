@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from ..dto import render_url
 from ..errors import EduSharingError, ValidationError
 from .duplicates import check_before_create, validate_if_exists
 from .fields import name_from_title, resolve_vocabulary
@@ -169,7 +170,7 @@ def _instead_of_creating(
     return {
         "id": existing["id"],
         "title": existing["title"],
-        "url": f"{repo.url}/components/render/{existing['id']}",
+        "url": render_url(repo.url, existing["id"]),
         "parent_id": None, "name": None, "collection": None,
         "public": None, "unresolved": [],
         "existing": existing, "created": False, "warnings": warnings,

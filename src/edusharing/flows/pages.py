@@ -40,6 +40,7 @@ import asyncio
 import json
 from typing import TYPE_CHECKING, Any
 
+from ..dto import bare_id
 from ..errors import EduSharingError
 from ..pages import PAGE_REF, CuratedPage, PageVariant
 from ..results import SearchResult
@@ -177,7 +178,7 @@ def pages_among(found: SearchResult, text: str) -> dict[str, Any]:
     checked = [hit for hit in found.hits if hit.properties()]
     hits = [
         {"id": hit.id, "title": hit.title, "url": hit.url,
-         "folder_id": _bare(hit.properties()[PAGE_REF][0])}
+         "folder_id": bare_id(hit.properties()[PAGE_REF][0])}
         for hit in checked
         if hit.properties().get(PAGE_REF)
     ]
@@ -196,10 +197,6 @@ def pages_among(found: SearchResult, text: str) -> dict[str, Any]:
 
 
 # --- Internals ------------------------------------------------------------
-
-
-def _bare(ref: str) -> str:
-    return ref.rsplit("/", 1)[-1] if ref else ""
 
 
 def _variant(variant: PageVariant) -> dict[str, Any]:
@@ -289,7 +286,7 @@ def _widget(raw: str | None) -> dict[str, Any]:
         out["description"] = doc["description"]
     listed = doc.get("sortedNodeIds")
     if isinstance(listed, list):
-        out["node_ids"] = [_bare(str(i)) for i in listed if i]
+        out["node_ids"] = [bare_id(str(i)) for i in listed if i]
     if "searchText" in doc or "propertyFilters" in doc:
         filters = doc.get("propertyFilters")
         out["search"] = {

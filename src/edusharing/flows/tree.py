@@ -24,6 +24,7 @@ import asyncio
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
+from ..dto import node_id_of, page_total
 from ..errors import EduSharingError
 from ..urls import path_segment
 from .contents import collection_contents
@@ -127,12 +128,12 @@ async def walk_collections(
             params={"maxItems": max_collections},
         )
         found = response.get("collections") or []
-        if int((response.get("pagination") or {}).get("total") or 0) > len(found):
+        if page_total(response) > len(found):
             # More than one page lists: the rest is neither read nor followed.
             state["truncated"] = True
         children = []
         for data in found:
-            child_id = (data.get("ref") or {}).get("id") or ""
+            child_id = node_id_of(data)
             if not child_id or child_id in seen:
                 # A graph, not a tree: the same collection can be reached
                 # twice, and following it again would either repeat work or

@@ -24,6 +24,13 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Changed
 
+- **One reading of a node record** (audit MNT-1). The new `edusharing.dto`
+  holds `first`, `node_id_of`, `bare_id`, `render_url` and `page_total`; the
+  four objects that build themselves from a raw record now go through it.
+  Before, `_first` existed three times (one answering `""` where the others
+  answered `None`), `bare_id` twice, the viewer URL was built at five places
+  and the reference id read at twelve. Visible change: a viewer URL for a
+  record without an id is now `""` rather than an address ending in a slash.
 - **One retry rule for the three clients** (audit ARC-2). The new
   `RetryPolicy` holds budget, backoff and `Retry-After` for the transport, the
   extraction service and the b-api; `RETRYABLE_STATUS` is the one status set.

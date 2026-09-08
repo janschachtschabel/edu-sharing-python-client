@@ -310,6 +310,12 @@ lockstep — or `None` when the server asked for longer than this client waits.
 `RETRYABLE_STATUS` is the status set the two sibling services retry, and
 `parse_retry_after(value)` reads the header in either form RFC 9110 allows.
 
+`edusharing.dto` is the one reading of a raw node record — `first(value)`
+(the first value of a property, `None` for an empty list), `node_id_of(raw)`,
+`bare_id(ref)`, `render_url(repository_url, node_id)` and
+`page_total(response, default=…)`. Every object of this library is built
+through them, so the same record always reads the same way.
+
 `at_least(name, value, limit)` is the bounds check the clients apply to their settings;
 `details_withheld(…)` names what an error deliberately does not reveal.
 

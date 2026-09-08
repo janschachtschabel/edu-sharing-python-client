@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from .content import MAX_TEXT_BYTES, decode_text
+from .dto import first, node_id_of, page_total
 from .errors import ContentTooLargeError, NotFoundError, PermissionDeniedError
 from .nodes import Node
 from .skills import WLO_SKILLS, SkillConventions, registry_mark
@@ -126,7 +127,7 @@ async def load_registry(
         return SkillRegistry(collection_id, reason="unreadable")
 
     nodes = list(listing.get("nodes") or [])
-    total = int((listing.get("pagination") or {}).get("total") or len(nodes))
+    total = page_total(listing, default=len(nodes))
     scan_truncated = (len(nodes), total) if total > len(nodes) else None
     candidates = [n for n in nodes if _is_registry_candidate(n, conventions)]
     if not candidates:
@@ -136,8 +137,8 @@ async def load_registry(
     pool = marked or candidates
     # The smallest id: the same collection must resolve to the same registry
     # on every call, whatever order the repository listed the children in.
-    chosen = min(pool, key=lambda n: (n.get("ref") or {}).get("id") or "")
-    registry_id = (chosen.get("ref") or {}).get("id") or ""
+    chosen = min(pool, key=node_id_of)
+    registry_id = node_id_of(chosen)
     base = SkillRegistry(
         collection_id, registry_id=registry_id, registry_title=_title(chosen),
         ambiguous=len(candidates) if len(candidates) > 1 else 0,
@@ -174,7 +175,7 @@ async def load_registry(
             # The record wins over the block: the document goes stale, the
             # record is what ``get`` will actually return.
             title=(head or {}).get("title") or block.title,
-            description=_first(props.get("cclom:general_description")),
+            description=first(props.get("cclom:general_description")) or "",
             keywords=[str(k) for k in (props.get("cclom:general_keyword") or [])],
             context=path,
         ))
@@ -247,19 +248,13 @@ def _is_registry_candidate(raw: dict[str, Any], conventions: SkillConventions) -
 
 
 def _name(raw: dict[str, Any]) -> str:
-    return _first((raw.get("properties") or {}).get("cm:name"))
+    return first((raw.get("properties") or {}).get("cm:name")) or ""
 
 
 def _title(raw: dict[str, Any]) -> str:
     props = raw.get("properties") or {}
-    return (raw.get("title") or _first(props.get("cclom:title"))
-            or _first(props.get("cm:title")) or "")
-
-
-def _first(value: Any) -> str:
-    if isinstance(value, list):
-        return str(value[0]) if value else ""
-    return str(value) if value else ""
+    return (raw.get("title") or first(props.get("cclom:title"))
+            or first(props.get("cm:title")) or "")
 
 
 def _with(base: SkillRegistry, **changes: Any) -> SkillRegistry:

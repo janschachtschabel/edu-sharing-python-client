@@ -1333,6 +1333,11 @@ sind.
 | `path_segment(value)` | `str` — prozentkodiert einen Bezeichner, `/` eingeschlossen |
 | `is_unroutable_host(host)` | `bool` — Loopback, Link-Local, private Bereiche |
 | `error_class_for(status, error_class=…, message=…)` | `type` — welcher Fehlertyp zu einem Status gehört |
+| `first(value)` | `str \| None` — der erste Wert einer Eigenschaft; `[]` ergibt `None` |
+| `node_id_of(raw)` | `str` — die id aus dem `ref` eines Datensatzes, `""`, wenn es keine gibt |
+| `bare_id(ref)` | `str` — eine Knoten-id ohne das Präfix `workspace://SpacesStore/` |
+| `render_url(repository_url, node_id)` | `str` — die Ansichts-Adresse, `""` bei leerer id |
+| `page_total(response, default=0)` | `int` — `pagination.total` aus einer Auflistung |
 | `Transport` | die HTTP-Schicht: Wiederholungen, Wartezeiten, Zugangsdaten-Grenze |
 | `Transport.is_repository_url(url)` | `bool` |
 | `RetryPolicy(max_retries=…, backoff_base=…, max_retry_after=…)` | die eine Wiederholungs-Regel der drei Clients |
@@ -1351,6 +1356,14 @@ Kurve und wird nie unterschritten. Was jeder Client weiterhin selbst
 entscheidet, ist, *welcher* Fehlschlag einen weiteren Versuch verdient: der
 Transport nach Fehlertyp, weil ein edu-sharing-500 „nicht angemeldet" heißen
 kann, die Nachbardienste nach `RETRYABLE_STATUS`.
+
+**Ein Knotensatz, einmal gelesen.** Die fünf Funktionen darüber sind
+`edusharing.dto`, und jedes Objekt dieser Bibliothek entsteht über sie aus
+einem rohen Datensatz. Sie waren kopiert: vier verschiedene Titelketten, drei
+`_first` (eines gab `""` zurück, wo die anderen `None` gaben), zwei `bare_id`,
+die Ansichts-Adresse an fünf Stellen gebaut, die Referenz-id an zwölf gelesen.
+Derselbe Datensatz konnte deshalb je nach Objekt einen anderen Titel zeigen
+(Audit MNT-1).
 
 **`path_segment` ist die eine Stelle, an der Bezeichner kodiert werden**
 (Entscheidung E8). Es kodiert auch `/` und kann deshalb nicht auf eine

@@ -35,6 +35,7 @@ import asyncio
 from itertools import zip_longest
 from typing import Any
 
+from .dto import node_id_of
 from .errors import ConflictError, EduSharingError, SilentDropError
 from .nodes import Node, Nodes
 from .results import SearchHit, SearchResult
@@ -164,7 +165,7 @@ class Collections:
         fresh = []
         base = self._transport.repository_url
         for n in nodes:
-            node_id = (n.get("ref") or {}).get("id")
+            node_id = node_id_of(n)
             if not node_id or node_id in seen:
                 continue
             seen.add(node_id)

@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
+from .dto import node_id_of
 from .errors import SilentDropError
 from .urls import path_segment
 
@@ -54,7 +55,7 @@ class Comment:
     def from_response(cls, data: dict[str, Any]) -> Comment:
         created = data.get("created") or 0
         return cls(
-            id=str((data.get("ref") or {}).get("id") or ""),
+            id=node_id_of(data),
             text=str(data.get("comment") or ""),
             author=str((data.get("creator") or {}).get("authorityName") or ""),
             created=datetime.fromtimestamp(int(created) / 1000, tz=UTC),

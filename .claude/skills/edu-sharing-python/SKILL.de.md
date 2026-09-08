@@ -326,6 +326,12 @@ Statussatz, den die beiden Nachbardienste erneut versuchen, und
 `parse_retry_after(value)` liest den Kopf in beiden Schreibweisen, die
 RFC 9110 erlaubt.
 
+`edusharing.dto` ist die eine Lesart eines rohen Knotensatzes —
+`first(value)` (der erste Wert einer Eigenschaft, `None` bei leerer Liste),
+`node_id_of(raw)`, `bare_id(ref)`, `render_url(repository_url, node_id)` und
+`page_total(response, default=…)`. Jedes Objekt dieser Bibliothek entsteht
+über sie, damit derselbe Datensatz sich immer gleich liest.
+
 `at_least(name, value, limit)` ist die Grenzprüfung, die die Clients auf ihre Einstellungen anwenden;
 `details_withheld(…)` benennt, was ein Fehler bewusst nicht preisgibt.
 

@@ -56,6 +56,7 @@ import json
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from .dto import bare_id
 from .errors import ConflictError, SilentDropError
 from .urls import path_segment
 
@@ -84,16 +85,6 @@ _INTENTION = "virtual:profiling_widget_intention"
 _LEVELS = "virtual:profiling_widget_education_level"
 
 _STORE = "workspace://SpacesStore/"
-
-
-def _bare(ref: str) -> str:
-    """A node id without its store prefix.
-
-    The page builder writes full store refs (``workspace://SpacesStore/<uuid>``)
-    everywhere; every REST route in this library takes the bare id. Measured
-    28/28 documents store the ref form, so this is the rule, not a fallback.
-    """
-    return ref.rsplit("/", 1)[-1] if ref else ""
 
 
 def _as_ref(node_id: str) -> str:
@@ -188,7 +179,7 @@ def _lanes(raw: str) -> tuple[tuple[Swimlane, ...], dict[str, Any]]:
         items = tuple(
             SwimlaneItem(
                 widget=str(cell.get("item") or ""),
-                node_id=_bare(str(cell.get("nodeId"))) if cell.get("nodeId") else None,
+                node_id=bare_id(str(cell.get("nodeId"))) if cell.get("nodeId") else None,
             )
             for cell in _list(lane.get("grid"))
             if isinstance(cell, dict) and (cell.get("item") or cell.get("nodeId"))
@@ -272,7 +263,7 @@ class CuratedPage:
         return not self.rendered_id
 
     def variant(self, variant_id: str) -> PageVariant | None:
-        return next((v for v in self.variants if v.id == _bare(variant_id)), None)
+        return next((v for v in self.variants if v.id == bare_id(variant_id)), None)
 
     def __repr__(self) -> str:
         return (f"CuratedPage({self.collection_id!r}, {len(self.variants)} variants, "
@@ -301,7 +292,7 @@ class NodePage:
         ref = self._node.get(PAGE_REF)
         if not ref:
             return None
-        return await self._read(_bare(ref))
+        return await self._read(bare_id(ref))
 
     async def render(self, variant_id: str) -> CuratedPage:
         """Make ``variant_id`` the one this page renders.
@@ -329,7 +320,7 @@ class NodePage:
                 f"{self._node.id!r} carries no {PAGE_REF} and therefore has no "
                 "variants to choose between."
             )
-        wanted = _bare(variant_id)
+        wanted = bare_id(variant_id)
         if page.variant(wanted) is None:
             known = ", ".join(v.id for v in page.variants) or "none"
             raise ValueError(
@@ -402,9 +393,9 @@ def _parse_config(raw: str | None) -> tuple[list[str], str]:
         return [], ""
     if not isinstance(doc, dict):
         return [], ""
-    order = [_bare(v) for v in _list(doc.get("variants")) if isinstance(v, str)]
+    order = [bare_id(v) for v in _list(doc.get("variants")) if isinstance(v, str)]
     default = doc.get("default")
-    return order, _bare(default) if isinstance(default, str) else ""
+    return order, bare_id(default) if isinstance(default, str) else ""
 
 
 def _ordered(variants: list[PageVariant], order: list[str],
@@ -447,7 +438,7 @@ def _with_default(raw: str | None, variant_id: str) -> str:
             f"The stored {PAGE_CONFIG} holds no variants list -- there is "
             "nothing a default could point into."
         )
-    if not any(_bare(v) == variant_id for v in listed):
+    if not any(bare_id(v) == variant_id for v in listed):
         raise ConflictError(
             f"{variant_id!r} is not listed in variants[] of this document. A "
             "default outside that list renders nothing."
