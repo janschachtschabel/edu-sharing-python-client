@@ -1,0 +1,13 @@
+# Line endings are part of a file's bytes, and this repository hashes some of
+# them: `_generated/GENERATED.md` records the SHA-256 of `openapi/…json` so a
+# later regeneration can be read as a spec change or a generator change.
+#
+# Without this file, a checkout on Windows converted every text file to CRLF
+# while the index holds LF, so the same committed spec hashed differently there
+# than on Linux -- measured 2026-09-08, the first Windows CI run failed on
+# exactly that (audit OPS-4).
+#
+# LF everywhere, in the index and in every working tree. Every file in this
+# repository is text; git's own inspection lists none as binary, so `text=auto`
+# has nothing to misjudge.
+* text=auto eol=lf
