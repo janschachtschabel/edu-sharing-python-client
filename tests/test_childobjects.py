@@ -400,3 +400,33 @@ async def test_die_position_zaehlt_jedes_kind_nicht_nur_die_serienobjekte():
     angelegt = next(r for r in instanz.anfragen
                     if r.method == "POST" and r.url.path.rstrip("/").endswith("/children"))
     assert json.loads(angelegt.content)["ccm:childobject_order"] == ["2"]
+
+
+async def test_ohne_gesamtzahl_zaehlt_das_anlegen_trotzdem_richtig():
+    """Der Rueckfall von ``_count``, und der teure Fall dieser Aenderung.
+
+    ``page_total`` liefert ohne ``pagination`` die Vorgabe -- das war 0, also
+    bekam **jeder** Anhang die Position 0 und alle konkurrierten um dieselbe
+    Stelle (Pruefung 08.09.2026). Genau diesen Server gibt es: ``list()``
+    toleriert ihn ausdruecklich, und ``dto.page_total`` nennt ``ngsearch`` mit
+    ``pagination: null``.
+
+    Zaehlt niemand, wird gezaehlt wie vorher -- eine volle Auflistung ist
+    teurer als eine Seite, aber eine falsche Position kostet die Reihenfolge.
+    """
+    class OhneZaehlung(Instanz):
+        def __call__(self, request):
+            if request.method == "GET" and request.url.path.endswith("/children"):
+                self.anfragen.append(request)
+                return httpx.Response(200, json={"nodes": self.kinder})
+            return super().__call__(request)
+
+    instanz = OhneZaehlung(kinder=[_kind("a", "a.txt", "0"),
+                                   _kind("b", "b.txt", "1")])
+    async with _repo(instanz) as repo:
+        node = await repo.node(HAUPT)
+        await node.children.add(b"x", filename="c.txt", mimetype="text/plain")
+
+    angelegt = next(r for r in instanz.anfragen
+                    if r.method == "POST" and r.url.path.rstrip("/").endswith("/children"))
+    assert json.loads(angelegt.content)["ccm:childobject_order"] == ["2"]

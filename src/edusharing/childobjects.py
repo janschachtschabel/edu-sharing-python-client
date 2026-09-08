@@ -120,13 +120,25 @@ class ChildObjects:
         carries other children -- which is right: what is promised is *after
         the existing ones*, not *without gaps*. A skipped number costs nothing;
         two attachments on one position cost the order.
+
+        And when nobody counts, the count happens as it used to. Not every
+        response carries a ``pagination`` -- ``list()`` allows for that
+        explicitly -- and the missing total read as **zero**, which put every
+        attachment on position 0 and had them all competing for it (review
+        2026-09-08). A full listing costs more than a page; a wrong position
+        costs the order.
         """
         response = await self._nodes.transport.json(
             "GET",
             f"/node/v1/nodes/-home-/{path_segment(self._node.id)}/children",
-            params={"maxItems": 1, "propertyFilter": "-all-"},
+            # No ``propertyFilter``: one record is fetched for its total, and
+            # none of its properties are read.
+            params={"maxItems": 1},
         )
-        return page_total(response)
+        # -1 rather than 0 as the fallback: a stated ``0`` is an answer -- the
+        # node has no children yet -- and must not trigger the full listing.
+        gesagt = page_total(response, default=-1)
+        return gesagt if gesagt >= 0 else len(await self.list())
 
     async def add(
         self,
