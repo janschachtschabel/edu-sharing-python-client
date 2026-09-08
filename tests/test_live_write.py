@@ -868,3 +868,36 @@ async def test_vorschlag_annehmen_schreibt_den_wert_wirklich(repo, knoten):
     assert "pytest-angenommen" in (await repo.node(knoten.id)).keywords
     offen = [s for s in await knoten.suggestions.list() if s.id == vorschlag.id]
     assert offen and offen[0].status == "ACCEPTED"
+
+
+# --- COR-7: normalisiert die Instanz mehrwertige Eigenschaften? -----------
+
+async def test_die_reihenfolge_mehrwertiger_eigenschaften_bleibt(knoten):
+    """Der Befund COR-7 haengt genau an dieser Frage.
+
+    ``nodes_write.check`` vergleicht Listen **exakt**: gleiche Werte in
+    gleicher Reihenfolge. Sortiert das Repositorium um, trimmt es oder
+    normalisiert es Datumsangaben, dann meldet ein geglueckter Schreibvorgang
+    einen stillen Verlust -- und der Aufrufer glaubt, seine Daten seien fort.
+
+    Absichtlich absteigend geschrieben: eine aufsteigende Liste kaeme auch aus
+    einer Sortierung unveraendert zurueck und bewiese nichts.
+    """
+    absteigend = ["Zebra", "Mitte", "Anfang"]
+    neu = await knoten.update(properties={"cclom:general_keyword": absteigend})
+    assert neu.get_all("cclom:general_keyword") == absteigend, (
+        "die Instanz sortiert mehrwertige Eigenschaften um -- dann ist der "
+        "exakte Vergleich in nodes_write.check zu streng (Audit COR-7)")
+
+
+async def test_umgebende_leerzeichen_bleiben_stehen(knoten):
+    """Die zweite Haelfte derselben Frage: trimmt die Instanz?
+
+    Die Bibliothek schreibt Schlagworte seit COR-8 selbst gestrippt; hier geht
+    es um den direkten Weg ueber ``update``, der den Wert nimmt, wie er kommt.
+    """
+    neu = await knoten.update(properties={"cclom:general_keyword": [" Rand "]})
+    gelesen = neu.get_all("cclom:general_keyword")
+    assert gelesen == [" Rand "], (
+        f"die Instanz veraendert den Wert: {gelesen!r} -- dann ist der exakte "
+        "Vergleich zu streng (Audit COR-7)")

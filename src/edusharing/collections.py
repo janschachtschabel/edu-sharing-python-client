@@ -347,7 +347,15 @@ class Collections:
         missing = []
         if title is not None and stored.title != title:
             missing.append("cm:title")
-        if description is not None and stored.get("cm:description") != description:
+        # ``or ""``: eine Eigenschaft, die es nach dem Leeren nicht mehr
+        # gibt, liest sich als ``None``, und ``None != ""`` machte aus dem
+        # geglueckten Loeschen einen stillen Verlust. Nachgemessen am
+        # 08.09.2026 (Audit COR-11, dort *needs verification*): der Fehler
+        # tritt nur auf, wenn der Server die Eigenschaft **weglaesst** --
+        # gibt er sie als leere Liste zurueck, stimmte der Vergleich schon.
+        # Beide Formen kommen vor und heissen dasselbe.
+        if description is not None and (
+                stored.get("cm:description") or "") != description:
             missing.append("cm:description")
         if missing:
             raise SilentDropError(

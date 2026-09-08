@@ -101,7 +101,26 @@ def fields_of(
 
 
 def check(node: Node, expected: dict[str, list[str]], *, route: WriteRoute) -> None:
-    """Compare the read-back state of ``node`` against what was written."""
+    """Compare the read-back state of ``node`` against what was written.
+
+    Exactly: same values in the same order. Audit COR-7 asked whether that is
+    too strict -- a repository that reorders a multi-valued property or trims
+    whitespace would turn a successful write into a false ``SilentDropError``,
+    and the finding was filed as *needs verification*.
+
+    Measured against edu-sharing 11.0 (staging) on 2026-09-08: it does
+    neither. ``["Zebra", "Mitte", "Anfang"]`` comes back in that order --
+    written descending on purpose, since an ascending list would survive a
+    sort unchanged and prove nothing -- and ``" Rand "`` keeps its spaces.
+    Both are pinned in ``tests/test_live_write.py``, so an instance that does
+    it differently says so rather than being guessed at. Date normalisation,
+    the third form the finding names, is not measured: nothing here writes a
+    date field.
+
+    So the strictness stays. It is the point of this check: it exists because
+    the repository answers 200 and drops values, and a comparison loose enough
+    to accept a reordering would accept a lost one too.
+    """
     lost = [
         prop for prop, values in expected.items()
         if node.get_all(prop) != values

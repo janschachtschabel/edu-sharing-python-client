@@ -21,7 +21,7 @@ import httpx
 import pytest
 
 from edusharing.collections import Collections
-from edusharing.errors import EduSharingError
+from edusharing.errors import EduSharingError, SilentDropError
 from edusharing.transport import Transport
 
 REPO = "https://repositorium.example.test/edu-sharing"
@@ -388,3 +388,73 @@ async def test_eine_absage_der_instanz_bleibt_eine_teilantwort():
     halbes Ergebnis mit Vermerk -- das ist der Sinn der Aufteilung."""
     e = await _collections(_router(b=404)).find("Optik")
     assert e.hits and e.warnings
+
+
+# --- COR-11: eine geleerte Beschreibung ----------------------------------
+
+def _aendern_router(gespeichert: dict, weglassen: bool = False):
+    """Eine Instanz, die ``PUT`` annimmt und danach den Knoten zurueckgibt.
+
+    ``weglassen``: die Eigenschaft fehlt danach ganz, statt als leere Liste
+    dazustehen. Beide Formen kommen vor, und beide heissen dasselbe.
+    """
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "PUT":
+            koerper = json.loads(request.content)
+            gespeichert["cm:title"] = koerper["title"]
+            gespeichert["cm:description"] = (
+                koerper.get("collection") or {}).get("description")
+            return httpx.Response(200, content=b"")
+        props = {"cm:title": [gespeichert.get("cm:title") or ""]}
+        beschreibung = gespeichert.get("cm:description")
+        if not (weglassen and not beschreibung):
+            props["cm:description"] = [beschreibung or ""]
+        return httpx.Response(200, json={"node": {
+            "ref": {"id": "coll-1"}, "title": gespeichert.get("cm:title") or "",
+            "type": "ccm:map", "properties": props}})
+    return handler
+
+
+@pytest.mark.parametrize("weglassen", [False, True])
+async def test_eine_beschreibung_zu_leeren_ist_kein_stiller_verlust(weglassen):
+    """``description=""`` heisst *loesche die Beschreibung* -- und danach ist
+    sie weg, also ist der gewuenschte Zustand erreicht (Audit COR-11).
+
+    Der Rueckvergleich pruefte ``stored.get(...) != description``. Eine
+    Eigenschaft, die es nicht mehr gibt, liest sich als ``None``, und
+    ``None != ""`` -- also meldete das Leeren einen stillen Verlust, obwohl
+    genau das Gewuenschte geschehen war.
+
+    Beide Serverformen: die Eigenschaft als leere Liste, und die Eigenschaft
+    ganz fort.
+    """
+    gespeichert = {"cm:title": "Optik", "cm:description": "alt"}
+    c = _collections(_aendern_router(gespeichert, weglassen))
+    await c.update("coll-1", description="")
+    assert gespeichert["cm:description"] in (None, "")
+
+
+async def test_eine_beschreibung_die_wirklich_nicht_ankommt_wird_gemeldet():
+    """Gegenprobe -- ohne sie waere das hier ein Nachlassen der Wache."""
+    def taub(request: httpx.Request) -> httpx.Response:
+        if request.method == "PUT":
+            return httpx.Response(200, content=b"")
+        return httpx.Response(200, json={"node": {
+            "ref": {"id": "coll-1"}, "title": "Optik", "type": "ccm:map",
+            "properties": {"cm:title": ["Optik"], "cm:description": ["alt"]}}})
+
+    with pytest.raises(SilentDropError):
+        await _collections(taub).update("coll-1", description="neu")
+
+
+async def test_ein_titel_der_nicht_ankommt_wird_weiterhin_gemeldet():
+    """Und der Titel bleibt unberuehrt von dieser Aenderung."""
+    def taub(request: httpx.Request) -> httpx.Response:
+        if request.method == "PUT":
+            return httpx.Response(200, content=b"")
+        return httpx.Response(200, json={"node": {
+            "ref": {"id": "coll-1"}, "title": "Alt", "type": "ccm:map",
+            "properties": {"cm:title": ["Alt"]}}})
+
+    with pytest.raises(SilentDropError):
+        await _collections(taub).update("coll-1", title="Neu")
