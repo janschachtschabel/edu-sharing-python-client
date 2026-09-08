@@ -833,12 +833,20 @@ repo.flows.describe_many(["abc-…", "def-…", "ghi-…"])
   "requested": 3,
   "found": 2,
   "nodes": [{"id": "abc-…", "title": "…", "…": "…"}],
-  "failed": [{"id": "ghi-…", "reason": "NotFoundError: HTTP 404 …"}]
+  "failed": [{"id": "ghi-…", "reason": "NotFoundError: HTTP 404 …"}],
+  "truncated": false
 }
 ```
 
 `nodes` keeps the order of the request, so the answer lines up with what was
 asked. Duplicates are fetched once.
+
+> **At most `DESCRIBE_MANY_MAX` (50) distinct ids.** Every other fan-out here
+> has a ceiling — widgets 24, registry heads 100, walks 50 — and this one had
+> none (audit PRF-2). One node costs three requests, so a thousand ids built
+> three thousand coroutines before the transport's pool slowed anything down.
+> Beyond the limit the rest is dropped and `truncated` is `true`; `requested`
+> counts what was actually looked at.
 
 > **A missing node is reported, not raised.** Measured on 2026-08-27: **4 of
 > 25** search hits were no longer retrievable. An index that outlives its nodes

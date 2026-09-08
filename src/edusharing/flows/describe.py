@@ -20,10 +20,20 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..nodes import Node
     from ..repository import AsyncRepository
 __all__ = [
+    "DESCRIBE_MANY_MAX",
     "describe",
     "describe_many",
     "placement",
 ]
+
+#: How many distinct ids one ``describe_many`` looks at. Every other
+#: fan-out in this library has a ceiling -- widgets 24, registry heads
+#: 100, walks 50 -- and this one had none (audit PRF-2). Each node costs
+#: three requests, so a list of a thousand ids built three thousand
+#: coroutines before the transport's pool slowed anything down. 50 is the
+#: walk's ceiling, for the same reason: it is the size a caller can still
+#: read in one answer.
+DESCRIBE_MANY_MAX = 50
 
 
 async def describe(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
@@ -191,13 +201,17 @@ async def describe_many(
         node_ids: the nodes to describe. Duplicates are fetched once.
 
     Returns:
-        ``{requested, found, nodes, failed}``. ``nodes`` keeps the order of the
-        request, so a caller can line the answer up with what it asked for.
-        ``failed`` names each id and why.
+        ``{requested, found, nodes, failed, truncated}``. ``nodes`` keeps the
+        order of the request, so a caller can line the answer up with what it
+        asked for. ``failed`` names each id and why. ``requested`` counts what
+        was actually looked at: with more than ``DESCRIBE_MANY_MAX`` distinct
+        ids the rest is dropped and ``truncated`` says so.
     """
-    wanted = list(dict.fromkeys(node_ids))
+    wanted = list(dict.fromkeys(node_ids))[:DESCRIBE_MANY_MAX]
+    truncated = len(dict.fromkeys(node_ids)) > DESCRIBE_MANY_MAX
     if not wanted:
-        return {"requested": 0, "found": 0, "nodes": [], "failed": []}
+        return {"requested": 0, "found": 0, "nodes": [], "failed": [],
+                "truncated": False}
 
     async def one(node_id: str) -> tuple[str, dict[str, Any] | str]:
         try:
@@ -217,4 +231,5 @@ async def describe_many(
         "found": len(nodes),
         "nodes": nodes,
         "failed": failed,
+        "truncated": truncated,
     }

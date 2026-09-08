@@ -18,6 +18,7 @@ import json
 import httpx
 
 from edusharing import AsyncRepository
+from edusharing.flows.describe import DESCRIBE_MANY_MAX
 
 REPO = "https://repo.test/edu-sharing"
 
@@ -121,7 +122,8 @@ async def test_eine_leere_liste_ist_kein_fehler():
     instanz = Instanz()
     async with instanz.repo() as repo:
         ergebnis = await repo.flows.describe_many([])
-    assert ergebnis == {"requested": 0, "found": 0, "nodes": [], "failed": []}
+    assert ergebnis == {"requested": 0, "found": 0, "nodes": [], "failed": [],
+                        "truncated": False}
     assert instanz.anfragen == []
 
 
@@ -218,3 +220,29 @@ async def test_ein_unaufloesbarer_wert_wird_gemeldet():
     async with instanz.repo() as repo:
         ergebnis = await repo.flows.related("a")
     assert ergebnis["unresolved"], "der nicht angewandte Filter wird genannt"
+
+
+# --- PRF-2: das einzige unbegrenzte Fan-out bekommt einen Deckel ---------
+
+
+async def test_describe_many_hat_einen_deckel():
+    """Widgets (24), Registry-Koepfe (100) und Baumlaeufe (50) haben je eine
+    Obergrenze; describe_many hatte keine. Jeder Knoten kostet drei Anfragen,
+    also legt eine Liste von tausend ids dreitausend Koroutinen an, bevor
+    irgendetwas gebremst wird (Audit PRF-2)."""
+    instanz = Instanz()
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.describe_many(
+            [f"k-{i}" for i in range(DESCRIBE_MANY_MAX + 5)])
+    assert ergebnis["requested"] == DESCRIBE_MANY_MAX
+    assert ergebnis["truncated"] is True
+    assert len(ergebnis["nodes"]) + len(ergebnis["failed"]) == DESCRIBE_MANY_MAX
+
+
+async def test_describe_many_meldet_ohne_deckel_nichts_abgeschnittenes():
+    """Die Gegenprobe: unterhalb der Grenze bleibt truncated falsch."""
+    instanz = Instanz()
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.describe_many(["k-1", "k-2"])
+    assert ergebnis["truncated"] is False
+    assert ergebnis["requested"] == 2

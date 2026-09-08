@@ -372,7 +372,7 @@ zu verschwinden.
 | `EXCLUSION_MAX` | `200` | das größte Nachladen nach `exclude_ids` — `limit` selbst wird nie gekappt |
 | `DEFAULT_POOL` | `25` | wie viele Treffer `search(rerank=True)` vor dem Neuordnen holt |
 | `MAX_VARIANTS` | `5` | wie viele Umformulierungen `expand_query` erzeugt |
-| `DEFAULT_MAX_COLLECTIONS` / `DEFAULT_MAX_WIDGETS` | `50` / `24` | Obergrenzen für `browse_tree` und für eine gerenderte Seite |
+| `DEFAULT_MAX_COLLECTIONS` / `DEFAULT_MAX_WIDGETS` / `DESCRIBE_MANY_MAX` | `50` / `24` / `50` | Obergrenzen für `browse_tree`, für eine gerenderte Seite und für die verschiedenen IDs, die ein `describe_many` ansieht (es antwortet mit `truncated`) |
 | `RELATED_ON` | `("subject", "level")` | die Felder, auf die `related()` standardmäßig vergleicht |
 | `METHODS` | `("simple", "browser")` | die Extraktionsverfahren, die `text_of` annimmt |
 | `PROPOSAL_BATCH` | `"edusharing-python"` | unter welchem Stapelnamen Vorschläge abgelegt werden |

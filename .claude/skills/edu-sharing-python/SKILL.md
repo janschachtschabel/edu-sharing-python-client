@@ -354,7 +354,7 @@ so the value has a name instead of being buried in a signature.
 | `EXCLUSION_MAX` | `200` | the largest refill after `exclude_ids` — `limit` itself is never capped |
 | `DEFAULT_POOL` | `25` | how many hits `search(rerank=True)` fetches before reranking |
 | `MAX_VARIANTS` | `5` | how many rewrites `expand_query` produces |
-| `DEFAULT_MAX_COLLECTIONS` / `DEFAULT_MAX_WIDGETS` | `50` / `24` | ceilings on `browse_tree` and on a rendered page |
+| `DEFAULT_MAX_COLLECTIONS` / `DEFAULT_MAX_WIDGETS` / `DESCRIBE_MANY_MAX` | `50` / `24` / `50` | ceilings on `browse_tree`, on a rendered page, and on the distinct ids one `describe_many` looks at (it answers `truncated`) |
 | `RELATED_ON` | `("subject", "level")` | the fields `related()` compares on by default |
 | `METHODS` | `("simple", "browser")` | the extraction methods `text_of` accepts |
 | `PROPOSAL_BATCH` | `"edusharing-python"` | the batch name proposals are filed under |

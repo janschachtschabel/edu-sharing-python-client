@@ -856,12 +856,21 @@ repo.flows.describe_many(["abc-…", "def-…", "ghi-…"])
   "requested": 3,
   "found": 2,
   "nodes": [{"id": "abc-…", "title": "…", "…": "…"}],
-  "failed": [{"id": "ghi-…", "reason": "NotFoundError: HTTP 404 …"}]
+  "failed": [{"id": "ghi-…", "reason": "NotFoundError: HTTP 404 …"}],
+  "truncated": false
 }
 ```
 
 `nodes` behält die Reihenfolge der Anfrage, damit sich die Antwort mit der
 Eingabe zusammenbringen lässt. Doppelte IDs werden einmal geholt.
+
+> **Höchstens `DESCRIBE_MANY_MAX` (50) verschiedene IDs.** Jedes andere
+> Fan-out hier hat eine Obergrenze — Widgets 24, Registry-Köpfe 100, Läufe 50
+> — dieses hatte keine (Audit PRF-2). Ein Knoten kostet drei Anfragen, also
+> legte eine Liste von tausend IDs dreitausend Koroutinen an, bevor der
+> Vorrat des Transports überhaupt bremste. Darüber hinaus wird der Rest
+> verworfen und `truncated` ist `true`; `requested` zählt, was wirklich
+> angesehen wurde.
 
 > **Ein fehlender Knoten wird gemeldet, nicht geworfen.** Gemessen am
 > 27.08.2026: **4 von 25** Treffern des Suchindex waren nicht mehr abrufbar.
