@@ -466,3 +466,49 @@ async def test_eine_umleitung_ist_kein_fehlender_text():
     async with client:
         with pytest.raises(EduSharingError, match=r"anderswo.test"):
             await client.text_of("https://example.org/")
+
+
+# --- SEC-3: dieselbe Adressregel wie im Agenten --------------------------
+
+
+@pytest.mark.parametrize("adresse", [
+    "http://127.0.0.1\\@example.com/",
+    "http://user:pw@example.com/",
+    "http://example.com\\@127.0.0.1/",
+])
+async def test_eine_adresse_die_der_agent_ablehnt_geht_auch_hier_nicht_raus(adresse):
+    """Gemessen am 08.09.2026: ``urlsplit`` liest bei
+    ``http://127.0.0.1\\@example.com/`` den Host als ``example.com`` -- die
+    Pruefung sah einen harmlosen oeffentlichen Namen und reichte die Adresse
+    **woertlich** an den Extraktionsdienst weiter. Ein WHATWG-Parser, wie ihn
+    ``method="browser"`` dahinter benutzt, liest ``127.0.0.1``.
+
+    Die zweite Form traegt Anmeldedaten zu einem fremden Dienst.
+    ``agent.safety.is_safe_url`` lehnt alle drei ab, ``text_of`` nicht
+    (Audit SEC-3)."""
+    gesehen = []
+
+    def handler(request):
+        gesehen.append(request)
+        return httpx.Response(200, json={"text": "sollte nie kommen"})
+
+    client = TextExtraction(
+        BASE, backoff_base=0.0,
+        client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    async with client:
+        ergebnis = await client.text_of(adresse)
+    assert ergebnis.reason == "unsafe_url", ergebnis.reason
+    assert not gesehen, "die Adresse darf den Dienst nie erreichen"
+
+
+async def test_eine_gewoehnliche_adresse_geht_weiterhin_durch():
+    """Die Gegenprobe: die Wache darf nicht alles ablehnen."""
+    def handler(request):
+        return httpx.Response(200, json={"text": "Volltext", "lang": "de"})
+
+    client = TextExtraction(
+        BASE, backoff_base=0.0, resolve=_oeffentlich,
+        client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    async with client:
+        ergebnis = await client.text_of("https://example.org/seite")
+    assert ergebnis.text == "Volltext"

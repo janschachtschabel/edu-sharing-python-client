@@ -301,6 +301,7 @@ muss — die Argument- und Rückgabeformen stehen in `docs/REFERENCE.de.md`.
 | die Stoppwort- und Synonymlisten | `LanguageProfile`: `.stopwords` `.framing` `.synonyms`; `GERMAN_SYNONYMS` |
 | eine Instanz-URL normalisieren | `normalize_repository_url(raw)` / `rest_base(repository_url)` / `path_segment(value)` / `is_unroutable_host(host)` |
 | beurteilen, ob eine Adresse geholt werden darf | `unsafe_url_reason(url)` — `None` heißt: sie darf; alles andere ist die Absage, fertig zum Protokollieren |
+| nur die Schreibweise beurteilen (den Host löst man selbst auf) | `unsafe_url_syntax(url)` — Backslash oder eingebettete Anmeldedaten, die zwei Wege, auf denen Parser auseinandergehen |
 | eine Suche, die neu ordnet und beide Hälften meldet | `search_reranked(repo, text)` |
 | jede Untersammlung einer Sammlung | `sub_collections(repo, id)` |
 | die Bewertung eines Knotens, den man hält | `rating_of(node)` / `rate(…)` / `unrate(…)` |

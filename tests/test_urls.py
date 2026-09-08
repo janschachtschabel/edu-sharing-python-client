@@ -15,6 +15,7 @@ from edusharing.urls import (
     path_segment,
     refuse_userinfo,
     rest_base,
+    unsafe_url_reason,
 )
 
 HOST = "https://repositorium.example.test"
@@ -217,3 +218,23 @@ def test_namen_werden_hier_nicht_beurteilt(host):
     einmal geprueft werden. ``localhost`` sperrt ``agent.safety`` ueber seine
     Namensliste, nicht hier."""
     assert is_unroutable_host(host) is False
+
+
+# --- SEC-3: ein Backslash bringt zwei Parser auseinander -----------------
+
+
+@pytest.mark.parametrize("adresse", [
+    "http://example.com\\evil.test/",
+    "https://example.org\\..\\pfad",
+])
+def test_ein_backslash_macht_die_adresse_unsicher(adresse):
+    """Ein Backslash gehoert in keine Adresse: WHATWG liest ihn wie einen
+    Schraegstrich, ``urlsplit`` nicht. Wo die beiden auseinandergehen, prueft
+    man nicht mehr, was spaeter geholt wird (Audit SEC-3)."""
+    assert unsafe_url_reason(adresse) is not None
+    assert "backslash" in unsafe_url_reason(adresse)
+
+
+def test_ein_prozentkodierter_backslash_bleibt_erlaubt():
+    """Die Gegenprobe: kodiert ist er ein Zeichen im Pfad, kein Trenner."""
+    assert unsafe_url_reason("https://example.org/pfad%5Cdatei") is None

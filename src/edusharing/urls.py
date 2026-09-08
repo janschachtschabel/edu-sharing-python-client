@@ -21,7 +21,8 @@ from urllib.parse import quote, urlsplit
 from .errors import EduSharingError
 
 __all__ = ["normalize_repository_url", "path_segment", "rest_base",
-           "is_unroutable_host", "unsafe_url_reason"]
+           "is_unroutable_host", "unsafe_url_reason",
+           "unsafe_url_syntax"]
 
 _APP_SEGMENT = "/edu-sharing"
 # An optional scheme, any slashes, then the authority: up to the first "/",
@@ -206,6 +207,36 @@ def _address_reason(host: str) -> str | None:
     return f"{host} is not a globally routable address"
 
 
+def unsafe_url_syntax(url: str) -> str | None:
+    """Why an address is unsafe on its spelling alone -- before any host.
+
+    Two ways to make two URL parsers disagree, and where they disagree the
+    address that was checked is not the address that gets fetched:
+
+    * a **backslash** anywhere. WHATWG parsers -- browsers, and whatever sits
+      behind a headless fetch -- read it as a slash; ``urlsplit`` does not.
+      Measured 2026-09-08: ``http://127.0.0.1\\@example.com/`` is host
+      ``example.com`` to ``urlsplit`` and ``127.0.0.1`` to a browser. Percent-
+      encode it and it is an ordinary character in a path.
+    * **credentials** in the netloc. Same trick without the backslash, and it
+      carries a password to whoever answers.
+
+    Separate from ``unsafe_url_reason`` because the extraction service needs
+    exactly this half: it judges the host itself, with a resolver, and its own
+    answers (``private_host``, ``dns_failed``) are part of its contract
+    (audit SEC-3).
+    """
+    if "\\" in url:
+        return "the address contains a backslash, which parsers read differently"
+    try:
+        parts = urlsplit(url.strip())
+    except ValueError as exc:
+        return f"unparseable ({exc})"
+    if "@" in parts.netloc:
+        return "the address embeds credentials (user:pass@host)"
+    return None
+
+
 def unsafe_url_reason(url: str) -> str | None:
     """Why ``url`` must not be fetched -- or ``None`` if it may.
 
@@ -223,6 +254,10 @@ def unsafe_url_reason(url: str) -> str | None:
     if not url or not url.strip():
         return "empty address"
 
+    confused = unsafe_url_syntax(url)
+    if confused is not None:
+        return confused
+
     try:
         parts = urlsplit(url.strip())
     except ValueError as exc:
@@ -230,11 +265,6 @@ def unsafe_url_reason(url: str) -> str | None:
 
     if parts.scheme.lower() not in ALLOWED_SCHEMES:
         return f"scheme {parts.scheme or '(none)'!r} -- only http and https are allowed"
-
-    # Credentials in the URL are a known way to confuse checks: some parsers
-    # read the host differently than the later fetch does.
-    if "@" in parts.netloc:
-        return "the address embeds credentials (user:pass@host)"
 
     try:
         host = parts.hostname

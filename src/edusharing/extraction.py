@@ -63,7 +63,12 @@ from .errors import (
     redirect_error,
 )
 from .retry import RETRYABLE_STATUS, RetryPolicy, parse_retry_after
-from .urls import is_unroutable_host, refuse_userinfo
+from .urls import (
+    is_unroutable_host,
+    mask_userinfo,
+    refuse_userinfo,
+    unsafe_url_syntax,
+)
 
 __all__ = ["ExtractedText", "TextExtraction", "METHODS"]
 
@@ -99,9 +104,11 @@ class ExtractedText:
     #: Length before truncation, so a caller can see what it is missing.
     char_count: int
     truncated: bool
-    #: ``""`` when there is text. Otherwise ``not_http``, ``private_host``,
-    #: ``dns_failed`` or ``no_text`` -- separate causes, so "we would not fetch
-    #: that" never looks like "the page had no text".
+    #: ``""`` when there is text. Otherwise ``not_http``, ``unsafe_url``,
+    #: ``private_host``, ``dns_failed`` or ``no_text`` -- separate causes, so
+    #: "we would not fetch that" never looks like "the page had no text".
+    #: ``unsafe_url`` is the spelling itself: a backslash or embedded
+    #: credentials make two parsers read different hosts (audit SEC-3).
     reason: str = ""
     #: The service's own words when it found nothing. Free text, for a human.
     detail: str = ""
@@ -229,6 +236,18 @@ class TextExtraction:
                 f"max_chars={max_chars!r} would keep no text at all -- leave it "
                 "out to keep everything."
             )
+
+        # The spelling rules the agent applies, from the layer below both
+        # (audit SEC-3). They were missing here: this method judged
+        # ``urlsplit().hostname`` alone and then handed the address on
+        # **verbatim**, so one that two parsers read differently reached the
+        # service unchecked. The host stays this client's own question --
+        # ``_judge`` resolves it, and its answers are part of the contract.
+        if unsafe_url_syntax(url) is not None:
+            logger.warning(
+                "text extraction refused an unsafe address: %s", mask_userinfo(url)
+            )
+            return _miss(url, "unsafe_url")
 
         target = urlsplit(url.strip())
         if target.scheme not in ("http", "https") or not target.hostname:

@@ -1348,6 +1348,7 @@ sind.
 | `rest_base(repository_url)` | `str` — die REST-Wurzel darunter |
 | `path_segment(value)` | `str` — prozentkodiert einen Bezeichner, `/` eingeschlossen |
 | `is_unroutable_host(host)` | `bool` — Loopback, Link-Local, private Bereiche |
+| `unsafe_url_syntax(url)` | `str \| None` — die Hälfte, die nur die Schreibweise beurteilt: ein Backslash oder Anmeldedaten im Netloc. Für Aufrufer, die den Host selbst beurteilen |
 | `unsafe_url_reason(url)` | `str \| None` — warum eine Adresse nicht geholt werden darf: Schema, eingebettete Anmeldedaten, ein lokaler Name, ein nicht routbares Literal. `None` heißt: sie darf. Namen löst sie nicht auf — dafür braucht es einen Resolver |
 | `error_class_for(status, error_class=…, message=…)` | `type` — welcher Fehlertyp zu einem Status gehört |
 | `first(value)` | `str \| None` — der erste Wert einer Eigenschaft; `[]` ergibt `None` |
