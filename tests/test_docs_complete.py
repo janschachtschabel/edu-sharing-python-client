@@ -270,14 +270,15 @@ BEHAUPTEND = [
 def test_jeder_genannte_variablenname_kommt_im_code_vor():
     """Ein Name, den niemand liest, ist eine Anleitung ins Leere.
 
-    Als Beleg zaehlt ein Vorkommen in ``src/`` oder in einem Beispiel -- die
-    Beispiele lesen eigene Variablen (``EDU_SHARING_MDS``), die die Bibliothek
-    selbst nicht kennt.
+    Als Beleg zaehlt ein Vorkommen in ``src/``. Bis zum 08.09.2026 zaehlten auch
+    die Beispiele -- weil sie eigene Variablen lasen, die die Bibliothek nicht
+    kennt (Audit DOC-6). Das war der Wache beigebracht, nicht behoben: sie war
+    genau um die Abweichung herum weiter gestellt. Seit die Beispiele die echten
+    Namen lesen, reicht ``src/`` -- und die Wache ist strenger als vorher.
     """
     belegt = "\n".join(
         p.read_text(encoding="utf-8")
-        for ordner in (QUELLE, WURZEL / "docs" / "examples")
-        for p in sorted(ordner.rglob("*.py"))
+        for p in sorted(QUELLE.rglob("*.py"))
         if "_generated" not in p.parts
     )
     erfunden: list[str] = []
@@ -290,6 +291,48 @@ def test_jeder_genannte_variablenname_kommt_im_code_vor():
                 erfunden.append(f"{datei}: {name}")
 
     assert not erfunden, "\n  " + "\n  ".join(erfunden)
+
+
+#: Die drei Leseweisen, mit denen ein Beispiel an die Umgebung kommt.
+_LIEST = re.compile(r"os\.(?:environ\.get\(|getenv\(|environ\[)\s*\"([A-Z][A-Z0-9_]*)\"")
+
+#: Eigene Regler eines Beispiels -- Namen, fuer die es in der Bibliothek keine
+#: Variable *gibt*, nicht solche, die eine vorhandene verfehlen. Anbieter und
+#: Modell nimmt die b-api als Argumente entgegen; ``18_video_recommendation.py``
+#: macht daraus einen Regler und sagt das an Ort und Stelle. Wer hier etwas
+#: eintraegt, behauptet dasselbe -- und muss es belegen koennen.
+EIGENE_REGLER = {"B_API_PROVIDER", "B_API_MODEL"}
+
+
+def test_jedes_beispiel_liest_nur_variablen_die_es_gibt():
+    """Ein Beispiel, das eine erfundene Variable liest, ignoriert die echte.
+
+    Die Gegenrichtung zum Test darueber: dort geht es um Namen, welche die
+    Dokumentation *behauptet*, hier um Namen, welche die Beispiele *lesen*.
+    Am 03.09.2026 lasen 19 der 21 Beispiele ``EDU_SHARING_MDS``, waehrend die
+    Bibliothek die Variable ``EDU_SHARING_METADATASET`` nennt (Audit DOC-6) --
+    wer die dokumentierte Variable setzte, sah sie von fast jedem Beispiel
+    uebergangen.
+
+    Als "gibt es" zaehlt ein Vorkommen als Zeichenkette in ``src/``. Die
+    Bibliothek nennt jede ihrer Variablen dort in einer ``ENV_``-Konstanten.
+    """
+    belegt = "\n".join(
+        p.read_text(encoding="utf-8")
+        for p in sorted(QUELLE.rglob("*.py"))
+        if "_generated" not in p.parts
+    )
+    erfunden: list[str] = []
+    for pfad in sorted((WURZEL / "docs" / "examples").glob("*.py")):
+        for name in sorted(set(_LIEST.findall(pfad.read_text(encoding="utf-8")))):
+            if name in EIGENE_REGLER:
+                continue
+            if f'"{name}"' not in belegt and f"'{name}'" not in belegt:
+                erfunden.append(f"{pfad.name}: {name}")
+
+    assert not erfunden, (
+        f"{len(erfunden)} Lesevorgaenge auf Variablen, die die Bibliothek nicht "
+        "kennt:\n  " + "\n  ".join(erfunden))
 
 
 # --- Der Skill ------------------------------------------------------------

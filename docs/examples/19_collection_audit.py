@@ -49,7 +49,7 @@ if hasattr(sys.stdout, "reconfigure"):
 # address of its own.
 REPOSITORY = os.environ.get(
     "EDU_SHARING_URL", "https://repository.staging.openeduhub.net")
-METADATA_SET = os.environ.get("EDU_SHARING_MDS", "mds_oeh")
+METADATA_SET = os.environ.get("EDU_SHARING_METADATASET", "mds_oeh")
 
 # Left empty on purpose: reading works anonymously. Credentials widen what the
 # account may see -- but not always, as the last section measures.

@@ -39,7 +39,7 @@ if hasattr(sys.stdout, "reconfigure"):
 # address of its own.
 STAGING = "https://repository.staging.openeduhub.net"
 REPOSITORY = os.environ.get("EDU_SHARING_URL", STAGING)
-METADATA_SET = os.environ.get("EDU_SHARING_MDS", "mds_oeh")
+METADATA_SET = os.environ.get("EDU_SHARING_METADATASET", "mds_oeh")
 
 # Left empty on purpose: without them the example runs anonymously, which is
 # enough for reading. Writing needs both -- fill them in, or set

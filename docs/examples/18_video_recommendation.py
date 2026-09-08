@@ -43,7 +43,7 @@ REPOSITORY = os.environ.get(
 # hits, mds reports 14 -- and both report unresolved=[], so both applied the
 # filter. Two indexes, two answers; which one is right depends on what you are
 # looking for.
-METADATA_SET = os.environ.get("EDU_SHARING_MDS", "mds_oeh")
+METADATA_SET = os.environ.get("EDU_SHARING_METADATASET", "mds_oeh")
 
 # Left empty on purpose: the search below reads, and reading works anonymously.
 USER = os.environ.get("EDU_SHARING_USER", "")

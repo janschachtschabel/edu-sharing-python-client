@@ -43,7 +43,7 @@ if hasattr(sys.stdout, "reconfigure"):
 # address of its own.
 REPOSITORY = os.environ.get(
     "EDU_SHARING_URL", "https://repository.staging.openeduhub.net")
-METADATA_SET = os.environ.get("EDU_SHARING_MDS", "mds_oeh")
+METADATA_SET = os.environ.get("EDU_SHARING_METADATASET", "mds_oeh")
 
 # Writing needs a login -- there is nothing to create anonymously. Fill these
 # in, or set EDU_SHARING_USER and EDU_SHARING_PASSWORD in the environment.
