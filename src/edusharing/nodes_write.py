@@ -208,10 +208,17 @@ async def change_keywords(
 
     merged = [k for k in existing if k.strip().casefold() not in dropping]
     known = {k.strip().casefold() for k in merged}
-    for k in add:
-        if k.strip().casefold() not in known:
+    for roh in add:
+        # Gestrippt gespeichert, nicht nur gestrippt verglichen (Audit
+        # COR-8): sonst stand ``" Optik "`` neben ``Optik`` in einer
+        # **geteilten** Liste, die jede Anzeige und jede Facette liest.
+        k = roh.strip()
+        # Und ein leeres Schlagwort bestand den Vergleich, solange kein
+        # leeres darin stand -- eine leere Zeile in jeder Anzeige, ein
+        # Eintrag ohne Namen in jeder Facette.
+        if k and k.casefold() not in known:
             merged.append(k)
-            known.add(k.strip().casefold())
+            known.add(k.casefold())
 
     if merged == existing:
         return node._redirected(fresh)

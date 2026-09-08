@@ -882,3 +882,52 @@ async def test_ein_typ_mit_parameter_wird_benannt_nicht_nur_verweigert():
     node = await _nodes(Server()).get(NID)
     with pytest.raises(ValidationError, match=r"charset|parameter|type/subtype"):
         await node.content.upload(b"x", filename="p", mimetype="text/plain; charset=utf-8")
+
+
+async def test_leere_schlagworte_werden_nicht_geschrieben():
+    """``cclom:general_keyword`` ist eine geteilte Liste (Audit COR-8).
+
+    Verglichen wurde gestrippt und kleingeschrieben, **gespeichert** aber der
+    Rohwert -- und ein leerer String bestand den Vergleich, solange noch kein
+    leerer darin stand. Gemessen im Bericht: ``add_keywords("", "   ",
+    " Optik ")`` sendete ``['Physik', '', ' Optik ']``.
+
+    Ein leeres Schlagwort ist in jeder Anzeige eine leere Zeile und in jeder
+    Facette ein Eintrag ohne Namen -- und weil die Liste geteilt ist, sieht ihn
+    jeder, der danach hineinschaut.
+    """
+    server = ZweiKnoten()
+    server.props[ORIG]["cclom:general_keyword"] = ["Physik"]
+    node = await _nodes(server).get(ORIG)
+    await node.add_keywords("", "   ", " Optik ")
+    assert server.props[ORIG]["cclom:general_keyword"] == ["Physik", "Optik"]
+
+
+async def test_ein_schlagwort_das_es_schon_gibt_kommt_nicht_gepolstert_dazu():
+    """`` Physik `` und ``physik`` sind dasselbe Schlagwort -- der Vergleich
+    sah das schon, die Speicherung nicht."""
+    server = ZweiKnoten()
+    server.props[ORIG]["cclom:general_keyword"] = ["Physik"]
+    node = await _nodes(server).get(ORIG)
+    await node.add_keywords(" physik ")
+    assert server.props[ORIG]["cclom:general_keyword"] == ["Physik"]
+
+
+async def test_nur_leere_schlagworte_schreiben_gar_nichts():
+    """Nichts hinzuzufuegen heisst nichts zu schreiben -- ein Schreibvorgang,
+    der nichts aendert, kostet eine Anfrage und eine Version."""
+    server = ZweiKnoten()
+    server.props[ORIG]["cclom:general_keyword"] = ["Physik"]
+    node = await _nodes(server).get(ORIG)
+    await node.add_keywords("", "   ")
+    assert server.props[ORIG]["cclom:general_keyword"] == ["Physik"]
+    assert not server.pfade("POST"), "es gab nichts zu schreiben"
+
+
+async def test_ein_gepolstertes_schlagwort_wird_beim_entfernen_erkannt():
+    """Gegenprobe fuer die andere Richtung: das Entfernen strippt schon."""
+    server = ZweiKnoten()
+    server.props[ORIG]["cclom:general_keyword"] = ["Physik", "Optik"]
+    node = await _nodes(server).get(ORIG)
+    await node.remove_keywords("  optik  ")
+    assert server.props[ORIG]["cclom:general_keyword"] == ["Physik"]
