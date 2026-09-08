@@ -7,6 +7,7 @@ words" is a different job from "create material".
 
 from __future__ import annotations
 
+import asyncio
 import re
 from typing import TYPE_CHECKING, Any
 
@@ -80,6 +81,19 @@ async def resolve_vocabulary(
     """
     resolved: dict[str, list[str]] = {}
     unresolved: list[dict[str, Any]] = []
+
+    # Warm the vocabularies side by side first. ``resolve`` reads them through
+    # ``Vocabulary.values``, which caches, so only the *first* value of a
+    # property costs a request -- but those first ones ran one after the
+    # other, which made three fields three serial round-trips (audit PRF-3).
+    # Purely a warm-up: a load that fails is left to the resolution below,
+    # which reports the value as unresolved exactly as before, so the
+    # exceptions are collected and dropped here.
+    props = list(dict.fromkeys(field_property(repo, name) for name in aliases))
+    if len(props) > 1:
+        await asyncio.gather(
+            *(repo.vocab.values(prop) for prop in props), return_exceptions=True
+        )
 
     for short_name, value in aliases.items():
         prop = field_property(repo, short_name)

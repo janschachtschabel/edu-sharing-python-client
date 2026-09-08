@@ -18,6 +18,7 @@ import json
 import httpx
 
 from edusharing import AsyncRepository
+from edusharing.fields import resolve_vocabulary
 from edusharing.flows.describe import DESCRIBE_MANY_MAX
 
 REPO = "https://repo.test/edu-sharing"
@@ -246,3 +247,23 @@ async def test_describe_many_meldet_ohne_deckel_nichts_abgeschnittenes():
         ergebnis = await repo.flows.describe_many(["k-1", "k-2"])
     assert ergebnis["truncated"] is False
     assert ergebnis["requested"] == 2
+
+
+# --- PRF-3: die kalten Vokabularlaeufe liegen nebeneinander --------------
+
+
+async def test_zwei_felder_kosten_zwei_vokabularanfragen_nicht_vier():
+    """``resolve`` geht ueber den Cache: nur der erste Wert einer Eigenschaft
+    kostet eine Anfrage. Seriell waren die *kalten* Laeufe der Eigenschaften
+    aber hintereinander -- bei drei Feldern drei Umlaeufe nacheinander
+    (Audit PRF-3). Der Pin haelt fest, dass die Zahl der Anfragen an der Zahl
+    der Eigenschaften haengt, nicht an der Zahl der Werte."""
+    instanz = Instanz()
+    async with instanz.repo() as repo:
+        _aufgeloest, _offen = await resolve_vocabulary(
+            repo,
+            {"subject": ["Biologie"], "level": "Sekundarstufe I"},
+            every_value=True,
+        )
+    values_anfragen = [r for r in instanz.anfragen if "/values" in r.url.path]
+    assert len(values_anfragen) == 2, [str(r.url) for r in values_anfragen]

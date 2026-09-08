@@ -30,6 +30,7 @@ a model to weigh, never an instruction this library follows -- wrap it with
 
 from __future__ import annotations
 
+import asyncio
 import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
@@ -360,30 +361,51 @@ class Skills:
         truncated, unreadable = False, 0
         for _depth in range(SKILL_DEPTH_MAX + 1):
             next_level: list[str] = []
-            for collection_id in level:
-                try:
-                    nodes, more = await self._files_of(collection_id, conventions)
-                except (PermissionDeniedError, NotFoundError):
+            deeper = include_subcollections and _depth != SKILL_DEPTH_MAX
+            # One level at a time, all its collections together: they are
+            # independent, and walking them one after the other made up to 30
+            # collections into up to 60 serial round-trips (audit PRF-3). The
+            # transport's pool still decides how many actually fly at once.
+            # ``return_exceptions`` keeps a refusal from cancelling its
+            # siblings; each is folded below exactly where the serial version
+            # handled it, so the counting and the order do not move.
+            answers = await asyncio.gather(
+                *(self._level_of(cid, conventions, deeper) for cid in level),
+                return_exceptions=True,
+            )
+            for collection_id, answer in zip(level, answers, strict=True):
+                if isinstance(answer, BaseException):
                     if collection_id == root:
-                        raise
+                        raise answer
                     unreadable += 1
                     continue
+                nodes, more, subs, more_subs = answer
                 found.extend(nodes)
                 truncated = truncated or more
-                if not include_subcollections or _depth == SKILL_DEPTH_MAX:
-                    continue
-                try:
-                    subs, more_subs = await self._subs_of(collection_id)
-                except (PermissionDeniedError, NotFoundError):
-                    if collection_id == root:
-                        raise
-                    unreadable += 1
+                if subs is None:
                     continue
                 truncated = _enqueue(subs, visited, next_level) or more_subs or truncated
             if not next_level:
                 break
             level = next_level
         return found, truncated, unreadable
+
+    async def _level_of(
+        self, collection_id: str, conventions: SkillConventions, deeper: bool
+    ) -> tuple[list[dict[str, Any]], bool, list[str] | None, bool]:
+        """One collection's files and -- when the walk goes on -- its
+        subcollections.
+
+        The two requests stay in this order rather than gathered with each
+        other: a collection whose files are already unreadable is counted once
+        and its subcollections are not asked for at all, exactly as the serial
+        walk did. ``subs`` is ``None`` when the walk stops at this level.
+        """
+        nodes, more = await self._files_of(collection_id, conventions)
+        if not deeper:
+            return nodes, more, None, False
+        subs, more_subs = await self._subs_of(collection_id)
+        return nodes, more, subs, more_subs
 
     async def _files_of(
         self, collection_id: str, conventions: SkillConventions

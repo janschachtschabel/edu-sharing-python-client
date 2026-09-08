@@ -226,7 +226,14 @@ async def _document_of(
 
 
 async def _read_heads(repo: AsyncRepository, ids: list[str]) -> list[dict[str, Any] | None]:
-    """The records behind the blocks, a few at a time; a missing one is ``None``."""
+    """The records behind the blocks, a few at a time; a missing one is ``None``.
+
+    ``REGISTRY_POOL`` is 10 and the transport's own pool defaults to 8, so at
+    the default settings this gate never binds -- the transport's is stricter
+    (audit PRF-3). It is not dead: it is this flow's own ceiling, and it holds
+    for a caller who opens the transport wider, e.g.
+    ``Repository(url, max_concurrency=32)``.
+    """
     gate = asyncio.Semaphore(REGISTRY_POOL)
 
     async def one(node_id: str) -> dict[str, Any] | None:

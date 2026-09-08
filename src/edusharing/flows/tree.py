@@ -64,9 +64,16 @@ async def browse_tree(
     lists it. Keeping them apart halves what a walk costs.
 
     The walk is depth-first and **sequential**: one request at a time, up to
-    ``max_collections``. Fanning a level out in parallel would be faster and
-    would put the de-duplication set into a race, and the cap already bounds
-    the wait. If that becomes the bottleneck, the place to fix it is here.
+    ``max_collections``. Fanning a level out would be faster, and the reason
+    it is not done is *not* a race on ``seen``: no ``await`` sits between the
+    membership test and the ``add``, so no other coroutine can slip between
+    them (this said otherwise until 2026-09-08, audit PRF-3). The real reason
+    is the answer: the same collection can be reached from two parents, and
+    which branch claims it -- and therefore where it appears in the nesting,
+    and which entries the ``max_collections`` cap cuts -- would depend on
+    which request happened to return first. The cap already bounds the wait.
+    If that becomes the bottleneck, the place to fix it is here, and the
+    answer's order is what has to be decided first.
 
     Args:
         repo: the connection.

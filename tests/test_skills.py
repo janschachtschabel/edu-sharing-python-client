@@ -758,3 +758,14 @@ async def test_ein_text_nur_aus_stoppwoertern_filtert_auch_in_der_sammlung():
         die = await repo.skills.search("die", collection_id=COLL, include_subcollections=True)
     assert {h.original_id for h in den.hits} == {SA}, "erfasst DEN Kontext"
     assert die.hits == []
+
+
+async def test_zwei_gesperrte_untersammlungen_zaehlen_zweimal():
+    """Die Zaehlung ist je Sammlung, nicht je gescheiterter Anfrage: eine
+    Sammlung, deren Dateien schon nicht lesbar sind, wird einmal gezaehlt und
+    ihre Untersammlungen werden gar nicht erst geholt. Der Pin steht hier,
+    bevor der Gang eine Ebene buendelt (Audit PRF-3)."""
+    instanz = Instanz(unter={"u1": 403, "u2": 403})
+    async with instanz.repo() as repo:
+        got = await repo.skills.search("", collection_id=COLL, include_subcollections=True)
+    assert got.unreadable == 2
