@@ -754,3 +754,7 @@ services; 1095 offline tests and 94 live ones against edu-sharing 11.0.
 - `15_full_text.py` no longer ends its run when the extraction service returns
   500 for one address, or when a node's content is refused; both are reported
   per row.
+
+[Unreleased]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.0.1...v0.1.0
+[0.0.1]: https://github.com/janschachtschabel/edu-sharing-python-client/releases/tag/v0.0.1

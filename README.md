@@ -1069,6 +1069,34 @@ gateway, `EDU_SHARING_TEXT_EXTRACTION_URL` for the extraction service,
 `METADATA_AGENT_URL` for the metadata agent. A skip there means "not
 configured", not "not covered".
 
+## Releasing
+
+Two tags exist and nothing said how the next one is cut (audit OPS-3). It is:
+
+1. **Decide the number.** Pre-1.0, so a breaking change bumps the minor.
+   Anything marked BREAKING in the changelog is one.
+2. **`pyproject.toml`** — set `version`.
+3. **`uv lock`** — the lock records the project's own version and drifts
+   otherwise; CI's `--locked` then fails on the next push, which is the
+   point.
+4. **`CHANGELOG.md`** — rename `[Unreleased]` to the number with today's
+   date, open a fresh empty `[Unreleased]`, and add the link reference at the
+   foot.
+5. **Green before the tag.** `ruff check .`, `mypy`, `pytest -q`, and the
+   live suites against staging — `-m live` and `-m write`. A release is the
+   one moment the live proofs are not optional.
+6. **Commit, then an annotated tag**: `git tag -a v0.2.0 -m "0.2.0"`, and
+   `git push --follow-tags`.
+7. **Wait for CI to be green on the tag** before announcing anything.
+
+There is no PyPI publication yet; installation is from the repository.
+
+## Security
+
+Found a way to make this library leak a credential or fetch something nobody
+asked for? [`SECURITY.md`](SECURITY.md) says where to send it — privately
+first, please.
+
 ## Licence
 
 Apache-2.0

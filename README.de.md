@@ -1096,6 +1096,37 @@ eigenen Variablen — `B_API_KEY` **und** `B_API_BASE_URL` für das LLM-Gateway,
 `METADATA_AGENT_URL` für den Metadata Agent. Ein Übersprungen heißt dort
 „nicht konfiguriert“, nicht „nicht abgedeckt“.
 
+## Veröffentlichen
+
+Es gibt zwei Tags, und nirgends stand, wie der nächste entsteht (Audit
+OPS-3). So:
+
+1. **Nummer festlegen.** Vor 1.0, also hebt eine brechende Änderung die
+   Minor-Stelle. Was im Changelog als BREAKING steht, ist eine.
+2. **`pyproject.toml`** — `version` setzen.
+3. **`uv lock`** — der Lock hält die eigene Version des Projekts fest und
+   driftet sonst; `--locked` in der CI schlägt dann beim nächsten Push an,
+   und genau dafür ist es da.
+4. **`CHANGELOG.md`** — `[Unreleased]` in die Nummer mit dem heutigen Datum
+   umbenennen, ein frisches leeres `[Unreleased]` öffnen, und unten die
+   Link-Referenz ergänzen.
+5. **Grün vor dem Tag.** `ruff check .`, `mypy`, `pytest -q`, und die
+   Live-Suiten gegen die Staging — `-m live` und `-m write`. Eine
+   Veröffentlichung ist der eine Moment, in dem die Live-Beweise nicht
+   optional sind.
+6. **Committen, dann ein annotierter Tag**: `git tag -a v0.2.0 -m "0.2.0"`,
+   und `git push --follow-tags`.
+7. **Auf grüne CI am Tag warten**, bevor irgendwo etwas angekündigt wird.
+
+Eine Veröffentlichung auf PyPI gibt es noch nicht; installiert wird aus dem
+Repositorium.
+
+## Sicherheit
+
+Einen Weg gefunden, wie diese Bibliothek Zugangsdaten preisgibt oder etwas
+holt, das niemand verlangt hat? [`SECURITY.md`](SECURITY.md) sagt, wohin
+damit — bitte erst einmal nicht öffentlich.
+
 ## Lizenz
 
 Apache-2.0
