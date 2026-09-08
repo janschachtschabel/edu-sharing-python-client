@@ -128,8 +128,7 @@ class Workflow:
         # accepted a submission somebody had made earlier -- with the
         # repository dropping the PUT, a node already handed to the same queue
         # returned that older step as if it were the new one (audit COR-3,
-        # 2026-09-03). The history only grows, so a length that did not change
-        # means nothing was written.
+        # 2026-09-03).
         before = len(await self.history())
         await self._node._nodes.transport.request(
             "PUT",
@@ -144,13 +143,15 @@ class Workflow:
             },
         )
         # The history comes back newest first -- measured 2026-08-28 by
-        # submitting twice. So once it has grown, the first match is the step
-        # just made, not an older one that looked the same.
+        # submitting twice -- and only grows, so whatever is new sits at the
+        # front. Searching only that prefix is what makes this a proof:
+        # counting alone was not enough, because the history can grow for
+        # somebody else's reason, and the search over the whole list then
+        # found the *older* identical step again (review 2026-09-08).
         after = await self.history()
-        if len(after) > before:
-            for step in after:
-                if step.status == status and set(step.receivers) == set(names):
-                    return step
+        for step in after[: len(after) - before]:
+            if step.status == status and set(step.receivers) == set(names):
+                return step
         raise SilentDropError(
             f"Node {self._node.id!r} shows no submission to "
             f"{', '.join(names)} with status {status!r} after reading the "

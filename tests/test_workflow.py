@@ -250,3 +250,31 @@ async def test_der_neue_schritt_wird_erkannt_obwohl_ein_gleicher_dasteht():
         schritt = await knoten.workflow.submit("gruppe-a", status="100_tocheck")
     assert schritt.status == "100_tocheck"
     assert len(instanz.verlauf) == 2
+
+
+async def test_ein_fremder_schritt_dazwischen_beweist_nichts():
+    """Die Laenge zu zaehlen reicht nicht: sie kann auch aus einem fremden
+    Grund wachsen.
+
+    Verschluckt der Server unser PUT und legt in derselben Zeit jemand anderes
+    einen Schritt an, war der Verlauf gewachsen -- und die Suche lief ueber
+    den ganzen Verlauf und fand den *alten* gleichen Schritt. Genau der
+    Fehlschluss, den COR-3 beseitigen sollte (Review 08.09.2026)."""
+    instanz = Verschluckt(verlauf=[
+        _eintrag("100_tocheck", empfaenger=["gruppe-a"], comment="alt", time=1000)])
+
+    echt = instanz.handler
+
+    def handler(request):
+        if request.url.path.endswith("/workflow") and request.method == "PUT":
+            # Waehrend unser Schreibvorgang verschluckt wird, legt jemand
+            # anderes einen Schritt an -- neueste zuerst.
+            instanz.verlauf.insert(0, _eintrag(
+                "200_tosort", empfaenger=["gruppe-b"], comment="fremd", time=2000))
+        return echt(request)
+
+    instanz.handler = handler
+    async with instanz.repo() as repo:
+        knoten = await repo.node(NID)
+        with pytest.raises(SilentDropError):
+            await knoten.workflow.submit("gruppe-a", status="100_tocheck")
