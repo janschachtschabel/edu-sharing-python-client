@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..errors import EduSharingError
+from .sanitize import one_line
 
 __all__ = ["ToolResult", "as_result"]
 
@@ -54,8 +55,9 @@ async def as_result(
 
     Returns:
         A ``ToolResult``. On an ``EduSharingError``, ``ok`` is false and
-        ``error`` carries the message -- **without** the Java stack trace, since
-        the text goes into a model context and possibly into a user interface.
+        ``error`` carries the message -- **without** the Java stack trace and
+        flattened onto one line, since the text goes into a model context and
+        possibly into a user interface.
 
     Raises:
         Anything that is not an ``EduSharingError``. Defects stay loud.
@@ -63,7 +65,12 @@ async def as_result(
     try:
         ergebnis = await awaitable
     except EduSharingError as exc:
-        meldung = str(exc)
+        # Flattened: the message carries the server's response body, and
+        # ``text`` goes straight into a model context where a newline is a
+        # record separator. Whoever can provoke an error whose text they
+        # choose -- a field name in a query often suffices -- would
+        # otherwise write their own lines there (audit SEC-5).
+        meldung = one_line(str(exc))
         return ToolResult(
             ok=False,
             text=meldung,
