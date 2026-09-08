@@ -228,7 +228,7 @@ has to be guessed — argument and return shapes are in `docs/REFERENCE.md`.
 | You hold | From | On it |
 |---|---|---|
 | `Collections` | `repo.collections` — **async only** | `.find()` `.create()` `.update()` `.add()` `.remove()` |
-| `Nodes` | `repo.nodes` — **async only** | `.get()` `.create()` `.children()` `.repository_url`; `ChildPage`: `.nodes` `.total` `.offset` |
+| `Nodes` | `repo.nodes` — **async only** | `.get()` `.create()` `.children()` `.repository_url` `.wrap(data)`; `ChildPage`: `.nodes` `.total` `.offset` |
 | `Search` | `repo.searcher` — **async only** | `.search()` |
 | `Vocabulary` | `repo.vocab` — **async only** | `.values()` `.suggest()` `.resolve()` `.resolve_all()` `.clear_cache()`; `VocabularyValue`: `.uri` `.label` |
 | `People` | `repo.people` | `.memberships()` `.group()` `.members()` `.create_group()` `.delete_group()` `.add_member()` `.remove_member()`; `Group`: `.name` `.short_name` `.display_name` `.type` `.signup`; `Member`: `.name` `.is_group` |

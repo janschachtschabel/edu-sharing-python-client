@@ -240,7 +240,7 @@ muss — die Argument- und Rückgabeformen stehen in `docs/REFERENCE.de.md`.
 | Man hält | Woher | Was darauf ist |
 |---|---|---|
 | `Collections` | `repo.collections` — **nur asynchron** | `.find()` `.create()` `.update()` `.add()` `.remove()` |
-| `Nodes` | `repo.nodes` — **nur asynchron** | `.get()` `.create()` `.children()` `.repository_url`; `ChildPage`: `.nodes` `.total` `.offset` |
+| `Nodes` | `repo.nodes` — **nur asynchron** | `.get()` `.create()` `.children()` `.repository_url` `.wrap(data)`; `ChildPage`: `.nodes` `.total` `.offset` |
 | `Search` | `repo.searcher` — **nur asynchron** | `.search()` |
 | `Vocabulary` | `repo.vocab` — **nur asynchron** | `.values()` `.suggest()` `.resolve()` `.resolve_all()` `.clear_cache()`; `VocabularyValue`: `.uri` `.label` |
 | `People` | `repo.people` | `.memberships()` `.group()` `.members()` `.create_group()` `.delete_group()` `.add_member()` `.remove_member()`; `Group`: `.name` `.short_name` `.display_name` `.type` `.signup`; `Member`: `.name` `.is_group` |

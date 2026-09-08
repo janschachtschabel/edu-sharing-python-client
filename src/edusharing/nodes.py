@@ -450,6 +450,22 @@ class Nodes:
         """
         return self.transport.repository_url
 
+    def wrap(self, data: dict[str, Any]) -> Node:
+        """A record from any response as a ``Node``, without a request.
+
+        The factory this class already was: ``get``, ``create`` and the listings
+        all build ``Node(data, self)`` themselves. Named, it also serves the
+        modules that hold a ``Nodes`` and used to import ``Node`` inside a
+        function body to get at it -- an import that kept the cycle open rather
+        than resolving it, and hid what the module depends on from the head of
+        its file (audit ARC-3).
+
+        No check on the record: what the repository sends is what the node
+        answers, and a record without an id gives a node with an empty ``id``.
+        Whoever needs the guarantee reads ``node.id``, exactly as after ``get``.
+        """
+        return Node(data, self)
+
     async def get(self, node_id: str) -> Node:
         """Load a node with all its properties."""
         response = await self.transport.json(

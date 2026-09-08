@@ -100,3 +100,67 @@ def test_der_waechter_findet_einen_verstoss():
     # richtig, und der Test soll nicht an ihrer Zahl haengen.
     assert "flows/tree.py -> errors" in _verstoesse(
         [QUELLE / "flows" / "tree.py"], ("errors",))
+
+
+# --- Importe in Funktionsruempfen (Audit ARC-3) --------------------------
+
+#: Ein Import im Rumpf einer Funktion haelt einen Zyklus offen, statt ihn
+#: aufzuloesen: die beiden Module brauchen einander weiterhin, nur nicht mehr
+#: beim Laden. Wer eines davon liest, sieht seine Abhaengigkeiten nicht mehr
+#: im Kopf der Datei stehen.
+#:
+#: Am 03.09.2026 gab es fuenf davon, vier mal ``from .nodes import Node``
+#: (Audit ARC-3). ``Nodes.wrap`` hat sie abgeloest -- die Fabrik gab es
+#: implizit schon, ``Nodes`` baute an vier Stellen selbst ``Node(data, self)``.
+#:
+#: Was hier steht, ist eine bewusste Ausnahme mit Begruendung, kein Rueckstand.
+ERLAUBT = {
+    # ``skills_registry`` braucht ``skills`` fuer die Konventionen, und
+    # ``Skills.registry`` braucht ``load_registry``. Den Rumpf zu verschieben
+    # und zurueckzuexportieren -- der Vorschlag des Berichts -- taeuschte den
+    # Zyklus nur an eine andere Stelle: die beiden Module bleiben zwei Haelften
+    # einer Sache, und ein Import im Rumpf sagt das ehrlicher als ein Re-Export.
+    ("skills.py", "skills_registry"),
+}
+
+
+def _rumpfimporte() -> list[tuple[str, int, str, str]]:
+    """Jeder Import, der im Rumpf einer Funktion steht."""
+    gefunden = []
+    for pfad in sorted(QUELLE.rglob("*.py")):
+        if "_generated" in pfad.parts:
+            continue
+        baum = ast.parse(pfad.read_text(encoding="utf-8"), filename=str(pfad))
+        for knoten in ast.walk(baum):
+            if not isinstance(knoten, ast.FunctionDef | ast.AsyncFunctionDef):
+                continue
+            for innen in ast.walk(knoten):
+                if isinstance(innen, ast.ImportFrom):
+                    gefunden.append((
+                        pfad.relative_to(QUELLE).as_posix(), innen.lineno,
+                        knoten.name, innen.module or ""))
+                elif isinstance(innen, ast.Import):
+                    gefunden.append((
+                        pfad.relative_to(QUELLE).as_posix(), innen.lineno,
+                        knoten.name, innen.names[0].name))
+    return gefunden
+
+
+def test_kein_modul_importiert_im_funktionsrumpf():
+    """Was ein Modul braucht, steht in seinem Kopf."""
+    verstoesse = [
+        f"{datei}:{zeile} in {funktion}() -- from {modul}"
+        for datei, zeile, funktion, modul in _rumpfimporte()
+        if (datei, modul) not in ERLAUBT
+    ]
+    assert not verstoesse, (
+        "Import im Funktionsrumpf -- entweder aufloesen oder in ERLAUBT "
+        "eintragen, mit dem Grund:\n  " + "\n  ".join(verstoesse))
+
+
+def test_die_ausnahmen_gibt_es_noch():
+    """Eine Ausnahme fuer etwas, das es nicht mehr gibt, ist eine Karteileiche
+    -- und die naechste Person haelt sie fuer eine Regel."""
+    tatsaechlich = {(d, m) for d, _, _, m in _rumpfimporte()}
+    verwaist = sorted(ERLAUBT - tatsaechlich)
+    assert not verwaist, f"in ERLAUBT, aber nicht mehr im Code: {verwaist}"

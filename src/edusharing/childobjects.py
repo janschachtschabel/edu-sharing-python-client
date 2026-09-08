@@ -108,15 +108,13 @@ class ChildObjects:
                 f"with your own paging.",
                 url=render_url(self._nodes.repository_url, self._node.id),
             )
-        from .nodes import Node  # local: nodes imports this module
-
         children = [
             data
             for data in roh
             if CHILD_ASPECT in (data.get("aspects") or [])
         ]
         children.sort(key=_order_key)
-        return [Node(data, self._nodes) for data in children]
+        return [self._nodes.wrap(data) for data in children]
 
     async def _count(self) -> int:
         """How many children this node has, from a one-record page.
@@ -201,9 +199,7 @@ class ChildObjects:
             },
             json={"cm:name": [filename], ORDER_PROPERTY: [str(order)]},
         )
-        from .nodes import Node
-
-        child = Node(response.get("node") or {}, self._nodes)
+        child = self._nodes.wrap(response.get("node") or {})
         if not child.id:
             raise EduSharingError(
                 "The repository created a child object without returning an id."

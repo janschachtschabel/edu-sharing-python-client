@@ -197,6 +197,7 @@ festgelegt.
 | `repo.nodes.get(node_id)` | dasselbe |
 | `repo.nodes.children(node_id, limit=…, offset=…)` | `ChildPage` |
 | `repo.nodes.repository_url` | `str` |
+| `repo.nodes.wrap(data)` | `Node` — ein Datensatz aus irgendeiner Antwort, ohne Anfrage |
 | `repo.create_node(parent_id, name=…, properties=…)` | `Node` |
 
 ### Einen Knoten lesen

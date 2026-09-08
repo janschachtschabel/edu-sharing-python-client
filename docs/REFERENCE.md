@@ -189,6 +189,7 @@ Which short names exist is read from the instance, not fixed in the library.
 | `repo.nodes.get(node_id)` | the same |
 | `repo.nodes.children(node_id, limit=…, offset=…)` | `ChildPage` |
 | `repo.nodes.repository_url` | `str` |
+| `repo.nodes.wrap(data)` | `Node` — a record from any response, without a request |
 | `repo.create_node(parent_id, name=…, properties=…)` | `Node` |
 
 ### Reading a node

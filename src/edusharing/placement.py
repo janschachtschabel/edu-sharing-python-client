@@ -84,8 +84,6 @@ async def ancestry_of(repo: Any, node_id: str) -> Ancestry:
             swallowed into an empty list -- "no way up" and "a refused way up"
             are different answers.
     """
-    from .nodes import Node as _Node  # local: nodes imports this module
-
     nodes = _nodes_of(repo)
     response = await nodes.transport.json(
         "GET",
@@ -94,7 +92,7 @@ async def ancestry_of(repo: Any, node_id: str) -> Ancestry:
         # names but no titles, and a breadcrumb needs the titles.
         params={"propertyFilter": "-all-"},
     )
-    found = [_Node(data, nodes) for data in (response.get("nodes") or [])]
+    found = [nodes.wrap(data) for data in (response.get("nodes") or [])]
     itself = next((n for n in found if n.id == node_id), None)
     return Ancestry(
         node=itself,
@@ -133,8 +131,6 @@ async def collections_of(
         NotFoundError: when no node carries this id.
         PermissionDeniedError: when the node may not be read.
     """
-    from .nodes import Node as _Node  # local: nodes imports this module
-
     nodes = _nodes_of(repo)
     if original_id is None:
         node = await nodes.get(node_id)
@@ -145,7 +141,7 @@ async def collections_of(
     # A list, not an object -- and a list of *usages*, so an entry without a
     # collection block would become a node without an id.
     return [
-        _Node(usage["collection"], nodes)
+        nodes.wrap(usage["collection"])
         for usage in (response or [])
         if isinstance(usage, dict) and usage.get("collection")
     ]
