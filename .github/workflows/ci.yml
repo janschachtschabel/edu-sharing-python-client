@@ -86,5 +86,20 @@ jobs:
       # Offline only. The live and write suites need credentials and write into
       # a real repository -- they are deselected by addopts in pyproject.toml
       # and stay a deliberate, local act.
+      #
+      # The failure summary is repeated as an error annotation because the run
+      # log needs a sign-in to read, while annotations are public. The first
+      # Windows run failed on 2026-09-08 and left an exit code and nothing
+      # else; a red build nobody can read is barely better than no build.
       - name: Tests
-        run: uv run pytest -q
+        shell: bash
+        run: |
+          set +e
+          uv run pytest -q --tb=short 2>&1 | tee pytest.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            printf '::error title=pytest::%s\n' \
+              "$(tail -n 40 pytest.log | tr -d '\r' | sed 's/%/%25/g' \
+                 | awk '{printf "%s%%0A", $0}')"
+          fi
+          exit "$rc"
