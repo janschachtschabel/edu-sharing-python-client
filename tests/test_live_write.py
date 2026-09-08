@@ -18,12 +18,14 @@ import asyncio
 import json
 import os
 import uuid
+import warnings
 
 import pytest
 
 from edusharing import AsyncRepository
-from edusharing.errors import SilentDropError
+from edusharing.errors import EduSharingError, SilentDropError
 from edusharing.flows.duplicates import find_by_url
+from edusharing.nodes import Node
 
 pytestmark = [
     pytest.mark.write,
@@ -62,7 +64,7 @@ async def ordner(repo):
     try:
         yield neu
     finally:
-        await neu.delete()
+        await _wegwerfen(neu)
 
 
 @pytest.fixture
@@ -126,6 +128,33 @@ async def test_direktweg_kann_loeschen(knoten):
     assert gesetzt.get(NICHT_IM_MDS) == "erst da"
     geleert = await gesetzt.set_property(NICHT_IM_MDS, None)
     assert geleert.get(NICHT_IM_MDS) is None
+
+
+async def _wegwerfen(*knoten: Node) -> None:
+    """Wegwerf-Objekte endgueltig loeschen -- alle, und ohne den Testfehler zu
+    ueberschreiben.
+
+    Drei Dinge, die dieser Helfer richtigstellt (Audit TST-3):
+
+    ``recycle=False``. ``delete()`` legt in den Papierkorb, also hinterliess
+    jeder Lauf dort einen ``pytest-edusharing-...``-Ordner, den jemand von
+    Hand wegraeumen muss. Wegwerf-Objekte gehoeren nicht in den Papierkorb.
+
+    Je Objekt gefangen. In ``eigene_seite`` lief das Aufraeumen als Schleife:
+    scheiterte eine Loeschung, blieb der Rest liegen.
+
+    Und gemeldet statt geworfen. Eine Ausnahme im ``finally`` ersetzt den
+    Fehler, den der Test eigentlich gefunden hat -- man sieht dann das
+    Aufraeumen scheitern und nicht mehr, woran es lag.
+    """
+    for eins in knoten:
+        try:
+            await eins.delete(recycle=False)
+        except EduSharingError as exc:
+            warnings.warn(
+                f"Aufraeumen von {getattr(eins, 'id', eins)!r} fehlgeschlagen: {exc}",
+                stacklevel=2,
+            )
 
 
 # --- Rechte und Loeschen ---------------------------------------------------
@@ -230,7 +259,7 @@ async def sammlung(repo):
     try:
         yield neu
     finally:
-        await neu.delete()
+        await _wegwerfen(neu)
 
 
 async def test_sammlung_ist_privat(sammlung):
@@ -730,8 +759,7 @@ async def eigene_seite(repo):
 
         yield await repo.nodes.get(besitzer.id), erste.id, zweite.id
     finally:
-        for knoten in reversed(angelegt):
-            await knoten.delete()
+        await _wegwerfen(*reversed(angelegt))
 
 
 async def test_seite_wird_gelesen(eigene_seite):
