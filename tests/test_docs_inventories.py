@@ -95,7 +95,11 @@ def test_die_readme_zaehlt_jeden_ablauf_auf(name):
 
 # --- Das Beispielverzeichnis ------------------------------------------------
 
-_VERWEIS = re.compile(r"docs/examples/([0-9]{2}_[a-z_]+\.py)")
+#: Eine **Tabellenzeile** des Beispielverzeichnisses, nicht irgendein Verweis
+#: im Fliesstext: ``| [`14_flow_page.py`](docs/examples/14_flow_page.py) | ...``
+#: Ein Beispiel, das nur nebenbei im Text erwaehnt wird, steht nicht im
+#: Verzeichnis -- und darum geht es hier (Pruefung 08.09.2026).
+_ZEILE = re.compile(r"^\|\s*\[`([0-9]{2}_[a-z_]+\.py)`\]\(docs/examples/", re.M)
 
 
 @pytest.mark.parametrize("name", sorted(READMES))
@@ -107,7 +111,7 @@ def test_jedes_beispiel_steht_in_der_readme(name):
     Verzeichnis deckungsgleich mit dem Ordner.
     """
     pfad, _ = READMES[name]
-    verzeichnet = set(_VERWEIS.findall(pfad.read_text(encoding="utf-8")))
+    verzeichnet = set(_ZEILE.findall(pfad.read_text(encoding="utf-8")))
     vorhanden = {p.name for p in BEISPIELE.glob("*.py")}
 
     fehlend = sorted(vorhanden - verzeichnet)
@@ -138,15 +142,19 @@ def test_jedes_modul_kommt_im_architekturnachweis_vor(name):
     obwohl vier Module es tragen -- rund 13 % der Schicht, ohne einen Satz
     darueber, warum es sie gibt (Audit DOC-3). Zehn Module waren so unsichtbar.
 
-    Es genuegt, dass der Name faellt: als Pfad, als Dateiname oder in
-    Code-Schreibweise. Diese Wache verlangt keinen eigenen Absatz je Modul --
-    sie verlangt, dass keines vergessen wird.
+    Verlangt wird der **Pfad** ab ``edusharing/``, nicht der blosse Name. Die
+    erste Fassung nahm auch den Dateinamen und den Wortstamm -- und war damit an
+    einer Teilstring-Kollision gruen: ``flows/collections.py`` kam in keiner
+    Tabelle vor, aber ``collections.py`` steckt als Teilzeichenkette in der
+    Zeile fuer das *andere* Modul dieses Namens. Dasselbe galt fuer
+    ``flows/pages.py`` und ``flows/skills.py`` (Pruefung 08.09.2026). Eine Wache,
+    die aus dem falschen Grund gruen ist, ist schlimmer als keine.
+
+    Diese Wache verlangt keinen eigenen Absatz je Modul -- sie verlangt, dass
+    keines vergessen wird.
     """
     text = ARCHITEKTUR[name].read_text(encoding="utf-8")
-    fehlend = [
-        m for m in module()
-        if m not in text and Path(m).name not in text and f"`{Path(m).stem}`" not in text
-    ]
+    fehlend = [m for m in module() if m not in text]
     assert not fehlend, (
         f"{name}: {len(fehlend)} von {len(module())} Modulen kommen nicht vor:\n  "
         + "\n  ".join(fehlend))
@@ -155,6 +163,16 @@ def test_jedes_modul_kommt_im_architekturnachweis_vor(name):
 # --- Die Warnstellen --------------------------------------------------------
 
 _WARNT = re.compile(r"\blogger\.warning\(")
+
+#: Die Kopfzeile der Warntabelle, je Sprachfassung -- damit diese Wache die
+#: Tabelle liest und nicht das ganze Dokument.
+WARNTABELLE = {
+    "README.md": "| Where | What it says |",
+    "README.de.md": "| Wo | Was sie sagt |",
+}
+
+#: ``| `bapi/client.py` | ...`` -- der Modulpfad in der ersten Spalte.
+_TABELLENZEILE = re.compile(r"^\|\s*`([a-z_]+(?:/[a-z_]+)*\.py)`\s*\|", re.M)
 
 
 def warnende_module() -> list[str]:
@@ -179,9 +197,25 @@ def test_jedes_warnende_modul_steht_in_der_readme(name):
     Extraktionsdienstes sind ein Absatz wert, nicht drei. Eine Anzahl steht in
     der README deshalb nicht mehr -- eine Zahl, die niemand nachrechnet, wird
     falsch, ohne dass sie aufhoert, ueberzeugend auszusehen.
+
+    Beide Richtungen. Die erste Fassung fragte nur, ob jedes warnende Modul
+    genannt ist; ein ``logger.warning``, das beim Umbauen zu ``logger.debug``
+    wird, liesse die Tabelle eine Warnung behaupten, die es nicht mehr gibt --
+    und das ist der wahrscheinlichere Verfall (Pruefung 08.09.2026).
     """
     pfad, _ = READMES[name]
+    kopf = WARNTABELLE[name]
     text = pfad.read_text(encoding="utf-8")
-    fehlend = [m for m in warnende_module() if m not in text]
+    beginn = text.find(kopf)
+    assert beginn != -1, (
+        f"{name}: die Warntabelle faengt nicht mehr mit {kopf!r} an.")
+    genannt = set(_TABELLENZEILE.findall(text[beginn:text.find("\n\n", beginn)]))
+    warnende = set(warnende_module())
+
+    fehlend = sorted(warnende - genannt)
     assert not fehlend, (
         f"{name}: diese Module warnen, werden aber nicht genannt: {fehlend}")
+
+    erfunden = sorted(genannt - warnende)
+    assert not erfunden, (
+        f"{name}: die Tabelle nennt Module, die nicht (mehr) warnen: {erfunden}")

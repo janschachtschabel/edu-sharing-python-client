@@ -665,7 +665,10 @@ the overlap remains in the documentation, where it belongs.
 
 | Module | Responsibility |
 |---|---|
-| `flows/` | The second level (E9): `find`, `describe`, `contents`, `curate`, `tree`, `pages`, plus `rerank` for E10 |
+| `flows/find.py`, `flows/describe.py`, `flows/contents.py` | The second level (E9), and what `discover.py` was split into: which nodes, what this node is, what hangs off it |
+| `flows/collections.py`, `flows/tree.py` | Which collections — and, since the tree is a graph and not a tree, walking it with a cap and a de-duplication set |
+| `flows/curate.py` | The writing flows: create, collect, delete |
+| `flows/rerank.py` | E10: several query variants asked at once, their rankings merged |
 | `fields.py`, `ranking.py`, `language.py` | Reusable pieces of layer 2, moved out of `flows/` on 2026-09-08: short name → property and vocabulary resolution, the scoring, the word lists behind E10. They were pulled upward from below (audit ARC-1); `tests/test_import_direction.py` now guards the direction |
 | `strings.py` | `cap_text` — a string function, below every layer that uses it |
 | `dto.py` | One reading of a raw node record: `first`, `title_of`, `node_id_of`, `bare_id`, `render_url`, `page_total` (audit MNT-1) |

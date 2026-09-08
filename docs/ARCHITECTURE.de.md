@@ -728,7 +728,10 @@ entdoppelt, Gesamtzahl als Untergrenze gekennzeichnet). Die Messung der
 
 | Modul | Verantwortung |
 |---|---|
-| `flows/` | Die zweite Ebene (E9): `find`, `describe`, `contents`, `curate`, `tree`, `pages`, dazu `rerank` für E10 |
+| `flows/find.py`, `flows/describe.py`, `flows/contents.py` | Die zweite Ebene (E9), und das, worin `discover.py` zerlegt wurde: welche Knoten, was dieser Knoten ist, was an ihm hängt |
+| `flows/collections.py`, `flows/tree.py` | Welche Sammlungen — und, weil der Baum ein Graph ist und kein Baum, ihn ablaufen mit Deckel und Dublettenmenge |
+| `flows/curate.py` | Die schreibenden Abläufe: anlegen, einsortieren, löschen |
+| `flows/rerank.py` | E10: mehrere Anfragevarianten auf einmal, ihre Ranglisten zusammengeführt |
 | `fields.py`, `ranking.py`, `language.py` | Wiederverwendbare Teile der Schicht 2, am 08.09.2026 aus `flows/` heraus verschoben: Kurzname → Eigenschaft und Vokabularauflösung, die Bewertung, die Wortlisten hinter E10. Sie waren von unten nach oben geholt worden (Audit ARC-1); `tests/test_import_direction.py` wacht jetzt über die Richtung |
 | `strings.py` | `cap_text` — eine Zeichenkettenfunktion, unter jeder Schicht, die sie benutzt |
 | `dto.py` | Eine Lesart eines rohen Knotensatzes: `first`, `title_of`, `node_id_of`, `bare_id`, `render_url`, `page_total` (Audit MNT-1) |
