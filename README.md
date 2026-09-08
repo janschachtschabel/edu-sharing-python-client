@@ -26,9 +26,11 @@ examples:
 uv pip install -e .
 ```
 
-`pip install -e .` works the same way in an environment that has pip. Four
-runtime dependencies come with it: `httpx` for the transport, and `attrs`,
-`python-dateutil` and `typing-extensions` for the generated layer.
+`pip install -e .` works the same way in an environment that has pip. Two
+runtime dependencies come with it: `httpx` for the transport and `attrs` for
+the generated layer. A guard in `tests/test_dependencies.py` fails when a
+declared dependency is not imported anywhere — `python-dateutil` and
+`typing-extensions` were declared and never used (audit DEP-1).
 
 For the tests and the examples as well:
 
@@ -999,12 +1001,25 @@ exist:
 ## Rebuilding the generated layer
 
 ```bash
+python scripts/generate_client.py
+```
+
+That rebuilds from the reference spec under `openapi/` — start there, so the
+diff shows what the generator did and nothing else. Only then, to pick up a
+newer instance:
+
+```bash
 python scripts/generate_client.py --from-instance https://repository.staging.openeduhub.net
 ```
 
-The reference spec (edu-sharing 11.0) lives under `openapi/`. The script
-normalises it first — without that step the generator emits invalid Python; the
-reasoning is in the script's docstring.
+The script normalises the spec first — without that step the generator emits
+invalid Python; the reasoning is in its docstring. It runs the generator from
+`uv.lock`, not the latest release on PyPI, and writes
+`src/edusharing/_generated/GENERATED.md` with the generator version and the
+spec's SHA-256, so a later diff can be read as spec change *or* generator
+change (audit DEP-2). Run it from the project root: there the generator reads
+`requires-python` and the line length from `pyproject.toml` — outside it, the
+same generator and the same spec give 556 differently shaped files.
 
 ## Logging
 

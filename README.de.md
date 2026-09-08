@@ -30,9 +30,11 @@ laufen zu lassen:
 uv pip install -e .
 ```
 
-`pip install -e .` geht genauso, in einer Umgebung, die pip mitbringt. Vier
-Laufzeit-Abhängigkeiten kommen mit: `httpx` für den Transport sowie `attrs`,
-`python-dateutil` und `typing-extensions` für die generierte Schicht.
+`pip install -e .` geht genauso, in einer Umgebung, die pip mitbringt. Zwei
+Laufzeit-Abhängigkeiten kommen mit: `httpx` für den Transport und `attrs` für
+die generierte Schicht. Eine Wache in `tests/test_dependencies.py` schlägt an,
+wenn eine verlangte Abhängigkeit nirgends importiert wird — `python-dateutil`
+und `typing-extensions` standen dort und wurden nie benutzt (Audit DEP-1).
 
 Für Tests und Beispiele zusätzlich:
 
@@ -1024,12 +1026,26 @@ weil eine Verbindung zum Repositorium nichts darüber sagt, ob es sie gibt:
 ## Generierte Schicht neu bauen
 
 ```bash
+python scripts/generate_client.py
+```
+
+Das baut aus der Referenz-Spec unter `openapi/` — damit anfangen, dann zeigt der
+Diff, was der Generator getan hat, und sonst nichts. Erst danach, um eine neuere
+Instanz aufzunehmen:
+
+```bash
 python scripts/generate_client.py --from-instance https://repository.staging.openeduhub.net
 ```
 
-Die Referenz-Spec (edu-sharing 11.0) liegt unter `openapi/`. Das Script normalisiert
-sie zuerst — ohne diesen Schritt erzeugt der Generator ungültiges Python; die
-Begründung steht im Docstring des Scripts.
+Das Script normalisiert die Spec zuerst — ohne diesen Schritt erzeugt der
+Generator ungültiges Python; die Begründung steht in seinem Docstring. Es ruft
+den Generator aus `uv.lock` auf, nicht die neueste Fassung von PyPI, und
+schreibt `src/edusharing/_generated/GENERATED.md` mit Generator-Fassung und
+SHA-256 der Spec, damit ein späterer Diff als Spec-Änderung *oder*
+Generator-Änderung lesbar ist (Audit DEP-2). Aus dem Projektverzeichnis
+starten: dort liest der Generator `requires-python` und die Zeilenbreite aus
+`pyproject.toml` — außerhalb ergeben derselbe Generator und dieselbe Spec 556
+anders geformte Dateien.
 
 ## Protokoll
 

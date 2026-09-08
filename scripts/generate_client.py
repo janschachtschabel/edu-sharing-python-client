@@ -28,10 +28,12 @@ from __future__ import annotations
 
 import argparse
 import ast
+import hashlib
 import json
 import shutil
 import subprocess
 import sys
+import tomllib
 import urllib.request
 from pathlib import Path
 
@@ -65,6 +67,36 @@ def strip_path_param_defaults(spec: dict) -> int:
     return n
 
 
+def generator_version() -> str:
+    """Welche Fassung des Generators uv.lock festhaelt."""
+    lock = tomllib.loads((ROOT / "uv.lock").read_text(encoding="utf-8"))
+    for paket in lock.get("package", []):
+        if paket.get("name") == "openapi-python-client":
+            return str(paket.get("version") or "unbekannt")
+    return "unbekannt"
+
+
+def write_provenance(output: Path, spec_bytes: bytes, quelle: str, info: dict) -> None:
+    """Woraus diese Schicht entstanden ist -- neben die Schicht geschrieben.
+
+    Ohne diese Notiz stand in ``_generated/`` nirgends, welcher Generator und
+    welche Spec die eingecheckten Dateien erzeugt haben. Wer spaeter neu
+    erzeugt, bekommt dann einen Diff, in dem sich Spec-Aenderung und
+    Generator-Aenderung nicht trennen lassen (Audit DEP-2).
+    """
+    (output / "GENERATED.md").write_text(
+        "# Herkunft dieser Schicht\n\n"
+        "Maschinenausgabe. Nicht von Hand aendern -- `scripts/generate_client.py`\n"
+        "schreibt sie samt dieser Notiz neu.\n\n"
+        f"- Generator: `openapi-python-client` {generator_version()} (aus `uv.lock`)\n"
+        f"- Spec: {info.get('title')} {info.get('version')}\n"
+        f"- Quelle: `{quelle}`\n"
+        f"- SHA-256 der Spec: `{hashlib.sha256(spec_bytes).hexdigest()}`\n\n"
+        "Der Hash gilt fuer die Spec, wie sie gelesen wurde -- vor dem Entfernen\n"
+        "der Pfad-Parameter-Defaults, das das Skript deterministisch vornimmt.\n",
+        encoding="utf-8")
+
+
 def verify_syntax(root: Path) -> list[str]:
     """Jede erzeugte Datei parsen. Der Generator meldet Syntaxfehler nur als Warnung."""
     broken = []
@@ -87,12 +119,14 @@ def main() -> int:
     if args.from_instance:
         print(f"hole Spec von {args.from_instance}")
         spec = fetch_spec(args.from_instance)
+        spec_bytes = json.dumps(spec, ensure_ascii=False, sort_keys=True).encode("utf-8")
     else:
         if not args.spec.exists():
             print(f"Referenz-Spec fehlt: {args.spec}", file=sys.stderr)
             print("  -> mit --from-instance URL einmalig erzeugen", file=sys.stderr)
             return 1
-        spec = json.loads(args.spec.read_text(encoding="utf-8"))
+        spec_bytes = args.spec.read_bytes()
+        spec = json.loads(spec_bytes.decode("utf-8"))
 
     info = spec.get("info", {})
     ops = sum(1 for i in spec.get("paths", {}).values() for m in i if m in METHODS)
@@ -109,15 +143,33 @@ def main() -> int:
         shutil.rmtree(args.output)
     args.output.mkdir(parents=True, exist_ok=True)
 
+    # ``uv run`` statt ``uv tool run``: so kommt der Generator aus uv.lock und
+    # nicht die neueste Fassung von PyPI. Eine 141k-Zeilen-Schicht, deren Bau
+    # sich nicht wiederholen laesst, ist ein Blob auf Zuruf -- und ein
+    # unfreiwilliges Update des Generators ergaebe einen Diff, in dem niemand
+    # Spec-Aenderung von Generator-Aenderung trennen kann (Audit DEP-2).
+    #
+    # ``cwd=ROOT`` ist keine Formsache. Gemessen am 08.09.2026: laeuft der
+    # Generator im Projekt, liest er pyproject.toml -- ``requires-python
+    # >=3.11`` laesst ihn ``typing.Self`` schreiben statt
+    # ``typing_extensions.Self`` (weshalb typing-extensions keine
+    # Abhaengigkeit ist, Audit DEP-1), und ``line-length = 100`` bestimmt die
+    # Formatierung. Ausserhalb des Projekts erzeugt derselbe Generator aus
+    # derselben Spec 556 andere Dateien -- gleicher Inhalt, andere Form.
     cmd = [
-        "uv", "tool", "run", "--from", "openapi-python-client",
-        "openapi-python-client", "generate",
+        "uv", "run", "openapi-python-client", "generate",
         "--path", str(tmp), "--output-path", str(args.output),
         "--overwrite", "--meta", "none",
     ]
     print("$ " + " ".join(cmd))
-    subprocess.run(cmd, check=False)
+    lauf = subprocess.run(cmd, check=False, cwd=ROOT)
     tmp.unlink(missing_ok=True)
+    if lauf.returncode != 0:
+        # Der Rueckgabewert wurde bisher verworfen. Ein gescheiterter Generator
+        # hinterliess damit einen halben Baum und meldete Erfolg.
+        print(f"\nFEHLER: der Generator endete mit {lauf.returncode}.",
+              file=sys.stderr)
+        return 1
 
     broken = verify_syntax(args.output)
     total = sum(1 for _ in args.output.rglob("*.py"))
@@ -128,6 +180,9 @@ def main() -> int:
             print("   ", b, file=sys.stderr)
         return 1
 
+    # posix: die Notiz wird eingecheckt und darf nicht nach Windows aussehen.
+    quelle = args.from_instance or args.spec.relative_to(ROOT).as_posix()
+    write_provenance(args.output, spec_bytes, quelle, info)
     print(f"\nOK: {total} Dateien, keine Syntaxfehler.")
     return 0
 

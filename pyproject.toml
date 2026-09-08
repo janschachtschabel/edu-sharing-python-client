@@ -16,10 +16,12 @@ classifiers = [
 
 dependencies = [
     "httpx>=0.27",
-    # Runtime dependencies of the generated layer (openapi-python-client):
+    # The generated layer's only runtime dependency. openapi-python-client also
+    # declares python-dateutil and typing-extensions; measured 2026-09-03,
+    # neither is imported anywhere under src/ -- the generated code parses
+    # dates with datetime.fromisoformat. tests/test_dependencies.py keeps it
+    # that way (audit DEP-1).
     "attrs>=23.2",
-    "python-dateutil>=2.9",
-    "typing-extensions>=4.10",
 ]
 
 [project.urls]

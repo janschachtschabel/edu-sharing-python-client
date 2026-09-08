@@ -32,7 +32,7 @@ class UserProfile:
     avatar: str | Unset = UNSET
     primary_affiliation: str | Unset = UNSET
     about: str | Unset = UNSET
-    skills: list[None | str] | None | Unset = UNSET
+    skills: list[str | None] | Unset | None = UNSET
     types: list[str] | Unset = UNSET
     vcard: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -50,13 +50,13 @@ class UserProfile:
 
         about = self.about
 
-        skills: list[None | str] | None | Unset
+        skills: list[str | None] | Unset | None
         if isinstance(self.skills, Unset):
             skills = UNSET
         elif isinstance(self.skills, list):
             skills = []
             for skills_type_0_item_data in self.skills:
-                skills_type_0_item: None | str
+                skills_type_0_item: str | None
                 skills_type_0_item = skills_type_0_item_data
                 skills.append(skills_type_0_item)
 
@@ -108,7 +108,7 @@ class UserProfile:
 
         about = d.pop("about", UNSET)
 
-        def _parse_skills(data: object) -> list[None | str] | None | Unset:
+        def _parse_skills(data: object) -> list[str | None] | Unset | None:
             if data is None:
                 return data
             if isinstance(data, Unset):
@@ -120,7 +120,7 @@ class UserProfile:
                 _skills_type_0 = data
                 for skills_type_0_item_data in _skills_type_0:
 
-                    def _parse_skills_type_0_item(data: object) -> None | str:
+                    def _parse_skills_type_0_item(data: object) -> str | None:
                         if data is None:
                             return data
                         return cast(None | str, data)

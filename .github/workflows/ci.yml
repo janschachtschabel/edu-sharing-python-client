@@ -27,12 +27,14 @@ jobs:
       - name: Install uv
         run: pip install uv
 
-      # --frozen: install exactly what uv.lock pins. A pyproject change without
-      # a matching lock update should fail here, not drift silently.
+      # --locked: install exactly what uv.lock pins AND assert the lock still
+      # matches pyproject.toml. --frozen stood here and only did the first
+      # half: a pyproject change without a lock update passed silently, which
+      # is precisely what this step promised to catch (audit OPS-1).
       # --python: without it uv picks its own interpreter and the matrix would
       # test the same version four times.
       - name: Install dependencies
-        run: uv sync --group dev --frozen --python ${{ matrix.python }}
+        run: uv sync --group dev --locked --python ${{ matrix.python }}
 
       - name: Lint
         run: uv run ruff check .
