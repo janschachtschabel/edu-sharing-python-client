@@ -312,7 +312,8 @@ lockstep — or `None` when the server asked for longer than this client waits.
 
 `edusharing.dto` is the one reading of a raw node record — `first(value)`
 (the first value of a property, `None` for an empty list), `title_of(raw)`
-(`title`, then `cclom:title`, `cm:title`, `cm:name`), `node_id_of(raw)`,
+(`title`, then `cclom:title`, `cm:title`, `cm:name`) and `stored_title_of(raw)`
+(the same without the name fallback — what a write preserves), `node_id_of(raw)`,
 `bare_id(ref)`, `render_url(repository_url, node_id)` and
 `page_total(response, default=…)`. Every object of this library is built
 through them, so the same record always reads the same way.

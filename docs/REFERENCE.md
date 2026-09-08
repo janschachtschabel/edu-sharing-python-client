@@ -320,11 +320,14 @@ await node.children.add(pdf, filename="loesung.pdf",
 
 for child in await node.children.list():
     child.name            # "loesung.pdf"     <- display this
-    child.title           # ""                <- not this
+    child.title           # "loesung.pdf"     <- the same, by fallback
 ```
 
-**Display `name`, not `title`.** A child added here carries the filename in
-`name` and an empty `title` — measured 2026-08-28.
+**Display `name`, not `title`.** A child added here carries no title of its
+own — measured 2026-08-28. Since the title chain was unified (audit MNT-1),
+`title` falls back to `cm:name`, so both read the same here; `name` is the
+field that means it. For a write that must preserve a title, use
+`stored_title_of`, which does **not** fall back to the name.
 
 ---
 
@@ -782,7 +785,7 @@ stopped early is not "there is none".
 | `check_before_create(repo, url, if_exists)` | `(existing, warnings)` — applies `if_exists`; raises `ConflictError` for `"raise"` |
 | `DUPLICATE_SCAN_LIMIT` | `20` — hits compared per check |
 | `repo.flows.update_material(node_id, …)` | `{id, title, url, name, unresolved}` |
-| `repo.flows.build_collection(title, node_ids=[…], …)` | `{id, title, url, added, failed}` |
+| `repo.flows.build_collection(title, node_ids=[…], …)` | `{id, title, url, added, failed, public, warnings}` |
 | `repo.flows.accept_suggestion(node_id, suggestion_id)` | `{id, suggestion_id, property, value, applied, status, failed}` — write, read back, then mark |
 | `repo.flows.find_skills(text, collection_id=…, subject=…)` | `{query, hits, unresolved, truncated}` |
 | `repo.flows.skill(node_id, include_files=…)` | the `SkillDocument` as a dict — read `files_reason` |
@@ -1320,6 +1323,7 @@ Not needed for ordinary use; documented because they are importable.
 | `error_class_for(status, error_class=…, message=…)` | `type` — which error type a status stands for |
 | `first(value)` | `str \| None` — the first value of a property; `[]` gives `None` |
 | `title_of(raw)` | `str` — the one title chain: `title`, `cclom:title`, `cm:title`, `cm:name` |
+| `stored_title_of(raw)` | `str` — the same chain **without** the `cm:name` fallback: what to preserve on a write |
 | `node_id_of(raw)` | `str` — the id from a record's `ref`, `""` when there is none |
 | `bare_id(ref)` | `str` — a node id without its `workspace://SpacesStore/` prefix |
 | `render_url(repository_url, node_id)` | `str` — the viewer URL, `""` for an empty id |
@@ -1342,7 +1346,7 @@ still decides for itself is *which* failure earns another attempt: the
 transport by error type, because an edu-sharing 500 can mean "not signed in",
 the sibling services by `RETRYABLE_STATUS`.
 
-**One reading of a node record.** The five functions above are
+**One reading of a node record.** The seven functions above are
 `edusharing.dto`, and every object of this library is built from a raw record
 through them. They used to be copied: four different title chains, three
 `_first` (one answering `""` where the others answered `None`), two `bare_id`,

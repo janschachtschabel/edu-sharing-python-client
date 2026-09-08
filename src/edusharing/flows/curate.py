@@ -73,7 +73,11 @@ async def add_material(
 
     Returns:
         ``{id, title, url, parent_id, name, collection, public, unresolved,
-        existing, created, warnings}``. ``created`` is ``False`` when an existing
+        existing, created, warnings}``. ``collection`` carries ``added``
+        and, when placing was refused, a ``reason``; ``public`` stays ``False``
+        when publishing was refused -- both name themselves in ``warnings``
+        rather than raising, because the record exists by then (audit COR-5).
+        ``created`` is ``False`` when an existing
         record was returned instead -- then ``existing`` names it and the
         location keys are ``None``.
         ``public`` says whether the material ended up readable without a

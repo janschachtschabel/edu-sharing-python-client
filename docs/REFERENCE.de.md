@@ -328,11 +328,15 @@ await node.children.add(pdf, filename="loesung.pdf",
 
 for child in await node.children.list():
     child.name            # "loesung.pdf"     <- das anzeigen
-    child.title           # ""                <- nicht das
+    child.title           # "loesung.pdf"     <- dasselbe, per Rückfall
 ```
 
-**`name` anzeigen, nicht `title`.** Ein hier angelegtes Kind trägt den
-Dateinamen in `name` und ein leeres `title` — gemessen am 28.08.2026.
+**`name` anzeigen, nicht `title`.** Ein hier angelegtes Kind trägt keinen
+eigenen Titel — gemessen am 28.08.2026. Seit die Titelkette vereinheitlicht
+ist (Audit MNT-1), fällt `title` auf `cm:name` zurück, sodass hier beides
+gleich liest; `name` ist das Feld, das es meint. Wer schreibend einen Titel
+erhalten will, nimmt `stored_title_of` — das fällt **nicht** auf den Namen
+zurück.
 
 ---
 
@@ -796,7 +800,7 @@ Gang, der früh abgebrochen hat, heißt nicht „es gibt keins".
 | `check_before_create(repo, url, if_exists)` | `(existing, warnings)` — wendet `if_exists` an; wirft `ConflictError` bei `"raise"` |
 | `DUPLICATE_SCAN_LIMIT` | `20` — verglichene Treffer je Prüfung |
 | `repo.flows.update_material(node_id, …)` | `{id, title, url, name, unresolved}` |
-| `repo.flows.build_collection(title, node_ids=[…], …)` | `{id, title, url, added, failed}` |
+| `repo.flows.build_collection(title, node_ids=[…], …)` | `{id, title, url, added, failed, public, warnings}` |
 | `repo.flows.accept_suggestion(node_id, suggestion_id)` | `{id, suggestion_id, property, value, applied, status, failed}` — schreiben, zurücklesen, dann markieren |
 | `repo.flows.find_skills(text, collection_id=…, subject=…)` | `{query, hits, unresolved, truncated}` |
 | `repo.flows.skill(node_id, include_files=…)` | das `SkillDocument` als dict — `files_reason` lesen |
@@ -1344,6 +1348,7 @@ sind.
 | `error_class_for(status, error_class=…, message=…)` | `type` — welcher Fehlertyp zu einem Status gehört |
 | `first(value)` | `str \| None` — der erste Wert einer Eigenschaft; `[]` ergibt `None` |
 | `title_of(raw)` | `str` — die eine Titelkette: `title`, `cclom:title`, `cm:title`, `cm:name` |
+| `stored_title_of(raw)` | `str` — dieselbe Kette **ohne** den Rückfall auf `cm:name`: was ein Schreibvorgang erhält |
 | `node_id_of(raw)` | `str` — die id aus dem `ref` eines Datensatzes, `""`, wenn es keine gibt |
 | `bare_id(ref)` | `str` — eine Knoten-id ohne das Präfix `workspace://SpacesStore/` |
 | `render_url(repository_url, node_id)` | `str` — die Ansichts-Adresse, `""` bei leerer id |
@@ -1367,7 +1372,7 @@ entscheidet, ist, *welcher* Fehlschlag einen weiteren Versuch verdient: der
 Transport nach Fehlertyp, weil ein edu-sharing-500 „nicht angemeldet" heißen
 kann, die Nachbardienste nach `RETRYABLE_STATUS`.
 
-**Ein Knotensatz, einmal gelesen.** Die fünf Funktionen darüber sind
+**Ein Knotensatz, einmal gelesen.** Die sieben Funktionen darüber sind
 `edusharing.dto`, und jedes Objekt dieser Bibliothek entsteht über sie aus
 einem rohen Datensatz. Sie waren kopiert: vier verschiedene Titelketten, drei
 `_first` (eines gab `""` zurück, wo die anderen `None` gaben), zwei `bare_id`,

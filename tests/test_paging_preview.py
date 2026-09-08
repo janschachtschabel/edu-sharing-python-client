@@ -384,3 +384,27 @@ async def test_vorschaubild_wird_nach_abbruch_erneut_gesendet():
         await knoten.content.set_preview(PNG)
     assert abgebrochen == [1]
     assert instanz.eigenes_bild
+
+
+async def test_eine_sammlung_ohne_titel_bekommt_beim_beschreiben_keinen():
+    """Seit die Titelkette vereinheitlicht ist, faellt ``Node.title`` auf
+    ``cm:name`` zurueck. Wer nur die Beschreibung aendert, darf davon aber
+    keinen Titel geschrieben bekommen -- das waere ein Schreibvorgang, den
+    niemand verlangt hat (Review 08.09.2026, Nebenwirkung von MNT-1)."""
+    instanz = Instanz()
+    instanz.sammlung["titel"] = ""
+    instanz.sammlung["name"] = "Meine-Sammlung"
+    async with instanz.repo() as repo:
+        await repo.collections.update("s-1", description="Neuer Text")
+    koerper = json.loads(instanz.letzte("PUT", "/collection").content)
+    assert koerper["title"] == "", f"der Name waere hier gelandet: {koerper['title']!r}"
+    assert koerper["properties"]["cm:title"] == [""]
+
+
+async def test_ein_vorhandener_titel_bleibt_beim_beschreiben_stehen():
+    """Die Gegenprobe: was da ist, wird erhalten."""
+    instanz = Instanz()
+    async with instanz.repo() as repo:
+        await repo.collections.update("s-1", description="Neuer Text")
+    koerper = json.loads(instanz.letzte("PUT", "/collection").content)
+    assert koerper["title"] == "Alt"

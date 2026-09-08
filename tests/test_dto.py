@@ -21,6 +21,7 @@ from edusharing.dto import (
     node_id_of,
     page_total,
     render_url,
+    stored_title_of,
     title_of,
 )
 from edusharing.nodes import Node
@@ -178,3 +179,26 @@ def test_alle_objekte_lesen_denselben_titel():
     assert Node(roh, None).title == "Bruchrechnung"
     assert SearchHit.from_node(roh, "https://repo.test").title == "Bruchrechnung"
     assert registry_title(roh) == "Bruchrechnung"
+
+
+@pytest.mark.parametrize(("roh", "erwartet"), [
+    ({"title": "Angezeigt", "properties": {"cm:name": ["datei.pdf"]}}, "Angezeigt"),
+    ({"properties": {"cclom:title": ["LOM"], "cm:name": ["datei.pdf"]}}, "LOM"),
+    ({"properties": {"cm:title": ["Alfresco"], "cm:name": ["datei.pdf"]}}, "Alfresco"),
+    ({"properties": {"cm:name": ["datei.pdf"]}}, ""),
+    ({}, ""),
+])
+def test_stored_title_of_faellt_nicht_auf_den_namen_zurueck(roh, erwartet):
+    """Das Gegenstueck zu ``title_of``: was ein Schreibvorgang erhaelt.
+
+    Der Anzeigetitel faellt auf den Dateinamen zurueck. Diesen beim Erhalten
+    eines Titels zu schreiben, legt Metadaten an, die niemand verlangt hat --
+    gemessen an einer Sammlung ohne Titel, deren Beschreibung geaendert wurde
+    (Review 08.09.2026)."""
+    assert stored_title_of(roh) == erwartet
+
+
+def test_die_beiden_titelfragen_unterscheiden_sich_genau_dort():
+    roh = {"properties": {"cm:name": ["arbeitsblatt.pdf"]}}
+    assert title_of(roh) == "arbeitsblatt.pdf"
+    assert stored_title_of(roh) == ""

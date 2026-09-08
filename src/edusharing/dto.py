@@ -25,6 +25,7 @@ __all__ = [
     "page_total",
     "title_of",
     "render_url",
+    "stored_title_of",
 ]
 
 
@@ -71,6 +72,25 @@ def title_of(raw: dict[str, Any]) -> str:
         or first(props.get("cclom:title"))
         or first(props.get("cm:title"))
         or first(props.get("cm:name"))
+        or ""
+    )
+
+
+def stored_title_of(raw: dict[str, Any]) -> str:
+    """The title a record actually carries -- without the file-name fallback.
+
+    The sibling of ``title_of`` and the one to use when **writing**: a call
+    that only changes a description must preserve the title, and preserving a
+    fallback would store it. Measured on a collection without a title:
+    ``title_of`` reads its ``cm:name``, and an update of the description alone
+    then wrote that name into ``cm:title`` -- metadata nobody asked for
+    (review 2026-09-08).
+    """
+    props = raw.get("properties") or {}
+    return str(
+        raw.get("title")
+        or first(props.get("cclom:title"))
+        or first(props.get("cm:title"))
         or ""
     )
 

@@ -328,8 +328,9 @@ RFC 9110 erlaubt.
 
 `edusharing.dto` ist die eine Lesart eines rohen Knotensatzes —
 `first(value)` (der erste Wert einer Eigenschaft, `None` bei leerer Liste),
-`title_of(raw)` (`title`, dann `cclom:title`, `cm:title`, `cm:name`),
-`node_id_of(raw)`, `bare_id(ref)`, `render_url(repository_url, node_id)` und
+`title_of(raw)` (`title`, dann `cclom:title`, `cm:title`, `cm:name`) und
+`stored_title_of(raw)` (dasselbe ohne den Rückfall auf den Namen — was ein
+Schreibvorgang erhält), `node_id_of(raw)`, `bare_id(ref)`, `render_url(repository_url, node_id)` und
 `page_total(response, default=…)`. Jedes Objekt dieser Bibliothek entsteht
 über sie, damit derselbe Datensatz sich immer gleich liest.
 

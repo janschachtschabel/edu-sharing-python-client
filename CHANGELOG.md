@@ -33,6 +33,12 @@ and in [`docs/audits/`](docs/audits/).
   `edusharing.language`, likewise `ranking` and `fields`. `edusharing.GERMAN`,
   `LanguageProfile` and `edusharing.agent.cap_text` are unchanged.
   `tests/test_import_direction.py` now fails when a layer reaches upward.
+- **A description-only update no longer writes a title** (review 2026-09-08).
+  With the unified chain, `Node.title` falls back to `cm:name`; on an untitled
+  collection `collections.update(description=…)` therefore copied that name
+  into `cm:title`. The new `stored_title_of` answers the other question --
+  the title a record actually carries, without the name fallback -- and the
+  write uses it.
 - **One title for a record, whichever object it arrives as** (audit MNT-1).
   Four chains became one: `title`, then `cclom:title`, `cm:title`, `cm:name`.
   A record whose LOM title is set but whose file name differs used to come

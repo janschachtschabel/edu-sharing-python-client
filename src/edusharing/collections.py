@@ -35,7 +35,7 @@ import asyncio
 from itertools import zip_longest
 from typing import Any
 
-from .dto import node_id_of
+from .dto import node_id_of, stored_title_of
 from .errors import ConflictError, EduSharingError, SilentDropError
 from .nodes import Node, Nodes
 from .results import SearchHit, SearchResult
@@ -311,7 +311,10 @@ class Collections:
 
         nodes = Nodes(self._transport)
         current = await nodes.get(collection_id)
-        wanted_title = title if title is not None else (current.title or "")
+        # ``stored_title_of``, nicht ``current.title``: der Anzeigetitel faellt
+        # auf den Dateinamen zurueck, und den hier zu schreiben waere ein
+        # Schreibvorgang, den niemand verlangt hat (Review 08.09.2026).
+        wanted_title = title if title is not None else stored_title_of(current.raw)
 
         body: dict[str, Any] = {
             "ref": {"id": collection_id, "repo": "-home-"},
