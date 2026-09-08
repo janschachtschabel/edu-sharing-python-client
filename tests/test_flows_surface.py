@@ -54,12 +54,18 @@ DURCHREICHER = {
 }
 
 
-def _durchreichen() -> dict[str, str]:
-    """Methodenname -> ``modul.funktion``, aus dem Rumpf gelesen.
+def _durchreichen() -> dict[str, tuple[str, ast.Call]]:
+    """Methodenname -> (``modul.funktion``, der Aufruf), aus dem Rumpf gelesen.
 
     Aus dem Quelltext statt aus einer Liste: eine Liste waere eine zweite
     Stelle, die veraltet, und die Zuordnung steht ohnehin schon in der letzten
     Zeile jeder Methode.
+
+    Der **Aufruf** kommt mit, nicht nur sein Ziel. Die erste Fassung las nur
+    ``ruf.func`` und damit zwei der drei Stellen, an denen die Namen stehen;
+    ``offset=offset`` aus dem Aufruf zu entfernen liess die ganze Suite gruen
+    und machte ``repo.flows.search(offset=20)`` still zu Seite 1 (Pruefung
+    08.09.2026).
     """
     baum = ast.parse(QUELLE.read_text(encoding="utf-8"))
     klasse = next(k for k in baum.body
@@ -74,11 +80,12 @@ def _durchreichen() -> dict[str, str]:
         ruf = letzte.value.value
         if (isinstance(ruf, ast.Call) and isinstance(ruf.func, ast.Attribute)
                 and isinstance(ruf.func.value, ast.Name)):
-            gefunden[m.name] = f"{ruf.func.value.id}.{ruf.func.attr}"
+            gefunden[m.name] = (f"{ruf.func.value.id}.{ruf.func.attr}", ruf)
     return gefunden
 
 
-DURCHREICHEN = _durchreichen()
+DURCHREICHEN = {name: ziel for name, (ziel, _) in _durchreichen().items()}
+AUFRUFE = {name: ruf for name, (_, ruf) in _durchreichen().items()}
 
 
 def test_jede_methode_reicht_an_einen_ablauf_durch():
@@ -166,3 +173,42 @@ def test_jeder_durchreicher_gibt_es_ueberhaupt():
     nichts -- und faellt sonst nie auf."""
     verwaist = sorted(DURCHREICHER - set(DURCHREICHEN))
     assert not verwaist, f"in DURCHREICHER, aber keine Methode: {verwaist}"
+
+
+@pytest.mark.parametrize("methode", sorted(AUFRUFE))
+def test_jeder_knopf_wird_auch_wirklich_weitergereicht(methode):
+    """Die dritte Stelle: der Aufruf selbst.
+
+    Eine Signatur, die einen Parameter nennt, und ein Aufruf, der ihn nicht
+    weitergibt, ergeben zusammen einen Knopf ohne Wirkung -- kein Fehler, kein
+    Hinweis, nur die Vorgabe. ``repo.flows.search(offset=20)`` gaebe dann still
+    Seite 1 zurueck.
+
+    Verlangt wird ``name=name``: derselbe Name auf beiden Seiten. Das faengt
+    auch das Vertauschen, ``limit=offset``, das eine reine Anwesenheitspruefung
+    durchliesse.
+    """
+    ruf = AUFRUFE[methode]
+    positional = {a.id for a in ruf.args if isinstance(a, ast.Name)}
+    benannt = {k.arg: k.value.id for k in ruf.keywords
+               if k.arg and isinstance(k.value, ast.Name)}
+    gesternt = {k.value.id for k in ruf.keywords
+                if k.arg is None and isinstance(k.value, ast.Name)}
+
+    fehlend, vertauscht = [], []
+    for name, p in inspect.signature(getattr(Flows, methode)).parameters.items():
+        if name == "self":
+            continue
+        if p.kind is inspect.Parameter.VAR_KEYWORD:
+            if name not in gesternt:
+                fehlend.append(f"**{name}")
+        elif name in benannt:
+            if benannt[name] != name:
+                vertauscht.append(f"{name}={benannt[name]}")
+        elif name not in positional:
+            fehlend.append(name)
+
+    assert not fehlend, (
+        f"Flows.{methode} nimmt {fehlend}, reicht es aber nicht an "
+        f"{DURCHREICHEN[methode]} weiter -- ein Knopf ohne Wirkung")
+    assert not vertauscht, f"Flows.{methode} reicht {vertauscht} weiter"
