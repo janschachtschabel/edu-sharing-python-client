@@ -1308,6 +1308,8 @@ rather than reporting success.
 | `details_withheld(error)` | `bool` — the instance hides its error details |
 | `at_least(name, value, limit)` | the bounds check the clients apply to their settings; raises `EduSharingError` naming the setting |
 | `check_client(client, timeout=…)` | the two rules for an injected `httpx.AsyncClient`: no `timeout` beside it, and no `follow_redirects=True` |
+| `redirect_error(status, location, url, service=…, env_var=…)` | the 3xx all four clients report instead of following |
+| `non_json_error(status, url, body, service=…)` | a body that does not parse as JSON, as `ServerError` rather than `json.JSONDecodeError` |
 
 ---
 

@@ -909,3 +909,19 @@ def test_ein_client_ohne_umleitungen_geht_durch():
     """Die Gegenprobe: die Vorgabe von httpx ist False, und die ist richtig."""
     t = Transport(REPO, client=httpx.AsyncClient())
     assert t._client.follow_redirects is False
+
+
+# --- API-1: eine Antwort, die kein JSON ist, bleibt im Vertrag ------------
+
+
+async def test_ein_html_koerper_wird_zu_einem_servererror():
+    """Ein Reverse-Proxy, der eine Loginseite mit 200 ausliefert, brachte
+    ``json.JSONDecodeError`` aus der Standardbibliothek zurueck -- eine
+    Ausnahme, die ausserhalb von ``EduSharingError`` steht und die
+    ``agent.result.as_result`` nicht faengt (Audit API-1)."""
+    def handler(request):
+        return httpx.Response(200, text="<html><body>Bitte anmelden</body></html>")
+
+    async with _transport(handler) as t:
+        with pytest.raises(ServerError, match="non-JSON"):
+            await t.json("GET", "/x")

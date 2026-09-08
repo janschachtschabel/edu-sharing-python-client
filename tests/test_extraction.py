@@ -447,3 +447,22 @@ def test_extraction_lehnt_timeout_und_client_zusammen_ab():
 def test_extraction_nimmt_den_client_allein():
     dienst = TextExtraction(BASE, client=httpx.AsyncClient())
     assert dienst._client is not None
+
+
+# --- API-1: eine Umleitung ist kein "kein Text" --------------------------
+
+
+async def test_eine_umleitung_ist_kein_fehlender_text():
+    """Ein 3xx fiel in den Zweig unter 400, kam mit leerem Koerper bei
+    ``_result`` an und wurde zu ``no_text`` -- also zu einer Aussage ueber die
+    Seite, obwohl er eine ueber den Dienst ist. Ein falsch gesetzter Proxy sah
+    damit aus wie eine Seite ohne Text (Audit API-1)."""
+    def handler(request):
+        return httpx.Response(302, headers={"Location": "https://anderswo.test/"})
+
+    client = TextExtraction(
+        BASE, backoff_base=0.0, resolve=_oeffentlich,
+        client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    async with client:
+        with pytest.raises(EduSharingError, match=r"anderswo.test"):
+            await client.text_of("https://example.org/")

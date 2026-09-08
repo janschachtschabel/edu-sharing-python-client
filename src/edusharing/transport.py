@@ -41,6 +41,8 @@ from .errors import (
     check_client,
     details_withheld,
     error_from_response,
+    non_json_error,
+    redirect_error,
 )
 from .retry import RetryPolicy, parse_retry_after
 from .urls import normalize_repository_url, rest_base
@@ -72,23 +74,6 @@ _SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 _BEFORE_SENDING = (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout)
 # How much of an error page a capped download keeps for the message.
 _ERROR_PAGE_LIMIT = 64 * 1024
-
-
-def _redirect_error(response: httpx.Response, url: str) -> EduSharingError:
-    """Reported, not followed. ``follow_redirects`` stays at httpx's default of
-    ``False`` on purpose: following one off the repository would carry the
-    credentials to whatever it names. Not reporting it was worse -- the empty
-    body of a redirect came back as success, which for ``Content.download``
-    means zero bytes instead of the file (audit A8)."""
-    return EduSharingError(
-        f"HTTP {response.status_code}: the repository redirected to "
-        f"{response.headers.get('location') or '(no Location header)'!r}. "
-        "This client does not follow redirects -- a redirect off "
-        "the repository would take the credentials with it. If your "
-        "installation sits behind a proxy that bounces, point "
-        "EDU_SHARING_URL at the address it bounces to.",
-        status=response.status_code, url=url,
-    )
 
 
 def _check_size(size: int, max_bytes: int | None, url: str) -> None:
@@ -387,7 +372,10 @@ class Transport:
                 continue
 
             if 300 <= response.status_code < 400:
-                raise _redirect_error(response, url)
+                raise redirect_error(
+                    response.status_code, response.headers.get("location"),
+                    url, service="the repository", env_var="EDU_SHARING_URL",
+                )
             if response.status_code < 400:
                 return response
 
@@ -405,9 +393,19 @@ class Transport:
         raise last  # type: ignore[misc]
 
     async def json(self, method: str, path: str, **kwargs: Any) -> Any:
-        """Like ``request``, but returns the parsed JSON body."""
+        """Like ``request``, but returns the parsed JSON body.
+
+        Raises:
+            ServerError: when the body is not JSON -- see ``non_json_error``.
+        """
         response = await self.request(method, path, **kwargs)
-        return response.json()
+        try:
+            return response.json()
+        except ValueError as exc:
+            raise non_json_error(
+                response.status_code, str(response.url), response.text,
+                service="The repository",
+            ) from exc
 
     async def download(
         self, path: str, *, max_bytes: int | None = None, credential: object | None = None

@@ -42,6 +42,8 @@ from ..errors import (
     at_least,
     check_client,
     error_class_for,
+    non_json_error,
+    redirect_error,
 )
 from ..retry import RETRYABLE_STATUS, RetryPolicy, parse_retry_after
 from ..urls import path_segment, refuse_userinfo
@@ -546,8 +548,19 @@ class BildungsAPI:
                 last = EduSharingError(f"{type(exc).__name__}: {exc}", url=url)
                 continue
 
+            if 300 <= response.status_code < 400:
+                raise redirect_error(
+                    response.status_code, response.headers.get("location"), url,
+                    service="the b-api", env_var=ENV_BASE_URL,
+                )
             if response.status_code < 400:
-                return response.json()
+                try:
+                    return response.json()
+                except ValueError as exc:
+                    raise non_json_error(
+                        response.status_code, url, response.text,
+                        service="The b-api",
+                    ) from exc
 
             last = self._error(response, url)
             if response.status_code not in RETRYABLE_STATUS:

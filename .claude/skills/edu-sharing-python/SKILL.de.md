@@ -339,6 +339,9 @@ Schreibvorgang erhält), `node_id_of(raw)`, `bare_id(ref)`, `render_url(reposito
 `check_client(client, timeout=…)` trägt die zwei Regeln für einen mitgebrachten Client —
 kein `timeout` daneben, kein `follow_redirects=True`, weil httpx eigene Kopfzeilen über
 Ursprungsgrenzen hinweg behält und ein API-Schlüssel damit mitwandert;
+`redirect_error(…)` und `non_json_error(…)` sind die zwei Antworten, die alle vier
+Clients auf einen 3xx und auf einen Körper ohne JSON geben — beide innerhalb von
+`EduSharingError`, damit nichts aus der Standardbibliothek dem Vertrag entkommt;
 `details_withheld(…)` benennt, was ein Fehler bewusst nicht preisgibt.
 
 **Der Rest von `__all__`** ist Maschinerie, die man nur anfasst, wenn man die

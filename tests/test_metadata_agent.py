@@ -12,7 +12,7 @@ Routen stammen aus seinem eigenen Widget-Bundle.
 import httpx
 import pytest
 
-from edusharing.errors import EduSharingError
+from edusharing.errors import EduSharingError, ServerError
 from edusharing.metadata_agent import ContentType, MetadataAgent, SchemaInfo
 
 AGENT = "https://agent.example.test"
@@ -268,3 +268,26 @@ def test_agent_lehnt_timeout_und_client_zusammen_ab():
     """Audit SEC-8."""
     with pytest.raises(EduSharingError, match="timeout and client"):
         MetadataAgent(AGENT, timeout=0.5, client=httpx.AsyncClient())
+
+
+# --- API-1: 3xx und Nicht-JSON ------------------------------------------
+
+
+async def test_agent_meldet_eine_umleitung_statt_ihr_zu_folgen():
+    """Nur der Transport hatte diese Wache (Audit API-1)."""
+    def handler(request):
+        return httpx.Response(302, headers={"Location": "https://anderswo.test/"})
+
+    async with _agent(handler) as agent:
+        with pytest.raises(EduSharingError, match=r"anderswo.test"):
+            await agent.schemas()
+
+
+async def test_agent_meldet_einen_html_koerper_als_servererror():
+    """Audit API-1: die Standardbibliothek warf hier durch den Vertrag."""
+    def handler(request):
+        return httpx.Response(200, text="<html>Loginseite</html>")
+
+    async with _agent(handler) as agent:
+        with pytest.raises(ServerError, match="non-JSON"):
+            await agent.schemas()

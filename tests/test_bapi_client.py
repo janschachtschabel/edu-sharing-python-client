@@ -15,7 +15,12 @@ import httpx
 import pytest
 
 from edusharing.bapi import CACHE_FOREVER, BildungsAPI
-from edusharing.errors import EduSharingError, RateLimitedError, ValidationError
+from edusharing.errors import (
+    EduSharingError,
+    RateLimitedError,
+    ServerError,
+    ValidationError,
+)
 
 #: Frei erfunden. Die Tests antworten ueber MockTransport; eine echte
 #: Adresse hier waere eine Instanz im Code.
@@ -772,3 +777,27 @@ def test_bapi_lehnt_timeout_und_client_zusammen_ab():
     with pytest.raises(EduSharingError, match="timeout and client"):
         BildungsAPI(api_key="k", base_url=GATEWAY, timeout=0.5,
                     client=httpx.AsyncClient())
+
+
+# --- API-1: 3xx und Nicht-JSON ------------------------------------------
+
+
+async def test_bapi_meldet_eine_umleitung_statt_ihr_zu_folgen():
+    """Ein Gateway, das umleitet, nahm den X-API-KEY mit, sobald jemand einen
+    folgenden Client mitbrachte -- und ohne Wache sah der Aufrufer nur einen
+    leeren Koerper (Audit API-1, SEC-4)."""
+    def handler(request):
+        return httpx.Response(302, headers={"Location": "https://anderswo.test/"})
+
+    async with _client(handler) as api:
+        with pytest.raises(EduSharingError, match=r"anderswo.test"):
+            await api.models()
+
+
+async def test_bapi_meldet_einen_html_koerper_als_servererror():
+    def handler(request):
+        return httpx.Response(200, text="<html>Loginseite</html>")
+
+    async with _client(handler) as api:
+        with pytest.raises(ServerError, match="non-JSON"):
+            await api.models()

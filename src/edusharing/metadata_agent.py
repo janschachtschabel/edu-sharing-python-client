@@ -42,7 +42,14 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from .errors import EduSharingError, at_least, check_client, error_from_response
+from .errors import (
+    EduSharingError,
+    at_least,
+    check_client,
+    error_from_response,
+    non_json_error,
+    redirect_error,
+)
 from .urls import path_segment, refuse_userinfo
 
 __all__ = ["ContentType", "MetadataAgent", "SchemaInfo"]
@@ -293,10 +300,21 @@ class MetadataAgent:
             raise EduSharingError(
                 f"{type(exc).__name__}: {exc}", url=f"{self.base_url}{path}"
             ) from exc
+        url = f"{self.base_url}{path}"
+        if 300 <= response.status_code < 400:
+            raise redirect_error(
+                response.status_code, response.headers.get("location"), url,
+                service="the metadata agent", env_var=ENV_BASE_URL,
+            )
         if response.status_code >= 400:
-            raise error_from_response(
-                response.status_code, f"{self.base_url}{path}", response.text)
-        return response.json()
+            raise error_from_response(response.status_code, url, response.text)
+        try:
+            return response.json()
+        except ValueError as exc:
+            raise non_json_error(
+                response.status_code, url, response.text,
+                service="The metadata agent",
+            ) from exc
 
 
 def _check_base(value: str) -> str:

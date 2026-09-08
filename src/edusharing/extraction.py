@@ -55,7 +55,13 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from .errors import EduSharingError, RateLimitedError, at_least, check_client
+from .errors import (
+    EduSharingError,
+    RateLimitedError,
+    at_least,
+    check_client,
+    redirect_error,
+)
 from .retry import RETRYABLE_STATUS, RetryPolicy, parse_retry_after
 from .urls import is_unroutable_host, refuse_userinfo
 
@@ -308,6 +314,16 @@ class TextExtraction:
             except httpx.HTTPError as exc:
                 last = EduSharingError(f"{type(exc).__name__}: {exc}")
                 continue
+            # A 3xx used to fall into the branch below, arrive at ``_result``
+            # with an empty body and come out as ``no_text`` -- a statement
+            # about the page, although it is one about the service (audit
+            # API-1).
+            if 300 <= response.status_code < 400:
+                raise redirect_error(
+                    response.status_code, response.headers.get("location"),
+                    f"{self.base_url}{path}",
+                    service="the extraction service", env_var=self.ENV_BASE_URL,
+                )
             # 424 is an answer about the page, not a failure of the service --
             # ``_result`` turns it into a reason.
             if response.status_code < 400 or response.status_code == 424:

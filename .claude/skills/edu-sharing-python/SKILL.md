@@ -323,6 +323,9 @@ through them, so the same record always reads the same way.
 `check_client(client, timeout=…)` holds the two rules for a client the caller brings
 along -- no `timeout` beside it, and no `follow_redirects=True`, because httpx keeps
 custom headers across a cross-origin redirect and an API key would travel with them;
+`redirect_error(…)` and `non_json_error(…)` are the two answers all four clients
+give to a 3xx and to a body that is not JSON -- both inside `EduSharingError`, so
+nothing from the standard library escapes the contract;
 `details_withheld(…)` names what an error deliberately does not reveal.
 
 **The rest of `__all__`** is machinery you only touch when extending the

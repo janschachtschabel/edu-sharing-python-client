@@ -21,6 +21,8 @@ import json
 __all__ = [
     "at_least",
     "check_client",
+    "non_json_error",
+    "redirect_error",
     "details_withheld",
     "EduSharingError",
     "TransportError",
@@ -318,6 +320,44 @@ def details_withheld(error: EduSharingError) -> bool:
     than the server's phrasing, which may differ between versions.
     """
     return _HIDDEN_NOTE in str(error)
+
+
+def redirect_error(
+    status: int, location: str | None, url: str, *, service: str, env_var: str
+) -> EduSharingError:
+    """Report a 3xx instead of following it.
+
+    ``follow_redirects`` stays at httpx's default of ``False`` in all four
+    clients on purpose: following one off the service would carry the
+    credentials to whatever it names. Not reporting it was worse -- an empty
+    redirect body came back as success, which for ``Content.download`` means
+    zero bytes instead of the file (audit A8) and for the extraction service
+    meant "this page has no text" (audit API-1).
+    """
+    return EduSharingError(
+        f"HTTP {status}: {service} redirected to "
+        f"{location or '(no Location header)'!r}. This client does not follow "
+        f"redirects -- a redirect off {service} would take the credentials "
+        f"with it. If your installation sits behind a proxy that bounces, "
+        f"point {env_var} at the address it bounces to.",
+        status=status, url=url,
+    )
+
+
+def non_json_error(status: int, url: str, body: str, *, service: str) -> ServerError:
+    """Wrap a body that does not parse as JSON.
+
+    ``response.json()`` raises ``json.JSONDecodeError`` -- a standard-library
+    exception outside this library's contract, which ``agent.result.as_result``
+    does not catch. A reverse proxy answering a login page with HTTP 200 is
+    enough to produce one (audit API-1). It is a server fault, so it arrives
+    as ``ServerError``, and the first 200 characters of the body come along:
+    without them the cause ("<!DOCTYPE html>") is invisible.
+    """
+    return ServerError(
+        f"{service} answered non-JSON with HTTP {status}: {body[:200]}",
+        status=status, url=url,
+    )
 
 
 def check_client(client: object | None, *, timeout: float | None) -> None:
