@@ -1311,6 +1311,7 @@ Not needed for ordinary use; documented because they are importable.
 | `is_unroutable_host(host)` | `bool` — loopback, link-local, private ranges |
 | `error_class_for(status, error_class=…, message=…)` | `type` — which error type a status stands for |
 | `first(value)` | `str \| None` — the first value of a property; `[]` gives `None` |
+| `title_of(raw)` | `str` — the one title chain: `title`, `cclom:title`, `cm:title`, `cm:name` |
 | `node_id_of(raw)` | `str` — the id from a record's `ref`, `""` when there is none |
 | `bare_id(ref)` | `str` — a node id without its `workspace://SpacesStore/` prefix |
 | `render_url(repository_url, node_id)` | `str` — the viewer URL, `""` for an empty id |

@@ -21,7 +21,11 @@ from edusharing.dto import (
     node_id_of,
     page_total,
     render_url,
+    title_of,
 )
+from edusharing.nodes import Node
+from edusharing.results import SearchHit
+from edusharing.skills_registry import _title as registry_title
 
 QUELLE = Path(__file__).resolve().parent.parent / "src" / "edusharing"
 
@@ -139,3 +143,38 @@ def test_niemand_definiert_die_leser_ein_zweites_mal(name):
     anderen. Diese Wache faellt beim naechsten Mal auf, statt beim naechsten
     Audit."""
     assert _definierte(name) == []
+
+
+# --- title_of --------------------------------------------------------------
+
+
+@pytest.mark.parametrize(("roh", "erwartet"), [
+    ({"title": "Angezeigt", "properties": {"cclom:title": ["LOM"],
+                                           "cm:title": ["Alfresco"],
+                                           "cm:name": ["datei.pdf"]}}, "Angezeigt"),
+    ({"properties": {"cclom:title": ["LOM"], "cm:title": ["Alfresco"],
+                     "cm:name": ["datei.pdf"]}}, "LOM"),
+    ({"properties": {"cm:title": ["Alfresco"], "cm:name": ["datei.pdf"]}}, "Alfresco"),
+    ({"properties": {"cm:name": ["datei.pdf"]}}, "datei.pdf"),
+    ({"properties": {}}, ""),
+    ({}, ""),
+    ({"title": "", "properties": {"cm:name": ["datei.pdf"]}}, "datei.pdf"),
+])
+def test_title_of_folgt_einer_kette(roh, erwartet):
+    """Was die Schnittstelle selbst anzeigt, dann der LOM-Titel, dann der von
+    Alfresco, zuletzt der Dateiname. Ein Name ist besser als nichts, und die
+    ausdruecklichen Titel stehen vor ihm."""
+    assert title_of(roh) == erwartet
+
+
+def test_alle_objekte_lesen_denselben_titel():
+    """Der Kern des Befunds: derselbe Datensatz zeigte je nach Objekt einen
+    anderen Titel. Ein Datensatz mit LOM-Titel und abweichendem Dateinamen kam
+    als Treffer als 'arbeitsblatt.pdf' an, als Knoten als 'Bruchrechnung'
+    (Audit MNT-1)."""
+    roh = {"ref": {"id": "n1"},
+           "properties": {"cclom:title": ["Bruchrechnung"],
+                          "cm:name": ["arbeitsblatt.pdf"]}}
+    assert Node(roh, None).title == "Bruchrechnung"
+    assert SearchHit.from_node(roh, "https://repo.test").title == "Bruchrechnung"
+    assert registry_title(roh) == "Bruchrechnung"

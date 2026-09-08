@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from .content import MAX_TEXT_BYTES, decode_text
-from .dto import first, node_id_of, page_total
+from .dto import first, node_id_of, page_total, title_of
 from .errors import ContentTooLargeError, NotFoundError, PermissionDeniedError
 from .nodes import Node
 from .skills import WLO_SKILLS, SkillConventions, registry_mark
@@ -252,9 +252,7 @@ def _name(raw: dict[str, Any]) -> str:
 
 
 def _title(raw: dict[str, Any]) -> str:
-    props = raw.get("properties") or {}
-    return (raw.get("title") or first(props.get("cclom:title"))
-            or first(props.get("cm:title")) or "")
+    return title_of(raw)
 
 
 def _with(base: SkillRegistry, **changes: Any) -> SkillRegistry:

@@ -24,6 +24,13 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Changed
 
+- **One title for a record, whichever object it arrives as** (audit MNT-1).
+  Four chains became one: `title`, then `cclom:title`, `cm:title`, `cm:name`.
+  A record whose LOM title is set but whose file name differs used to come
+  back as "arbeitsblatt.pdf" from a search and as "Bruchrechnung" as a node.
+  Search hits and skill summaries can therefore show a different — better —
+  title than before; a node without any title now falls back to its file name
+  rather than an empty string.
 - **One reading of a node record** (audit MNT-1). The new `edusharing.dto`
   holds `first`, `node_id_of`, `bare_id`, `render_url` and `page_total`; the
   four objects that build themselves from a raw record now go through it.

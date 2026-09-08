@@ -18,9 +18,14 @@ Exit-Code. Live nur auf der Staging, nur in selbst angelegten Wegwerf-Ordnern.
   und kein Ergebnis ist; eine zu lang genannte Wartezeit kommt mit der Zahl
   beim Aufrufer an. Der Feldwächter der Doku kennt jetzt auch geerbte
   Konstruktorfelder, und die Extraktion prüft erstmals ihr `backoff_base`.
-- [ ] **7 · MNT-1** `dto.py`: ein Knotensatz, einmal gelesen — für `Node`,
+- [x] **7 · MNT-1** `dto.py`: ein Knotensatz, einmal gelesen — für `Node`,
   `SearchHit`, Skills und Seiten. Heute steht derselbe Titel je nach Objekt
   anders da.
+  Getan in zwei Commits: erst `dto.py` mit `first`, `node_id_of`, `bare_id`,
+  `render_url`, `page_total` und zwoelf umgestellten Modulen, dann `title_of`
+  als die eine Titelkette. Nicht zusammengefuehrt: die drei `as_list`-artigen
+  Funktionen -- sie tun Verschiedenes (schreiben, lesen, aus einem Iterable
+  eine Liste machen) und sind keine Kopien.
 - [ ] **8 · ARC-1** `fields`, `ranking`, `language` aus `flows/` heraus,
   `cap_text` aus `agent/` heraus; dazu ein Test über die Import-Richtung.
 - [ ] **9 · COR-5 + COR-3** Die Schreibabläufe behalten die angelegte id, wenn

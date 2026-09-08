@@ -35,7 +35,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from .content import MAX_TEXT_BYTES, decode_text, is_text_like
-from .dto import first, node_id_of, page_total, render_url
+from .dto import first, node_id_of, page_total, render_url, title_of
 from .errors import ContentTooLargeError, NotFoundError, PermissionDeniedError
 from .flows.fields import carries, resolve_vocabulary
 from .flows.ranking import query_terms, term_matches
@@ -308,8 +308,7 @@ class Skills:
         return SkillSummary(
             id=node_id,
             original_id=original_id_of(raw) or node_id,
-            title=(raw.get("title") or first(props.get("cclom:title"))
-                   or first(props.get("cm:name")) or ""),
+            title=title_of(raw),
             description=first(props.get("cclom:general_description")) or "",
             keywords=[str(k) for k in (props.get("cclom:general_keyword") or [])],
             url=render_url(self._repo.url, node_id),

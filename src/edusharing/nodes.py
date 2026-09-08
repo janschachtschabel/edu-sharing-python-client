@@ -16,7 +16,7 @@ from . import nodes_write, placement, ratings
 from .childobjects import ChildObjects
 from .comments import Comments
 from .content import NodeContent
-from .dto import node_id_of, render_url
+from .dto import first, node_id_of, render_url, title_of
 from .errors import ValidationError
 from .nodes_write import KEYWORD_PROPERTY, WRITE_FIELD_ALIASES, as_list
 from .pages import NodePage
@@ -59,7 +59,7 @@ class Node:
 
     @property
     def title(self) -> str:
-        return self._data.get("title") or self.get("cclom:title") or ""
+        return title_of(self._data)
 
     @property
     def type(self) -> str:
@@ -177,10 +177,7 @@ class Node:
 
     def get(self, prop: str) -> str | None:
         """The first value of a property, or ``None``."""
-        values = self.properties.get(prop)
-        if isinstance(values, list):
-            return str(values[0]) if values else None
-        return str(values) if values else None
+        return first(self.properties.get(prop))
 
     def get_all(self, prop: str) -> list[str]:
         """Every value of a property."""

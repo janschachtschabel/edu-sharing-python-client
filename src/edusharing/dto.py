@@ -23,6 +23,7 @@ __all__ = [
     "first",
     "node_id_of",
     "page_total",
+    "title_of",
     "render_url",
 ]
 
@@ -48,6 +49,30 @@ def node_id_of(raw: dict[str, Any]) -> str:
     surfaces far from where it was lost.
     """
     return str((raw.get("ref") or {}).get("id") or "")
+
+
+def title_of(raw: dict[str, Any]) -> str:
+    """The one title of a node record.
+
+    Four objects used to answer this differently: a hit fell from ``title``
+    straight to ``cm:name``, a node stopped at ``cclom:title``, a skill went
+    ``cclom:title`` then ``cm:name``, the registry ``cclom:title`` then
+    ``cm:title``. The same record could therefore arrive as
+    "arbeitsblatt.pdf" in a search and as "Bruchrechnung" as a node (audit
+    MNT-1, 2026-09-03).
+
+    The chain, most deliberate first: what the API itself displays, the LOM
+    title an editor fills in, Alfresco's own title, and last the file name --
+    a name beats an empty string, but every stated title beats the name.
+    """
+    props = raw.get("properties") or {}
+    return str(
+        raw.get("title")
+        or first(props.get("cclom:title"))
+        or first(props.get("cm:title"))
+        or first(props.get("cm:name"))
+        or ""
+    )
 
 
 def bare_id(ref: str) -> str:

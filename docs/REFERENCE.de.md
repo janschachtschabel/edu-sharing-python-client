@@ -1334,6 +1334,7 @@ sind.
 | `is_unroutable_host(host)` | `bool` — Loopback, Link-Local, private Bereiche |
 | `error_class_for(status, error_class=…, message=…)` | `type` — welcher Fehlertyp zu einem Status gehört |
 | `first(value)` | `str \| None` — der erste Wert einer Eigenschaft; `[]` ergibt `None` |
+| `title_of(raw)` | `str` — die eine Titelkette: `title`, `cclom:title`, `cm:title`, `cm:name` |
 | `node_id_of(raw)` | `str` — die id aus dem `ref` eines Datensatzes, `""`, wenn es keine gibt |
 | `bare_id(ref)` | `str` — eine Knoten-id ohne das Präfix `workspace://SpacesStore/` |
 | `render_url(repository_url, node_id)` | `str` — die Ansichts-Adresse, `""` bei leerer id |

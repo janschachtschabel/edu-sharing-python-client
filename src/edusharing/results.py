@@ -11,7 +11,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
-from .dto import first, node_id_of, render_url
+from .dto import first, node_id_of, render_url, title_of
 
 __all__ = ["SearchHit", "FacetValue", "Facet", "UnresolvedFilter", "SearchResult"]
 
@@ -76,7 +76,7 @@ class SearchHit:
         props = node.get("properties") or {}
         return cls(
             id=node_id,
-            title=node.get("title") or first(props.get("cm:name")) or "",
+            title=title_of(node),
             url=render_url(repository_url, node_id),
             description=first(props.get("cclom:general_description"))
             or first(props.get("cm:description")),
