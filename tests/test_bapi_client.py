@@ -801,3 +801,74 @@ async def test_bapi_meldet_einen_html_koerper_als_servererror():
     async with _client(handler) as api:
         with pytest.raises(ServerError, match="non-JSON"):
             await api.models()
+
+
+# --- F13 (Fremdpruefung 09.09.2026): eine Fehlerantwort ohne Objektform ----
+#
+# ``_error`` rief nach gelungenem ``response.json()`` ungeprueft ``.get()``.
+# Gueltiges JSON muss aber kein Objekt sein, und das ``except ValueError``
+# faengt diesen Formfehler nicht. Gemessen am 09.09.2026 ergab HTTP 429 mit
+# ``['slow down']`` einen ``AttributeError: 'list' object has no attribute
+# 'get'`` statt eines ``RateLimitedError`` -- die statusabhaengige
+# Fehlerbehandlung war damit umgangen, und eine abweichende
+# Gateway-Fehlerseite genuegt dafuer.
+#
+# Die edu-sharing-Seite hatte diesen Fall laengst richtig: ``_parse_body``
+# prueft ``isinstance(data, dict)``. Nur die b-api-Seite nicht.
+
+FEHLERFORMEN = [
+    ('{"message": "zu schnell"}', "zu schnell"),
+    ("[\"slow down\"]", None),
+    ('"nur ein string"', None),
+    ("null", None),
+    ("{kein json", None),
+    ("<html>Gateway Timeout</html>", None),
+]
+
+
+@pytest.mark.parametrize("koerper,erwartet", FEHLERFORMEN)
+async def test_jede_fehlerform_bleibt_im_vertrag(koerper, erwartet):
+    """Sechs Formen, eine Bibliotheksausnahme -- und der Status entscheidet
+    ueber die Klasse, nicht das Format der Nachricht.
+
+    Ueber ``models()``, weil ``chat()`` seine Fehler in die Modellumschaltung
+    einwickelt und die Klasse dort nicht mehr sichtbar ist.
+    """
+    def handler(request):
+        return httpx.Response(429, content=koerper.encode(),
+                              headers={"retry-after": "7"})
+
+    async with _client(handler, max_retries=0) as client:
+        with pytest.raises(RateLimitedError) as fehler:
+            await client.models()
+    assert fehler.value.status == 429
+    assert fehler.value.retry_after == 7.0, "Retry-After haengt nicht am Format"
+    if erwartet is not None:
+        assert erwartet in str(fehler.value)
+
+
+async def test_die_objektform_wird_weiterhin_ausgelesen():
+    """Die Gegenprobe. Ohne sie waere die Wache gruen, wenn ``_error`` die
+    Nachricht gar nicht mehr liest und immer den Rohtext nimmt."""
+    def handler(request):
+        return httpx.Response(400, json={"error": "BadModel",
+                                         "message": "kenne ich nicht"})
+
+    async with _client(handler, max_retries=0) as client:
+        with pytest.raises(EduSharingError) as fehler:
+            await client.models()
+    assert "kenne ich nicht" in str(fehler.value)
+
+
+async def test_auch_ueber_chat_entkommt_keine_implementierungsausnahme():
+    """Der Weg, den der Bericht genommen hat. ``chat()`` wickelt die Klasse in
+    die Modellumschaltung ein -- ein ``AttributeError`` waere trotzdem einer,
+    und der steht in keinem Vertrag."""
+    def handler(request):
+        if request.url.path.endswith("/models"):
+            return httpx.Response(200, json=MODELLE)
+        return httpx.Response(429, json=["slow down"])
+
+    async with _client(handler, max_retries=0) as client:
+        with pytest.raises(EduSharingError):
+            await client.chat("hallo")

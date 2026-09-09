@@ -586,10 +586,20 @@ class BildungsAPI:
         It reports under ``message``, not in the edu-sharing shape -- so the
         text is taken here rather than looked for there.
         """
+        # Valid JSON need not be an object, and ``except ValueError`` does not
+        # catch that: measured 2026-09-09, HTTP 429 with ``['slow down']``
+        # raised ``AttributeError: 'list' object has no attribute 'get'``
+        # instead of ``RateLimitedError`` -- the status-dependent handling was
+        # bypassed, and a gateway's own error page is enough to produce one
+        # (F13). The edu-sharing side has asked ``isinstance(data, dict)`` all
+        # along in ``_parse_body``; this side did not.
         try:
             data = response.json()
-            message = data.get("message") or data.get("error") or response.text
         except ValueError:
+            data = None
+        if isinstance(data, dict):
+            message = data.get("message") or data.get("error") or response.text
+        else:
             message = response.text
         failure = error_class_for(response.status_code)
         return failure(
