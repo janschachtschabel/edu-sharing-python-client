@@ -259,15 +259,15 @@ def _bestand() -> tuple[dict[str, frozenset[str]], frozenset[str],
     return ({m: frozenset(n) for m, n in je_modul.items()}, alle, tuple(texte))
 
 
-def test_kein_docstring_verweist_ins_leere():
-    """Ein Verweis auf etwas, das es nicht mehr gibt, schickt den Leser suchen.
+def _tote_verweise(texte: tuple[tuple[str, str], ...],
+                   je_modul: dict[str, frozenset[str]],
+                   alle: frozenset[str]) -> list[str]:
+    """Die Erkennung selbst -- getrennt, damit die Gegenprobe sie fuettern kann.
 
-    Geprueft werden **private** Namen: die sind lokal aufzuloesen, und genau
-    sie verschwinden bei Umbauten, ohne dass eine der anderen Wachen es merkt.
-    Ein Verweis mit Modul davor muss in diesem Modul stehen, einer ohne
-    irgendwo -- ein Testdocstring darf den Helfer nennen, den er prueft.
+    Ohne diese Trennung war die Wache still gruen, sobald es nichts zu finden
+    gibt: ihren Kernzweig abzuschalten liess die ganze Datei gruen (Pruefung
+    09.09.2026).
     """
-    je_modul, alle, texte = _bestand()
     tote = []
     for datei, text in texte:
         for modul, name in _VERWEIS.findall(text):
@@ -278,10 +278,23 @@ def test_kein_docstring_verweist_ins_leere():
                     tote.append(f"{datei}: ``{modul}.{name}``")
             elif name not in alle:
                 tote.append(f"{datei}: ``{name}``")
+    return sorted(set(tote))
+
+
+def test_kein_docstring_verweist_ins_leere():
+    """Ein Verweis auf etwas, das es nicht mehr gibt, schickt den Leser suchen.
+
+    Geprueft werden **private** Namen: die sind lokal aufzuloesen, und genau
+    sie verschwinden bei Umbauten, ohne dass eine der anderen Wachen es merkt.
+    Ein Verweis mit Modul davor muss in diesem Modul stehen, einer ohne
+    irgendwo -- ein Testdocstring darf den Helfer nennen, den er prueft.
+    """
+    je_modul, alle, texte = _bestand()
+    tote = _tote_verweise(texte, je_modul, alle)
     assert not tote, (
         "Docstring verweist auf einen Namen, den es nicht gibt -- entweder "
         "richtigstellen oder in VERWEIS_ERLAUBT eintragen, mit dem Grund:\n  "
-        + "\n  ".join(sorted(set(tote))))
+        + "\n  ".join(tote))
 
 
 def test_die_verweiswache_sieht_ueberhaupt_etwas():
@@ -299,6 +312,35 @@ def test_die_verweiswache_kennt_auch_attribute():
 
 
 def test_die_verweiswache_kann_rot_werden():
-    """Und ein Name, den es nirgends gibt, muss durchfallen."""
-    _, alle, _ = _bestand()
-    assert "_gibt_es_nicht_xyz" not in alle
+    """Eine Wache ohne Fund ist still gruen -- also wird sie gefuettert.
+
+    Vorher stand hier nur, dass es den Namen nicht gibt; den Erkennungspfad
+    lief das nicht ab. Ihn abzuschalten liess die ganze Datei gruen
+    (Pruefung 09.09.2026).
+    """
+    je_modul = {"echt": frozenset({"_gibt_es"})}
+    alle = frozenset({"_gibt_es"})
+    texte = (
+        ("erfunden.py", "siehe ``_gibt_es`` -- den gibt es"),
+        ("erfunden.py", "siehe ``_fehlt`` -- den nicht"),
+        ("erfunden.py", "siehe ``echt._fehlt_auch`` -- im Modul nicht"),
+        ("erfunden.py", "siehe ``fremd._egal`` -- fremdes Modul, keine Frage"),
+    )
+    assert _tote_verweise(texte, je_modul, alle) == [
+        "erfunden.py: ``_fehlt``", "erfunden.py: ``echt._fehlt_auch``"]
+
+
+def test_die_verweisausnahmen_gibt_es_noch():
+    """Eine Ausnahme fuer etwas, das es nicht mehr gibt, ist eine Karteileiche
+    -- und die naechste Person haelt sie fuer eine Regel.
+
+    Dieselbe Gegenwache wie ``test_die_ausnahmen_gibt_es_noch`` bei den
+    Importen. Ohne sie ueberlebt eine Erlaubnis den Satz, fuer den sie
+    erteilt wurde (Pruefung 09.09.2026 -- genau das war dort der Befund).
+    """
+    _, _, texte = _bestand()
+    vorhanden = {(datei, name)
+                 for datei, text in texte
+                 for _modul, name in _VERWEIS.findall(text)}
+    verwaist = sorted(VERWEIS_ERLAUBT - vorhanden)
+    assert not verwaist, f"in VERWEIS_ERLAUBT, aber nicht mehr im Text: {verwaist}"
