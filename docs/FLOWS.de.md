@@ -849,12 +849,19 @@ material, kinder = await asyncio.gather(
     repo.raw.json("GET", f"/node/v1/nodes/-home-/{cid}/children",
                   params={"filter": "files", "maxItems": limit}),
     repo.raw.json("GET", f"/collection/v1/collections/-home-/{cid}"
-                         "/children/collections", params={"maxItems": limit}),
+                         "/children/collections",
+                  params={"maxItems": limit + 1}),
 )
 ```
 
 Von Hand geschrieben sind das zwei Wartezeiten statt einer — und der zweite
 Endpunkt wird leicht ganz vergessen.
+
+Das `limit + 1` ist die Herkunft von `collections_truncated`: kommt ein
+Datensatz über dem Deckel an, ist die Liste gekürzt — und das gilt, ob der
+Endpunkt eine Gesamtzahl nennt oder nicht. Ausgeliefert werden nur `limit`.
+Das Kennzeichen aus der genannten Gesamtzahl allein zu lesen machte es genau
+dann `false`, wenn niemand etwas sagte (Prüfung 09.09.2026).
 
 ---
 

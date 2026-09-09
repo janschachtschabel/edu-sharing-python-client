@@ -826,12 +826,19 @@ materials, children = await asyncio.gather(
     repo.raw.json("GET", f"/node/v1/nodes/-home-/{cid}/children",
                   params={"filter": "files", "maxItems": limit}),
     repo.raw.json("GET", f"/collection/v1/collections/-home-/{cid}"
-                         "/children/collections", params={"maxItems": limit}),
+                         "/children/collections",
+                  params={"maxItems": limit + 1}),
 )
 ```
 
 Written out at the API level this is two waits instead of one — and the second
 endpoint is easy to forget entirely.
+
+The `limit + 1` is where `collections_truncated` comes from: one record over
+the cap arriving means the list is cut, and that holds whether or not the
+endpoint states a total. Only `limit` of them are handed out. Reading the flag
+off the stated total alone made it `false` exactly when nothing was stated
+(review 2026-09-09).
 
 ---
 

@@ -66,6 +66,14 @@ async def collection_contents(
         (audit API-3) -- a shortened list of sub-collections looks like a
         collection with fewer children than it has.
 
+        The flag is read from **one record more than ``limit``**: if it
+        arrives, the list is cut. It used to be read from the stated total
+        alone, which made it ``False`` exactly when the endpoint stated
+        nothing (review 2026-09-09). Where nothing is stated,
+        ``total_collections`` is what was seen -- and with
+        ``collections_truncated`` true that is a **lower bound**, not the
+        total.
+
     Raises:
         NotFoundError: when no collection carries this id.
     """
@@ -88,7 +96,10 @@ async def collection_contents(
     async def sub_collections() -> dict[str, Any]:
         response: dict[str, Any] = await repo.raw.json(
             "GET", f"/collection/v1/collections/-home-/{segment}/children/collections",
-            params={"maxItems": limit},
+            # One record over ``limit``: if it arrives, the list is cut, and
+            # that stands without the endpoint stating a total. Only ``limit``
+            # of them are handed out.
+            params={"maxItems": limit + 1},
         )
         return response
 
@@ -101,16 +112,28 @@ async def collection_contents(
         hit_as_dict(SearchHit.from_node(node, repo.url), aliases, properties=properties)
         for node in (nodes_response.get("nodes") or [])
     ]
+    roh_unter = list(collections_response.get("collections") or [])
     children = [
         hit_as_dict(SearchHit.from_node(node, repo.url), aliases, properties=properties)
-        for node in (collections_response.get("collections") or [])
+        for node in roh_unter[:limit]
     ]
 
     # Dieser Endpunkt nennt eine echte Gesamtzahl -- gemessen am 08.09.2026
     # gegen Staging: bei ``maxItems=1`` an einer Sammlung mit zwei
     # Untersammlungen kommt ein Eintrag und ``total: 2``. Das ist nicht
     # selbstverstaendlich; ``ngsearch`` antwortet mit ``pagination: null``.
-    gesamt_unter = page_total(collections_response, default=len(children))
+    #
+    # Genau daran zu haengen war der blinde Fleck: ohne genannte Zahl galt
+    # die gelieferte als Gesamtzahl, und das Kennzeichen war damit ``False``,
+    # wenn niemand etwas sagte -- bei neun Untersammlungen und ``limit=5``
+    # kamen fuenf zurueck und "nicht gekuerzt" (Pruefung 09.09.2026). Der
+    # eine Datensatz ueber ``limit`` entscheidet es ohne jede Gesamtzahl;
+    # die genannte zaehlt weiter mit, denn wer 12 sagt und 6 liefert, hat
+    # die Frage selbst beantwortet. Dieselbe Bauform wie
+    # ``childobjects._ist_gekuerzt``.
+    gesagt_unter = page_total(collections_response, default=-1)
+    gekuerzt = len(roh_unter) > limit or gesagt_unter > limit
+    gesamt_unter = gesagt_unter if gesagt_unter >= 0 else len(roh_unter)
     return {
         "id": collection_id,
         "materials": materials,
@@ -119,7 +142,7 @@ async def collection_contents(
         "returned_materials": len(materials),
         "total_collections": gesamt_unter,
         "returned_collections": len(children),
-        "collections_truncated": gesamt_unter > len(children),
+        "collections_truncated": gekuerzt,
     }
 
 

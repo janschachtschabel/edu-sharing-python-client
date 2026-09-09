@@ -512,4 +512,66 @@ async def test_die_untersammlungen_werden_wirklich_gedeckelt():
         await repo.flows.collection_contents("c1", limit=7)
     gefragt = next(r for r in instanz.anfragen
                    if r.url.path.endswith("/children/collections"))
-    assert gefragt.url.params.get("maxItems") == "7", str(gefragt.url)
+    # ``limit + 1``: der eine zusaetzliche Datensatz beantwortet die
+    # Kappungsfrage, ohne dass der Endpunkt eine Gesamtzahl nennen muss
+    # (Pruefung 09.09.2026). Ausgeliefert werden weiterhin nur ``limit``.
+    assert gefragt.url.params.get("maxItems") == "8", str(gefragt.url)
+
+
+class MitBestand(Instanz):
+    """Beachtet ``maxItems`` -- liefert also genau so viele wie ein Server.
+
+    ``nennt_gesamtzahl=False`` ist die Antwortform ohne ``pagination``, die
+    ``page_total`` fuer ``ngsearch`` ausdruecklich vorsieht.
+    """
+
+    def __init__(self, bestand: int, nennt_gesamtzahl: bool = False) -> None:
+        super().__init__()
+        self.bestand, self.nennt_gesamtzahl = bestand, nennt_gesamtzahl
+
+    def __call__(self, request):
+        if request.url.path.endswith("/children/collections"):
+            self.anfragen.append(request)
+            grenze = int(request.url.params.get("maxItems") or self.bestand)
+            seite = [{"ref": {"id": f"unter-{i}"}, "title": f"Unter {i}",
+                      "collection": {"scope": "MY"}}
+                     for i in range(min(self.bestand, grenze))]
+            koerper = {"collections": seite}
+            if self.nennt_gesamtzahl:
+                koerper["pagination"] = {"total": self.bestand, "from": 0,
+                                         "count": len(seite)}
+            return httpx.Response(200, json=koerper)
+        return super().__call__(request)
+
+
+async def test_ohne_gesamtzahl_wird_die_kappung_trotzdem_erkannt():
+    """Der blinde Fleck des Kennzeichens (Pruefung 09.09.2026).
+
+    ``collections_truncated`` las sich aus der genannten Gesamtzahl, und ohne
+    eine galt die Zahl der Datensaetze als Gesamtzahl -- also war das
+    Kennzeichen genau dann ``False``, wenn niemand etwas sagte. Bei neun
+    Untersammlungen und ``limit=5`` kamen fuenf zurueck, ``total_collections:
+    5`` und ``collections_truncated: False``: eine gekuerzte Liste, die aussieht
+    wie eine vollstaendige -- genau das, wogegen API-3 das Kennzeichen
+    eingefuehrt hat.
+
+    Gefragt wird jetzt nach einem Datensatz mehr als ``limit``; kommt er an,
+    ist gekuerzt worden. Dieselbe Bauform wie ``childobjects._ist_gekuerzt``.
+    """
+    async with _repo(MitBestand(bestand=9)) as repo:
+        antwort = await repo.flows.collection_contents("c1", limit=5)
+    assert antwort["returned_collections"] == 5
+    assert antwort["collections_truncated"] is True
+    assert len(antwort["collections"]) == 5, "der eine Datensatz mehr geht nicht raus"
+
+
+async def test_genau_am_limit_ohne_gesamtzahl_ist_nicht_gekuerzt():
+    """Gegenprobe: ein Kennzeichen, das immer wahr ist, sagt so wenig wie
+    eines, das immer falsch ist. Genau ``limit`` Untersammlungen und keine
+    genannte Zahl -- der zusaetzliche Datensatz kommt nicht, also ist es
+    alles."""
+    async with _repo(MitBestand(bestand=5)) as repo:
+        antwort = await repo.flows.collection_contents("c1", limit=5)
+    assert antwort["returned_collections"] == 5
+    assert antwort["collections_truncated"] is False
+    assert antwort["total_collections"] == 5

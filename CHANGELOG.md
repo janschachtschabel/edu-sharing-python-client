@@ -56,8 +56,12 @@ and in [`docs/audits/`](docs/audits/).
   API-3). They are capped at `limit` like the materials, and used to say nothing
   about it -- a shortened list looks like a collection with fewer children than
   it has. `total_collections`, `returned_collections` and
-  `collections_truncated` now, after measuring that the endpoint carries a real
-  total.
+  `collections_truncated` now. The flag reads one record more than `limit`:
+  if it arrives, the list is cut, and that holds whether or not the endpoint
+  states a total. It first read the stated total alone -- measured to be a
+  real one -- which made it `false` exactly when nothing was stated, so nine
+  sub-collections at `limit=5` came back as five and "not truncated" (review
+  2026-09-09).
 - **`Nodes.wrap(data)`** turns a record from any response into a `Node` without
   a request (audit ARC-3). The factory this class already was -- and it replaces
   four imports that sat inside function bodies, holding a cycle open rather than
