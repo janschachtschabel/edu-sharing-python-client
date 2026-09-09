@@ -279,6 +279,17 @@ class NodePermissions:
                 "group exists on this instance.",
                 dropped=[authority],
             )
+        lost = self._not_kept(after, current.inherits, aces, skip=authority)
+        if lost:
+            raise SilentDropError(
+                f"The repository reported 200 and stored the permission for "
+                f"{authority!r} on node {self._node.id!r}, but the rest of the "
+                f"local ACL did not come back as it was sent: "
+                + "; ".join(lost)
+                + ". The POST replaces the whole local list, so this write "
+                "took away more than it was asked to.",
+                dropped=[authority],
+            )
         return True
 
     async def revoke(self, authority: str, *permissions: str) -> bool:
@@ -455,7 +466,38 @@ class NodePermissions:
         elif stored is not None:
             problems.append(f"the whole entry for {authority} is still there")
 
+        # Ohne ``skip``: verliert die entzogene Autoritaet **mehr** als
+        # gefragt war, ist das genau der Fall, den diese Pruefung sucht.
+        return problems + self._not_kept(after, inherits, aces)
+
+    def _not_kept(
+        self, after: Permissions, inherits: bool, aces: tuple[Ace, ...],
+        *, skip: str = "",
+    ) -> list[str]:
+        """What the write took away that nobody asked it to.
+
+        Shared by ``grant`` and ``_revoke``, because the reason is shared: the
+        POST replaces the **whole** local list, so every entry the caller
+        keeps travels with the write, and one that does not come back is a
+        permission nobody meant to lose. Measured 2026-08-28, a ``GROUP_``
+        name with no group behind it is discarded with HTTP 200 and no error.
+
+        Hanging this on ``revoke`` alone was a deliberate call for the
+        smallest change (F04) and the wrong one: ``grant`` sends the same list
+        and loses the same way. Measured 2026-09-09, a repository that stored
+        only the new entry and switched inheritance off had ``grant`` report
+        success (R03).
+
+        ``skip`` leaves out the authority the caller is asking about -- there
+        the calling method has the better words.
+
+        Lenient in the safe direction: an entry that comes back with more than
+        was sent is not a loss, and the order of the list is not compared.
+        """
+        problems: list[str] = []
         for ace in aces:
+            if ace.authority == skip:
+                continue
             kept = after.find(ace.authority)
             missing = [p for p in ace.permissions if not (kept and kept.allows(p))]
             if missing:

@@ -468,6 +468,83 @@ async def test_ein_gelungener_rueckzug_meldet_weiterhin_true():
         assert (await knoten.permissions.get()).is_public is False
 
 
+class NimmtNurDenNeuen(Instanz):
+    """Ein Repositorium, das nur die zuletzt genannte Autoritaet speichert und
+    dabei die Vererbung abschaltet -- die gemessene Form einer teilweise
+    uebernommenen ACL."""
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/permissions") and request.method == "POST":
+            koerper = json.loads(request.content)
+            self.geschrieben.append(koerper)
+            self.own = koerper["permissions"][-1:]
+            self.inherits = False
+            return httpx.Response(200, content=b"")
+        return super().handler(request)
+
+
+async def test_revoke_bemerkt_wenn_die_autoritaet_mehr_verliert_als_gefragt():
+    """Der Fall, den ein ``skip`` verdecken wuerde: entzogen wird ``Consumer``,
+    der Server nimmt auch ``Coordinator``."""
+    class NimmtMehr(Instanz):
+        def handler(self, request: httpx.Request) -> httpx.Response:
+            if (request.url.path.endswith("/permissions")
+                    and request.method == "POST"):
+                koerper = json.loads(request.content)
+                self.geschrieben.append(koerper)
+                self.own = []
+                return httpx.Response(200, content=b"")
+            return super().handler(request)
+
+    instanz = NimmtMehr(own=[_ace("alice", "Consumer", "Coordinator")])
+    async with instanz.repo() as repo:
+        knoten = await repo.node("n1")
+        with pytest.raises(SilentDropError) as fehler:
+            await knoten.permissions.revoke("alice", "Consumer")
+    assert "Coordinator" in str(fehler.value)
+
+
+async def test_grant_bemerkt_den_verlust_fremder_eintraege():
+    """R03: der POST ersetzt die ganze lokale Liste, also verliert ``grant``
+    genauso wie ``revoke``.
+
+    Ich hatte ``_not_stored`` bewusst nur an ``revoke`` gehaengt und "kleinster
+    Eingriff" dazu gesagt. Gemessen: ``grant=True``, Alice weg,
+    ``inherits=False`` trotz gesendetem ``True``.
+    """
+    instanz = NimmtNurDenNeuen(own=[_ace("alice", "Coordinator")])
+    async with instanz.repo() as repo:
+        knoten = await repo.node("n1")
+        with pytest.raises(SilentDropError) as fehler:
+            await knoten.permissions.grant("bob", "Consumer")
+    assert "alice" in str(fehler.value)
+    assert "inherit" in str(fehler.value).lower()
+
+
+async def test_grant_meldet_einen_unbekannten_gruppennamen_weiterhin_eigens():
+    """Die Gegenprobe: die gemessene stille Verwerfung eines ``GROUP_``-Namens
+    ohne Gruppe dahinter behaelt ihre eigene Erklaerung -- sie sagt dem
+    Aufrufer, wonach er suchen soll."""
+    instanz = Instanz(taub=True)
+    async with instanz.repo() as repo:
+        knoten = await repo.node("n1")
+        with pytest.raises(SilentDropError) as fehler:
+            await knoten.permissions.grant("GROUP_gibtsnicht", "Consumer")
+    assert "group" in str(fehler.value).lower()
+    assert "spelling" in str(fehler.value).lower()
+
+
+async def test_ein_gelungener_grant_meldet_weiterhin_true():
+    """Und die zweite Gegenprobe: ein Server, der tut was er sagt."""
+    instanz = Instanz(own=[_ace("alice", "Coordinator")])
+    async with instanz.repo() as repo:
+        knoten = await repo.node("n1")
+        assert await knoten.permissions.grant("bob", "Consumer") is True
+        danach = await knoten.permissions.get()
+    assert sorted(a.authority for a in danach.own) == ["alice", "bob"]
+    assert danach.inherits is True
+
+
 # --- Formen ---------------------------------------------------------------
 
 def test_ace_leitet_den_typ_aus_dem_namen_ab():
