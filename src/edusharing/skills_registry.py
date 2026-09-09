@@ -95,6 +95,11 @@ class SkillRegistry:
     context_match: str = "all"
     #: ``(scanned, total)`` when the file listing was cut short -- then
     #: ``no_registry`` is not a finding of absence.
+    #:
+    #: ``total`` is what the repository stated. Where it stated none, it is
+    #: what was **seen** instead -- one over the scan cap, and a lower bound,
+    #: not the count. Reading it as the count would understate a collection
+    #: that holds far more (review 2026-09-09).
     scan_truncated: tuple[int, int] | None = None
 
 
