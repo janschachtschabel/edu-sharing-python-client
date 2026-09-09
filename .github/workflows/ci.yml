@@ -103,3 +103,84 @@ jobs:
                  | awk '{printf "%s%%0A", $0}')"
           fi
           exit "$rc"
+
+  # --- 5.4 der Fremdpruefung vom 09.09.2026 ---------------------------------
+  #
+  # Die Suite prueft den Quelltext. Sie prueft nicht, ob daraus ein Paket
+  # wird, das sich installieren laesst, und nicht, ob die eingecheckte
+  # generierte Schicht noch die ist, die aus der Spec faellt. Beides lief in
+  # der Pruefung erfolgreich -- als Gate haette das zweite F15 frueher
+  # gezeigt.
+
+  package:
+    # Ein Wheel, das sich nicht installieren oder nicht importieren laesst,
+    # faellt sonst erst beim ersten Anwender auf. Eine Python-Fassung genuegt:
+    # die Frage ist "wird daraus ein Paket", nicht "laeuft der Code".
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.13"
+      - name: Install uv
+        run: pip install uv==0.12.10
+
+      - name: Build
+        run: uv build
+
+      # In einer eigenen Umgebung, ohne das Projektverzeichnis: sonst importiert
+      # der naechste Schritt den Quelltext daneben statt des Wheels und
+      # beantwortet eine andere Frage.
+      - name: Install the wheel
+        run: |
+          python -m venv /tmp/wheeltest
+          /tmp/wheeltest/bin/pip install --quiet dist/*.whl
+
+      # Jedes Modul, nicht nur das Paket: die generierte Schicht sind 1131
+      # Dateien, und ein kaputter Import darin faellt beim Import des Pakets
+      # nicht auf.
+      - name: Import every module
+        run: |
+          cd /tmp
+          /tmp/wheeltest/bin/python - <<'PY'
+          import importlib, pkgutil, sys
+          import edusharing
+          fehler = []
+          for modul in pkgutil.walk_packages(edusharing.__path__, "edusharing."):
+              try:
+                  importlib.import_module(modul.name)
+              except Exception as exc:  # noqa: BLE001 -- jeder Grund zaehlt
+                  fehler.append(f"{modul.name}: {type(exc).__name__}: {exc}")
+          print(f"{len(sys.modules)} Module geladen, {len(fehler)} Fehler")
+          for f in fehler[:20]:
+              print("   ", f)
+          sys.exit(1 if fehler else 0)
+          PY
+
+  generate:
+    # Erzeugt die Schicht neu und verlangt einen sauberen Diff. Ohne das Gate
+    # ist "regenerierbar" eine Behauptung: die eingecheckten Dateien koennen
+    # von Hand geaendert worden sein, oder der Erzeugungsweg kann sich
+    # geaendert haben, ohne dass jemand neu erzeugt hat.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.13"
+      - name: Install uv
+        run: pip install uv==0.12.10
+      - name: Install dependencies
+        run: uv sync --group dev --locked --python 3.13
+
+      - name: Regenerate
+        run: uv run python scripts/generate_client.py
+
+      # ``--exit-code`` liest den Diff als Ergebnis, nicht als Text. Der Name
+      # der ersten abweichenden Datei steht in der Ausgabe darueber.
+      - name: The checked-in layer is the generated one
+        run: |
+          git --no-pager diff --stat -- src/edusharing/_generated
+          git diff --exit-code -- src/edusharing/_generated
