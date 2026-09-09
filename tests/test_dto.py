@@ -54,16 +54,17 @@ def test_first_nimmt_den_ersten_wert(wert, erwartet):
     ``"0"``.
 
     Der blanke Fall galt bis zum 08.09.2026 als nicht gesetzt, mit einem
-    eigenen Testfall. Diese Erwartung war falsch, nicht nur anders (Audit
-    COR-9): jeder Aufruf von ``first`` geht auf ``properties.get(...)``, der
-    Skalarzweig ist also ein Sicherheitsnetz -- und eines, das ``0``
-    verschluckt, macht bei ``cclom:size`` aus "0 Bytes" ein "keine Groesse".
-    Der leere Dateiname existiert; ``content.hash`` unterscheidet ihn
-    ausdruecklich vom fehlenden Inhalt.
+    eigenen Testfall (Audit COR-9). Ein gemessener Schaden stand nicht
+    dahinter: jeder Aufruf von ``first`` liest ``properties.get(...)``, und
+    edu-sharing schickt Listen -- der Skalarzweig ist ein Sicherheitsnetz,
+    das in der Praxis nie ein blankes ``0`` trug.
 
-    ``flows/serialize.py`` schrieb diese Regel schon so auf: "``0`` und
-    ``False`` sind Werte; nur Abwesenheit und die leere Liste sind es
-    nicht." Jetzt gilt sie an beiden Stellen.
+    Falsch war, dass dieses Netz eine **andere** Regel hatte als die, die
+    ``flows/serialize.py`` fuer dieselbe Frage aufschreibt: "``0`` und
+    ``False`` sind Werte; nur Abwesenheit und die leere Liste sind es nicht."
+    Ein Sicherheitsnetz, das der Regel widerspricht, die es absichert, hat
+    die falsche Form fuer den Tag, an dem es doch etwas faengt. Jetzt gilt
+    eine Regel an beiden Stellen.
     """
     assert first(wert) == erwartet
 

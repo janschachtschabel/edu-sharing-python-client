@@ -36,12 +36,14 @@ def first(value: Any) -> str | None:
     absence and the empty list are not values**: ``[""]`` gives ``""``, a bare
     ``0`` gives ``"0"``, and only ``None`` and ``[]`` give ``None``.
 
-    The bare case counted as not set until 2026-09-08, which was wrong rather
-    than merely different (audit COR-9). Every call site here reads
-    ``properties.get(...)``, so the scalar branch is a safety net -- and one
-    that swallows ``0`` turns "0 bytes" into "no size" at ``cclom:size``. The
-    empty file exists; ``content.hash`` tells it from missing content on
-    purpose. ``flows/serialize.py`` had already written the rule this way.
+    The bare case counted as not set until 2026-09-08 (audit COR-9). No
+    measured failure came of it: every call site reads ``properties.get(...)``
+    and edu-sharing sends lists, so the scalar branch is a safety net that in
+    practice never carried a bare ``0``. What was wrong is that the net had a
+    different rule from the one ``flows/serialize.py`` states for the same
+    question -- "``0`` and ``False`` are values; only absence and an empty
+    list are not" -- and a safety net that disagrees with the rule it backs up
+    is the wrong shape for the day it does catch something.
 
     Callers that want ``""`` for a missing value write ``first(…) or ""``.
     Inside a list nothing is skipped, so a JSON ``null`` there comes back as
