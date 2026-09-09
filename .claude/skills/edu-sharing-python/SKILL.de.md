@@ -559,8 +559,18 @@ zu haben.**
 
 - `total_is_lower_bound=True` → `total` zählt *mindestens* so viele. Wer das
   als genaue Zahl meldet, behauptet eine Zahl, die keine ist.
-- `browse_tree`/`search_in_collection`: `truncated=True` → der Gang hat früh
-  abgebrochen. Ein leeres Ergebnis heißt dann **nicht** „es gibt keins".
+- `browse_tree`/`search_in_collection`: `truncated=True` → in der Antwort
+  fehlt etwas, das hineingehört — der Deckel darauf, wie viele Sammlungen
+  geöffnet werden, oder eine Seite mit mehr Untersammlungen als
+  `max_collections`. Ein leeres Ergebnis heißt dann **nicht** „es gibt
+  keins". Ein Zyklus und die gefragte `depth` sind keins von beidem: sie
+  setzen nichts.
+- `collection_contents`: `collections_truncated=True` → die
+  **Unter**sammlungen sind bei `limit` gedeckelt wie das Material. Lies es;
+  eine gekürzte Liste sieht aus wie eine Sammlung mit weniger Kindern, als
+  sie hat. Nennt der Endpunkt keine Gesamtzahl, ist `total_collections`
+  dann eine untere Schranke und `total_materials` der `offset` plus das
+  Gesehene.
 - `collection_stats`: `complete=False` → die Aufschlüsselung ist eine
   Stichprobe.
 
@@ -572,8 +582,10 @@ zusammen.
 - Sammlungen über `repo.create_collection` anlegen, nie als `ccm:map`-Knoten.
   Ein anders angelegter Knoten ist für den Rest des Systems keine Sammlung.
 - Sammlungen bilden einen **Graphen**, keinen Baum — eine Sammlung kann
-  mehrere Eltern haben. `browse_tree` sichert gegen Zyklen und sagt es über
-  `truncated`.
+  mehrere Eltern haben. `browse_tree` sichert gegen Zyklen, indem es
+  überspringt, was es schon geöffnet hat. Das ist **keine** Kürzung und
+  setzt `truncated` nicht: im Baum fehlt nichts, es steht nur nicht
+  zweimal da (gemessen 09.09.2026). Die gefragte `depth` ebenso wenig.
 - Es gibt keine auf eine Sammlung eingeschränkte Suche.
   `virtual:primaryparent_nodeid` antwortet mit HTTP 400, und es wäre ohnehin
   die falsche Antwort: eine kuratierte Sammlung hält *Referenzen* auf Knoten,

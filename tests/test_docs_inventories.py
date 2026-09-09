@@ -219,3 +219,53 @@ def test_jedes_warnende_modul_steht_in_der_readme(name):
     erfunden = sorted(genannt - warnende)
     assert not erfunden, (
         f"{name}: die Tabelle nennt Module, die nicht (mehr) warnen: {erfunden}")
+
+
+# --- Die Kennzeichen fuer Unvollstaendigkeit --------------------------------
+#
+# Sie sind der Grund, warum diese Bibliothek einer Antwort trauen darf: was
+# fehlt, sagt sie. Ein Kennzeichen, das der Nutzungs-Skill nicht nennt, wird
+# nicht gelesen -- und dann meldet ein Modell die halbe Sammlung als die ganze.
+#
+# Gemessen am 09.09.2026: ``collections_truncated`` fehlte, als einziges von
+# sechs. Es kam mit Audit API-3 dazu und wurde nie nachgetragen.
+
+SKILLDATEIEN = {
+    "SKILL.md": WURZEL / ".claude" / "skills" / "edu-sharing-python" / "SKILL.md",
+    "SKILL.de.md": WURZEL / ".claude" / "skills" / "edu-sharing-python" / "SKILL.de.md",
+}
+
+#: Ein Feld oder Schluessel, der sagt, dass etwas fehlt.
+_KENNZEICHEN = re.compile(
+    r'"(\w*truncated|complete|total_is_lower_bound)"'
+    r"|^\s{4}(\w*truncated|complete|total_is_lower_bound):", re.M)
+
+
+def kennzeichen() -> set[str]:
+    """Die Kennzeichen, aus dem Quelltext gelesen statt aufgezaehlt."""
+    quelle = WURZEL / "src" / "edusharing"
+    gefunden: set[str] = set()
+    for pfad in sorted(quelle.rglob("*.py")):
+        if "_generated" in pfad.parts:
+            continue
+        for a, b in _KENNZEICHEN.findall(pfad.read_text(encoding="utf-8")):
+            gefunden.add(a or b)
+    return gefunden
+
+
+@pytest.mark.parametrize("name", sorted(SKILLDATEIEN))
+def test_der_skill_nennt_jedes_kennzeichen_der_unvollstaendigkeit(name):
+    """Wer die Bibliothek benutzt, muss wissen, woran er ein halbes Ergebnis
+    erkennt -- und zwar in **beiden** Sprachfassungen."""
+    text = SKILLDATEIEN[name].read_text(encoding="utf-8")
+    fehlend = sorted(k for k in kennzeichen() if k not in text)
+    assert not fehlend, f"{name} nennt nicht: {fehlend}"
+
+
+def test_die_kennzeichenwache_sieht_ueberhaupt_etwas():
+    """Eine Wache, die nichts findet, weil ihr Ausdruck nichts trifft, ist
+    still gruen. Sechs sind es gemessen; weniger hiesse, der Ausdruck greift
+    nicht mehr."""
+    gefunden = kennzeichen()
+    assert {"truncated", "collections_truncated", "total_is_lower_bound",
+            "complete", "scan_truncated", "contexts_truncated"} <= gefunden, gefunden

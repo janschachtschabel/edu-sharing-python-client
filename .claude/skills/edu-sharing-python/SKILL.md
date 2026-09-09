@@ -533,8 +533,16 @@ values that were **not** written. The material exists without them.
 
 - `total_is_lower_bound=True` → `total` counts *at least* that many. Reporting
   it as an exact figure states a number that is not one.
-- `browse_tree`/`search_in_collection`: `truncated=True` → the walk stopped
-  early. An empty result then does **not** mean "there is none".
+- `browse_tree`/`search_in_collection`: `truncated=True` → something is
+  missing that belongs in the answer — the cap on how many collections are
+  opened, or a page holding more sub-collections than `max_collections`. An
+  empty result then does **not** mean "there is none". A cycle and the
+  `depth` you asked for are neither: they set nothing.
+- `collection_contents`: `collections_truncated=True` → the **sub**-collections
+  were capped at `limit` like the material. Read it; a shortened list looks
+  like a collection with fewer children than it has. Where the endpoint
+  states no total, `total_collections` is then a lower bound, and
+  `total_materials` is `offset` plus what was seen.
 - `collection_stats`: `complete=False` → the breakdown is a sample.
 
 `find_collections` always sets `total_is_lower_bound`: it merges two routes.
@@ -545,7 +553,10 @@ values that were **not** written. The material exists without them.
   node. A node created the other way is not a collection to the rest of the
   system.
 - Collections form a **graph**, not a tree — a collection can have several
-  parents. `browse_tree` guards against cycles and says so via `truncated`.
+  parents. `browse_tree` guards against cycles by skipping what it has
+  already opened. That is **not** a truncation and does not set
+  `truncated`: nothing is missing from the tree, it is just not repeated
+  (measured 2026-09-09). Nor does the `depth` you asked for.
 - There is no search scoped to a collection. `virtual:primaryparent_nodeid`
   returns HTTP 400, and it would be the wrong answer anyway: a curated
   collection holds *references* to nodes whose primary parent lives elsewhere.
