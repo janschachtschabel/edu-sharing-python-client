@@ -237,3 +237,27 @@ Damit ist der Bericht abgearbeitet und dreimal nachgeprüft.
   unter einem Server, der `maxItems` beachtet, ist die Datensatz-Hälfte allein
   hinreichend — zwei von drei Mutationen kamen durch sie hindurch. Das steht
   jetzt in ihrem Docstring; eine Eigenschaft ist so stark wie ihre Annahme.
+
+- [x] **34 · Der Zug gegen die echte Instanz** Ein Commit, `0bc4b17`. Der Zug
+  hat auf fünf Endpunkten `maxItems` geändert; gemessen hatte ich zwei, und
+  alle Wachen dafür stehen gegen Attrappen, die `maxItems` beachten, weil ich
+  sie so geschrieben habe.
+
+  **Beide Live-Suiten grün** gegen edu-sharing 11.0: 73 lesend, 81 schreibend.
+  Der Zug hat nichts gebrochen.
+
+  **Und die Live-Wache, die ich dafür schrieb, war grün aus dem falschen
+  Grund.** `maxItems=limit + 1` auf `limit` zurückzudrehen ließ sie grün —
+  diese Instanz nennt eine richtige Gesamtzahl, und die trägt die Antwort
+  allein. Gegen einen ehrlichen Server ist der zusätzliche Datensatz nie
+  nötig; er ist gegen Antworten da, die keine oder eine zu kleine Zahl nennen,
+  und die kann kein Live-Test herstellen.
+
+  Was sich pinnen lässt, ist die **Annahme** darunter, und die trug bisher
+  nichts als eine Wegwerfmessung: dass der Endpunkt `maxItems` beachtet.
+  `test_der_endpunkt_liefert_so_viele_wie_verlangt` fragt 1, 2, 3 und 4 an
+  drei Untersammlungen. Deckelt die Instanz eines Tages doch, wird sie rot —
+  statt dass der Zug still falsch wird.
+
+  Dreimal in dieser Sitzung dasselbe Muster: eine Wache, die grün ist, ohne zu
+  prüfen. Gefunden wurde es jedes Mal durch Mutation, keinmal durch Lesen.
