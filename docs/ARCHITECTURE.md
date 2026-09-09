@@ -124,7 +124,19 @@ have wrecked the pipeline:
 
 Both the check and the repair live in `scripts/generate_client.py`. The script
 exits with code 1 if even one file fails to parse; the syntax check is part of
-generating, not optional.
+generating, not optional. The CI regenerates on every push and requires a clean
+diff — without that, "regenerable" is a claim rather than a fact.
+
+> **The supported output location is the one in the project.** `--output` into
+> a directory outside the project layout produced **556 differing files**
+> (measured 2026-09-09) — different formatting, and `typing_extensions.Self`
+> instead of `typing.Self`. The generator reads the surrounding
+> `pyproject.toml`: `requires-python >=3.11` is what makes it write
+> `typing.Self` (which is why `typing-extensions` is not a dependency, audit
+> DEP-1), and `line-length = 100` decides the formatting. Same spec, same
+> generator, same content — a different form. The provenance note records the
+> spec and the generator version, not the surrounding project, so it does not
+> show this difference. Generate in place.
 
 > **Content types the spec invents.** Counted against the reference spec on
 > 2026-09-09: **seven** responses declare a type the generator cannot use --

@@ -138,7 +138,20 @@ die Erzeugungskette sonst zerlegt hätte:
 
 Prüfung und Reparatur stehen beide in `scripts/generate_client.py`. Das Skript
 endet mit Code 1, wenn auch nur eine Datei nicht parst; die Syntaxprüfung
-gehört zum Erzeugen, sie ist nicht optional.
+gehört zum Erzeugen, sie ist nicht optional. Die CI erzeugt bei jedem Push neu
+und verlangt einen sauberen Diff — ohne das ist „regenerierbar" eine Behauptung
+und keine Tatsache.
+
+> **Der unterstützte Ausgabeort ist der im Projekt.** `--output` in ein
+> Verzeichnis ausserhalb des Projektlayouts ergab **556 abweichende Dateien**
+> (gemessen 09.09.2026) — andere Formatierung und `typing_extensions.Self`
+> statt `typing.Self`. Der Generator liest die umgebende `pyproject.toml`:
+> `requires-python >=3.11` lässt ihn `typing.Self` schreiben (weshalb
+> `typing-extensions` keine Abhängigkeit ist, Audit DEP-1), und
+> `line-length = 100` bestimmt die Formatierung. Dieselbe Spec, derselbe
+> Generator, derselbe Inhalt — eine andere Form. Die Herkunftsnotiz hält Spec
+> und Generatorfassung fest, nicht das umgebende Projekt, und bildet diesen
+> Unterschied deshalb nicht ab. Also am vorgesehenen Ort erzeugen.
 
 > **Inhaltstypen, die die Spec erfindet.** Am 09.09.2026 gegen die
 > Referenzspezifikation ausgezählt: **sieben** Antworten deklarieren einen Typ,
