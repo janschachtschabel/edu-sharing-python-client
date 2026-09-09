@@ -10,9 +10,12 @@ check can run at all is a property of the metadata set, and the caller of
 Two things make this stricter than the search it is built on, both measured by
 the MCP (``services/write/duplicates.ts``): the search answers with neighbours
 as well as the exact hit, so every hit's own ``ccm:wwwurl`` is compared; and
-the comparison ignores case and nothing else -- a trailing slash can
-distinguish two real pages, and a wrong "already exists" blocks a legitimate
-record.
+the comparison normalises **by component** -- scheme and host are
+case-insensitive as RFC 3986 says, path and query are not. A trailing slash
+distinguishes two real pages, and so does ``/A`` from ``/a``; a wrong
+"already exists" blocks a legitimate record, and with ``if_exists="return"``
+hands back the wrong one. Until 2026-09-09 the whole address was lowered
+(F10).
 
 One limit, also measured (staging, 2026-09-02): the check sees what the search
 index sees, and the index trails the node store. A record created a moment ago
@@ -24,6 +27,7 @@ batches imports should de-duplicate its own input first.
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlsplit, urlunsplit
 
 from ..errors import ConflictError, ValidationError
 
@@ -41,12 +45,36 @@ _NOT_A_CRITERION = (
 )
 
 
+def _comparable(url: str) -> str:
+    """The address as a comparison key: scheme and authority lowered, the rest
+    left exactly as it is.
+
+    Until 2026-09-09 the **whole** address was lowered, path and query
+    included, and the module said so ("ignores case and nothing else"). It was
+    a deliberate choice taken over from the MCP, and it was wrong about what a
+    URL means: RFC 3986 makes scheme and host case-insensitive and the path
+    character-exact. Measured, a record with ``https://example.test/A`` was
+    returned as the duplicate of ``https://example.test/a`` -- and with
+    ``if_exists="return"`` an application then hands back the wrong existing
+    record instead of creating the one that was asked for (F10).
+
+    Anything that is not an absolute address is compared as given: there is
+    nothing to normalise, and guessing would be the same mistake again.
+    """
+    teile = urlsplit(url.strip())
+    if not teile.scheme or not teile.netloc:
+        return url.strip()
+    return urlunsplit((teile.scheme.lower(), teile.netloc.lower(),
+                       teile.path, teile.query, teile.fragment))
+
+
 async def find_by_url(repo: AsyncRepository, url: str) -> dict[str, Any] | None:
     """The record already carrying this address, or ``None``.
 
     Returns:
         ``{id, title, url}`` -- ``url`` as stored, which may differ from the
-        input in case.
+        input in the case of its scheme and host. Compared is ``_comparable``:
+        those two are case-insensitive, path and query are not.
 
     Raises:
         ValidationError: when the metadata set does not accept ``ccm:wwwurl``
@@ -56,10 +84,10 @@ async def find_by_url(repo: AsyncRepository, url: str) -> dict[str, Any] | None:
             caller decides whether a check that cannot run is a warning or a
             refusal.
     """
-    wanted = url.strip().lower()
+    wanted = _comparable(url)
     if not wanted:
         return None
-    if not wanted.startswith(("http://", "https://")):
+    if not wanted.lower().startswith(("http://", "https://")):
         # The search takes only http(s) addresses as a criterion. Asking anyway
         # would cost a vocabulary lookup and an unfiltered search for the same
         # answer; the check below stays as the second line of defence.
@@ -71,7 +99,7 @@ async def find_by_url(repo: AsyncRepository, url: str) -> dict[str, Any] | None:
         raise ValidationError(_NOT_A_CRITERION.format(url=url))
     for hit in result.hits:
         stored = (hit.source_url or "").strip()
-        if stored and stored.lower() == wanted:
+        if stored and _comparable(stored) == wanted:
             return {"id": hit.id, "title": hit.title, "url": stored}
     return None
 

@@ -8,8 +8,10 @@ exakt gleich); ``-default-`` weist es zurueck (``ValidationError``).
 Zwei Dinge machen die Pruefung strenger als die Suche, auf der sie beruht --
 beides vom MCP so gemessen (``services/write/duplicates.ts``): die Suche
 antwortet auch mit Nachbarn, also wird die eigene ``ccm:wwwurl`` jedes Treffers
-verglichen; und der Vergleich ignoriert Gross-/Kleinschreibung, sonst nichts --
-ein Schraegstrich am Ende kann zwei echte Seiten unterscheiden.
+verglichen; und der Vergleich normalisiert **komponentenweise** -- Schema und
+Host schreibungsblind, wie RFC 3986 es sagt, Pfad und Query nicht. Ein
+Schraegstrich am Ende unterscheidet zwei echte Seiten, und ``/A`` von ``/a``
+ebenso. Bis zum 09.09.2026 wurde die ganze Adresse kleingeschrieben (F10).
 """
 
 import json
@@ -99,11 +101,67 @@ async def test_vorhandenes_wird_genannt_und_nichts_angelegt():
 
 
 async def test_nur_die_gleiche_adresse_zaehlt():
-    """Die Suche liefert Nachbarn mit -- ein Treffer ist noch keine Dublette."""
-    instanz = Instanz([_treffer("nachbar", URL + "/2"), _treffer("gleich", URL.upper())])
+    """Die Suche liefert Nachbarn mit -- ein Treffer ist noch keine Dublette.
+
+    Das Beispiel fuer "dieselbe Adresse" war bis zum 09.09.2026 ``URL.upper()``
+    -- also auch mit anderem **Pfad**. Seit F10 unterscheidet der Vergleich
+    Pfade; gleich bleiben Schema und Host, und genau die sind hier anders
+    geschrieben.
+    """
+    gleich = "HTTPS://EXAMPLE.ORG/Arbeitsblatt"
+    instanz = Instanz([_treffer("nachbar", URL + "/2"), _treffer("gleich", gleich)])
     async with instanz.repo() as repo:
         got = await repo.flows.add_material("Neu", url=URL)
     assert got["existing"]["id"] == "gleich"
+
+
+# --- F10 (Fremdpruefung 09.09.2026): der Pfad ist keine Nebensache ---------
+#
+# Verglichen wurde die **ganze** Adresse kleingeschrieben -- Pfad und Query
+# eingeschlossen. Gemessen am 09.09.2026 galt ein Datensatz mit
+# ``https://example.test/A`` als Dublette zu ``https://example.test/a``. Nach
+# RFC 3986 ist ein Pfad zeichengenau; zwei Seiten koennen sich genau darin
+# unterscheiden, und mit ``if_exists="return"`` bekommt der Aufrufer dann den
+# falschen vorhandenen Datensatz statt des gewuenschten neuen.
+#
+# Das war eine **dokumentierte Entscheidung** ("der Vergleich ignoriert
+# Gross-/Kleinschreibung, sonst nichts"), vom MCP so uebernommen, und dieser
+# Test hielt sie fest. Sie wird hier geaendert, nicht repariert.
+
+
+@pytest.mark.parametrize("gespeichert", [
+    "https://example.org/ARBEITSBLATT",
+    "https://example.org/arbeitsblatt",
+    "https://example.org/Arbeitsblatt?v=A",
+])
+async def test_ein_anderer_pfad_ist_keine_dublette(gespeichert):
+    instanz = Instanz([_treffer("anders", gespeichert)])
+    async with instanz.repo() as repo:
+        assert await find_by_url(repo, URL) is None
+
+
+@pytest.mark.parametrize("gespeichert", [
+    "HTTPS://example.org/Arbeitsblatt",
+    "https://EXAMPLE.ORG/Arbeitsblatt",
+    "https://Example.Org/Arbeitsblatt",
+])
+async def test_schema_und_host_bleiben_schreibungsblind(gespeichert):
+    """Die Gegenprobe. Schema und Host sind nach RFC 3986 nicht
+    schreibungsempfindlich -- eine Regel, die auch sie unterscheidet, meldete
+    dieselbe Seite als neu und legte sie ein zweites Mal an."""
+    instanz = Instanz([_treffer("gleich", gespeichert)])
+    async with instanz.repo() as repo:
+        gefunden = await find_by_url(repo, URL)
+    assert gefunden is not None and gefunden["id"] == "gleich"
+
+
+async def test_die_gespeicherte_adresse_kommt_unveraendert_zurueck():
+    """Verglichen wird normalisiert, zurueckgegeben wird, was dasteht."""
+    instanz = Instanz([_treffer("gleich", "HTTPS://EXAMPLE.ORG/Arbeitsblatt")])
+    async with instanz.repo() as repo:
+        gefunden = await find_by_url(repo, URL)
+    assert gefunden is not None
+    assert gefunden["url"] == "HTTPS://EXAMPLE.ORG/Arbeitsblatt"
 
 
 async def test_ohne_dublette_wird_angelegt():
