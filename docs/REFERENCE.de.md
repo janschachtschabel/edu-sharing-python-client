@@ -1338,6 +1338,8 @@ dieser Bibliothek liest zurück und wirft ihn, statt Erfolg zu melden.
 | `redirect_error(status, location, url, service=…, env_var=…)` | der 3xx, den alle vier Clients melden statt ihm zu folgen. Die Meldung nennt nur den Zielhost; die ganze `Location` steht als `.location` an der Ausnahme |
 | `non_json_error(status, url, body, service=…)` | ein Körper, der kein JSON ist — als `ServerError` statt als `json.JSONDecodeError` |
 
+Ein drittes geschieht mit einem mitgebrachten Client, und es ist keine Ablehnung: `Transport` schaltet seinen **Cookie-Speicher** ab, in beide Richtungen. Ein Speicher gehört dem Client, eine Anmeldung gehört der Anfrage — gemessen am 09.09.2026 ging eine Sitzung, die eine Anfrage eröffnet hatte, mit der nächsten hinaus, auch mit der ausdrücklich anonymen. Eine Sitzung, die mitgehen *soll*, kommt als `Credential` herein.
+
 ---
 
 ## Tiefer liegende Helfer

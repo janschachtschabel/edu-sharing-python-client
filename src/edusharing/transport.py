@@ -24,6 +24,7 @@ load than the repository tolerates.
 from __future__ import annotations
 
 import asyncio
+import http.cookiejar
 import logging
 from dataclasses import dataclass
 from typing import Any, Self
@@ -174,6 +175,35 @@ def _network_failure(
     ) from exc
 
 
+def _forbid_cookie_storage(client: httpx.AsyncClient) -> None:
+    """Stop the HTTP client from carrying a session from one request to the next.
+
+    ``auth.py`` opens with the rule this protects: credentials are values, and
+    every request gets its own. A cookie jar is the opposite of that -- it
+    belongs to the client, it is filled from every ``Set-Cookie``, and it is
+    sent again on the next request, whoever that one is for.
+
+    Measured 2026-09-09: after one response to Alice's request, both an
+    explicitly **anonymous** request and one carrying Bob's credentials went
+    out with ``JSESSIONID=alice-session``. On the wire the anonymous request
+    was still Alice's session; which identity a real server then picks is its
+    business, and not one this library should be leaving to chance.
+
+    An empty ``allowed_domains`` refuses in both directions -- nothing is
+    stored, nothing is sent. Emptying the jar between requests would leave a
+    window for a concurrent one to fall into; not storing has no window.
+
+    Applied to an injected client as well. The hole is the same one there, and
+    a client is shared state whether this library made it or not -- so it is
+    named in ``Transport``'s docstring as one of the things that happens to a
+    client you pass in. A session that *should* travel goes in as a
+    ``Credential``: the protocol is exported for exactly that, and
+    ``test_eine_sitzung_als_anmeldung_geht_sehr_wohl_mit`` holds it open.
+    """
+    client.cookies.jar.set_policy(
+        http.cookiejar.DefaultCookiePolicy(allowed_domains=[]))
+
+
 class Transport:
     """HTTP access to an edu-sharing repository.
 
@@ -185,7 +215,8 @@ class Transport:
         max_retries: retries in addition to the first attempt.
         max_concurrency: requests running at once.
         backoff_base: base wait; doubles with each attempt.
-        client: your own httpx client, e.g. for tests.
+        client: your own httpx client, e.g. for tests. Its cookie jar is
+            switched off -- see ``_forbid_cookie_storage``.
 
     Retried is what the server could temporarily not deliver -- a
     ``ServerError`` or a network failure -- and only for a request that may
@@ -242,6 +273,7 @@ class Transport:
         self._semaphore = asyncio.Semaphore(max_concurrency)
         self._client = client or httpx.AsyncClient(timeout=timeout)
         self._owns_client = client is None
+        _forbid_cookie_storage(self._client)
 
     # --- Lifecycle --------------------------------------------------------
 

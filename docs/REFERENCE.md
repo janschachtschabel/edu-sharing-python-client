@@ -1314,6 +1314,8 @@ rather than reporting success.
 | `redirect_error(status, location, url, service=…, env_var=…)` | the 3xx all four clients report instead of following. The message names the target host only; the whole `Location` is on the exception as `.location` |
 | `non_json_error(status, url, body, service=…)` | a body that does not parse as JSON, as `ServerError` rather than `json.JSONDecodeError` |
 
+A third thing happens to an injected client, and it is not a refusal: `Transport` switches its **cookie jar** off, in both directions. A jar belongs to the client, credentials belong to the request — measured 2026-09-09, a session opened by one request went out with the next one, the explicitly anonymous one included. A session that *should* travel goes in as a `Credential`.
+
 ---
 
 ## Low-level helpers

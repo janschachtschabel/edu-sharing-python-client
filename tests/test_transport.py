@@ -925,3 +925,102 @@ async def test_ein_html_koerper_wird_zu_einem_servererror():
     async with _transport(handler) as t:
         with pytest.raises(ServerError, match="non-JSON"):
             await t.json("GET", "/x")
+
+
+# --- F01 (Fremdpruefung 09.09.2026): eine Sitzung ist keine Identitaet -----
+#
+# ``auth.py`` beginnt mit dem Satz, um den es hier geht: "Credentials are
+# values, not global state. Every request gets its own. A service that serves
+# many people -- an MCP server, say -- cannot otherwise keep straight who is
+# asking."
+#
+# Der Cookie-Speicher des geteilten ``httpx.AsyncClient`` hob das auf. Gemessen
+# am 09.09.2026: nach einer Antwort mit ``Set-Cookie`` trugen die naechste
+# **anonyme** und die naechste Anfrage einer **anderen** Anmeldung Alices
+# ``JSESSIONID`` mit. Auf HTTP-Ebene war die ausdruecklich anonyme Anfrage
+# weiter mit Alices Sitzung verbunden.
+
+
+def _setzt_sitzung(name: str):
+    """Ein Handler, der wie edu-sharing eine Sitzung eroeffnet."""
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, json={"ok": True},
+            headers={"set-cookie": f"JSESSIONID={name}; Path=/edu-sharing"})
+    return handler
+
+
+async def test_eine_fremde_sitzung_geht_nicht_mit():
+    """Alice, dann anonym, dann Bob -- niemand traegt Alices Sitzung."""
+    gesehen: list[tuple[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        gesehen.append((request.headers.get("authorization", ""),
+                        request.headers.get("cookie", "")))
+        return _setzt_sitzung("alice-session")(request)
+
+    async with _transport(handler) as transport:
+        await transport.request("GET", "/node/v1/nodes/-home-/n1")
+        await transport.request("GET", "/node/v1/nodes/-home-/n1",
+                                credential=ANONYMOUS)
+        await transport.request("GET", "/node/v1/nodes/-home-/n1",
+                                credential=("bob", "geheim"))
+
+    anmeldungen = [a for a, _ in gesehen]
+    assert anmeldungen[1] == "", "die anonyme Anfrage traegt keine Anmeldung"
+    assert anmeldungen[2] not in ("", anmeldungen[0]), "Bob ist nicht Alice"
+    assert [c for _, c in gesehen] == ["", "", ""], (
+        "eine Antwort hat eine Sitzung eroeffnet und die naechsten Anfragen "
+        "haben sie mitgetragen")
+
+
+async def test_auch_gleichzeitig_traegt_niemand_die_sitzung_eines_anderen():
+    """Der Fall, den ein Dienst mit vielen Nutzern wirklich hat.
+
+    Ein Speicher, der zwischen den Anfragen geleert wuerde, waere hier wieder
+    fehleranfaellig -- darum wird gar nicht erst gespeichert.
+    """
+    gesehen: list[str] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        gesehen.append(request.headers.get("cookie", ""))
+        await asyncio.sleep(0)
+        return _setzt_sitzung("wer-auch-immer")(request)
+
+    async with _transport(handler, max_concurrency=8) as transport:
+        # Erst eine Anfrage allein: sie eroeffnet die Sitzung. Ohne sie waere
+        # der Speicher leer, waehrend die acht gebaut werden, und dieser Test
+        # gruen, ohne etwas zu pruefen.
+        await transport.request("GET", "/node/v1/nodes/-home-/n0")
+        await asyncio.gather(*(
+            transport.request("GET", f"/node/v1/nodes/-home-/n{i}",
+                              credential=(f"nutzer{i}", "geheim"))
+            for i in range(8)))
+
+    assert gesehen == [""] * 9, gesehen
+
+
+async def test_eine_sitzung_als_anmeldung_geht_sehr_wohl_mit():
+    """Der Erweiterungspunkt bleibt: ``Credential`` ist das Protokoll, und ein
+    Cookie, das mitgehen **soll**, kommt als eins herein.
+
+    Ohne diesen Test waere die Wache darueber gruen, dass Cookies gar nicht
+    mehr funktionieren -- was etwas anderes ist als "sie tragen keine fremde
+    Identitaet".
+    """
+    class Sitzung:
+        is_anonymous = False
+
+        def headers(self) -> dict[str, str]:
+            return {"Cookie": "JSESSIONID=meine-eigene"}
+
+    gesehen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        gesehen.append(request.headers.get("cookie", ""))
+        return httpx.Response(200, json={"ok": True})
+
+    async with _transport(handler, credential=Sitzung()) as transport:
+        await transport.request("GET", "/node/v1/nodes/-home-/n1")
+
+    assert gesehen == ["JSESSIONID=meine-eigene"]
