@@ -216,6 +216,49 @@ def test_page_cut_nimmt_eine_genannte_null_als_antwort():
 # --- Die Wache -------------------------------------------------------------
 
 
+#: Die vier Antwortformen, in denen eine Gesamtzahl vorkommen kann oder auch
+#: nicht. ``geliefert`` ist, was der Server auf ``maxItems=limit + 1`` schickt.
+def _seitenantwort(bestand: int, geliefert: int, form: str) -> dict:
+    if form == "ehrlich":
+        return {"pagination": {"total": bestand, "from": 0, "count": geliefert}}
+    if form == "schweigt":
+        return {}
+    if form == "null":
+        return {"pagination": None}
+    if form == "seitengroesse":
+        return {"pagination": {"total": geliefert, "from": 0, "count": geliefert}}
+    raise AssertionError(form)
+
+
+@pytest.mark.parametrize("form", ["ehrlich", "schweigt", "null", "seitengroesse"])
+def test_page_cut_ist_wahr_genau_wenn_es_mehr_gibt(form):
+    """Die Eigenschaft, auf die sieben Aufrufer bauen -- ueber alle Bestaende.
+
+    Beantwortet ein Server ``maxItems=limit + 1`` mit ``min(bestand, limit+1)``
+    Datensaetzen -- gemessen tun das beide Auflistungsendpunkte --, dann muss
+    gelten: ``page_cut`` ist wahr **genau dann**, wenn es mehr als ``limit``
+    gibt. Unabhaengig davon, ob und wie der Server eine Gesamtzahl nennt.
+
+    Die Einzeltests darueber sagen, *warum* jede Form vorkommt; dieser sagt,
+    dass keine von ihnen die Antwort verschiebt.
+
+    **Was er nicht zeigt**, und das ist gemessen: unter einem Server, der
+    ``maxItems`` beachtet, ist die Datensatz-Haelfte allein schon
+    hinreichend -- die Mutationsprobe am 09.09.2026 liess "nur die
+    Datensaetze" und "gegen ``limit`` statt gegen das Gezeigte" hier gruen
+    durch. Die genannte Gesamtzahl verdient ihren Platz gegen Server, die
+    sich widersprechen, und dafuer stehen die Einzeltests darueber. Eine
+    Eigenschaft ist so stark wie ihre Annahme.
+    """
+    limit = 50
+    for bestand in range(3 * limit):
+        geliefert = min(bestand, limit + 1)
+        ist = page_cut(list(range(geliefert)),
+                       _seitenantwort(bestand, geliefert, form), limit)
+        assert ist is (bestand > limit), (form, bestand, geliefert, ist)
+
+
+
 def _definierte(name: str) -> list[str]:
     """Jede Datei, die eine Funktion dieses Namens selbst definiert."""
     gefunden = []
