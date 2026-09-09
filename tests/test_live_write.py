@@ -893,8 +893,15 @@ async def test_die_reihenfolge_mehrwertiger_eigenschaften_bleibt(repo, knoten):
     absteigend = ["Zebra", "Mitte", "Anfang"]
     await knoten.update(
         properties={"cclom:general_keyword": absteigend}, verify=False)
-    neu = await repo.node(knoten.id)
-    assert neu.get_all("cclom:general_keyword") == absteigend, (
+    gelesen = (await repo.node(knoten.id)).get_all("cclom:general_keyword")
+    # Erst: ist ueberhaupt etwas angekommen? Ohne Rueckleseprobe faellt ein
+    # stiller Verlust hier auf, und er liefert ``[]`` -- rot waere richtig,
+    # aber die Meldung darunter nennt dann einen Grund, der nicht feststeht
+    # (Pruefung 09.09.2026).
+    assert len(gelesen) == len(absteigend), (
+        f"geschrieben wurden {len(absteigend)} Schlagworte, gelesen "
+        f"{gelesen!r} -- ueber die Reihenfolge sagt das nichts")
+    assert gelesen == absteigend, (
         "die Instanz sortiert mehrwertige Eigenschaften um -- dann ist der "
         "exakte Vergleich in nodes_write.check zu streng (Audit COR-7)")
 
@@ -908,6 +915,9 @@ async def test_umgebende_leerzeichen_bleiben_stehen(repo, knoten):
     await knoten.update(
         properties={"cclom:general_keyword": [" Rand "]}, verify=False)
     gelesen = (await repo.node(knoten.id)).get_all("cclom:general_keyword")
+    assert gelesen, (
+        "nichts angekommen -- ohne Rueckleseprobe faellt ein stiller Verlust "
+        "hier auf; ueber das Trimmen sagt das nichts (Pruefung 09.09.2026)")
     assert gelesen == [" Rand "], (
         f"die Instanz veraendert den Wert: {gelesen!r} -- dann ist der exakte "
         "Vergleich zu streng (Audit COR-7)")
