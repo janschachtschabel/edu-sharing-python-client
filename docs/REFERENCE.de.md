@@ -1272,7 +1272,7 @@ bad.error             # "No node with id 'gibt-es-nicht'."   <- kein Stacktrace
 | `as_untrusted(text, label=…)` | `str` — umschlossen und als Daten markiert |
 | `UNTRUSTED_MARKER` | die verwendete Markierung |
 | `is_safe_url(url)` | `bool` |
-| `check_url(url)` | `str` — die URL, oder `UnsafeUrlError` |
+| `check_url(url)` | `str` — die URL, oder `UnsafeUrlError`. Die Meldung wiederholt die Adresse mit maskiertem `user:password@` |
 | `ALLOWED_SCHEMES` `BLOCKED_NAMES` `BLOCKED_SUFFIXES` | was `check_url` durchsetzt |
 
 ```python

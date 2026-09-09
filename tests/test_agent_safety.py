@@ -156,3 +156,50 @@ def test_meldung_nennt_die_adresse_und_den_grund():
     text = str(info.value)
     assert "127.0.0.1" in text
     assert "local" in text.lower() or "private" in text.lower()
+
+
+# --- F06 (Fremdpruefung 09.09.2026): das Passwort in der Absage ------------
+#
+# ``check_url`` lehnt eine Adresse mit eingebetteten Zugangsdaten ab -- und
+# setzte die vollstaendige Adresse mit ``{url!r}`` in die Meldung. Gemessen am
+# 09.09.2026 stand ``DUMMY_PASSWORD`` in der Ausnahme. Der Abruf war
+# verhindert, das Geheimnis trotzdem unterwegs: in Protokollen und in jedem
+# Agentenergebnis, das die Meldung weiterreicht.
+#
+# ``mask_userinfo`` gibt es seit SEC-1 zwei Module weiter, und
+# ``refuse_userinfo`` benutzt es laengst.
+
+GEHEIM = "https://alice:DUMMY_PASSWORD@example.test/datei"
+
+
+def test_die_absage_wiederholt_das_passwort_nicht():
+    with pytest.raises(UnsafeUrlError) as fehler:
+        check_url(GEHEIM)
+    assert "DUMMY_PASSWORD" not in str(fehler.value)
+    assert "alice" not in str(fehler.value)
+
+
+def test_die_absage_bleibt_trotzdem_lesbar():
+    """Die Gegenprobe: maskieren heisst nicht schweigen. Wer die Meldung liest,
+    muss sehen, welche Adresse gemeint war und warum sie abgelehnt wurde --
+    sonst ist der naechste Schritt Raten."""
+    with pytest.raises(UnsafeUrlError) as fehler:
+        check_url(GEHEIM)
+    meldung = str(fehler.value)
+    assert "example.test" in meldung
+    assert "***@" in meldung
+    assert "credentials" in meldung.lower()
+
+
+def test_ein_agentenergebnis_traegt_es_ebenso_wenig():
+    """Der Weg, auf dem die Meldung wirklich hinausgeht."""
+    import asyncio
+
+    from edusharing.agent.result import as_result
+
+    async def holen() -> str:
+        return check_url(GEHEIM)
+
+    ergebnis = asyncio.run(as_result(holen()))
+    assert ergebnis.ok is False
+    assert "DUMMY_PASSWORD" not in f"{ergebnis.text} {ergebnis.error}"

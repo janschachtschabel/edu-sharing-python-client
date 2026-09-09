@@ -21,7 +21,7 @@ answer can change between check and fetch (DNS rebinding).
 from __future__ import annotations
 
 from ..errors import EduSharingError
-from ..urls import unsafe_url_reason
+from ..urls import mask_userinfo, unsafe_url_reason
 
 __all__ = ["UnsafeUrlError", "is_safe_url", "check_url"]
 
@@ -40,10 +40,22 @@ def is_safe_url(url: str) -> bool:
 def check_url(url: str) -> str:
     """Return ``url`` if it may be fetched.
 
+    The address is repeated in the message with any ``user:password@`` masked.
+    One of the reasons for refusing is that the address carries credentials,
+    and until 2026-09-09 the message then carried them too: measured, the
+    password stood in the exception (F06). The fetch was prevented and the
+    secret travelled anyway -- into logs, and into every agent result that
+    passes the message on. ``mask_userinfo`` has been two modules away since
+    SEC-1, and ``refuse_userinfo`` has used it all along.
+
+    Masked, not dropped: which address was refused, and why, is what the
+    caller needs next.
+
     Raises:
         UnsafeUrlError: otherwise, with the reason in the message.
     """
     reason = unsafe_url_reason(url)
     if reason is not None:
-        raise UnsafeUrlError(f"Address not fetchable: {url!r} -- {reason}.")
+        raise UnsafeUrlError(
+            f"Address not fetchable: {mask_userinfo(url)!r} -- {reason}.")
     return url

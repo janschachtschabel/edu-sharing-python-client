@@ -1248,7 +1248,7 @@ bad.error             # "No node with id 'gibt-es-nicht'."   <- no stack trace
 | `as_untrusted(text, label=…)` | `str` — wrapped and marked as data |
 | `UNTRUSTED_MARKER` | the marker used |
 | `is_safe_url(url)` | `bool` |
-| `check_url(url)` | `str` — the URL, or raises `UnsafeUrlError` |
+| `check_url(url)` | `str` — the URL, or raises `UnsafeUrlError`. The message repeats the address with any `user:password@` masked |
 | `ALLOWED_SCHEMES` `BLOCKED_NAMES` `BLOCKED_SUFFIXES` | what `check_url` enforces |
 
 ```python
