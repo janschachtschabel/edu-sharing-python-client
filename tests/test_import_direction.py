@@ -13,6 +13,7 @@ nicht mehr (Audit ARC-1). Nichts hat es gemeldet -- diese Datei tut es.
 """
 
 import ast
+import textwrap
 from pathlib import Path
 
 QUELLE = Path(__file__).resolve().parent.parent / "src" / "edusharing"
@@ -118,6 +119,13 @@ def test_der_waechter_findet_einen_verstoss():
 #: Stelle, und ohne den Namen erlaubte der Eintrag jeden Rumpfimport dieses
 #: Moduls irgendwo in dieser Datei -- nachgewiesen an ``Skills._summary``
 #: (Pruefung 09.09.2026).
+#:
+#: Der Name ist der **blanke** Funktionsname, nicht der qualifizierte. Wer
+#: den Import aus ``Skills.registry`` entfernt, laesst den Eintrag verwaisen
+#: -- und ``test_die_ausnahmen_gibt_es_noch`` faengt genau das. Nur eine
+#: absichtlich gleichnamige Funktion auf Modulebene erbte ihn; dafuer
+#: braeuchte es den qualifizierten Namen, und diesen Fall muesste jemand
+#: herstellen wollen (Pruefung 09.09.2026, gemessen und angenommen).
 ERLAUBT = {
     # ``skills_registry`` braucht ``skills`` fuer die Konventionen, und
     # ``Skills.registry`` braucht ``load_registry``. Den Rumpf zu verschieben
@@ -128,25 +136,57 @@ ERLAUBT = {
 }
 
 
+def _eigener_rumpf(fn: ast.AST) -> list[ast.AST]:
+    """Die Knoten im **eigenen** Rumpf, ohne verschachtelte Funktionen.
+
+    ``ast.walk`` stiege in die mit ab -- und weil jede von ihnen vom
+    aeusseren Rundgang selbst gefunden wird, kaeme derselbe Import zweimal:
+    einmal der Funktion zugeschrieben, in deren Rumpf er gar nicht steht.
+    Eine Ausnahme fuer so eine Stelle braeuchte dann zwei Eintraege in
+    ``ERLAUBT``, einen davon unwahr (Pruefung 09.09.2026).
+
+    Eine verschachtelte **Klasse** wird betreten: ihre Methoden sind selbst
+    Funktionen und fallen hier heraus, ein Import in ihrem Klassenrumpf
+    steht aber im Rumpf dieser Funktion.
+    """
+    gefunden: list[ast.AST] = []
+    stapel = list(ast.iter_child_nodes(fn))
+    while stapel:
+        knoten = stapel.pop()
+        if isinstance(knoten, ast.FunctionDef | ast.AsyncFunctionDef):
+            continue
+        gefunden.append(knoten)
+        stapel.extend(ast.iter_child_nodes(knoten))
+    return gefunden
+
+
+def _rumpfimporte_aus(baum: ast.AST, datei: str) -> list[tuple[str, int, str, str]]:
+    """Jeder Import, der im Rumpf einer Funktion steht, aus einem Baum."""
+    gefunden = []
+    for knoten in ast.walk(baum):
+        if not isinstance(knoten, ast.FunctionDef | ast.AsyncFunctionDef):
+            continue
+        for innen in _eigener_rumpf(knoten):
+            if isinstance(innen, ast.ImportFrom):
+                gefunden.append((datei, innen.lineno, knoten.name,
+                                 innen.module or ""))
+            elif isinstance(innen, ast.Import):
+                gefunden.append((datei, innen.lineno, knoten.name,
+                                 innen.names[0].name))
+    # Nach Zeile, damit die Verstossmeldung in Lesereihenfolge steht --
+    # der Abstieg oben nimmt den Stapel von hinten.
+    return sorted(gefunden, key=lambda e: e[1])
+
+
 def _rumpfimporte() -> list[tuple[str, int, str, str]]:
-    """Jeder Import, der im Rumpf einer Funktion steht."""
+    """Dasselbe ueber den ganzen Quellordner."""
     gefunden = []
     for pfad in sorted(QUELLE.rglob("*.py")):
         if "_generated" in pfad.parts:
             continue
         baum = ast.parse(pfad.read_text(encoding="utf-8"), filename=str(pfad))
-        for knoten in ast.walk(baum):
-            if not isinstance(knoten, ast.FunctionDef | ast.AsyncFunctionDef):
-                continue
-            for innen in ast.walk(knoten):
-                if isinstance(innen, ast.ImportFrom):
-                    gefunden.append((
-                        pfad.relative_to(QUELLE).as_posix(), innen.lineno,
-                        knoten.name, innen.module or ""))
-                elif isinstance(innen, ast.Import):
-                    gefunden.append((
-                        pfad.relative_to(QUELLE).as_posix(), innen.lineno,
-                        knoten.name, innen.names[0].name))
+        gefunden.extend(
+            _rumpfimporte_aus(baum, pfad.relative_to(QUELLE).as_posix()))
     return gefunden
 
 
@@ -168,3 +208,24 @@ def test_die_ausnahmen_gibt_es_noch():
     tatsaechlich = {(d, f, m) for d, _, f, m in _rumpfimporte()}
     verwaist = sorted(ERLAUBT - tatsaechlich)
     assert not verwaist, f"in ERLAUBT, aber nicht mehr im Code: {verwaist}"
+
+
+def test_ein_verschachtelter_import_wird_einmal_gemeldet():
+    """Gegenprobe am Waechter selbst.
+
+    ``ast.walk`` steigt in verschachtelte Funktionen ab, und weil die vom
+    aeusseren Rundgang selbst gefunden werden, kam derselbe Import **zweimal**
+    -- einmal ``aussen()`` zugeschrieben, in dessen Rumpf er nicht steht. Der
+    Waechter wurde davon nicht loechrig, nur ungenau: eine Ausnahme fuer eine
+    verschachtelte Stelle braeuchte zwei Eintraege in ``ERLAUBT``, einen davon
+    unwahr (Pruefung 09.09.2026).
+    """
+    quelle = textwrap.dedent("""
+        def aussen():
+            def innen():
+                from x import y
+                return y
+            return innen
+    """)
+    gefunden = _rumpfimporte_aus(ast.parse(quelle), "probe.py")
+    assert [(f, m) for _, _, f, m in gefunden] == [("innen", "x")], gefunden
