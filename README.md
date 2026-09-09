@@ -79,6 +79,8 @@ why; the reference is the lookup table.
 - [Rebuilding the generated layer](#rebuilding-the-generated-layer)
 - [Logging](#logging)
 - [Tests](#tests)
+- [Releasing](#releasing)
+- [Security](#security)
 - [Licence](#licence)
 
 ## Why

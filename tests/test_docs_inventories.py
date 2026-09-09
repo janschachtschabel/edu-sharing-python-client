@@ -269,3 +269,65 @@ def test_die_kennzeichenwache_sieht_ueberhaupt_etwas():
     gefunden = kennzeichen()
     assert {"truncated", "collections_truncated", "total_is_lower_bound",
             "complete", "scan_truncated", "contexts_truncated"} <= gefunden, gefunden
+
+
+# --- Das Inhaltsverzeichnis der README -------------------------------------
+#
+# Ein Verzeichnis altert leise: es bleibt lesbar, plausibel und vollstaendig
+# **aussehend**, waehrend ein Kapitel dazukommt, das niemand mehr findet.
+# Gemessen am 09.09.2026 fehlten ``Releasing`` und ``Security`` -- beide kamen
+# mit Audit OPS-3 dazu, in beiden Sprachfassungen.
+
+README = {
+    "README.md": WURZEL / "README.md",
+    "README.de.md": WURZEL / "README.de.md",
+}
+
+#: Die Ankerregel von GitHub: klein, Satzzeichen und Backticks fallen weg,
+#: **jedes** Leerzeichen wird ein Bindestrich. Wer sie zusammenfasst, meldet
+#: jede Ueberschrift mit Gedankenstrich als toten Verweis (gemessen am
+#: 09.09.2026: zehn Fehlalarme).
+def anker(titel: str) -> str:
+    ohne = re.sub(r"[^\w\s-]", "", titel.strip().lower(), flags=re.UNICODE)
+    return ohne.replace(" ", "-")
+
+
+def _gliederung(text: str) -> tuple[list[str], list[tuple[str, str]]]:
+    """Die Ueberschriften und die Verweise des Verzeichnisses.
+
+    Codebloecke fallen heraus: ein ``# Kommentar`` darin ist keine
+    Ueberschrift.
+    """
+    ohne_code = re.sub(r"```.*?```", "", text, flags=re.S)
+    ueber = [m.group(2).strip()
+             for m in re.finditer(r"^(#{2,3}) (.+)$", ohne_code, re.M)]
+    verweise = re.findall(r"^\s*[-*] \[([^\]]+)\]\(#([^)]+)\)", ohne_code, re.M)
+    return ueber, verweise
+
+
+@pytest.mark.parametrize("name", sorted(README))
+def test_das_inhaltsverzeichnis_fuehrt_jedes_kapitel(name):
+    """Ein Kapitel, das nicht im Verzeichnis steht, findet nur, wer scrollt."""
+    ueber, verweise = _gliederung(README[name].read_text(encoding="utf-8"))
+    genannt = {a for _, a in verweise}
+    # Das Verzeichnis selbst fuehrt sich nicht auf.
+    fehlend = [t for t in ueber
+               if anker(t) not in genannt and t not in ("Contents", "Inhalt")]
+    assert not fehlend, f"{name}: nicht im Verzeichnis: {fehlend}"
+
+
+@pytest.mark.parametrize("name", sorted(README))
+def test_kein_eintrag_des_verzeichnisses_zeigt_ins_leere(name):
+    """Und die Gegenrichtung: ein Verweis auf ein Kapitel, das es nicht gibt."""
+    ueber, verweise = _gliederung(README[name].read_text(encoding="utf-8"))
+    vorhanden = {anker(t) for t in ueber}
+    tot = [f"{t} -> #{a}" for t, a in verweise if a not in vorhanden]
+    assert not tot, f"{name}: Verweis ins Leere: {tot}"
+
+
+def test_die_ankerregel_ist_die_von_github():
+    """Woran beide Tests haengen. Zusammengefasste Leerzeichen melden jede
+    Ueberschrift mit Gedankenstrich als toten Verweis."""
+    assert anker("Writing \u2014 with a read-back check") == "writing--with-a-read-back-check"
+    assert anker("`cm:name` is a key") == "cmname-is-a-key"
+    assert anker("Rebuilding the generated layer") == "rebuilding-the-generated-layer"

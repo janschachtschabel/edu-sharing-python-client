@@ -79,6 +79,8 @@ Python 3.13.5 und `pip install -e .` unter 3.14.7. Beide beantworteten danach
 - [Generierte Schicht neu bauen](#generierte-schicht-neu-bauen)
 - [Protokoll](#protokoll)
 - [Tests](#tests)
+- [Veröffentlichen](#veröffentlichen)
+- [Sicherheit](#sicherheit)
 - [Lizenz](#lizenz)
 
 ## Warum
