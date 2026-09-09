@@ -702,7 +702,7 @@ applied — the search answered a wider question than you asked.
 
 | Call | Returns |
 |---|---|
-| `repo.flows.text(node_id, extraction=…, max_chars=…)` | `{id, title, text, source, source_url, char_count, truncated, reason, detail}` — repository → file → linked page; `reason` says why there is none |
+| `repo.flows.text(node_id, extraction=…, max_chars=…)` | `{id, title, text, source, source_url, char_count, truncated, reason, detail}` — repository → file → linked page; `reason` says why there is none. `source` is the route the text came by, `source_url` the linked page — it is filled whenever the record has one, whichever route answered |
 | `DEFAULT_MAX_CHARS` | `200000` — the flow's cap |
 | `repo.flows.describe(node_id)` | `{id, title, url, description, source_url, mimetype, mediatype, fields, name, type, aspects, original_id, access, public, has_content, keywords, properties}` |
 | `repo.flows.describe_many(node_ids)` | `{requested, found, nodes, failed, truncated}` — order preserved, at most `DESCRIBE_MANY_MAX` (50) distinct ids |

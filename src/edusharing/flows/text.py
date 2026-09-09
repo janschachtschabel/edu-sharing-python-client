@@ -98,6 +98,12 @@ async def text(
     except PermissionDeniedError as exc:
         return {**answer, "reason": "access_denied", "detail": str(exc)}
     answer["title"] = node.title or None
+    # Taken as soon as it is read, not once the early returns are past.
+    # It used to be assigned only on the way to the extraction fallback,
+    # so the most common answer of all -- text out of the repository --
+    # came back without the address it had in hand (R07, 2026-09-09).
+    # The docstring promised it "whenever there is one".
+    answer["source_url"] = node.get("ccm:wwwurl") or None
 
     try:
         stored = await _stored(node, answer, max_chars)
@@ -110,10 +116,9 @@ async def text(
     if stored is not None:
         return stored
 
-    linked = node.get("ccm:wwwurl")
+    linked = answer["source_url"]
     if not linked:
         return {**answer, "reason": "no_text_no_url"}
-    answer["source_url"] = linked
     if extraction is None:
         return {**answer, "reason": "no_extraction_service"}
 

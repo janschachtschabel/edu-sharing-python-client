@@ -716,7 +716,7 @@ als die gestellte.
 
 | Aufruf | Liefert |
 |---|---|
-| `repo.flows.text(node_id, extraction=…, max_chars=…)` | `{id, title, text, source, source_url, char_count, truncated, reason, detail}` — Repositorium → Datei → verlinkte Seite; `reason` sagt, warum keiner da ist |
+| `repo.flows.text(node_id, extraction=…, max_chars=…)` | `{id, title, text, source, source_url, char_count, truncated, reason, detail}` — Repositorium → Datei → verlinkte Seite; `reason` sagt, warum keiner da ist. `source` ist der Weg, auf dem der Text kam, `source_url` die verlinkte Seite — sie steht da, sobald der Datensatz eine hat, gleich welcher Weg geantwortet hat |
 | `DEFAULT_MAX_CHARS` | `200000` — die Grenze des Ablaufs |
 | `repo.flows.describe(node_id)` | `{id, title, url, description, source_url, mimetype, mediatype, fields, name, type, aspects, original_id, access, public, has_content, keywords, properties}` |
 | `repo.flows.describe_many(node_ids)` | `{requested, found, nodes, failed, truncated}` — Reihenfolge bleibt, höchstens `DESCRIBE_MANY_MAX` (50) verschiedene IDs |

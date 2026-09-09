@@ -242,3 +242,59 @@ async def test_die_schluessel_sind_immer_dieselben():
         "id", "title", "text", "source", "source_url", "char_count",
         "truncated", "reason", "detail",
     }
+
+
+# --- R07 (Zweitpruefung 09.09.2026): die Quell-URL des Repository-Texts ---
+#
+# ``source_url`` wurde erst zugewiesen, **nachdem** der fruehe Rueckgabepfad
+# fuer Repository-Text und Dateidownload schon verlassen war. Sie fehlte also
+# genau im haeufigsten Fall. Die Docstring verspricht sie dagegen "whenever
+# there is one, so a caller without a service can still decide to fetch it".
+#
+# Gemessen am 09.09.2026: Knoten mit ``ccm:wwwurl``, ``/textContent`` liefert
+# Text -> ``source="repository"``, ``source_url=None``. Betroffen sind
+# Quellenlisten, RAG-Kontext und jedes "Original oeffnen".
+
+
+async def test_der_repository_text_traegt_die_quell_url():
+    instanz = Instanz(_knoten(url=SEITE), text="Ein Text im Repositorium.")
+    antwort = await _text(instanz)
+    assert antwort["source"] == "repository"
+    assert antwort["source_url"] == SEITE
+
+
+async def test_der_dateidownload_traegt_sie_ebenso():
+    instanz = Instanz(_knoten(url=SEITE, datei=True, mimetype="text/plain"),
+                      datei=b"Aus der Datei.")
+    antwort = await _text(instanz)
+    assert antwort["source"] == "download"
+    assert antwort["source_url"] == SEITE
+
+
+async def test_die_extraktion_traegt_sie_weiterhin():
+    """Die Gegenprobe fuer den Weg, der sie schon immer hatte."""
+    instanz = Instanz(_knoten(url=SEITE))
+    async with instanz.repo() as repo, instanz.dienst() as dienst:
+        antwort = await repo.flows.text(NID, extraction=dienst)
+    assert antwort["source"] == "extraction"
+    assert antwort["source_url"] == SEITE
+
+
+async def test_ohne_verlinkte_seite_bleibt_sie_leer():
+    """Die zweite Gegenprobe. Ohne sie waere die Wache gruen, wenn irgendetwas
+    in ``source_url`` geschrieben wird."""
+    instanz = Instanz(_knoten(), text="Nur im Repositorium.")
+    antwort = await _text(instanz)
+    assert antwort["source_url"] is None
+
+
+async def test_auch_eine_begruendete_leerantwort_traegt_sie():
+    """``too_large``: nichts wurde geladen, die Adresse ist trotzdem bekannt
+    -- und genau dann will der Aufrufer sie haben."""
+    instanz = Instanz(_knoten(url=SEITE, datei=True, mimetype="text/plain"),
+                      datei=b"x" * 10)
+    async with instanz.repo() as repo:
+        knoten = instanz.knoten
+        knoten["properties"]["ccm:size"] = ["999999999"]
+        antwort = await repo.flows.text(NID)
+    assert antwort["source_url"] == SEITE
