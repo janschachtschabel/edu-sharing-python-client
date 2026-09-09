@@ -349,11 +349,13 @@ class Collections:
             missing.append("cm:title")
         # ``or ""``: eine Eigenschaft, die es nach dem Leeren nicht mehr
         # gibt, liest sich als ``None``, und ``None != ""`` machte aus dem
-        # geglueckten Loeschen einen stillen Verlust. Nachgemessen am
-        # 08.09.2026 (Audit COR-11, dort *needs verification*): der Fehler
-        # tritt nur auf, wenn der Server die Eigenschaft **weglaesst** --
-        # gibt er sie als leere Liste zurueck, stimmte der Vergleich schon.
-        # Beide Formen kommen vor und heissen dasselbe.
+        # geglueckten Loeschen einen stillen Verlust (Audit COR-11, dort
+        # *needs verification*). Drei Serverformen bedeuten dasselbe, und
+        # **zwei** davon waren betroffen: die weggelassene Eigenschaft und
+        # die leere Liste ``[]`` -- ``first`` gibt fuer beide ``None``. Nur
+        # ``[""]``, die Liste mit leerem Eintrag, verglich sich richtig
+        # (nachgemessen 09.09.2026; die erste Fassung hatte diese eine mit
+        # der leeren Liste verwechselt).
         if description is not None and (
                 stored.get("cm:description") or "") != description:
             missing.append("cm:description")

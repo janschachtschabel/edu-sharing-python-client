@@ -392,11 +392,19 @@ async def test_eine_absage_der_instanz_bleibt_eine_teilantwort():
 
 # --- COR-11: eine geleerte Beschreibung ----------------------------------
 
-def _aendern_router(gespeichert: dict, weglassen: bool = False):
+def _aendern_router(gespeichert: dict, leere_form: str = "eintrag"):
     """Eine Instanz, die ``PUT`` annimmt und danach den Knoten zurueckgibt.
 
-    ``weglassen``: die Eigenschaft fehlt danach ganz, statt als leere Liste
-    dazustehen. Beide Formen kommen vor, und beide heissen dasselbe.
+    ``leere_form`` sagt, wie sie eine geleerte Eigenschaft zurueckgibt --
+    **drei** Formen, und alle drei heissen dasselbe:
+
+    * ``"eintrag"``  -- ``["\u0022"]``, eine Liste mit leerem Eintrag
+    * ``"leer"``     -- ``[]``, die leere Liste
+    * ``"weg"``      -- die Eigenschaft fehlt ganz
+
+    Die mittlere fehlte, und mit ihr die Erkenntnis, dass **zwei** der drei
+    kaputt waren: ``first([])`` gibt ``None``, genau wie die weggelassene.
+    Nur ``[""]`` verglich sich vorher richtig (Pruefung 09.09.2026).
     """
     def handler(request: httpx.Request) -> httpx.Response:
         if request.method == "PUT":
@@ -405,18 +413,23 @@ def _aendern_router(gespeichert: dict, weglassen: bool = False):
             gespeichert["cm:description"] = (
                 koerper.get("collection") or {}).get("description")
             return httpx.Response(200, content=b"")
-        props = {"cm:title": [gespeichert.get("cm:title") or ""]}
+        props: dict[str, list[str]] = {
+            "cm:title": [gespeichert.get("cm:title") or ""]}
         beschreibung = gespeichert.get("cm:description")
-        if not (weglassen and not beschreibung):
-            props["cm:description"] = [beschreibung or ""]
+        if beschreibung:
+            props["cm:description"] = [beschreibung]
+        elif leere_form == "eintrag":
+            props["cm:description"] = [""]
+        elif leere_form == "leer":
+            props["cm:description"] = []
         return httpx.Response(200, json={"node": {
             "ref": {"id": "coll-1"}, "title": gespeichert.get("cm:title") or "",
             "type": "ccm:map", "properties": props}})
     return handler
 
 
-@pytest.mark.parametrize("weglassen", [False, True])
-async def test_eine_beschreibung_zu_leeren_ist_kein_stiller_verlust(weglassen):
+@pytest.mark.parametrize("leere_form", ["eintrag", "leer", "weg"])
+async def test_eine_beschreibung_zu_leeren_ist_kein_stiller_verlust(leere_form):
     """``description=""`` heisst *loesche die Beschreibung* -- und danach ist
     sie weg, also ist der gewuenschte Zustand erreicht (Audit COR-11).
 
@@ -425,11 +438,13 @@ async def test_eine_beschreibung_zu_leeren_ist_kein_stiller_verlust(weglassen):
     ``None != ""`` -- also meldete das Leeren einen stillen Verlust, obwohl
     genau das Gewuenschte geschehen war.
 
-    Beide Serverformen: die Eigenschaft als leere Liste, und die Eigenschaft
-    ganz fort.
+    Alle drei Serverformen. Die leere Liste kam erst bei der Pruefung am
+    09.09.2026 dazu, und mit ihr die Berichtigung: ``first([])`` gibt
+    ``None``, also waren **zwei** der drei kaputt. Nur ``[""]`` verglich
+    sich vorher richtig -- und genau die hatte ich "leere Liste" genannt.
     """
     gespeichert = {"cm:title": "Optik", "cm:description": "alt"}
-    c = _collections(_aendern_router(gespeichert, weglassen))
+    c = _collections(_aendern_router(gespeichert, leere_form))
     await c.update("coll-1", description="")
     assert gespeichert["cm:description"] in (None, "")
 
