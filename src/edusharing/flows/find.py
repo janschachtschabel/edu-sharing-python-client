@@ -235,7 +235,9 @@ async def related(
 
     Args:
         repo: the connection.
-        node_id: the node to start from.
+        node_id: the node to start from. A reference id works: the seed's
+            own original, and any other reference to it, are left out of the
+            answer.
         on: which short names decide the resemblance. The default is topical;
             which short names exist at all is the instance's metadata set.
         limit: how many to return.
@@ -281,7 +283,18 @@ async def related(
         }
 
     found = await search(repo, None, filters=None, limit=limit + 1, **based_on)
-    hits = [h for h in found["hits"] if h["id"] != node_id][:limit]
+    # A collection holds **references**: start from one and its original is a
+    # different record with a different id, which the search returns. Comparing
+    # the given id alone let it back in as "similar" -- measured 2026-09-09,
+    # ``related("ref")`` recommended the material it started from (R08). The
+    # identity of a record is its original where it has one, and that is what
+    # both sides are compared on, so asking with the original and asking with
+    # one of its references answer with the same others.
+    itself = seed.get("original_id") or node_id
+    hits = [
+        h for h in found["hits"]
+        if h["id"] != node_id and (h.get("original_id") or h["id"]) != itself
+    ][:limit]
     return {
         "seed": {"id": node_id, "title": seed.get("title")},
         "based_on": based_on,

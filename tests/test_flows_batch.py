@@ -267,3 +267,70 @@ async def test_zwei_felder_kosten_zwei_vokabularanfragen_nicht_vier():
         )
     values_anfragen = [r for r in instanz.anfragen if "/values" in r.url.path]
     assert len(values_anfragen) == 2, [str(r.url) for r in values_anfragen]
+
+
+# --- R08 (Zweitpruefung 09.09.2026): das eigene Original -------------------
+#
+# Ausgeschlossen wurde nur die uebergebene ID. Eine Sammlung haelt aber
+# **Referenzen**: geht man von einer aus, ist ihr Original ein anderer
+# Datensatz mit einer anderen ID -- und die Suche liefert ihn.
+#
+# Gemessen am 09.09.2026: Ausgangsknoten ``ref`` mit ``originalId=original``,
+# Suchtreffer ``original`` und ``other`` -- ``related("ref")`` gab beide
+# zurueck. Aus einer Sammlungsansicht heraus empfiehlt "Aehnliches" damit
+# dasselbe Material.
+#
+# ``describe()`` hatte die Original-ID daneben schon aufgeloest.
+
+
+def _referenz(nid: str, titel: str, original: str) -> dict:
+    knoten = _knoten(nid, titel)
+    knoten["originalId"] = original
+    return knoten
+
+
+async def test_das_eigene_original_faellt_heraus():
+    instanz = Instanz(
+        knoten={"ref": _referenz("ref", "Zellteilung", "original")},
+        treffer=[_knoten("original", "Zellteilung"), _knoten("b", "Photosynthese")])
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.related("ref")
+    assert [h["id"] for h in ergebnis["hits"]] == ["b"]
+
+
+async def test_eine_andere_referenz_desselben_originals_faellt_ebenso_heraus():
+    """Die Abnahme des Berichts: mit Original **und** mit Referenz muss
+    dieselbe Menge anderer Materialien herauskommen."""
+    instanz = Instanz(
+        knoten={"original": _knoten("original", "Zellteilung"),
+                "ref": _referenz("ref", "Zellteilung", "original")},
+        treffer=[_knoten("original", "Zellteilung"),
+                 _referenz("ref2", "Zellteilung", "original"),
+                 _knoten("b", "Photosynthese")])
+    async with instanz.repo() as repo:
+        vom_original = await repo.flows.related("original")
+        von_der_referenz = await repo.flows.related("ref")
+    assert [h["id"] for h in vom_original["hits"]] == ["b"]
+    assert [h["id"] for h in von_der_referenz["hits"]] == ["b"]
+
+
+async def test_treffer_ohne_original_bleiben_brauchbar():
+    """Die Gegenprobe. Ohne sie waere die Wache gruen, wenn jeder Treffer
+    herausfaellt -- die allermeisten Materialien sind Originale."""
+    instanz = Instanz()
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.related("a")
+    assert [h["id"] for h in ergebnis["hits"]] == ["b"]
+
+
+async def test_ein_treffer_traegt_seine_original_id():
+    """Ohne sie im serialisierten Treffer laesst sich die Identitaet eines
+    Materials von aussen gar nicht bestimmen."""
+    instanz = Instanz(
+        treffer=[_referenz("ref2", "Zellteilung", "original"),
+                 _knoten("b", "Photosynthese")])
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.search("Zelle")
+    nach_id = {h["id"]: h for h in ergebnis["hits"]}
+    assert nach_id["ref2"]["original_id"] == "original"
+    assert nach_id["b"]["original_id"] is None
