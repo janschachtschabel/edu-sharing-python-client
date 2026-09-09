@@ -370,6 +370,66 @@ async def test_die_zahlen_kommen_aus_der_pagination():
     assert zahlen["collections"] == 2
 
 
+class MitGesamtzahl(Instanz):
+    """Eine Instanz, die ``maxItems`` fuer Untersammlungen beachtet und eine
+    Gesamtzahl nennt -- so wie edu-sharing 11.0, gemessen am 08.09.2026."""
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/children/collections"):
+            nid = request.url.path.split("/collections/-home-/")[1].split("/")[0]
+            alle = [_sammlung(k, k.upper()) for k in self.baum.get(nid, [])]
+            wieviel = int(request.url.params.get("maxItems") or 20)
+            return httpx.Response(200, json={
+                "collections": alle[:wieviel],
+                "pagination": {"total": len(alle), "from": 0,
+                               "count": min(wieviel, len(alle))}})
+        return super().handler(request)
+
+
+async def test_die_stichprobe_kuerzt_die_kinderzahl_nicht():
+    """5.2 des Berichts: ``collections`` kam aus ``len(page["collections"])``,
+    also aus der bei ``sample`` gedeckelten Liste.
+
+    Gemessen am 09.09.2026: sieben Untersammlungen, ``sample=3``, gemeldet
+    wurden drei. Die Zahl ist eine Aussage ueber die Sammlung, nicht ueber die
+    Stichprobe -- und ``collection_contents`` legt ``total_collections``
+    daneben.
+    """
+    instanz = MitGesamtzahl(
+        baum={"wurzel": [f"k{i}" for i in range(7)],
+              **{f"k{i}": [] for i in range(7)}},
+        inhalt={"wurzel": []})
+    async with instanz.repo() as repo:
+        zahlen = await repo.flows.collection_stats("wurzel", sample=3)
+    assert zahlen["collections"] == 7
+    assert zahlen["collections_truncated"] is True
+
+
+async def test_eine_ungekuerzte_kinderliste_meldet_nichts():
+    """Die Gegenprobe: ohne Kuerzung steht das Kennzeichen auf ``False``.
+    Ohne sie waere die Wache gruen, wenn sie immer ``True`` meldet."""
+    instanz = MitGesamtzahl(
+        baum={"wurzel": ["a", "b"], "a": [], "b": []},
+        inhalt={"wurzel": []})
+    async with instanz.repo() as repo:
+        zahlen = await repo.flows.collection_stats("wurzel", sample=10)
+    assert zahlen["collections"] == 2
+    assert zahlen["collections_truncated"] is False
+
+
+async def test_ohne_genannte_gesamtzahl_ist_die_kinderzahl_eine_untere_schranke():
+    """Nennt der Endpunkt keine Zahl, sagt der eine zusaetzlich gelesene
+    Datensatz immerhin, dass es mehr sind als gezeigt."""
+    instanz = Instanz(  # die Basis nennt keine Gesamtzahl fuer Sammlungen
+        baum={"wurzel": [f"k{i}" for i in range(7)],
+              **{f"k{i}": [] for i in range(7)}},
+        inhalt={"wurzel": []})
+    async with instanz.repo() as repo:
+        zahlen = await repo.flows.collection_stats("wurzel", sample=3)
+    assert zahlen["collections_truncated"] is True
+    assert zahlen["collections"] > 3, "mehr als gezeigt wurde"
+
+
 async def test_die_aufschluesselung_zaehlt_die_felder_aus():
     instanz = Instanz(
         baum={"wurzel": []},

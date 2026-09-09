@@ -324,8 +324,15 @@ async def collection_stats(
         sample: how much material to tally.
 
     Returns:
-        ``{id, materials, collections, sampled, complete, by}``. ``by`` holds
-        one counter per short name the search knows.
+        ``{id, materials, collections, collections_truncated, sampled,
+        complete, by}``. ``by`` holds one counter per short name the search
+        knows.
+
+        ``collections_truncated`` says the sub-collection list was cut at
+        ``sample``. The count beside it is still the endpoint's own total --
+        exact against edu-sharing 11.0, which states one (measured
+        2026-09-08). Against an endpoint that states none it is what was
+        seen, one over ``sample``, and therefore a **lower bound**.
 
         **The counters do not partition the sample.** A field is multi-valued:
         measured live, 15 materials carried 25 level assignments between them.
@@ -349,7 +356,13 @@ async def collection_stats(
     return {
         "id": collection_id,
         "materials": total,
-        "collections": len(page.get("collections") or []),
+        # Not ``len(page["collections"])``: that list is capped at ``sample``,
+        # so a collection with seven children and ``sample=3`` reported three
+        # (5.2 of the 2026-09-09 review, measured). The number is a statement
+        # about the collection, not about the sample, and the layer below puts
+        # it right there.
+        "collections": int(page.get("total_collections") or 0),
+        "collections_truncated": bool(page.get("collections_truncated")),
         "sampled": len(materials),
         "complete": len(materials) >= total,
         "by": by,

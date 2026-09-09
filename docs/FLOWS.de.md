@@ -1102,14 +1102,19 @@ repo.flows.collection_stats("abc-123", sample=100)
   "id": "abc-123",
   "materials": 342,
   "collections": 7,
+  "collections_truncated": false,
   "sampled": 100,
   "complete": false,
   "by": {"subject": {"Biologie": 61, "Chemie": 22}, "level": {"Sekundarstufe I": 74}}
 }
 ```
 
-Die Zahlen sind genau — sie kommen aus der Paginierung. **Die Aufschlüsselung
-ist eine Stichprobe**: `sampled` sagt, über wie viele Datensätze ausgezählt
+Die Zahlen sind genau — sie kommen aus der Paginierung, nicht aus der Länge
+der Stichprobenliste. `collections` kam bis zum 09.09.2026 genau daher, eine
+Sammlung mit sieben Kindern und `sample=3` meldete also drei;
+`collections_truncated` sagt jetzt, wenn die Kinderliste gekürzt wurde, und
+nennt der Endpunkt keine Gesamtzahl, ist die Zahl daneben eine untere
+Schranke. **Die Aufschlüsselung ist eine Stichprobe**: `sampled` sagt, über wie viele Datensätze ausgezählt
 wurde, `complete`, ob das alle waren. Und **die Zähler teilen sie nicht auf**:
 ein Feld ist mehrwertig, live gemessen trugen 15 Materialien zusammen 25
 Stufenangaben. Jeder Zähler sagt, wie viele Datensätze einen Wert nennen. Eine Aufschlüsselung über hundert von

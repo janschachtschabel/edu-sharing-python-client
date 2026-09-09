@@ -1070,14 +1070,19 @@ repo.flows.collection_stats("abc-123", sample=100)
   "id": "abc-123",
   "materials": 342,
   "collections": 7,
+  "collections_truncated": false,
   "sampled": 100,
   "complete": false,
   "by": {"subject": {"Biologie": 61, "Chemie": 22}, "level": {"Sekundarstufe I": 74}}
 }
 ```
 
-The counts are exact — they come from the pagination totals. **The breakdown is
-a sample**: `sampled` says how many records it was tallied over, `complete`
+The counts are exact — they come from the pagination totals, not from the
+length of the sampled list. `collections` did come from that list until
+2026-09-09, so a collection with seven children and `sample=3` reported
+three; `collections_truncated` now says when the child list was cut, and
+against an endpoint that states no total the count beside it is a lower
+bound. **The breakdown is a sample**: `sampled` says how many records it was tallied over, `complete`
 whether that was all of them. And **the counters do not partition it**: a field
 is multi-valued, so measured live, 15 materials carried 25 level assignments
 between them. Each counter says how many records mention a value. A breakdown over a hundred of three hundred is
