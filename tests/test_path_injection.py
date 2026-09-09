@@ -16,6 +16,7 @@ import httpx
 import pytest
 
 from edusharing import AsyncRepository
+from edusharing.errors import EduSharingError
 
 REPO = "https://repo.test/edu-sharing"
 
@@ -146,3 +147,47 @@ async def test_metadatensatz_bleibt_im_pfad(boese):
             "/edu-sharing/rest/search/v1/queries/-home-/",
             "/edu-sharing/rest/mds/v1/metadatasets/-home-/",
         )), f"Pfad verlaesst den festen Teil: {gesendet!r}"
+
+
+# --- F07 (Fremdpruefung 09.09.2026): die beiden Punktsegmente --------------
+#
+# ``quote(value, safe="")`` kodiert alles, was Pfadgrenzen verschieben *kann*
+# -- ausser den beiden Werten, die selbst welche sind. ``.`` und ``..`` gehen
+# unveraendert durch und werden erst beim Bauen der URL normalisiert.
+#
+# Gemessen am 09.09.2026 mit kontrollierten DELETE-Anfragen:
+#
+#     ``.``   /node/v1/nodes/-home-/.   ->  /node/v1/nodes/-home-
+#     ``..``  /node/v1/nodes/-home-/..  ->  /node/v1/nodes
+#
+# Der Praefix-Test oben faengt das nicht: der gekuerzte Pfad ist ein echter
+# Praefix des erwarteten. Geprueft wird darum das Staerkere -- es geht gar
+# keine Anfrage hinaus.
+
+PUNKTSEGMENTE = [".", ".."]
+
+
+@pytest.mark.parametrize("punkt", PUNKTSEGMENTE)
+async def test_ein_punktsegment_erreicht_das_netz_nicht(punkt):
+    repo, gesehen = _repo_mit_protokoll()
+    async with repo:
+        with pytest.raises(EduSharingError):
+            await repo.node(punkt)
+        with pytest.raises(EduSharingError):
+            await repo.create_node(punkt, name="x.txt")
+        with pytest.raises(EduSharingError):
+            await repo.add_to_collection(punkt, "harmlos")
+        with pytest.raises(EduSharingError):
+            await repo.remove_from_collection("harmlos", punkt)
+    assert gesehen == [], "keine dieser Anfragen darf hinausgehen"
+
+
+async def test_die_wache_sieht_ueberhaupt_etwas():
+    """Die Gegenprobe: eine gewoehnliche ID geht weiterhin hinaus.
+
+    Ohne sie waere der Test darueber gruen, wenn ``repo.node`` immer wirft.
+    """
+    repo, gesehen = _repo_mit_protokoll()
+    async with repo:
+        await repo.node("harmlos-123")
+    assert len(gesehen) == 1

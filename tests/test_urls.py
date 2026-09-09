@@ -238,3 +238,22 @@ def test_ein_backslash_macht_die_adresse_unsicher(adresse):
 def test_ein_prozentkodierter_backslash_bleibt_erlaubt():
     """Die Gegenprobe: kodiert ist er ein Zeichen im Pfad, kein Trenner."""
     assert unsafe_url_reason("https://example.org/pfad%5Cdatei") is None
+
+
+# --- F07: die beiden Werte, die selbst Pfadgrenzen sind --------------------
+
+@pytest.mark.parametrize("punkt", [".", ".."])
+def test_punktsegmente_werden_abgelehnt(punkt):
+    """``quote`` laesst sie unveraendert -- sie sind unreserviert. Erst httpx
+    normalisiert sie beim Bauen der URL weg, und die Anfrage erreicht einen
+    anderen Endpunkt als den gefragten."""
+    with pytest.raises(EduSharingError):
+        path_segment(punkt)
+
+
+@pytest.mark.parametrize("harmlos", ["a.b", "...", ".gitignore", "abc.", "a..b"])
+def test_punkte_im_bezeichner_bleiben_erlaubt(harmlos):
+    """Die Gegenprobe: nur die beiden ganzen Segmente normalisieren etwas
+    weg. Ein Punkt *im* Bezeichner tut es nicht, und ihn abzulehnen waere eine
+    Regel gegen gueltige IDs."""
+    assert path_segment(harmlos) == harmlos

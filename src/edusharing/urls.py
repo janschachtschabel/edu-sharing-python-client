@@ -299,13 +299,38 @@ def path_segment(value: str) -> str:
     This matters most where identifiers are not typed by a developer but arrive
     from a language model -- the case ``edusharing.agent`` exists for.
 
+    Two values ``quote`` cannot help with, because they are unreserved and
+    still mean something to a URL: ``.`` and ``..``. They pass through
+    untouched and are normalised away when the URL is built. Measured
+    2026-09-09 with controlled DELETE requests::
+
+        "."   /node/v1/nodes/-home-/.   reached  /node/v1/nodes/-home-
+        ".."  /node/v1/nodes/-home-/..  reached  /node/v1/nodes
+
+    A shortened path is a *prefix* of the intended one, so the guard that
+    watches for identifiers leaving their path never saw it. They are refused
+    here instead. Only the whole segment: ``a.b`` and ``...`` normalise
+    nothing away and stay valid identifiers.
+
+    The generated layer builds its own paths with the same ``quote`` call and
+    does **not** have this check -- it is machine output and is not edited by
+    hand. Everything this library wraps goes through here.
+
     Raises:
         EduSharingError: on an empty value, which would collapse into a double
-            slash and thus address a different path.
+            slash and thus address a different path -- and on ``.`` or ``..``.
     """
     if not value:
         raise EduSharingError(
             "An empty identifier cannot be part of a URL path. "
             "Expected a node, collection or metadata-set id."
+        )
+    if value in (".", ".."):
+        raise EduSharingError(
+            f"{value!r} cannot be part of a URL path: it is a path step, not "
+            "an identifier, and the address is normalised before it is sent "
+            "-- measured, '.' dropped one segment from the request and '..' "
+            "dropped two, so the request reached a different endpoint than "
+            "the one asked for. Expected a node, collection or metadata-set id."
         )
     return quote(value, safe="")

@@ -1327,7 +1327,7 @@ Not needed for ordinary use; documented because they are importable.
 |---|---|
 | `normalize_repository_url(raw)` | `str` — trailing slashes, `/edu-sharing` handling |
 | `rest_base(repository_url)` | `str` — the REST root under it |
-| `path_segment(value)` | `str` — percent-encodes an identifier, `/` included |
+| `path_segment(value)` | `str` — percent-encodes an identifier, `/` included; refuses `""`, `"."` and `".."` |
 | `is_unroutable_host(host)` | `bool` — loopback, link-local, private ranges |
 | `unsafe_url_syntax(url)` | `str \| None` — the half that judges the spelling alone: a backslash, or credentials in the netloc. For callers that judge the host themselves |
 | `unsafe_url_reason(url)` | `str \| None` — why an address must not be fetched: scheme, embedded credentials, a local name, an unroutable literal. `None` means it may. Names, it does not resolve — that needs a resolver |
@@ -1371,6 +1371,15 @@ arrived as (audit MNT-1).
 encodes `/` too, so it cannot be applied to a multi-segment route — those are
 validated instead. `tests/test_path_safety.py` fails when a new call site
 skips it.
+
+Encoding is not the whole job. `.` and `..` are unreserved, so `quote`
+leaves them alone — and the URL is normalised before it is sent: measured
+2026-09-09, `.` dropped one path segment from the request and `..` dropped
+two, reaching a different endpoint than the one asked for. A shortened path
+is a *prefix* of the intended one, which is why the guard watching for
+identifiers leaving their path never saw it. Both are refused. A dot
+*inside* an identifier (`a.b`, `...`) normalises nothing and stays valid.
+The generated layer builds its own paths and does not have this check.
 
 ---
 

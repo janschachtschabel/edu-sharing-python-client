@@ -1352,7 +1352,7 @@ sind.
 |---|---|
 | `normalize_repository_url(raw)` | `str` — Schrägstriche am Ende, Umgang mit `/edu-sharing` |
 | `rest_base(repository_url)` | `str` — die REST-Wurzel darunter |
-| `path_segment(value)` | `str` — prozentkodiert einen Bezeichner, `/` eingeschlossen |
+| `path_segment(value)` | `str` — prozentkodiert einen Bezeichner, `/` eingeschlossen; weist `""`, `"."` und `".."` zurück |
 | `is_unroutable_host(host)` | `bool` — Loopback, Link-Local, private Bereiche |
 | `unsafe_url_syntax(url)` | `str \| None` — die Hälfte, die nur die Schreibweise beurteilt: ein Backslash oder Anmeldedaten im Netloc. Für Aufrufer, die den Host selbst beurteilen |
 | `unsafe_url_reason(url)` | `str \| None` — warum eine Adresse nicht geholt werden darf: Schema, eingebettete Anmeldedaten, ein lokaler Name, ein nicht routbares Literal. `None` heißt: sie darf. Namen löst sie nicht auf — dafür braucht es einen Resolver |
@@ -1398,6 +1398,16 @@ Derselbe Datensatz konnte deshalb je nach Objekt einen anderen Titel zeigen
 mehrteilige Route angewandt werden — die werden stattdessen geprüft.
 `tests/test_path_safety.py` schlägt fehl, wenn eine neue Aufrufstelle es
 auslässt.
+
+Kodieren ist nicht die ganze Arbeit. `.` und `..` sind unreserviert, `quote`
+lässt sie also stehen — und die Adresse wird normalisiert, bevor sie
+hinausgeht: gemessen am 09.09.2026 verlor die Anfrage mit `.` ein
+Pfadsegment und mit `..` zwei und erreichte einen anderen Endpunkt als den
+gefragten. Ein gekürzter Pfad ist ein *Präfix* des gemeinten, weshalb die
+Wache über ausbrechende Bezeichner ihn nie sah. Beide werden zurückgewiesen.
+Ein Punkt *im* Bezeichner (`a.b`, `...`) normalisiert nichts weg und bleibt
+gültig. Die generierte Schicht baut ihre Pfade selbst und hat diese Prüfung
+nicht.
 
 ---
 
