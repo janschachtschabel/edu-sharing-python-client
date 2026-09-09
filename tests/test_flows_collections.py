@@ -147,11 +147,18 @@ async def test_sammlungsinhalt_fordert_die_eigenschaften_an():
 
 
 async def test_sammlungsinhalt_haelt_das_limit_ein():
+    """Der Aufrufer bekommt hoechstens ``limit`` Materialien.
+
+    Gefragt wird seit dem 09.09.2026 nach **einem mehr** -- daran haengt die
+    Auskunft ueber eine Kappung --, ausgeliefert wird das Limit. Vorher pinnte
+    dieser Test nur den Parameter; er pinnt jetzt auch, was ankommt.
+    """
     instanz = Instanz()
     async with _repo(instanz) as repo:
-        await repo.flows.collection_contents("c1", limit=7)
+        antwort = await repo.flows.collection_contents("c1", limit=1)
     kinder = next(r for r in instanz.anfragen if r.url.path.endswith("/children"))
-    assert kinder.url.params.get("maxItems") == "7"
+    assert kinder.url.params.get("maxItems") == "2", str(kinder.url)
+    assert len(antwort["materials"]) == 1, "die Attrappe liefert zwei"
 
 
 async def test_materialien_tragen_lesbare_werte():
@@ -575,3 +582,81 @@ async def test_genau_am_limit_ohne_gesamtzahl_ist_nicht_gekuerzt():
     assert antwort["returned_collections"] == 5
     assert antwort["collections_truncated"] is False
     assert antwort["total_collections"] == 5
+
+
+class MitMaterialbestand(Instanz):
+    """Beachtet ``maxItems`` am Knoten-Endpunkt und nennt keine ``pagination``.
+
+    Die Antwortform, die ``page_total`` fuer ``ngsearch`` ausdruecklich
+    vorsieht -- hier fuer die Materialien einer Sammlung.
+    """
+
+    def __init__(self, bestand: int) -> None:
+        super().__init__()
+        self.bestand = bestand
+
+    def __call__(self, request):
+        pfad = request.url.path
+        if pfad.endswith("/children") and not pfad.endswith("/children/collections"):
+            self.anfragen.append(request)
+            grenze = int(request.url.params.get("maxItems") or self.bestand)
+            return httpx.Response(200, json={"nodes": [
+                _knoten(f"m{i}", f"Material {i}")
+                for i in range(min(self.bestand, grenze))]})
+        return super().__call__(request)
+
+
+async def test_ohne_gesamtzahl_ist_die_materialzahl_nicht_null():
+    """``page_total`` gibt ohne ``pagination`` die Vorgabe zurueck, und die war
+    hier **0** -- neben drei ausgelieferten Materialien (Pruefung 09.09.2026).
+
+    Null Gesamtzahl bei drei Datensaetzen ist keine vorsichtige Angabe, es ist
+    eine falsche: wer die beiden Zahlen vergleicht, liest daraus, dass es
+    weniger gibt als er in der Hand haelt.
+    """
+    async with _repo(MitMaterialbestand(bestand=3)) as repo:
+        antwort = await repo.flows.collection_contents("c1", limit=20)
+    assert antwort["returned_materials"] == 3
+    assert antwort["total_materials"] == 3
+
+
+async def test_ohne_gesamtzahl_zeigt_die_materialzahl_die_kappung():
+    """Und wenn gekuerzt wurde, muss man es an den zwei Zahlen sehen.
+
+    Die Materialien tragen kein eigenes Kennzeichen; die Auskunft ist der
+    Vergleich ``total_materials`` gegen ``returned_materials``. Damit der
+    stimmt, wird ein Datensatz mehr als ``limit`` geholt: kommt er an, ist die
+    Gesamtzahl mindestens einer ueber dem Gelieferten.
+    """
+    async with _repo(MitMaterialbestand(bestand=40)) as repo:
+        antwort = await repo.flows.collection_contents("c1", limit=20)
+    assert antwort["returned_materials"] == 20
+    assert len(antwort["materials"]) == 20, "der eine mehr geht nicht raus"
+    assert antwort["total_materials"] > antwort["returned_materials"]
+
+
+async def test_die_materialien_werden_um_einen_datensatz_ueberfragt():
+    """Woran die beiden Tests darueber haengen -- und ``skipCount`` bleibt der
+    Versatz, nicht der Versatz plus eins."""
+    instanz = MitMaterialbestand(bestand=40)
+    async with _repo(instanz) as repo:
+        await repo.flows.collection_contents("c1", limit=20, offset=10)
+    gefragt = next(r for r in instanz.anfragen
+                   if r.url.path.endswith("/children"))
+    assert gefragt.url.params.get("maxItems") == "21", str(gefragt.url)
+    assert gefragt.url.params.get("skipCount") == "10", str(gefragt.url)
+
+
+async def test_der_versatz_zaehlt_zur_unteren_schranke():
+    """Ohne genannte Gesamtzahl ist ``total_materials`` der Versatz **plus**
+    das Gesehene -- die Seite faengt ja erst dort an.
+
+    Ohne den Versatz waere die Schranke bei jedem ``offset`` zu klein, und wer
+    blaettert, laese eine Sammlung, die schrumpft, je weiter er kommt. Die
+    Mutationsprobe am 09.09.2026 zeigte, dass genau dieser Summand ungewacht
+    war: ihn zu entfernen liess die ganze Datei gruen.
+    """
+    async with _repo(MitMaterialbestand(bestand=40)) as repo:
+        antwort = await repo.flows.collection_contents("c1", limit=20, offset=10)
+    assert antwort["returned_materials"] == 20
+    assert antwort["total_materials"] == 31, "10 uebersprungen, 21 gesehen"

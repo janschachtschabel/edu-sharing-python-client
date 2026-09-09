@@ -74,6 +74,14 @@ async def collection_contents(
         ``collections_truncated`` true that is a **lower bound**, not the
         total.
 
+        The material is read the same way, and its cut shows in the two
+        numbers rather than in a flag of its own: ``total_materials`` above
+        ``returned_materials`` means there is more. Where the endpoint states
+        no total, that number is ``offset`` plus what was seen -- again a
+        lower bound. It used to be **0** there, which is not a cautious
+        answer but a wrong one: nought total beside twenty handed over
+        (review 2026-09-09).
+
     Raises:
         NotFoundError: when no collection carries this id.
     """
@@ -83,7 +91,11 @@ async def collection_contents(
         response: dict[str, Any] = await repo.raw.json(
             "GET", f"/node/v1/nodes/-home-/{segment}/children",
             params={
-                "maxItems": limit, "skipCount": offset, "filter": "files",
+                # ``limit + 1`` wie bei den Untersammlungen: kommt der eine
+                # zusaetzliche Datensatz an, gibt es mehr als ``limit``, und
+                # das steht ohne genannte Gesamtzahl fest. ``skipCount``
+                # bleibt der Versatz -- nur die Seite waechst um eins.
+                "maxItems": limit + 1, "skipCount": offset, "filter": "files",
                 # Without this the endpoint returns nodes with an EMPTY
                 # properties object -- measured 2026-08-27. The materials then
                 # arrive without subject, level or description, and the flow's
@@ -108,9 +120,10 @@ async def collection_contents(
     )
 
     aliases = repo.searcher.field_aliases
+    roh_material = list(nodes_response.get("nodes") or [])
     materials = [
         hit_as_dict(SearchHit.from_node(node, repo.url), aliases, properties=properties)
-        for node in (nodes_response.get("nodes") or [])
+        for node in roh_material[:limit]
     ]
     roh_unter = list(collections_response.get("collections") or [])
     children = [
@@ -131,6 +144,7 @@ async def collection_contents(
     # die genannte zaehlt weiter mit, denn wer 12 sagt und 6 liefert, hat
     # die Frage selbst beantwortet. Dieselbe Bauform wie
     # ``childobjects._ist_gekuerzt``.
+    gesagt_material = page_total(nodes_response, default=-1)
     gesagt_unter = page_total(collections_response, default=-1)
     gekuerzt = len(roh_unter) > limit or gesagt_unter > limit
     gesamt_unter = gesagt_unter if gesagt_unter >= 0 else len(roh_unter)
@@ -138,7 +152,13 @@ async def collection_contents(
         "id": collection_id,
         "materials": materials,
         "collections": children,
-        "total_materials": page_total(nodes_response),
+        # Ohne genannte Gesamtzahl das Gesehene statt einer 0: ``page_total``
+        # gibt hier die Vorgabe zurueck, und die war 0 -- neben zwanzig
+        # ausgelieferten Materialien. Wer die beiden Zahlen vergleicht, las
+        # daraus, dass es weniger gibt als er in der Hand haelt (Pruefung
+        # 09.09.2026). ``offset +``, weil die Seite erst dort beginnt.
+        "total_materials": (gesagt_material if gesagt_material >= 0
+                            else offset + len(roh_material)),
         "returned_materials": len(materials),
         "total_collections": gesamt_unter,
         "returned_collections": len(children),

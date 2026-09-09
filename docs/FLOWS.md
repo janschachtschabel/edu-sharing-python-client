@@ -824,7 +824,7 @@ formats apart.
 # what repo.flows.collection_contents(collection_id=cid) does
 materials, children = await asyncio.gather(
     repo.raw.json("GET", f"/node/v1/nodes/-home-/{cid}/children",
-                  params={"filter": "files", "maxItems": limit}),
+                  params={"filter": "files", "maxItems": limit + 1}),
     repo.raw.json("GET", f"/collection/v1/collections/-home-/{cid}"
                          "/children/collections",
                   params={"maxItems": limit + 1}),
@@ -839,6 +839,12 @@ the cap arriving means the list is cut, and that holds whether or not the
 endpoint states a total. Only `limit` of them are handed out. Reading the flag
 off the stated total alone made it `false` exactly when nothing was stated
 (review 2026-09-09).
+
+The material is asked the same way, and its cut shows in the two numbers
+rather than in a flag: `total_materials` above `returned_materials` means
+there is more. Where the endpoint states no total, that number is `offset`
+plus what was seen — a lower bound. It used to be **0** there, so a caller
+comparing the two read that there is less than what he is holding.
 
 ---
 

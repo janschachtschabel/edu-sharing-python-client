@@ -62,6 +62,13 @@ and in [`docs/audits/`](docs/audits/).
   real one -- which made it `false` exactly when nothing was stated, so nine
   sub-collections at `limit=5` came back as five and "not truncated" (review
   2026-09-09).
+- **`collection_contents` no longer reports nought material beside twenty**
+  (review 2026-09-09). `total_materials` read the stated total with a default
+  of `0`, so where the node endpoint states none -- the shape `page_total`
+  names for `ngsearch` -- a caller comparing it against `returned_materials`
+  read that there is less than what he is holding. It is `offset` plus what
+  was seen there now, a lower bound, and the material is asked for one record
+  over `limit` like the sub-collections, so a cut shows in the comparison.
 - **`Nodes.wrap(data)`** turns a record from any response into a `Node` without
   a request (audit ARC-3). The factory this class already was -- and it replaces
   four imports that sat inside function bodies, holding a cycle open rather than

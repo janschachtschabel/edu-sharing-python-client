@@ -847,7 +847,7 @@ Trefferformate auseinanderhalten.
 # was repo.flows.collection_contents(collection_id=cid) tut
 material, kinder = await asyncio.gather(
     repo.raw.json("GET", f"/node/v1/nodes/-home-/{cid}/children",
-                  params={"filter": "files", "maxItems": limit}),
+                  params={"filter": "files", "maxItems": limit + 1}),
     repo.raw.json("GET", f"/collection/v1/collections/-home-/{cid}"
                          "/children/collections",
                   params={"maxItems": limit + 1}),
@@ -862,6 +862,13 @@ Datensatz über dem Deckel an, ist die Liste gekürzt — und das gilt, ob der
 Endpunkt eine Gesamtzahl nennt oder nicht. Ausgeliefert werden nur `limit`.
 Das Kennzeichen aus der genannten Gesamtzahl allein zu lesen machte es genau
 dann `false`, wenn niemand etwas sagte (Prüfung 09.09.2026).
+
+Die Materialien werden genauso gefragt, und ihre Kürzung zeigt sich an den
+zwei Zahlen statt an einem Kennzeichen: `total_materials` über
+`returned_materials` heißt, es gibt mehr. Nennt der Endpunkt keine
+Gesamtzahl, ist diese Zahl der `offset` plus das Gesehene — eine untere
+Schranke. Dort stand vorher **0**, sodass ein Aufrufer aus dem Vergleich las,
+es gäbe weniger, als er in der Hand hält.
 
 ---
 
