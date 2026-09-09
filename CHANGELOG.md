@@ -46,9 +46,12 @@ and in [`docs/audits/`](docs/audits/).
 - **A zero is a value** (audit COR-9). `first` discarded every bare falsy
   value -- `0`, `False`, `""` -- while `flows/serialize.py` held the opposite in
   writing. The old behaviour was pinned by a test and argued for in a docstring;
-  the argument was wrong. Every call site reads `properties.get(...)`, so the
-  scalar branch is a safety net, and one that swallows `0` turns "0 bytes" into
-  "no size" at `cclom:size`.
+  the argument was wrong -- though not for measured damage. Every call site
+  reads `properties.get(...)` and edu-sharing sends lists, so the scalar branch
+  never carried a bare `0` in practice. What was wrong is that this net held a
+  different rule from the one `flows/serialize.py` states for the same
+  question, and a net that disagrees with the rule it backs up is the wrong
+  shape for the day it does catch something.
 - **`collection_contents` says how many sub-collections there are** (audit
   API-3). They are capped at `limit` like the materials, and used to say nothing
   about it -- a shortened list looks like a collection with fewer children than
