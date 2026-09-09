@@ -493,3 +493,71 @@ async def test_browse_tree_gibt_keinen_rohsatz_heraus():
 
     assert schluessel(baum["collections"]) == {"id", "title", "collections"}
     assert "raw" not in baum
+
+
+class MitSeitengrenze(Instanz):
+    """Beachtet ``maxItems`` und nennt keine Gesamtzahl -- wie ein Server."""
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        pfad = request.url.path
+        if pfad.endswith("/children/collections"):
+            self.anfragen.append(pfad)
+            nid = pfad.split("/collections/-home-/")[1].split("/")[0]
+            grenze = int(request.url.params.get("maxItems") or 0) or None
+            kinder = [_sammlung(k, self.titel.get(k, k.upper()))
+                      for k in self.baum.get(nid, [])][:grenze]
+            return httpx.Response(200, json={"collections": kinder})
+        return super().handler(request)
+
+
+async def test_eine_gekuerzte_seite_wird_auch_ohne_gesamtzahl_gemeldet():
+    """Der blinde Fleck (Pruefung 09.09.2026).
+
+    Zehn Untersammlungen, ``max_collections=4``: der Server liefert vier und
+    nennt keine Gesamtzahl. ``page_total`` gab dafuer 0 zurueck, und 0 ist nie
+    groesser als die vier gelieferten -- die Kappung blieb ungemeldet.
+
+    Bei ``depth=1`` faengt sie auch der Zaehler nicht: die Kinder werden nicht
+    mehr geoeffnet, also bleibt ``opened`` bei eins. Genau hier war der Baum
+    still gekuerzt und sah vollstaendig aus.
+    """
+    instanz = MitSeitengrenze(baum={"wurzel": [f"k{i}" for i in range(10)],
+                                    **{f"k{i}": [] for i in range(10)}},
+                              inhalt={})
+    async with instanz.repo() as repo:
+        baum = await repo.flows.browse_tree("wurzel", depth=1, max_collections=4)
+    assert baum["opened"] == 1, "bei depth=1 wird nur die Wurzel geoeffnet"
+    assert len(baum["collections"]) == 4
+    assert baum["truncated"] is True
+
+
+async def test_genau_am_deckel_ohne_gesamtzahl_ist_nicht_gekuerzt():
+    """Gegenprobe: vier Untersammlungen bei ``max_collections=4`` sind alle
+    vier -- der eine zusaetzlich angefragte Datensatz kommt nicht."""
+    instanz = MitSeitengrenze(baum={"wurzel": [f"k{i}" for i in range(4)],
+                                    **{f"k{i}": [] for i in range(4)}},
+                              inhalt={})
+    async with instanz.repo() as repo:
+        baum = await repo.flows.browse_tree("wurzel", depth=1, max_collections=4)
+    assert len(baum["collections"]) == 4
+    assert baum["truncated"] is False
+
+
+async def test_der_baum_fragt_eine_sammlung_mehr_als_der_deckel():
+    """Woran die beiden Tests darueber haengen. Ausgeliefert werden weiter
+    hoechstens ``max_collections``."""
+    instanz = MitSeitengrenze(baum={"wurzel": [f"k{i}" for i in range(10)],
+                                    **{f"k{i}": [] for i in range(10)}},
+                              inhalt={})
+    gesehen: list[str] = []
+    urspruenglich = instanz.handler
+
+    def mitschreiben(request):
+        if request.url.path.endswith("/children/collections"):
+            gesehen.append(request.url.params.get("maxItems"))
+        return urspruenglich(request)
+
+    instanz.handler = mitschreiben
+    async with instanz.repo() as repo:
+        await repo.flows.browse_tree("wurzel", depth=1, max_collections=4)
+    assert gesehen == ["5"], gesehen

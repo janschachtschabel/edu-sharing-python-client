@@ -24,7 +24,7 @@ import asyncio
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-from ..dto import node_id_of, page_total
+from ..dto import node_id_of, page_cut
 from ..errors import EduSharingError
 from ..urls import path_segment
 from .contents import collection_contents
@@ -132,12 +132,18 @@ async def walk_collections(
             "GET",
             f"/collection/v1/collections/-home-/{path_segment(node_id)}"
             "/children/collections",
-            params={"maxItems": max_collections},
+            # One over the cap, so the page says for itself whether it is all
+            # of them. Read off the stated total alone this was ``False``
+            # exactly where the endpoint stated nothing -- and at ``depth=1``
+            # the ``opened`` counter does not catch it either, because the
+            # children are never opened (review 2026-09-09).
+            params={"maxItems": max_collections + 1},
         )
-        found = response.get("collections") or []
-        if page_total(response) > len(found):
+        roh = list(response.get("collections") or [])
+        if page_cut(roh, response, max_collections):
             # More than one page lists: the rest is neither read nor followed.
             state["truncated"] = True
+        found = roh[:max_collections]
         children = []
         for data in found:
             child_id = node_id_of(data)

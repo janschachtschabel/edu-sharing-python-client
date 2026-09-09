@@ -995,6 +995,14 @@ repo.flows.browse_tree("abc-123", depth=2, max_collections=50)
 > Lauf entdoppelt nach ID — ohne das läuft er im Kreis — und deckelt, wie viele
 > er öffnet. **`truncated` lesen**: ein abgeschnittener Baum darf sich nicht
 > wie ein vollständiger lesen.
+>
+> Das Kennzeichen hat zwei Quellen: den Deckel darauf, wie viele Sammlungen
+> geöffnet werden, und eine Seite mit mehr Untersammlungen als
+> `max_collections`. Die zweite wurde aus der genannten Gesamtzahl allein
+> gelesen und schwieg deshalb, wo der Endpunkt nichts sagte — und bei
+> `depth=1` fängt der Zähler es auch nicht, denn die Kinder werden nicht mehr
+> geöffnet. Gefragt wird jetzt nach einer Untersammlung mehr als der Deckel;
+> kommt sie an, ist das die Antwort (Prüfung 09.09.2026).
 
 Nur die Sammlungen. Ihr Material ist eine zweite Anfrage je Knoten —
 `collection_stats` zählt es, `collection_contents` listet es.

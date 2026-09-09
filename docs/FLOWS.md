@@ -966,6 +966,13 @@ repo.flows.browse_tree("abc-123", depth=2, max_collections=50)
 > several parents, and two can hang under each other. The walk de-duplicates by
 > id — without that it runs in circles — and caps how many it opens. **Read
 > `truncated`**: a shortened tree must not read as a complete one.
+>
+> The flag has two sources: the cap on how many collections are opened, and a
+> page that carries more sub-collections than `max_collections`. The second
+> was read off the stated total alone, so it stayed silent where the endpoint
+> stated nothing — and at `depth=1` the opened-counter does not catch it
+> either, because the children are never opened. One sub-collection over the
+> cap is asked for now, and its arrival is the answer (review 2026-09-09).
 
 Only the collections. Their material is a second request per node —
 `collection_stats` counts it, `collection_contents` lists it.
