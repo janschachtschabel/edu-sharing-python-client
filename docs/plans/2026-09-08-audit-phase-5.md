@@ -210,3 +210,30 @@ Damit ist der Bericht abgearbeitet und dreimal nachgeprüft.
   bleibt — sie kostet nichts —, aber sie steht jetzt als **Vorsorge** da und
   nicht als Beobachtung. Der Eintrag 29 oben trägt den Satz noch; er ist die
   Aufzeichnung seines Tages und bleibt, wie er ist.
+
+- [x] **33 · Selbstprüfung des Zuges** Fünf Commits, `8ff83ad` … `2fe1cfa`.
+  Kein fremder Befund lag vor, also habe ich den eigenen Zug geprüft — dasselbe
+  Vorgehen, das in dieser Sitzung zweimal die MAJOR fand.
+
+  **Fünf Verweise zeigten ins Leere.** Der Zug löschte `_ist_gekuerzt` und
+  benannte `_count` in `_next_position` um; die Verweise darauf blieben stehen,
+  über vier Dateien. Keine der drei Doku-Wachen sah es — sie prüfen
+  öffentliche Namen. Es gibt jetzt eine vierte, die das Umgekehrte fragt: zeigt
+  das, was in einem Docstring **steht**, noch auf etwas?
+
+  Einer der fünf war mehr als ein toter Name:
+  `test_der_rueckfall_zaehlt_dasselbe_wie_die_gesamtzahl` hieß nach einer
+  Bauform, die `_next_position` nicht mehr hat. Die Zusicherung darin gilt
+  weiter, also heißt der Test jetzt danach.
+
+  **Und die neue Wache hatte selbst zwei Löcher** — beide durch Mutation
+  gefunden, keines durch Lesen: ihre Ausnahmen konnten verwaisen, und ihren
+  Kernzweig abzuschalten ließ alles grün, weil es nach dem Aufräumen nichts
+  mehr zu finden gab. Beide sind zu.
+
+  **Dazu zwei kleinere.** `scan_truncated` versprach `(scanned, total)`, wo die
+  zweite Zahl seit dem Umbau eine untere Schranke ist. Und die
+  Eigenschaftswache für `page_cut` verspricht weniger, als es zunächst schien:
+  unter einem Server, der `maxItems` beachtet, ist die Datensatz-Hälfte allein
+  hinreichend — zwei von drei Mutationen kamen durch sie hindurch. Das steht
+  jetzt in ihrem Docstring; eine Eigenschaft ist so stark wie ihre Annahme.
