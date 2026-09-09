@@ -497,3 +497,19 @@ async def test_ohne_gesamtzahl_zaehlt_das_gelieferte():
         antwort = await repo.flows.collection_contents("c1", limit=5)
     assert antwort["total_collections"] == 2
     assert antwort["collections_truncated"] is False
+
+
+async def test_die_untersammlungen_werden_wirklich_gedeckelt():
+    """Ohne diesen Test ist ``collections_truncated`` eine leere Zusage.
+
+    Die drei Tests darueber pinnen die **Meldung** einer Kappung; die Kappung
+    selbst hing an nichts. ``maxItems`` aus der Anfrage zu entfernen liess die
+    ganze Suite gruen -- danach waere das Kennzeichen fuer immer ``False`` und
+    der Satz in FLOWS und REFERENCE falsch (Pruefung 09.09.2026).
+    """
+    instanz = MitVielenUntersammlungen(geliefert=2, gesamt=9)
+    async with _repo(instanz) as repo:
+        await repo.flows.collection_contents("c1", limit=7)
+    gefragt = next(r for r in instanz.anfragen
+                   if r.url.path.endswith("/children/collections"))
+    assert gefragt.url.params.get("maxItems") == "7", str(gefragt.url)

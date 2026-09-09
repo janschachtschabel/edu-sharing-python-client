@@ -872,7 +872,7 @@ async def test_vorschlag_annehmen_schreibt_den_wert_wirklich(repo, knoten):
 
 # --- COR-7: normalisiert die Instanz mehrwertige Eigenschaften? -----------
 
-async def test_die_reihenfolge_mehrwertiger_eigenschaften_bleibt(knoten):
+async def test_die_reihenfolge_mehrwertiger_eigenschaften_bleibt(repo, knoten):
     """Der Befund COR-7 haengt genau an dieser Frage.
 
     ``nodes_write.check`` vergleicht Listen **exakt**: gleiche Werte in
@@ -883,21 +883,31 @@ async def test_die_reihenfolge_mehrwertiger_eigenschaften_bleibt(knoten):
     Absichtlich absteigend geschrieben: eine aufsteigende Liste kaeme auch aus
     einer Sortierung unveraendert zurueck und bewiese nichts.
     """
+    # ``verify=False`` und selbst nachladen: mit der Rueckleseprobe erzwingt
+    # ``check()`` genau diese Gleichheit schon, ein umsortierender Server
+    # flaege also als ``SilentDropError`` auf -- richtig rot, aber ohne die
+    # Erklaerung, um die es hier geht. Und ohne die Probe gibt ``update``
+    # den Knoten von **vor** dem Schreiben zurueck, liest also gar nichts
+    # (nodes_write.py:169). Beides erst beim Ausfuehren gesehen (Pruefung
+    # 09.09.2026).
     absteigend = ["Zebra", "Mitte", "Anfang"]
-    neu = await knoten.update(properties={"cclom:general_keyword": absteigend})
+    await knoten.update(
+        properties={"cclom:general_keyword": absteigend}, verify=False)
+    neu = await repo.node(knoten.id)
     assert neu.get_all("cclom:general_keyword") == absteigend, (
         "die Instanz sortiert mehrwertige Eigenschaften um -- dann ist der "
         "exakte Vergleich in nodes_write.check zu streng (Audit COR-7)")
 
 
-async def test_umgebende_leerzeichen_bleiben_stehen(knoten):
+async def test_umgebende_leerzeichen_bleiben_stehen(repo, knoten):
     """Die zweite Haelfte derselben Frage: trimmt die Instanz?
 
     Die Bibliothek schreibt Schlagworte seit COR-8 selbst gestrippt; hier geht
     es um den direkten Weg ueber ``update``, der den Wert nimmt, wie er kommt.
     """
-    neu = await knoten.update(properties={"cclom:general_keyword": [" Rand "]})
-    gelesen = neu.get_all("cclom:general_keyword")
+    await knoten.update(
+        properties={"cclom:general_keyword": [" Rand "]}, verify=False)
+    gelesen = (await repo.node(knoten.id)).get_all("cclom:general_keyword")
     assert gelesen == [" Rand "], (
         f"die Instanz veraendert den Wert: {gelesen!r} -- dann ist der exakte "
         "Vergleich zu streng (Audit COR-7)")
