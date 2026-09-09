@@ -145,7 +145,7 @@ async def collection_contents(
     # eine Datensatz ueber ``limit`` entscheidet es ohne jede Gesamtzahl;
     # die genannte zaehlt weiter mit, denn wer 12 sagt und 6 liefert, hat
     # die Frage selbst beantwortet. Dieselbe Bauform wie
-    # ``childobjects._ist_gekuerzt``.
+    # ``dto.page_cut``.
     gesagt_material = page_total(nodes_response, default=-1)
     gesagt_unter = page_total(collections_response, default=-1)
     gekuerzt = page_cut(roh_unter, collections_response, limit)

@@ -23,11 +23,14 @@ zwanzig (Pruefung 08.09.2026). Eine Wache, deren Ueberschrift mehr verspricht
 als ihre Auswahl haelt, ist an der Ueberschrift zu messen.
 """
 
+import ast
 import functools
 import importlib
 import inspect
 import pkgutil
+import re
 import types
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -168,3 +171,134 @@ def test_die_wache_sieht_ueberhaupt_etwas():
     gezaehlt = sum(len(_erklaerungsbeduerftig(k)) for k in KLASSEN.values())
     assert len(KLASSEN) > 80, len(KLASSEN)
     assert gezaehlt > 300, gezaehlt
+
+
+# --- Verweise, die ins Leere zeigen ----------------------------------------
+#
+# Die drei anderen Doku-Wachen fragen, ob ein Name irgendwo *vorkommt*. Diese
+# fragt das Umgekehrte: zeigt das, was in einem Docstring steht, noch auf
+# etwas? Ein Verweis auf einen geloeschten Helfer ist schlimmer als keiner --
+# er schickt den Leser suchen, und die Suche endet nirgends.
+#
+# Gemessen am 09.09.2026: ein Umbau loeschte ``_ist_gekuerzt`` und benannte
+# ``_count`` in ``_next_position`` um; fuenf Verweise darauf blieben stehen,
+# ueber vier Dateien, Quelltext und Tests. Keine der vorhandenen Wachen sah
+# es -- sie pruefen oeffentliche Namen.
+
+#: Ein privater Name in doppelten Backticks, mit oder ohne Modul davor,
+#: Klammern optional.
+_VERWEIS = re.compile(r"``(?:([a-z_][a-z0-9_]*)\.)?(_[a-z][a-z0-9_]*)(?:\(\))?``")
+
+#: Was hier steht, ist eine bewusste Ausnahme mit Begruendung, kein Rueckstand.
+VERWEIS_ERLAUBT = {
+    # Der Modulkopf von ``dto`` erzaehlt, was zusammengefuehrt **wurde**:
+    # "drei ``_first`` ..., zwei ``_bare``". Dass die Namen nicht mehr
+    # auffindbar sind, ist der Satz -- nicht sein Fehler. ``test_dto``
+    # wiederholt ihn.
+    ("dto.py", "_first"), ("dto.py", "_bare"),
+    ("test_dto.py", "_first"), ("test_dto.py", "_bare"),
+    # Kein Verweis, sondern Markdown: ``_so_`` steht dort fuer Kursivschrift,
+    # und der Satz handelt gerade davon, dass sie escaped werden muss.
+    ("test_skills_markdown.py", "_so_"),
+}
+
+#: Die Wurzeln, in denen ein Name stehen darf.
+_QUELLEN = ("src/edusharing", "tests")
+
+
+def _gebundene_namen(baum: ast.AST) -> set[str]:
+    """Was diese Datei definiert -- Funktionen, Klassen **und** Attribute.
+
+    Ohne die Attribute meldet die Wache jedes ``self._cache`` als tot, und ein
+    Docstring darf auf das Feld zeigen, ueber das er spricht.
+    """
+    namen: set[str] = set()
+    for k in ast.walk(baum):
+        if isinstance(k, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+            namen.add(k.name)
+            continue
+        ziele: list[ast.expr] = []
+        if isinstance(k, ast.Assign):
+            ziele = list(k.targets)
+        elif isinstance(k, ast.AnnAssign):
+            ziele = [k.target]
+        for ziel in ziele:
+            if isinstance(ziel, ast.Name):
+                namen.add(ziel.id)
+            elif isinstance(ziel, ast.Attribute):
+                namen.add(ziel.attr)
+    return namen
+
+
+def _docstrings(baum: ast.AST) -> list[str]:
+    gefunden = []
+    for knoten in ast.walk(baum):
+        if isinstance(knoten, ast.Module | ast.FunctionDef | ast.AsyncFunctionDef
+                      | ast.ClassDef):
+            text = ast.get_docstring(knoten)
+            if text:
+                gefunden.append(text)
+    return gefunden
+
+
+@functools.cache
+def _bestand() -> tuple[dict[str, frozenset[str]], frozenset[str],
+                        tuple[tuple[str, str], ...]]:
+    """Je Modul seine Namen, alle zusammen, und alle Docstrings."""
+    wurzel = Path(__file__).resolve().parent.parent
+    je_modul: dict[str, set[str]] = {}
+    texte: list[tuple[str, str]] = []
+    for teil in _QUELLEN:
+        for pfad in sorted((wurzel / teil).rglob("*.py")):
+            if "_generated" in pfad.parts:
+                continue
+            baum = ast.parse(pfad.read_text(encoding="utf-8"), filename=str(pfad))
+            je_modul.setdefault(pfad.stem, set()).update(_gebundene_namen(baum))
+            texte.extend((pfad.name, t) for t in _docstrings(baum))
+    alle = frozenset(n for namen in je_modul.values() for n in namen)
+    return ({m: frozenset(n) for m, n in je_modul.items()}, alle, tuple(texte))
+
+
+def test_kein_docstring_verweist_ins_leere():
+    """Ein Verweis auf etwas, das es nicht mehr gibt, schickt den Leser suchen.
+
+    Geprueft werden **private** Namen: die sind lokal aufzuloesen, und genau
+    sie verschwinden bei Umbauten, ohne dass eine der anderen Wachen es merkt.
+    Ein Verweis mit Modul davor muss in diesem Modul stehen, einer ohne
+    irgendwo -- ein Testdocstring darf den Helfer nennen, den er prueft.
+    """
+    je_modul, alle, texte = _bestand()
+    tote = []
+    for datei, text in texte:
+        for modul, name in _VERWEIS.findall(text):
+            if (datei, name) in VERWEIS_ERLAUBT:
+                continue
+            if modul:
+                if modul in je_modul and name not in je_modul[modul]:
+                    tote.append(f"{datei}: ``{modul}.{name}``")
+            elif name not in alle:
+                tote.append(f"{datei}: ``{name}``")
+    assert not tote, (
+        "Docstring verweist auf einen Namen, den es nicht gibt -- entweder "
+        "richtigstellen oder in VERWEIS_ERLAUBT eintragen, mit dem Grund:\n  "
+        + "\n  ".join(sorted(set(tote))))
+
+
+def test_die_verweiswache_sieht_ueberhaupt_etwas():
+    """Gegenprobe: eine Wache, deren Ausdruck nichts trifft, ist still gruen."""
+    treffer = _VERWEIS.findall(
+        "siehe ``_order_key`` und ``childobjects._anhaenge()`` und ``page_cut``")
+    assert treffer == [("", "_order_key"), ("childobjects", "_anhaenge")], treffer
+
+
+def test_die_verweiswache_kennt_auch_attribute():
+    """Ohne die Attribute meldete sie jedes Feld als tot -- gemessen an
+    ``_cache``, ueber das ``test_vocab`` spricht."""
+    _, alle, _ = _bestand()
+    assert "_cache" in alle, "ein zugewiesenes Attribut zaehlt als definiert"
+
+
+def test_die_verweiswache_kann_rot_werden():
+    """Und ein Name, den es nirgends gibt, muss durchfallen."""
+    _, alle, _ = _bestand()
+    assert "_gibt_es_nicht_xyz" not in alle

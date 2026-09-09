@@ -566,7 +566,7 @@ async def test_ohne_gesamtzahl_wird_die_kappung_trotzdem_erkannt():
     eingefuehrt hat.
 
     Gefragt wird jetzt nach einem Datensatz mehr als ``limit``; kommt er an,
-    ist gekuerzt worden. Dieselbe Bauform wie ``childobjects._ist_gekuerzt``.
+    ist gekuerzt worden. Dieselbe Bauform wie ``dto.page_cut``.
     """
     async with _repo(MitBestand(bestand=9)) as repo:
         antwort = await repo.flows.collection_contents("c1", limit=5)

@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 #: attachments to one piece of material are a handful in practice, and the
 #: number was the measured default here long before it had a name. One record
 #: **more** than this is fetched, which is how a listing knows whether it is
-#: complete without depending on a total -- see ``_ist_gekuerzt``.
+#: complete without depending on a total -- see ``dto.page_cut``.
 LIST_MAX = 200
 
 #: The aspect that marks a child node as one of these. Other children exist
@@ -111,7 +111,7 @@ class ChildObjects:
 
         ``LIST_MAX + 1``, so that the page answers for itself whether it is all
         of them: one record over the cap means there are more, fewer means there
-        are not. See ``_ist_gekuerzt``.
+        are not. See ``dto.page_cut``.
 
         Shared by ``list()`` and ``_next_position()`` so that both read the same
         page the same way. What each does with a cut page stays with it, because
