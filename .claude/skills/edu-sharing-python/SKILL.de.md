@@ -596,10 +596,15 @@ zusammen.
 - Sammlungen über `repo.create_collection` anlegen, nie als `ccm:map`-Knoten.
   Ein anders angelegter Knoten ist für den Rest des Systems keine Sammlung.
 - Sammlungen bilden einen **Graphen**, keinen Baum — eine Sammlung kann
-  mehrere Eltern haben. `browse_tree` sichert gegen Zyklen, indem es
+  mehrere Eltern haben. `browse_tree` läuft ihn **breitensuchend** ab und
   überspringt, was es schon geöffnet hat. Das ist **keine** Kürzung und
   setzt `truncated` nicht: im Baum fehlt nichts, es steht nur nicht
   zweimal da (gemessen 09.09.2026). Die gefragte `depth` ebenso wenig.
+  Breitensuchend zu laufen ist das, was das Überspringen sicher macht:
+  jede Sammlung wird zuerst über ihren kürzesten Weg erreicht.
+  Tiefensuchend traf der Gang eine über den langen Weg, markierte sie
+  ohne Resttiefe als gesehen und verlor alles dahinter — und die Antwort
+  sagte `truncated=False` (R05).
 - Es gibt keine auf eine Sammlung eingeschränkte Suche.
   `virtual:primaryparent_nodeid` antwortet mit HTTP 400, und es wäre ohnehin
   die falsche Antwort: eine kuratierte Sammlung hält *Referenzen* auf Knoten,

@@ -21,6 +21,7 @@ completeness, and a caller cannot tell an empty result from an unfinished one.
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -116,17 +117,43 @@ async def walk_collections(
     """The walk behind ``browse_tree``, with each collection's record kept as
     ``raw`` -- ``find_collections`` judges its filters on those. Returns the
     nested entries, how many collections were opened, and whether anything
-    was cut short."""
-    seen: set[str] = {collection_id}
-    state = {"opened": 0, "truncated": False}
+    was cut short.
 
-    async def walk(node_id: str, left: int) -> list[dict[str, Any]]:
+    **Breadth first, and that is not a detail.** Collections form a graph: the
+    same one can be reached by a short path and a long one. Depth first meets
+    it by whichever path the server happens to list first, and the ``seen``
+    set then blocks the other -- so a collection reached over the long way
+    with no depth left keeps the short way from ever being opened, and
+    everything behind it is missing without anything saying so.
+
+    Measured 2026-09-09 on ``root -> A``, ``root -> B``, ``A -> B``,
+    ``B -> C`` with ``depth=2``: listing ``A`` first lost ``C`` and its
+    material, listing ``B`` first found it, and both answers said
+    ``truncated=False`` (R05). The order of a server's answer decided the
+    result, and nobody was told.
+
+    Breadth first reaches every collection by its **shortest** path first, so
+    ``seen`` is right again: each collection appears once in the tree, and the
+    cap counts it once.
+    """
+    seen: set[str] = {collection_id}
+    opened = 0
+    truncated = False
+    tree: list[dict[str, Any]] = []
+    # (where the children of this node go, its id, depth still to spend)
+    queue: deque[tuple[list[dict[str, Any]], str, int]] = deque(
+        [(tree, collection_id, depth)])
+
+    while queue:
+        into, node_id, left = queue.popleft()
         if left <= 0:
-            return []
-        if state["opened"] >= max_collections:
-            state["truncated"] = True
-            return []
-        state["opened"] += 1
+            continue
+        if opened >= max_collections:
+            # The rest of the queue is already listed in the tree; it is only
+            # not opened. Saying it once is enough.
+            truncated = True
+            break
+        opened += 1
 
         response = await repo.raw.json(
             "GET",
@@ -142,27 +169,24 @@ async def walk_collections(
         roh = list(response.get("collections") or [])
         if page_cut(roh, response, max_collections):
             # More than one page lists: the rest is neither read nor followed.
-            state["truncated"] = True
-        found = roh[:max_collections]
-        children = []
-        for data in found:
+            truncated = True
+        for data in roh[:max_collections]:
             child_id = node_id_of(data)
             if not child_id or child_id in seen:
-                # A graph, not a tree: the same collection can be reached
-                # twice, and following it again would either repeat work or
-                # never end.
+                # Already reached, and -- breadth first -- by a path at least
+                # as short. Following it again would repeat work or never end.
                 continue
             seen.add(child_id)
-            children.append({
+            entry: dict[str, Any] = {
                 "id": child_id,
                 "title": data.get("title") or data.get("name") or "",
                 "raw": data,
-                "collections": await walk(child_id, left - 1),
-            })
-        return children
+                "collections": [],
+            }
+            into.append(entry)
+            queue.append((entry["collections"], child_id, left - 1))
 
-    tree = await walk(collection_id, depth)
-    return tree, int(state["opened"]), bool(state["truncated"])
+    return tree, opened, truncated
 
 
 async def search_in_collection(

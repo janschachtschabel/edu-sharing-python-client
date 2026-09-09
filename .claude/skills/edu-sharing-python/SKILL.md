@@ -567,10 +567,14 @@ values that were **not** written. The material exists without them.
   node. A node created the other way is not a collection to the rest of the
   system.
 - Collections form a **graph**, not a tree — a collection can have several
-  parents. `browse_tree` guards against cycles by skipping what it has
+  parents. `browse_tree` walks it **breadth first** and skips what it has
   already opened. That is **not** a truncation and does not set
   `truncated`: nothing is missing from the tree, it is just not repeated
-  (measured 2026-09-09). Nor does the `depth` you asked for.
+  (measured 2026-09-09). Nor does the `depth` you asked for. Breadth
+  first is what makes the skip safe: every collection is reached by its
+  shortest path first. Depth first met one by the long way, marked it
+  seen with no depth left, and lost everything behind it — and the
+  answer said `truncated=False` (R05).
 - There is no search scoped to a collection. `virtual:primaryparent_nodeid`
   returns HTTP 400, and it would be the wrong answer anyway: a curated
   collection holds *references* to nodes whose primary parent lives elsewhere.

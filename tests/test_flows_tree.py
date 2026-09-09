@@ -358,6 +358,133 @@ async def test_eine_leere_anfrage_wird_abgelehnt():
     assert instanz.anfragen == []
 
 
+# --- R05 (Zweitpruefung 09.09.2026): die Reihenfolge entschied mit ---------
+#
+# Der Gang war tiefensuchend, mit **einer** globalen Menge gesehener
+# Sammlungen. Wird eine Sammlung zuerst ueber den *laengeren* Weg erreicht,
+# steht sie als gesehen da -- mit weniger Resttiefe -, und der spaetere kurze
+# Weg wird uebersprungen. Was dahinter liegt, fehlt.
+#
+# Gemessen am 09.09.2026 an root->A, root->B, A->B, B->C mit depth=2: in der
+# Reihenfolge [A, B] fehlt C und sein Material, in [B, A] ist es da. Beide
+# Antworten meldeten ``truncated=False`` -- die Reihenfolge einer
+# Serverantwort entschied ueber das Ergebnis, ohne dass es jemand erfuhr.
+#
+# Breitensuche erreicht jede Sammlung zuerst ueber den kuerzesten Weg. Damit
+# ist die gesehen-Menge wieder richtig, jede Sammlung erscheint genau einmal,
+# und der Deckel zaehlt sie einmal.
+
+
+def _graph(kanten: dict[str, list[str]], inhalt: dict[str, list[dict]]):
+    def handler(request: httpx.Request) -> httpx.Response:
+        pfad = request.url.path
+        if pfad.endswith("/children/collections"):
+            nid = pfad.split("/collections/-home-/")[1].split("/")[0]
+            return httpx.Response(200, json={
+                "collections": [_sammlung(k, k) for k in kanten.get(nid, [])]})
+        if pfad.endswith("/children"):
+            nid = pfad.split("/nodes/-home-/")[1].split("/")[0]
+            material = inhalt.get(nid, [])
+            return httpx.Response(200, json={
+                "nodes": material,
+                "pagination": {"total": len(material), "from": 0,
+                               "count": len(material)}})
+        return httpx.Response(200, json={"node": _sammlung("root", "Wurzel")})
+
+    return AsyncRepository(
+        REPO, metadataset="mds_oeh", backoff_base=0.0,
+        client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+
+
+@pytest.mark.parametrize("reihenfolge", [["A", "B"], ["B", "A"]])
+async def test_die_reihenfolge_entscheidet_nicht_ueber_die_treffer(reihenfolge):
+    kanten = {"root": reihenfolge, "A": ["B"], "B": ["C"], "C": []}
+    inhalt = {"C": [_material("m1", "wanted")]}
+    async with _graph(kanten, inhalt) as repo:
+        ergebnis = await repo.flows.search_in_collection("root", "wanted", depth=2)
+    assert [h["id"] for h in ergebnis["hits"]] == ["m1"], reihenfolge
+    assert ergebnis["truncated"] is False
+
+
+@pytest.mark.parametrize("reihenfolge", [["A", "B"], ["B", "A"]])
+async def test_beide_reihenfolgen_oeffnen_dieselben_sammlungen(reihenfolge):
+    """Nicht nur derselbe Treffer -- dieselbe erreichbare Menge."""
+    kanten = {"root": reihenfolge, "A": ["B"], "B": ["C"], "C": []}
+    async with _graph(kanten, {}) as repo:
+        baum = await repo.flows.browse_tree("root", depth=2)
+    gefunden = set()
+
+    def sammeln(eintraege):
+        for e in eintraege:
+            gefunden.add(e["id"])
+            sammeln(e["collections"])
+
+    sammeln(baum["collections"])
+    assert gefunden == {"A", "B", "C"}, reihenfolge
+
+
+async def test_die_breitensuche_ist_der_punkt_nicht_nur_die_warteschlange():
+    """Der Graph, an dem sich Breiten- und Tiefensuche wirklich trennen.
+
+    Die beiden Tests darueber gruenden schon darauf, dass ein Kind markiert
+    wird, wenn sein **Elternteil** geoeffnet wird -- das allein reicht fuer
+    root->A, root->B, A->B, B->C. Sie bleiben gruen, wenn man aus der
+    Warteschlange einen Stapel macht; gemessen, indem genau das mutiert wurde.
+
+    Hier liegt der kurze Weg zu ``N`` unter ``B`` und der lange unter
+    ``A -> C``. Tiefensuchend wird ``A`` zuerst ganz abgelaufen, ``N``
+    bekommt die kleinere Resttiefe, und ``W`` faellt hinten herunter.
+    """
+    kanten = {"root": ["B", "A"], "A": ["C"], "B": ["N"], "C": ["N"],
+              "N": ["Z"], "Z": ["W"], "W": []}
+    async with _graph(kanten, {}) as repo:
+        baum = await repo.flows.browse_tree("root", depth=4)
+    gefunden: set[str] = set()
+
+    def sammeln(eintraege):
+        for e in eintraege:
+            gefunden.add(e["id"])
+            sammeln(e["collections"])
+
+    sammeln(baum["collections"])
+    assert "W" in gefunden, sorted(gefunden)
+
+
+async def test_eine_sammlung_mit_zwei_wegen_steht_einmal_im_baum():
+    """Der Diamant: A und B fuehren beide auf C. Der Baum bleibt ein Baum."""
+    kanten = {"root": ["A", "B"], "A": ["C"], "B": ["C"], "C": []}
+    async with _graph(kanten, {}) as repo:
+        baum = await repo.flows.browse_tree("root", depth=3)
+    alle: list[str] = []
+
+    def sammeln(eintraege):
+        for e in eintraege:
+            alle.append(e["id"])
+            sammeln(e["collections"])
+
+    sammeln(baum["collections"])
+    assert sorted(alle) == ["A", "B", "C"], alle
+    assert baum["truncated"] is False
+
+
+async def test_ein_zyklus_endet_weiterhin():
+    """Die Gegenprobe, die es seit dem Anfang gibt."""
+    kanten = {"root": ["A"], "A": ["B"], "B": ["A"]}
+    async with _graph(kanten, {}) as repo:
+        baum = await repo.flows.browse_tree("root", depth=5)
+    assert baum["truncated"] is False, "ein Zyklus kuerzt nichts"
+    assert baum["collections"][0]["id"] == "A"
+
+
+async def test_der_deckel_greift_weiterhin():
+    """Und die zweite Gegenprobe: der Deckel meldet sich."""
+    kanten = {"root": [f"k{i}" for i in range(10)],
+              **{f"k{i}": [] for i in range(10)}}
+    async with _graph(kanten, {}) as repo:
+        baum = await repo.flows.browse_tree("root", depth=2, max_collections=3)
+    assert baum["truncated"] is True
+
+
 # --- collection_stats -----------------------------------------------------
 
 async def test_die_zahlen_kommen_aus_der_pagination():
