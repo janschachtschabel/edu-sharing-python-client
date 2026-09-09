@@ -690,7 +690,7 @@ Argument. Tiefe und Begründungen: [FLOWS.de.md](FLOWS.de.md).
 
 | Aufruf | Liefert |
 |---|---|
-| `repo.flows.search(text, filters=…, facets=…, limit=…, rerank=…, exclude_ids=…, facet_limit=…, properties=…)` | `{query, total, total_is_lower_bound, returned, duplicates_removed, hits, facets, unresolved, ignored, warnings, suggestions}` |
+| `repo.flows.search(text, filters=…, facets=…, limit=…, rerank=…, exclude_ids=…, facet_limit=…, properties=…)` | `{query, total, total_is_lower_bound, returned, duplicates_removed, hits, facets, facet_meta, unresolved, ignored, warnings, suggestions}` — `facet_meta[name]` trägt `other_count` und `truncated` der Facette; eine vom Server gekürzte Werteliste sieht sonst vollständig aus |
 | `repo.flows.search_all(text, limit=…, include_pages=…, properties=…)` | `{query, materials, collections}` — beide Körbe auf einmal; `pages` als dritter mit `include_pages=True` |
 | `repo.flows.find_collections(text, limit=…, parent_id=…, properties=…, subject=…)` | dieselbe Form wie `search` plus `unjudged`; Filter wirken lokal; `total_is_lower_bound` ist bei einer Suche **immer** wahr |
 | `repo.flows.related(node_id, on=…, limit=…)` | `{seed, based_on, hits, unresolved, reason}` |
@@ -705,6 +705,7 @@ answer["hits"][0]["title"]      # "Bruchrechnen – Einführung"
 answer["hits"][0]["url"]        # "https://…/components/render/9f2c…"
 answer["unresolved"]            # []      <- immer lesen
 answer["facets"]["subject"][0]  # {"value": "…/380", "count": 91}
+answer["facet_meta"]["subject"] # {"other_count": 30, "truncated": True}
 ```
 
 **`unresolved` lesen, bevor Sie einem Ergebnis trauen.** Ein Wert, der dort

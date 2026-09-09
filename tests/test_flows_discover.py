@@ -214,3 +214,95 @@ async def test_describe_reicht_die_rohen_eigenschaften_durch():
     async with _repo(_knoten_router) as repo:
         ergebnis = await repo.flows.describe("abc-123")
     assert ergebnis["properties"]["ccm:wwwurl"] == ["https://beispiel.test/m"]
+
+
+# --- R06 (Zweitpruefung 09.09.2026): die Facetten-Restanzahl --------------
+#
+# ``Facet`` traegt ``other_count`` und ``truncated`` -- die Suchschicht liest
+# beides aus ``sumOtherDocCount``. ``_facet_values`` gab nur die Werteliste
+# heraus. Gemessen am 09.09.2026: eine Facette mit einem Wert (70) und
+# ``sumOtherDocCount=30`` kam im Flow als ``[{"value": ..., "count": 70}]`` an,
+# ohne Restanzahl, ohne Abschneidung und mit leeren ``warnings``.
+#
+# Filterleisten, Statistiken und Agenten halten eine so gekuerzte Liste fuer
+# vollstaendig. Die Bibliothek hatte die Information schon -- sie verlor sie
+# beim Serialisieren.
+
+
+def _mit_facette(rest: int) -> dict:
+    antwort = json.loads(json.dumps(TREFFER))
+    antwort["facets"] = [{
+        "property": "ccm:taxonid",
+        "values": [{"value": "Biologie", "count": 70}],
+        "sumOtherDocCount": rest,
+    }]
+    return antwort
+
+
+async def test_die_restanzahl_ueberlebt_die_serialisierung():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "/values" in str(request.url):
+            return httpx.Response(200, json=FAECHER)
+        return httpx.Response(200, json=_mit_facette(30))
+
+    async with _repo(handler) as repo:
+        antwort = await repo.flows.search("Zelle", facets=["subject"])
+
+    assert antwort["facets"]["subject"] == [{"value": "Biologie", "count": 70}]
+    assert antwort["facet_meta"]["subject"] == {"other_count": 30, "truncated": True}
+
+
+async def test_eine_vollstaendige_facette_sagt_es_ausdruecklich():
+    """Die Gegenprobe. ``other_count=0`` muss darstellbar bleiben -- sonst
+    heisst "kein Schluessel" einmal vollstaendig und einmal nicht gefragt."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "/values" in str(request.url):
+            return httpx.Response(200, json=FAECHER)
+        return httpx.Response(200, json=_mit_facette(0))
+
+    async with _repo(handler) as repo:
+        antwort = await repo.flows.search("Zelle", facets=["subject"])
+
+    assert antwort["facet_meta"]["subject"] == {"other_count": 0, "truncated": False}
+
+
+async def test_die_beiden_karten_tragen_dieselben_schluessel():
+    """Die Invariante, nicht die Zahl: was unter ``facets`` steht, hat unter
+    ``facet_meta`` einen Eintrag und umgekehrt.
+
+    Der erste Anlauf dieses Tests behauptete, ohne gefragte Facetten bleibe
+    die Karte leer. Falsch: die Antwort der Instanz traegt eine Facette, und
+    ``facets`` fuehrt sie schon immer -- gefragt oder nicht.
+    """
+    async with _repo() as repo:
+        antwort = await repo.flows.search("Zelle")
+    assert set(antwort["facet_meta"]) == set(antwort["facets"])
+
+
+async def test_ohne_facetten_in_der_antwort_bleiben_beide_leer():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "/values" in str(request.url):
+            return httpx.Response(200, json=FAECHER)
+        ohne = json.loads(json.dumps(TREFFER))
+        ohne["facets"] = []
+        return httpx.Response(200, json=ohne)
+
+    async with _repo(handler) as repo:
+        antwort = await repo.flows.search("Zelle")
+    assert antwort["facets"] == {} and antwort["facet_meta"] == {}
+
+
+async def test_die_suche_ueber_alles_traegt_es_mit():
+    """Die Kette endet nicht bei ``search`` -- ``search_all`` reicht dieselbe
+    Antwort weiter."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "/values" in str(request.url):
+            return httpx.Response(200, json=FAECHER)
+        if "/collection/v1/collections/-home-/search" in str(request.url):
+            return httpx.Response(200, json={"collections": []})
+        return httpx.Response(200, json=_mit_facette(30))
+
+    async with _repo(handler) as repo:
+        antwort = await repo.flows.search_all("Zelle", facets=["subject"])
+
+    assert antwort["materials"]["facet_meta"]["subject"]["other_count"] == 30

@@ -125,10 +125,22 @@ def result_as_dict(
     """
     by_property = {prop: short for short, prop in aliases.items()}
 
+    # Two maps rather than one nested value: the list under ``facets`` is what
+    # callers read today, and the rest of what the model knows travels beside
+    # it. ``Facet`` has carried ``other_count`` and ``truncated`` all along;
+    # this function dropped them, so a facet list cut by the server looked
+    # complete -- measured 2026-09-09, one value with count 70 and
+    # ``sumOtherDocCount=30`` arrived without either (R06). A filter bar, a
+    # statistic or an agent then sums 70 and calls it the whole.
     facets: dict[str, list[dict[str, Any]]] = {}
+    facet_meta: dict[str, dict[str, Any]] = {}
     for facet in result.facets:
         name = by_property.get(facet.property, facet.property)
         facets[name] = _facet_values(facet)
+        # ``other_count`` of 0 is written out, not left away: an absent key
+        # would mean "complete" and "not asked for" at once.
+        facet_meta[name] = {"other_count": facet.other_count,
+                            "truncated": facet.truncated}
 
     return {
         "query": query,
@@ -143,6 +155,7 @@ def result_as_dict(
         "duplicates_removed": sum(len(v) for v in (folded or {}).values()),
         "hits": [hit_as_dict(h, aliases, folded, properties=properties) for h in result.hits],
         "facets": facets,
+        "facet_meta": facet_meta,
         # Non-empty means the result is BROADER than asked for.
         "unresolved": [_unresolved_as_dict(u, by_property) for u in result.unresolved],
         "ignored": list(result.ignored),

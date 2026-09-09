@@ -146,6 +146,7 @@ repo.flows.search(
     }
   ],
   "facets": {"subject": [{"value": "…/discipline/080", "count": 57}]},
+  "facet_meta": {"subject": {"other_count": 30, "truncated": true}},
   "unresolved": [],
   "ignored": [], "warnings": [], "suggestions": []
 }
