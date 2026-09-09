@@ -331,3 +331,51 @@ def test_die_ankerregel_ist_die_von_github():
     assert anker("Writing \u2014 with a read-back check") == "writing--with-a-read-back-check"
     assert anker("`cm:name` is a key") == "cmname-is-a-key"
     assert anker("Rebuilding the generated layer") == "rebuilding-the-generated-layer"
+
+
+# --- Beide Sprachfassungen, dasselbe Geruest -------------------------------
+
+#: Jedes Dokument, das es zweimal gibt.
+SPRACHPAARE = {
+    "README": ("README.md", "README.de.md"),
+    "FLOWS": ("docs/FLOWS.md", "docs/FLOWS.de.md"),
+    "REFERENCE": ("docs/REFERENCE.md", "docs/REFERENCE.de.md"),
+    "ARCHITECTURE": ("docs/ARCHITECTURE.md", "docs/ARCHITECTURE.de.md"),
+    "SKILL": (".claude/skills/edu-sharing-python/SKILL.md",
+              ".claude/skills/edu-sharing-python/SKILL.de.md"),
+}
+
+
+def _ebenen(rel: str) -> list[int]:
+    """Die Folge der Ueberschriftsebenen, ohne Codebloecke.
+
+    Verglichen werden die **Ebenen**, nicht die Titel: die sind uebersetzt.
+    Ein Abschnitt, den nur eine Sprache hat, verschiebt die Folge.
+    """
+    text = (WURZEL / rel).read_text(encoding="utf-8")
+    ohne_code = re.sub(r"```.*?```", "", text, flags=re.S)
+    return [len(m.group(1)) for m in re.finditer(r"^(#{1,4}) .+$", ohne_code, re.M)]
+
+
+@pytest.mark.parametrize("name", sorted(SPRACHPAARE))
+def test_beide_sprachfassungen_haben_dasselbe_geruest(name):
+    """Ein Abschnitt, den nur eine Sprache hat, ist eine halbe Aenderung.
+
+    Der Skill sagt von seinen zwei Fassungen, keine koenne "quietly omit"; fuer
+    Namen und Verzeichnisse pruefen das andere Wachen, fuer die Gliederung
+    stand es nur da. Gefunden hat diese Wache am 09.09.2026 nichts -- sie
+    faengt den Tag danach.
+    """
+    en, de = SPRACHPAARE[name]
+    ebenen_en, ebenen_de = _ebenen(en), _ebenen(de)
+    assert ebenen_en == ebenen_de, (
+        f"{name}: {en} hat {len(ebenen_en)} Ueberschriften, {de} "
+        f"{len(ebenen_de)} -- oder sie stehen auf anderen Ebenen. Eine "
+        "Aenderung gehoert in beide Fassungen.")
+
+
+def test_die_geruestwache_sieht_ueberhaupt_etwas():
+    """Eine Wache, deren Ausdruck nichts trifft, ist still gruen."""
+    ebenen = _ebenen("README.md")
+    assert len(ebenen) > 20, ebenen
+    assert min(ebenen) == 1, "die Ueberschrift erster Ebene fehlt"
