@@ -408,10 +408,19 @@ def non_json_error(status: int, url: str, body: str, *, service: str) -> ServerE
     )
 
 
+#: What httpx puts on a client of its own accord. Measured 2026-09-09 with
+#: httpx 0.28.1: a bare ``AsyncClient()`` carries exactly these four, and
+#: giving one of them another value adds no further name. Anything beyond them
+#: is the caller's, and this function cannot tell a credential from a
+#: preference.
+_HTTPX_OWN_HEADERS = frozenset(
+    {"accept", "accept-encoding", "connection", "user-agent"})
+
+
 def check_client(client: object | None, *, timeout: float | None) -> None:
     """Refuse an injected ``httpx.AsyncClient`` that would defeat a promise.
 
-    Two rules, both measured, both easy to get wrong when a caller brings
+    Three rules, all measured, all easy to get wrong when a caller brings
     their own client. All four clients of this library ask them, so they live
     here rather than four times over.
 
@@ -426,6 +435,24 @@ def check_client(client: object | None, *, timeout: float | None) -> None:
     the second request to another host still had the key (audit SEC-4). Each
     of the four clients reports a 3xx instead of following it, and a client
     that follows them never lets that check run.
+
+    **Credentials of its own** -- ``auth=`` or any default header beyond the
+    four httpx sets itself. These four clients each decide per request which
+    credentials go out and to whom; ``Transport.is_repository_url(url)`` is
+    documented as "whether credentials would be attached", and httpx adding
+    the client's own on top makes that answer untrue. Measured 2026-09-09: a
+    client with ``Authorization: Basic TEST_ONLY`` and ``X-API-Key:
+    DUMMY_KEY`` sent both to ``cdn.example.test`` when a record's
+    ``downloadUrl`` pointed there (F02).
+
+    Refused rather than filtered, and that is the deliberate part: a
+    credential can be called anything, so a filter would have to enumerate
+    header names it cannot know and would promise a boundary it does not
+    hold. The way out is the ``credential=``/``api_key=`` parameter each
+    client already has, or headers passed per request.
+
+    Not covered: a client whose ``auth`` is set **after** it was handed over.
+    A constructor can only look at what it is given.
 
     Args:
         client: what the caller passed, or ``None``.
@@ -450,6 +477,29 @@ def check_client(client: object | None, *, timeout: float | None) -> None:
             "would travel to wherever the answer points. Leave it at httpx's "
             "default -- httpx.AsyncClient() -- and read the 3xx this library "
             "reports instead."
+        )
+    if getattr(client, "auth", None) is not None:
+        raise EduSharingError(
+            "a client with auth=... cannot be used: this library decides per "
+            "request which credential goes out and to whom, and httpx would "
+            "add the client's own to every request -- a download from an "
+            "address outside the repository included. Give the credential to "
+            "this library instead and leave the client's auth unset."
+        )
+    # Only the names. A value here is the secret, and a message is logged.
+    own = sorted(
+        name for name in getattr(client, "headers", ())
+        if name.lower() not in _HTTPX_OWN_HEADERS
+    )
+    if own:
+        raise EduSharingError(
+            f"a client carrying default headers of its own cannot be used: "
+            f"{', '.join(own)}. httpx sends them on every request, including "
+            "one to an address outside the repository, and which of them is a "
+            "credential cannot be told from here -- so none are accepted. "
+            "Pass them per request, or give the credential to this library. "
+            "The four httpx sets itself (accept, accept-encoding, connection, "
+            "user-agent) may carry any value."
         )
 
 

@@ -331,9 +331,11 @@ reading the stated total alone said "complete" exactly where the repository
 stated nothing, which is where the question mattered most.
 
 `at_least(name, value, limit)` is the bounds check the clients apply to their settings;
-`check_client(client, timeout=…)` holds the two rules for a client the caller brings
-along -- no `timeout` beside it, and no `follow_redirects=True`, because httpx keeps
-custom headers across a cross-origin redirect and an API key would travel with them;
+`check_client(client, timeout=…)` holds the three rules for a client the caller brings
+along -- no `timeout` beside it, no `follow_redirects=True`, because httpx keeps
+custom headers across a cross-origin redirect and an API key would travel with them,
+and no credentials of the client's own (`auth=` or a default header beyond httpx's
+four), because those go to every address including one outside the repository;
 `redirect_error(…)` and `non_json_error(…)` are the two answers all four clients
 give to a 3xx and to a body that is not JSON -- both inside `EduSharingError`, so
 nothing from the standard library escapes the contract;

@@ -347,9 +347,11 @@ selbst; aus der genannten Gesamtzahl allein gelesen hiess sie genau dort
 meisten wog.
 
 `at_least(name, value, limit)` ist die Grenzprüfung, die die Clients auf ihre Einstellungen anwenden;
-`check_client(client, timeout=…)` trägt die zwei Regeln für einen mitgebrachten Client —
+`check_client(client, timeout=…)` trägt die drei Regeln für einen mitgebrachten Client —
 kein `timeout` daneben, kein `follow_redirects=True`, weil httpx eigene Kopfzeilen über
-Ursprungsgrenzen hinweg behält und ein API-Schlüssel damit mitwandert;
+Ursprungsgrenzen hinweg behält und ein API-Schlüssel damit mitwandert, und keine
+eigenen Zugangsdaten (`auth=` oder eine Vorgabe-Kopfzeile über httpx' vier hinaus),
+weil die an jede Adresse gehen, auch an eine ausserhalb des Repositoriums;
 `redirect_error(…)` und `non_json_error(…)` sind die zwei Antworten, die alle vier
 Clients auf einen 3xx und auf einen Körper ohne JSON geben — beide innerhalb von
 `EduSharingError`, damit nichts aus der Standardbibliothek dem Vertrag entkommt;

@@ -1024,3 +1024,73 @@ async def test_eine_sitzung_als_anmeldung_geht_sehr_wohl_mit():
         await transport.request("GET", "/node/v1/nodes/-home-/n1")
 
     assert gesehen == ["JSESSIONID=meine-eigene"]
+
+
+# --- F02 (Fremdpruefung 09.09.2026): fremde Zugangsdaten am eigenen Client --
+#
+# ``is_repository_url(url)`` steht in REFERENCE als "whether credentials would
+# be attached". Mit einem eingebrachten Client, der Zugangsdaten als Vorgabe
+# traegt, ist diese Auskunft unwahr: httpx ergaenzt sie unabhaengig davon, wo
+# die Anfrage hingeht. Gemessen am 09.09.2026 landeten ``Authorization: Basic
+# TEST_ONLY`` und ``X-API-Key: DUMMY_KEY`` an ``cdn.example.test``.
+#
+# Gefiltert wird nicht: fremde Kopfzeilennamen lassen sich nicht aufzaehlen,
+# und ein Filter waere eine Zusage, die er nicht halten kann. Abgelehnt wird,
+# was httpx nicht selbst setzt -- gemessen sind das ``accept``,
+# ``accept-encoding``, ``connection`` und ``user-agent``.
+
+
+@pytest.mark.parametrize("bauen", [
+    lambda: httpx.AsyncClient(headers={"Authorization": "Basic TEST_ONLY"}),
+    lambda: httpx.AsyncClient(headers={"X-API-Key": "DUMMY_KEY"}),
+    lambda: httpx.AsyncClient(headers={"Cookie": "JSESSIONID=fremd"}),
+    lambda: httpx.AsyncClient(auth=("nutzer", "DUMMY_PASSWORD")),
+])
+def test_ein_client_mit_eigenen_zugangsdaten_wird_abgelehnt(bauen):
+    """Sonst gehen sie an jedes Ziel mit, auch an ein externes."""
+    with pytest.raises(EduSharingError) as fehler:
+        Transport(REPO, client=bauen())
+    assert "credential" in str(fehler.value).lower()
+
+
+def test_die_meldung_wiederholt_den_wert_nicht():
+    """Eine Fehlermeldung wird protokolliert. Der Name der Kopfzeile erklaert
+    das Problem, ihr Wert ist das Geheimnis."""
+    with pytest.raises(EduSharingError) as fehler:
+        Transport(REPO, client=httpx.AsyncClient(
+            headers={"X-API-Key": "DUMMY_KEY"}))
+    assert "DUMMY_KEY" not in str(fehler.value)
+    assert "x-api-key" in str(fehler.value).lower()
+
+
+async def test_ein_client_darf_seine_eigenen_vorgaben_ueberschreiben():
+    """Die Gegenprobe. httpx setzt vier Kopfzeilen selbst; sie anders zu
+    belegen ist keine Anmeldung, und ein Client ohne Vorgaben erst recht
+    nicht. Ohne diesen Test waere die Regel gruen, wenn sie jeden Client
+    ablehnt."""
+    async with httpx.AsyncClient(headers={"User-Agent": "meins/1.0"}) as c:
+        Transport(REPO, client=c)
+    async with httpx.AsyncClient() as c:
+        Transport(REPO, client=c)
+
+
+async def test_ein_externer_download_traegt_die_anmeldung_des_repositoriums_nicht():
+    """Was die Regel schuetzt, am Verhalten statt an der Ablehnung.
+
+    ``download_url`` eines Datensatzes kann auf einen anderen Host zeigen; die
+    eigene Anmeldung geht dorthin nicht mit. Die Wache gab es fuer die
+    Bibliothekskopfzeilen schon -- hier steht sie neben der Regel, die die
+    zweite Quelle schliesst.
+    """
+    gesehen: list[tuple[str, str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        gesehen.append((request.url.host or "",
+                        request.headers.get("authorization", ""),
+                        request.headers.get("cookie", "")))
+        return httpx.Response(200, content=b"daten")
+
+    async with _transport(handler) as transport:
+        await transport.download("https://cdn.example.test/datei")
+
+    assert gesehen == [("cdn.example.test", "", "")]
