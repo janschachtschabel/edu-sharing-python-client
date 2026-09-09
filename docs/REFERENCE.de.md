@@ -319,7 +319,7 @@ Hauptknoten, nicht daneben.
 | Aufruf | Ergebnis |
 |---|---|
 | `node.children.list()` | `list[Node]` — wirft oberhalb von `LIST_MAX`, statt zu kürzen |
-| `node.children.add(data, filename=…, mimetype=…, order=…)` | `Node` — zählt vorher, wenn `order` fehlt; wirft, wenn das Repositorium keine Gesamtzahl nennt und der Knoten mindestens `LIST_MAX` Kinder hat |
+| `node.children.add(data, filename=…, mimetype=…, order=…)` | `Node` — liest vorher die vergebenen Positionen, wenn `order` fehlt, und nimmt eine über der höchsten; wirft, wenn der Knoten mehr Kinder hat, als eine Auflistung nimmt |
 | `CHILD_ASPECT` | `"ccm:io_childobject"` — ein Aspekt, kein Typ |
 | `ORDER_PROPERTY` | `"ccm:childobject_order"` |
 | `LIST_MAX` | `200` — was eine Auflistung liest. Darüber wirft sie: eine gekürzte Anhangsliste sieht aus wie die ganze |

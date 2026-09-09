@@ -365,40 +365,28 @@ async def test_genau_am_deckel_ist_kein_fehler():
 
 # --- Die Zaehlung beim Anhaengen ------------------------------------------
 
-async def test_anlegen_holt_nicht_die_ganze_liste():
-    """``add()`` brauchte nur eine Zahl und holte dafuer bis zu 200 Datensaetze
-    mit ``propertyFilter=-all-`` (Audit MNT-4). Eine Seite mit einem Eintrag
-    traegt dieselbe Gesamtzahl."""
+async def test_anlegen_liest_die_kinder_genau_einmal():
+    """Was MNT-4 wirklich beanstandete: "attaching N files costs 3N
+    requests" -- also die **Zahl** der Anfragen.
+
+    Die Abkuerzung, mit der das behoben wurde (eine Seite mit einem
+    Datensatz, gelesen wird nur ihre Gesamtzahl), ist am 09.09.2026
+    zurueckgenommen worden: sie beantwortete die falsche Frage. Die Zahl
+    der Kinder ist nur dann die naechste freie Stelle, wenn die Nummern
+    lueckenlos bei 0 beginnen -- siehe
+    ``test_die_position_folgt_der_hoechsten_vergebenen``.
+
+    Was bleibt, ist die Ersparnis, um die es ging: **eine** Lesung, nicht
+    eine je angehaengter Datei.
+    """
     instanz = Instanz(kinder=[_kind("a", "a.txt", "0")])
     async with _repo(instanz) as repo:
         node = await repo.node(HAUPT)
         await node.children.add(b"x", filename="b.txt", mimetype="text/plain")
 
-    gezaehlt = [r for r in instanz.anfragen
-                if r.method == "GET" and r.url.path.endswith("/children")]
-    assert gezaehlt, "es wird weiterhin gezaehlt, nur klein"
-    assert all(r.url.params.get("maxItems") == "1" for r in gezaehlt), \
-        [str(r.url) for r in gezaehlt]
-
-
-async def test_die_position_zaehlt_jedes_kind_nicht_nur_die_serienobjekte():
-    """``pagination.total`` zaehlt alle Kinder, Versionen eingeschlossen -- die
-    Auflistung filtert danach auf den Aspekt.
-
-    Die Position wird dadurch groesser als die Zahl der Anhaenge, und das ist
-    richtig so: zugesagt ist *hinter den bestehenden*, nicht *lueckenlos*.
-    Eine Nummer zu ueberspringen kostet nichts, zwei Anhaenge auf derselben
-    Position kosten die Reihenfolge.
-    """
-    instanz = Instanz(kinder=[_kind("a", "a.txt", "0"),
-                              _kind("v", "alt.txt", None, serie=False)])
-    async with _repo(instanz) as repo:
-        node = await repo.node(HAUPT)
-        await node.children.add(b"x", filename="b.txt", mimetype="text/plain")
-
-    angelegt = next(r for r in instanz.anfragen
-                    if r.method == "POST" and r.url.path.rstrip("/").endswith("/children"))
-    assert json.loads(angelegt.content)["ccm:childobject_order"] == ["2"]
+    gelesen = [r for r in instanz.anfragen
+               if r.method == "GET" and r.url.path.endswith("/children")]
+    assert len(gelesen) == 1, [str(r.url) for r in gelesen]
 
 
 async def test_ohne_gesamtzahl_zaehlt_das_anlegen_trotzdem_richtig():
@@ -511,14 +499,78 @@ async def test_mit_eigener_position_wird_gar_nicht_gezaehlt():
     assert not gezaehlt, "mit eigener Position gibt es nichts zu zaehlen"
 
 
-async def test_die_gesamtzahl_kostet_weiterhin_einen_datensatz():
-    """Gegenprobe zur Optimierung aus MNT-4: der Normalfall darf nicht wieder
-    die ganze Liste holen."""
-    instanz = Instanz(kinder=[_kind("a", "a.txt", "0")])
+async def test_die_position_folgt_der_hoechsten_vergebenen():
+    """Die Zusage ist *hinter den bestehenden* -- und die haelt nur, wenn die
+    hoechste vergebene Nummer sie bestimmt, nicht die Anzahl der Kinder.
+
+    Gemessen am 09.09.2026: zwei Anhaenge, mit ``order=`` ausdruecklich auf 5
+    und 6 gesetzt -- dem Parameter, den ``add()`` selbst dafuer anbietet.
+    Danach ``add()`` ohne ``order``: die Anzahl ist 2, also bekam der neue die
+    Position 2 und stand in ``list()`` **an erster Stelle**. Der Audit hat
+    diese Bauform in MNT-4 woertlich vorgeschrieben ("order from a
+    ``limit=1`` page's total"); sie traegt die Zusage nicht.
+    """
+    instanz = Instanz(kinder=[_kind("a", "a.txt", "5"), _kind("b", "b.txt", "6")])
     async with _repo(instanz) as repo:
         node = await repo.node(HAUPT)
-        await node.children.add(b"x", filename="b.txt", mimetype="text/plain")
-    gezaehlt = [r for r in instanz.anfragen
-                if r.method == "GET" and r.url.path.endswith("/children")]
-    assert [r.url.params.get("maxItems") for r in gezaehlt] == ["1"], (
-        [str(r.url) for r in gezaehlt])
+        await node.children.add(b"x", filename="neu.txt", mimetype="text/plain")
+        kinder = await node.children.list()
+
+    angelegt = next(r for r in instanz.anfragen if r.method == "POST"
+                    and r.url.path.rstrip("/").endswith("/children"))
+    assert json.loads(angelegt.content)["ccm:childobject_order"] == ["7"]
+    assert [k.name for k in kinder][-1] == "neu.txt", [k.name for k in kinder]
+
+
+async def test_eine_luecke_wird_nicht_wiederverwendet():
+    """Ein geloeschter Anhang laesst eine Luecke, und die uebrigen behalten
+    ihre Nummern. Die Anzahl faellt dabei unter die hoechste vergebene.
+
+    Anhaenge auf 1 und 2 (der auf 0 ist fort): die Anzahl ist 2, und 2 ist
+    belegt. ``list()`` bricht den Gleichstand zwar nach ``createdAt``, sodass
+    nichts verschwindet -- aber jeder andere Leser der Eigenschaft, die
+    Redaktionsoberflaeche voran, sieht zwei Anhaenge auf derselben Stelle.
+    """
+    instanz = Instanz(kinder=[_kind("b", "b.txt", "1"), _kind("c", "c.txt", "2")])
+    async with _repo(instanz) as repo:
+        node = await repo.node(HAUPT)
+        await node.children.add(b"x", filename="neu.txt", mimetype="text/plain")
+
+    angelegt = next(r for r in instanz.anfragen if r.method == "POST"
+                    and r.url.path.rstrip("/").endswith("/children"))
+    assert json.loads(angelegt.content)["ccm:childobject_order"] == ["3"]
+
+
+async def test_andere_kinder_verschieben_die_position_nicht():
+    """Versionen und was sonst unter dem Knoten haengt, tragen keine Ordnung
+    und gehoeren nicht in die Rechnung.
+
+    Vorher zaehlte ``pagination.total`` **jedes** Kind, sodass ein Anhang auf
+    0 neben einer Version die Position 2 bekam -- eine uebersprungene Nummer,
+    die als richtig verteidigt wurde ("zugesagt ist hinter den bestehenden,
+    nicht lueckenlos"). Der Sprung war nie noetig: die Zusage gilt den
+    **Anhaengen**, und deren hoechste Nummer ist 0.
+    """
+    instanz = Instanz(kinder=[_kind("a", "a.txt", "0"),
+                              _kind("v", "alt.txt", None, serie=False)])
+    async with _repo(instanz) as repo:
+        node = await repo.node(HAUPT)
+        await node.children.add(b"x", filename="neu.txt", mimetype="text/plain")
+
+    angelegt = next(r for r in instanz.anfragen if r.method == "POST"
+                    and r.url.path.rstrip("/").endswith("/children"))
+    assert json.loads(angelegt.content)["ccm:childobject_order"] == ["1"]
+
+
+async def test_ein_anhang_ohne_ordnung_bestimmt_nichts():
+    """``_NO_ORDER`` sortiert ein Kind ohne Nummer ans Ende -- als Wert
+    genommen ergaebe es die Position 1000001. Er zaehlt nicht mit."""
+    instanz = Instanz(kinder=[_kind("a", "a.txt", "0"),
+                              _kind("ohne", "ohne.txt", None)])
+    async with _repo(instanz) as repo:
+        node = await repo.node(HAUPT)
+        await node.children.add(b"x", filename="neu.txt", mimetype="text/plain")
+
+    angelegt = next(r for r in instanz.anfragen if r.method == "POST"
+                    and r.url.path.rstrip("/").endswith("/children"))
+    assert json.loads(angelegt.content)["ccm:childobject_order"] == ["1"]

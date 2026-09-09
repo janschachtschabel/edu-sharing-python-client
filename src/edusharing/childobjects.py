@@ -59,6 +59,12 @@ ORDER_PROPERTY = "ccm:childobject_order"
 #: document first by accident.
 _NO_ORDER = 10**6
 
+#: The raw child records of one page. Named, because ``list`` inside
+#: ``ChildObjects`` is the **method**: an annotation written there resolves
+#: to it and ``mypy --strict`` refuses it. A function body still sees the
+#: builtin at runtime, so only the type checker catches this.
+_Records = list[dict[str, Any]]
+
 
 class ChildObjects:
     """The child objects of one node. Reached as ``node.children``."""
@@ -86,20 +92,8 @@ class ChildObjects:
                 them, showing them, counting them -- and the return type has no
                 room to say "incomplete" (audit MNT-4).
         """
-        response = await self._nodes.transport.json(
-            "GET",
-            f"/node/v1/nodes/-home-/{path_segment(self._node.id)}/children",
-            params={"maxItems": LIST_MAX, "propertyFilter": "-all-"},
-        )
-        roh = list(response.get("nodes") or [])
-        # -1 for "not stated": some responses carry no ``pagination`` at all,
-        # and a full page is then indistinguishable from a cut one. Exactly
-        # ``LIST_MAX`` records is the picture of a cut, so it is treated as
-        # one -- the rare "exactly 200 children, no count given" is refused
-        # wrongly, which is visible and fixable; a quietly shortened list of
-        # attachments is neither (review 2026-09-08).
-        gesamt = page_total(response, default=-1)
-        if gesamt > LIST_MAX or (gesamt < 0 and len(roh) >= LIST_MAX):
+        roh, gesamt = await self._seite()
+        if _vielleicht_gekuerzt(roh, gesamt):
             wie_viele = str(gesamt) if gesamt >= 0 else f"at least {len(roh)}"
             raise EduSharingError(
                 f"This node has {wie_viele} children and this listing reads at "
@@ -108,60 +102,63 @@ class ChildObjects:
                 f"with your own paging.",
                 url=render_url(self._nodes.repository_url, self._node.id),
             )
-        children = [
-            data
-            for data in roh
-            if CHILD_ASPECT in (data.get("aspects") or [])
-        ]
+        children = _anhaenge(roh)
         children.sort(key=_order_key)
         return [self._nodes.wrap(data) for data in children]
 
-    async def _count(self) -> int:
-        """How many children this node has, from a one-record page.
+    async def _seite(self) -> tuple[_Records, int]:
+        """One page of child records, and the total the repository stated.
 
-        ``add()`` needed a number and fetched up to ``LIST_MAX`` records with
-        ``propertyFilter=-all-`` for it (audit MNT-4). The page total is the
-        same number and costs one record.
+        ``-1`` where it stated none: some responses carry no ``pagination`` at
+        all, and a stated ``0`` is an answer -- the node has no children yet --
+        which must not read as "not said".
 
-        It counts **every** child, versions included, where ``list()`` then
-        filters on the aspect. The position therefore skips numbers when a node
-        carries other children -- which is right: what is promised is *after
-        the existing ones*, not *without gaps*. A skipped number costs nothing;
-        two attachments on one position cost the order.
-
-        Not every response carries a ``pagination``, which ``list()`` allows
-        for explicitly. The missing total first read as **zero**, putting
-        every attachment on position 0 (review 2026-09-08); the fallback then
-        counted through ``list()``, which filters on the aspect and therefore
-        answered a *different* number than the total does -- small enough to
-        hit a position already taken (review 2026-09-09). Counted here is the
-        second page's records, unfiltered, which is what a total counts too.
+        Shared by ``list()`` and ``_next_position()`` so that both read the same
+        page the same way. What each does when the page might be cut stays with
+        it, because the advice differs: read them yourself, or name the position
+        yourself.
         """
-        async def seite(max_items: int) -> dict[str, Any]:
-            return await self._nodes.transport.json(  # type: ignore[no-any-return]
-                "GET",
-                f"/node/v1/nodes/-home-/{path_segment(self._node.id)}/children",
-                # No ``propertyFilter``: records are fetched to be counted,
-                # and none of their properties are read.
-                params={"maxItems": max_items},
-            )
+        response = await self._nodes.transport.json(
+            "GET",
+            f"/node/v1/nodes/-home-/{path_segment(self._node.id)}/children",
+            params={"maxItems": LIST_MAX, "propertyFilter": "-all-"},
+        )
+        return list(response.get("nodes") or []), page_total(response, default=-1)
 
-        # One record for its total -- the ordinary case, and the cheap one.
-        # ``-1`` rather than ``0`` for "not stated": a stated ``0`` is an
-        # answer, the node has no children yet.
-        gesagt = page_total(await seite(1), default=-1)
-        if gesagt >= 0:
-            return gesagt
+    async def _next_position(self) -> int:
+        """One past the highest position the attachments hold.
 
-        roh = len((await seite(LIST_MAX)).get("nodes") or [])
-        if roh >= LIST_MAX:
+        Not their number, and not the number of children. ``add()`` promises
+        *after the existing ones*, and a count says that only while the
+        positions run from 0 without gaps. Audit MNT-4 prescribed the count --
+        "order from a ``limit=1`` page's total" -- and it does not carry the
+        promise: measured on 2026-09-09, two attachments placed at 5 and 6 with
+        ``order=`` gave the next one position 2, which ``list()`` then sorted
+        **first**. Deleting an attachment leaves the same kind of gap, and there
+        the repeated number is invisible here -- ``list()`` breaks the tie by
+        creation time -- but not to anything else reading the property.
+
+        Only children carrying the aspect are asked, because only they hold a
+        position. Counting every child raised the number instead, which was
+        defended as a harmless skip; the skip was never needed, and the two ways
+        of counting were what collided twice (reviews 2026-09-08 and -09).
+        """
+        roh, gesamt = await self._seite()
+        if _vielleicht_gekuerzt(roh, gesamt):
+            wie_viele = str(gesamt) if gesamt >= 0 else f"at least {len(roh)}"
             raise EduSharingError(
-                f"This node has at least {LIST_MAX} children and named no "
-                f"total, so the next free position cannot be determined. "
-                f"Pass ``order=`` to say where this attachment goes.",
+                f"This node has {wie_viele} children and this listing reads at "
+                f"most {LIST_MAX}, so the highest position in use cannot be "
+                f"read and the next free one cannot be determined. Pass "
+                f"``order=`` to say where this attachment goes.",
                 url=render_url(self._nodes.repository_url, self._node.id),
             )
-        return roh
+        vergeben = [
+            order
+            for order, _ in map(_order_key, _anhaenge(roh))
+            if order != _NO_ORDER
+        ]
+        return max(vergeben) + 1 if vergeben else 0
 
     async def add(
         self,
@@ -181,9 +178,9 @@ class ChildObjects:
             data: the file's bytes.
             filename: ``cm:name`` of the child, which decides the download name.
             mimetype: content type of the file.
-            order: display position. Appended after the existing ones when
+            order: display position. One past the highest in use when
                 omitted -- otherwise two documents compete for the same slot.
-                Passing it saves the counting request.
+                Passing it saves the request that reads the existing ones.
 
         Returns:
             The new child node, with its content already uploaded.
@@ -191,8 +188,12 @@ class ChildObjects:
         Raises:
             ValidationError: on an empty filename.
             PermissionDeniedError: without write access to the parent.
-            EduSharingError: for anything else the repository refuses. The
-                half-created child is cleaned up first.
+            EduSharingError: for anything else the repository refuses -- the
+                half-created child is cleaned up first -- and, before
+                anything is created, when ``order`` was omitted and the node
+                has more children than one listing reads, so the highest
+                position in use cannot be seen. That one names ``order=`` as
+                the way through.
         """
         if not filename or not filename.strip():
             raise ValidationError(
@@ -200,7 +201,7 @@ class ChildObjects:
             )
 
         if order is None:
-            order = await self._count()
+            order = await self._next_position()
 
         response = await self._nodes.transport.json(
             "POST",
@@ -243,6 +244,27 @@ class ChildObjects:
 
     def __repr__(self) -> str:
         return f"ChildObjects(node={self._node.id!r})"
+
+
+def _anhaenge(roh: _Records) -> _Records:
+    """Only the records carrying ``CHILD_ASPECT``.
+
+    A node has other children -- versions among them -- and handing those
+    back as attachments would be wrong in a way nobody notices until a
+    version shows up in a download list.
+    """
+    return [data for data in roh if CHILD_ASPECT in (data.get("aspects") or [])]
+
+
+def _vielleicht_gekuerzt(roh: _Records, gesamt: int) -> bool:
+    """Whether this page might not be all of them.
+
+    A full page with no total stated is the picture of a cut, so it counts
+    as one -- the rare "exactly ``LIST_MAX`` children, no count given" is
+    refused wrongly, which is visible and fixable; a quietly shortened list
+    of attachments is neither (review 2026-09-08).
+    """
+    return gesamt > LIST_MAX or (gesamt < 0 and len(roh) >= LIST_MAX)
 
 
 def _order_key(data: dict[str, Any]) -> tuple[int, str]:

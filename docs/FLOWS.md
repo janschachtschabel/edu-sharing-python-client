@@ -548,12 +548,12 @@ await child.delete()                          # an ordinary node from here on
 the upload fails the child is removed again — a node without content shows up
 in every listing and downloads as nothing.
 
-Leaving out `order` costs a read before that. The next free position is how
-many children the node has, and that number is read from a one-record page;
-passing `order=` counts nothing at all. Where the repository states no total,
-the children are counted from a full page instead — unfiltered, which is what
-a total counts too — and if there are at least `LIST_MAX` of them the position
-cannot be determined: `add()` refuses and names `order=` as the way through.
+Leaving out `order` costs a read before that. The next free position is one
+past the highest the existing attachments hold — not how many there are, which
+says the same thing only while the numbers run from 0 without gaps. Passing
+`order=` reads nothing at all. If the node has more children than one listing
+takes, the highest in use cannot be seen and the position cannot be
+determined: `add()` refuses and names `order=` as the way through.
 
 > **The combination that creates one cannot be guessed.** Measured on
 > 2026-08-27: `type=ccm:io_childobject` answers HTTP 500 (no such type),

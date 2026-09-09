@@ -311,7 +311,7 @@ rather than beside it.
 | Call | Result |
 |---|---|
 | `node.children.list()` | `list[Node]` — raises above `LIST_MAX` rather than shortening |
-| `node.children.add(data, filename=…, mimetype=…, order=…)` | `Node` — counts first unless `order` is given; raises when the repository states no total and the node has at least `LIST_MAX` children |
+| `node.children.add(data, filename=…, mimetype=…, order=…)` | `Node` — reads the existing positions first unless `order` is given, and takes one past the highest; raises when the node has more children than one listing takes |
 | `CHILD_ASPECT` | `"ccm:io_childobject"` — the aspect, not a type |
 | `ORDER_PROPERTY` | `"ccm:childobject_order"` |
 | `LIST_MAX` | `200` — what one listing reads. More than that raises: a shortened list of attachments looks like the whole set |

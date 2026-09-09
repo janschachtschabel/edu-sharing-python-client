@@ -74,14 +74,15 @@ and in [`docs/audits/`](docs/audits/).
   200 and kept silent about the rest -- the one listing in this library that
   shortened without saying so. The cap is `LIST_MAX` now and anything above it
   raises: there is no use for which the first 200 would be right, and
-  `list[Node]` has no room to say "incomplete". `add()` no longer fetches up to
-  200 records to count them: a one-record page carries the same total. Where
-  the repository states none, it counts a full page instead -- unfiltered,
-  which is what a total counts too, and not the aspect-filtered set `list()`
-  returns -- and from `LIST_MAX` children on without a total it refuses
-  rather than guess, naming `order=` as the way through. Exactly at the cap
-  is already refused: the page is full, so nobody can say whether it is all
-  of them.
+  `list[Node]` has no room to say "incomplete". `add()` reads that one page
+  instead of one per file -- the cost MNT-4 objected to -- and takes **one
+  past the highest position in use**, not the number of children. The audit
+  prescribed the number ("order from a `limit=1` page's total"); it says the
+  same thing only while the positions run from 0 without gaps, and measured on
+  2026-09-09, two attachments placed at 5 and 6 with `order=` gave the next
+  one position 2, which `list()` then sorted first. Where the node has more
+  children than one listing takes, the highest cannot be seen and `add()`
+  refuses rather than guess, naming `order=` as the way through.
 - **Twenty public members explain themselves** (audit MNT-5, also DOC-8).
   `name` is the file and `title` the display, `raw` is not a copy, `properties`
   carries keys and no labels, `NodeContent.mimetype` is only settled after an
