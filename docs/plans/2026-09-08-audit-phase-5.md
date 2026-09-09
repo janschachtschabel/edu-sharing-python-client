@@ -10,7 +10,7 @@ oder ausdrücklich positive Feststellungen (SEC-9, OPS-6, ARC-4 teilweise). Die
 restlichen elf standen in keiner Phase — niemand hätte sie je angesehen.
 
 Nachgemessen am 08.09.2026, mit Ausführung statt mit Mustersuche: **drei sind
-zu** (PRF-1 über SEC-2, TST-2 über COR-1, TST-5), **neun sind offen**. Der
+zu** (PRF-1 über SEC-2, TST-2 über COR-1, TST-5), **acht sind offen**. Der
 erste Anlauf mit Regexen meldete COR-8 fälschlich als behoben, weil das Muster
 `dropping = {k.strip()…}` traf statt der Speicherung — dieselbe Lehre wie in
 Phase 4: eine Prüfung, die aus dem falschen Grund grün ist, ist schlimmer als
@@ -39,10 +39,16 @@ beschrieben.
   Ereignis wartet — so liegt das Leeren nachweislich *im* Abruf.
 
 - [x] **24 · COR-10** Ein Abbruch ist kein Teilausfall, `179243a`.
-  Zwei Stellen fragten nicht nach dem Typ. Beim Nachmessen zwei **weitere**
+  Zwei Stellen fragten nicht nach dem Typ. Beim Nachmessen **drei** weitere
   `gather`-Stellen geprüft und bewusst nicht geändert: `fields.py` wärmt nur
-  vor und verwirft begründet, `skills.py` trägt seit Schritt 14 die engere
-  Regel. Mein erstes Suchmuster hatte beide fälschlich gemeldet.
+  vor und verwirft begründet, `skills.py` und `flows/tree.py` tragen die
+  Regel seit Schritt 14 bzw. COR-2 in einer engeren Form. Mein erstes
+  Suchmuster hatte sie fälschlich gemeldet.
+
+  Nachgezählt bei der Prüfung am 09.09.2026: die Regel steht damit an
+  **sechs** Stellen. Die Commit-Nachricht `179243a` sagt „alle vier" und
+  „zwei weitere geprüft" — beides zu niedrig; sie ist gepusht und bleibt,
+  hier steht die Zahl richtig.
 
 - [x] **25 · COR-11 und COR-7** Die zwei Rückvergleiche, `7f279e5`.
 
@@ -84,3 +90,45 @@ beschrieben.
 
 Damit ist der Bericht vollständig abgearbeitet — die 44 Befunde der Roadmap
 und die elf, die in keiner Phase standen.
+
+- [x] **29 · Prüfungsnachlese** Sechs Commits, `94866a3` … `fabd995`.
+
+  **Der MAJOR traf wieder meine eigene Nachlese.** `_count` fiel bei fehlender
+  Gesamtzahl auf `list()` zurück — und `list()` filtert auf den Aspekt, während
+  `pagination.total` **jedes** Kind zählt. Zwei Pfade, zwei Zahlen für denselben
+  Knoten, und die kleinere traf eine belegte Position. Belegt mit einem Anhang
+  auf Position 1 plus einer Version: mit Gesamtzahl wurde 2 vergeben, ohne sie
+  1. Der Test dafür konnte es nicht sehen, weil seine beiden Kinder **beide**
+  den Aspekt trugen — der Gegentest daneben benutzt ausdrücklich eines ohne.
+  Genau diese Asymmetrie war die Lücke.
+
+  **Eine Verwechslung, die fünfmal dastand.** Ich hatte behauptet, COR-11
+  träfe nur die weggelassene Eigenschaft — „als leere Liste zurückgegeben
+  stimmte der Vergleich schon". `[""]` ist aber eine Liste **mit** leerem
+  Eintrag; die leere Liste ist `[]`, und `first([])` gibt `None`. Es waren
+  **zwei** von drei Formen kaputt, und die eine, die stimmte, hatte ich falsch
+  benannt. Die Attrappe baute genau die eine, sodass `[]` nirgends geprüft war.
+
+  **Zwei Wachen, die nicht wachten.** Die COR-7-Live-Tests liefen mit der
+  Rückleseprobe, und die erzwingt über `check()` genau die Gleichheit, die der
+  Test danach zusichert — ein umsortierender Server wäre rot geworden, aber als
+  `SilentDropError`, nie mit der Erklärung. Und der Deckel auf den
+  Untersammlungen hing an nichts: `maxItems` entfernen ließ die **ganze** Suite
+  grün, `collections_truncated` wäre für immer `False`.
+
+  Der erste Anlauf mit `verify=False` allein war halb — ohne Probe gibt
+  `update` den Knoten von *vor* dem Schreiben zurück. Beide Tests wurden rot
+  mit `[]`, und erst das Ausführen zeigte es.
+
+  **Die Begründung für COR-9 überzeichnete.** „Aus 0 Bytes wird keine Größe bei
+  `cclom:size`" kann in der Form, die edu-sharing sendet (`["0"]`), nicht
+  eintreten — dort griff schon der Listenzweig. Der Grund bleibt, aber er ist
+  ein anderer: das Sicherheitsnetz hatte eine andere Regel als die, die
+  `flows/serialize.py` für dieselbe Frage aufschreibt.
+
+  **Einem Befund halb widersprochen.** „`content.hash` gibt es nicht" stimmt
+  für ein Attribut von `NodeContent`, aber die Schreibweise bezeichnet an vier
+  weiteren Stellen das Antwortfeld `raw["content"]["hash"]` und ist dort die
+  Konvention des Projekts.
+
+Damit ist der Bericht abgearbeitet und zweimal nachgeprüft.
