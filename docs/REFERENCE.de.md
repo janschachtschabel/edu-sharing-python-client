@@ -1336,11 +1336,11 @@ dieser Bibliothek liest zurück und wirft ihn, statt Erfolg zu melden.
 | `details_withheld(error)` | `bool` — die Instanz verschweigt ihre Fehlerdetails |
 | `at_least(name, value, limit)` | die Grenzprüfung für die **stetigen** Einstellungen — Sekunden, ein Backoff-Schritt; wirft `EduSharingError` mit dem Namen der Einstellung |
 | `whole_number(name, value, limit)` | dasselbe für eine Einstellung, die **zählt** — `max_concurrency`, `max_retries`, `retries_before_switching`. Eine Bruchzahl wird abgelehnt, `2.0` eingeschlossen: `asyncio.Semaphore(1.5)` erreicht die Null nie, an der sie blockiert, die Grenze begrenzte also still nichts mehr |
-| `check_client(client, timeout=…)` | die drei Regeln für einen mitgebrachten `httpx.AsyncClient`: kein `timeout` daneben, kein `follow_redirects=True`, und keine eigenen Zugangsdaten — weder `auth=` noch eine Vorgabe-Kopfzeile über die vier hinaus, die httpx selbst setzt |
+| `check_client(client, timeout=…)` | die vier Regeln für einen mitgebrachten `httpx.AsyncClient`: kein `timeout` daneben, kein `follow_redirects=True`, keine eigenen Zugangsdaten (weder `auth=` noch eine Vorgabe-Kopfzeile über die vier hinaus, die httpx selbst setzt), und keine Cookies im Speicher |
 | `redirect_error(status, location, url, service=…, env_var=…)` | der 3xx, den alle vier Clients melden statt ihm zu folgen. Die Meldung nennt nur den Zielhost; die ganze `Location` steht als `.location` an der Ausnahme |
 | `non_json_error(status, url, body, service=…)` | ein Körper, der kein JSON ist — als `ServerError` statt als `json.JSONDecodeError` |
 
-Ein drittes geschieht mit einem mitgebrachten Client, und es ist keine Ablehnung: `Transport` schaltet seinen **Cookie-Speicher** ab, in beide Richtungen. Ein Speicher gehört dem Client, eine Anmeldung gehört der Anfrage — gemessen am 09.09.2026 ging eine Sitzung, die eine Anfrage eröffnet hatte, mit der nächsten hinaus, auch mit der ausdrücklich anonymen. Eine Sitzung, die mitgehen *soll*, kommt als `Credential` herein.
+Ein viertes geschieht mit einem mitgebrachten Client, und es ist keine Ablehnung: `Transport` schaltet seinen **Cookie-Speicher** ab, in beide Richtungen — weshalb ein Speicher, der schon *voll* ankommt, stattdessen abgelehnt wird: Abschalten leert ihn nicht, und httpx kopiert seinen Inhalt beim Bauen der Anfrage in einen neuen Speicher ohne diese Einschränkung. Ein Speicher gehört dem Client, eine Anmeldung gehört der Anfrage — gemessen am 09.09.2026 ging eine Sitzung, die eine Anfrage eröffnet hatte, mit der nächsten hinaus, auch mit der ausdrücklich anonymen. Eine Sitzung, die mitgehen *soll*, kommt als `Credential` herein.
 
 ---
 

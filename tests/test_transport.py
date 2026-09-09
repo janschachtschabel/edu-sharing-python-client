@@ -1240,3 +1240,55 @@ async def test_eine_ganzzahlige_grenze_haelt_bei_parallelen_anfragen():
             transport.request("GET", f"/node/v1/nodes/-home-/n{i}")
             for i in range(10)))
     assert hoechststand == 2
+
+
+# --- R01 (Zweitpruefung 09.09.2026): ein schon gefuellter Speicher ---------
+#
+# Die Politik aus F01 verhindert das **Speichern** neuer Cookies. Einen bereits
+# gefuellten Speicher leert sie nicht -- und httpx kopiert ihn beim Bauen der
+# Anfrage in einen neuen Speicher, der die Politik nicht mitbekommt.
+#
+# Gemessen am 09.09.2026: ``AsyncClient(cookies={"JSESSIONID": ...})`` wurde
+# angenommen, das Cookie ging an die ausdruecklich **anonyme** Anfrage und --
+# ohne Domain-Bindung -- auch an ``cdn.example.test``.
+#
+# Dieselbe Entscheidung wie bei F02: ablehnen, nicht filtern. Pro Anfrage am
+# gemeinsamen Speicher zu loeschen waere unter Parallelitaet keine Loesung.
+
+
+@pytest.mark.parametrize("cookies", [
+    {"JSESSIONID": "preexisting-dummy"},
+    [("JSESSIONID", "preexisting-dummy")],
+])
+def test_ein_client_mit_vorhandenen_cookies_wird_abgelehnt(cookies):
+    with pytest.raises(EduSharingError) as fehler:
+        Transport(REPO, client=httpx.AsyncClient(cookies=cookies))
+    assert "cookie" in str(fehler.value).lower()
+
+
+def test_die_meldung_nennt_den_wert_des_cookies_nicht():
+    """Ein Sitzungscookie ist ein Geheimnis wie ein Passwort."""
+    with pytest.raises(EduSharingError) as fehler:
+        Transport(REPO, client=httpx.AsyncClient(
+            cookies={"JSESSIONID": "preexisting-dummy"}))
+    assert "preexisting-dummy" not in str(fehler.value)
+
+
+async def test_ein_client_mit_leerem_speicher_geht_weiterhin_durch():
+    """Die Gegenprobe. Ohne sie waere die Regel gruen, wenn sie jeden Client
+    ablehnt -- und die ganze Testsuite bringt Clients ein."""
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(_ok)) as client:
+        transport = Transport(REPO, client=client)
+        await transport.request("GET", "/node/v1/nodes/-home-/n1")
+
+
+async def test_eine_domaingebundene_sitzung_geht_ebenso_wenig_mit():
+    """Auch ein korrekt auf das Repositorium beschraenktes Cookie bleibt eine
+    fremde Anmeldung -- der Bericht misst, dass es die anonyme Anfrage
+    weiterhin traegt."""
+    speicher = httpx.Cookies()
+    speicher.set("JSESSIONID", "dummy", domain="repositorium.example.test",
+                 path="/edu-sharing")
+    with pytest.raises(EduSharingError):
+        Transport(REPO, client=httpx.AsyncClient(cookies=speicher))

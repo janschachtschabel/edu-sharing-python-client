@@ -452,7 +452,7 @@ def whole_number(name: str, value: object, limit: int) -> None:
 def check_client(client: object | None, *, timeout: float | None) -> None:
     """Refuse an injected ``httpx.AsyncClient`` that would defeat a promise.
 
-    Three rules, all measured, all easy to get wrong when a caller brings
+    Four rules, all measured, all easy to get wrong when a caller brings
     their own client. All four clients of this library ask them, so they live
     here rather than four times over.
 
@@ -483,8 +483,18 @@ def check_client(client: object | None, *, timeout: float | None) -> None:
     hold. The way out is the ``credential=``/``api_key=`` parameter each
     client already has, or headers passed per request.
 
-    Not covered: a client whose ``auth`` is set **after** it was handed over.
-    A constructor can only look at what it is given.
+    **Cookies of its own.** ``Transport`` switches the jar off so a response
+    cannot fill it, but a jar that arrives full is not emptied by that, and
+    httpx copies it into a fresh jar when it builds a request -- a copy that
+    does not carry the restricting policy. Measured 2026-09-09: a client
+    built with ``cookies={"JSESSIONID": ...}`` sent that cookie on an
+    explicitly **anonymous** repository request and, with no domain binding,
+    to ``cdn.example.test`` as well (R01). Refused rather than emptied:
+    clearing a shared jar per request leaves a window that a concurrent
+    request falls into.
+
+    Not covered: a client whose ``auth`` or cookies are set **after** it was
+    handed over. A constructor can only look at what it is given.
 
     Args:
         client: what the caller passed, or ``None``.
@@ -517,6 +527,18 @@ def check_client(client: object | None, *, timeout: float | None) -> None:
             "add the client's own to every request -- a download from an "
             "address outside the repository included. Give the credential to "
             "this library instead and leave the client's auth unset."
+        )
+    jar = getattr(client, "cookies", None)
+    if jar is not None and len(jar) > 0:
+        # The count, never the names or values: a session cookie is a secret
+        # exactly like a password.
+        raise EduSharingError(
+            f"a client that already holds {len(jar)} cookie(s) cannot be "
+            "used: this library switches the jar off so a response cannot "
+            "fill it, but what is already in there travels on every request "
+            "-- an explicitly anonymous one and a download outside the "
+            "repository included. Hand over a fresh client, or pass the "
+            "session as a credential."
         )
     # Only the names. A value here is the secret, and a message is logged.
     own = sorted(

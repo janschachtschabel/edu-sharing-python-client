@@ -355,7 +355,9 @@ die Null nie erreicht, an der sie blockieren würde;
 kein `timeout` daneben, kein `follow_redirects=True`, weil httpx eigene Kopfzeilen über
 Ursprungsgrenzen hinweg behält und ein API-Schlüssel damit mitwandert, und keine
 eigenen Zugangsdaten (`auth=` oder eine Vorgabe-Kopfzeile über httpx' vier hinaus),
-weil die an jede Adresse gehen, auch an eine ausserhalb des Repositoriums;
+weil die an jede Adresse gehen, auch an eine ausserhalb des Repositoriums, und
+keine Cookies im Speicher, weil das Abschalten ihn nicht leert und httpx seinen
+Inhalt auf jede Anfrage kopiert;
 `redirect_error(…)` und `non_json_error(…)` sind die zwei Antworten, die alle vier
 Clients auf einen 3xx und auf einen Körper ohne JSON geben — beide innerhalb von
 `EduSharingError`, damit nichts aus der Standardbibliothek dem Vertrag entkommt;
