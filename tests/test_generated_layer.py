@@ -18,6 +18,7 @@ davon zwei Erfolge. Ein Satz, der eine Pruefung beruhigt, statt sie zu
 leiten -- also zaehlt ihn hier eine Wache nach.
 """
 
+import ast
 import json
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
@@ -163,3 +164,94 @@ def test_die_fehlerzweige_lesen_weiterhin_json():
     gelesen = get_jwt._parse_response(client=lose, response=antwort)
     assert gelesen is not None
     assert getattr(gelesen, "message", None) == "weg"
+
+
+# --- R10 (Zweitpruefung 09.09.2026): Punktsegmente im generierten Client ---
+#
+# Die Komfortschicht weist ``.`` und ``..`` seit F07 zurueck. Die generierte
+# tut es nicht: sie baut ihre Pfade mit ``quote(str(x), safe="")``, und der
+# Wert bleibt stehen, bis httpx die Adresse normalisiert.
+#
+# Es gibt keine Stelle, an der diese Bibliothek das abfangen koennte --
+# gemessen importiert **kein** handgeschriebenes Modul ``_generated``. Sie
+# umhuellt diese Schicht nicht und erreicht sie nicht. Bliebe eine eigene
+# Generatorvorlage: 160 Zeilen Jinja, von denen eine zu aendern waere, um
+# eine Schicht abzusichern, die diese Bibliothek selbst nicht benutzt.
+#
+# Solange das nicht entschieden ist, ist der Zustand hier **gemessen
+# festgehalten** statt unausgesprochen: eine bekannte Eigenschaft mit
+# Besitzer, keine Ueberraschung.
+
+
+@pytest.mark.parametrize("punkt,erreicht", [
+    (".", "/rest/node/v1/nodes/-home-"),
+    ("..", "/rest/node/v1/nodes"),
+])
+def test_der_generierte_endpunkt_nimmt_punktsegmente_weiterhin(punkt, erreicht):
+    from edusharing._generated.api.node_v_1 import delete
+
+    kwargs = delete._get_kwargs(repository="-home-", node=punkt)
+    with httpx.Client(base_url="https://repo.test/edu-sharing/rest") as c:
+        angefragt = c.build_request(**kwargs)
+    assert angefragt.url.path == f"/edu-sharing{erreicht}"
+
+
+@pytest.mark.parametrize("punkt", [".", ".."])
+def test_die_komfortschicht_weist_dieselben_werte_ab(punkt):
+    """Die andere Haelfte der Aussage. Ohne sie stuende hier nur ein Mangel;
+    mit ihr steht da, wo die Grenze verlaeuft."""
+    from edusharing.errors import EduSharingError
+    from edusharing.urls import path_segment
+
+    with pytest.raises(EduSharingError):
+        path_segment(punkt)
+
+
+#: Der Satz, den beide Sprachfassungen bei ``path_segment`` tragen muessen.
+#: Nicht irgendein Vorkommen der Woerter -- die Aussage selbst.
+GRENZE_GESAGT = {
+    "docs/REFERENCE.md":
+        "The generated layer builds its own paths and does not have this check.",
+    "docs/REFERENCE.de.md":
+        "Die generierte Schicht baut ihre Pfade selbst und hat diese Prüfung\nnicht.",
+}
+
+
+@pytest.mark.parametrize("rel", sorted(GRENZE_GESAGT))
+def test_die_grenze_steht_in_der_dokumentation(rel):
+    """Eine gemessene Grenze, die niemand aufschreibt, ist ein Fehler mit
+    Aufschub.
+
+    Der erste Anlauf dieses Tests pruefte, ob die Woerter "generated layer"
+    und "path_segment" irgendwo in der Datei stehen -- das taten sie schon
+    vorher, an anderer Stelle. Eine Wache, die den Satz nicht kennt, den sie
+    schuetzt, ist gruen aus dem falschen Grund.
+    """
+    text = (WURZEL / rel).read_text(encoding="utf-8")
+    assert GRENZE_GESAGT[rel] in text, rel
+
+
+def test_kein_handgeschriebenes_modul_haengt_an_der_generierten_schicht():
+    """Warum es keine kleine Stelle fuer diese Pruefung gibt -- und zugleich
+    die Zusage, dass die generierte Schicht optional bleibt.
+
+    Faellt dieser Test, gibt es plötzlich eine Grenze: dann gehoert die
+    Pruefung dorthin.
+    """
+    quelle = WURZEL / "src" / "edusharing"
+    haengt = []
+    for pfad in sorted(quelle.rglob("*.py")):
+        if "_generated" in pfad.parts:
+            continue
+        baum = ast.parse(pfad.read_text(encoding="utf-8"))
+        for knoten in ast.walk(baum):
+            namen: list[str] = []
+            if isinstance(knoten, ast.Import):
+                namen = [a.name for a in knoten.names]
+            elif isinstance(knoten, ast.ImportFrom):
+                namen = [knoten.module or ""]
+                namen += ["." * knoten.level + (knoten.module or "")]
+            if any("_generated" in n for n in namen):
+                haengt.append(pfad.relative_to(quelle).as_posix())
+                break
+    assert haengt == [], haengt
