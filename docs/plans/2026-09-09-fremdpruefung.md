@@ -86,45 +86,52 @@ Exit-Code. Dazu zwei, die dieser Runde eigen sind:
 
 ## A · Identität und Rechte
 
-- [ ] **1 · F01** Der Cookie-Speicher trägt keine Identität mehr über
-      Anfragen. Der `Transport` baut seine Anfragen künftig ausdrücklich und
-      entfernt den `Cookie`-Header, den httpx aus früheren Antworten ergänzt
-      hat — für den selbst erzeugten wie für den eingebrachten Client, denn nur
-      dann gilt die Zusage auch für den Fall, für den `credential=` gedacht ist.
+- [x] **1 · F01** Der Cookie-Speicher trägt keine Identität mehr über
+      Anfragen hinweg. **Umgesetzt anders als hier geplant:** statt den
+      `Cookie`-Header je Anfrage zu entfernen, bekommt der Speicher eine
+      Politik, die ihn gar nicht erst füllt — beide Richtungen zu, kein
+      Fenster, in das eine gleichzeitige Anfrage fällt. Für den selbst
+      erzeugten wie für den eingebrachten Client, denn nur dann gilt die Zusage
+      auch für den Fall, für den `credential=` gedacht ist.
       Eine Sitzung, die mitgehen *soll*, geht als `Credential` mit; dieser
       Erweiterungspunkt bleibt und wird dokumentiert.
       **Wache:** Alice → anonym → Bob, nacheinander *und* gleichzeitig; keine
       Anfrage trägt eine fremde Sitzung. **Mutation:** das Entfernen
       herausnehmen, Test muss rot werden.
+      Commit `3875df1`.
 
-- [ ] **2 · F02** Zugangsdaten eines eingebrachten Clients verlassen die
+- [x] **2 · F02** Zugangsdaten eines eingebrachten Clients verlassen die
       Repositoriumsgrenze nicht. `check_client()` lehnt einen Client ab, der
       `auth=` oder einen Zugangs-Header als Vorgabe trägt, und sagt warum.
       Vollständig aufzählen lassen sich fremde Header **nicht** — darum ist die
       Ablehnung die Grenze und nicht ein Filter, der so tut als ob. Die
-      Einschränkung gehört in REFERENCE und in die Docstring von
-      `is_repository_url`, deren Auskunft dadurch erst wieder wahr wird.
+      Einschränkung steht in REFERENCE, in beiden Skill-Fassungen und in der
+      Docstring von `check_client`; die Auskunft von `is_repository_url` wird
+      dadurch erst wieder wahr.
       **Wache:** externer Download bekommt weder Standard-Header noch
       `client.auth` noch Sitzungscookie. **Mutation:** je Regel eine.
+      Commit `1dc4b95`.
 
-- [ ] **3 · F03** `unpublish()` fragt die richtige Frage. Der Konfliktschutz
+- [x] **3 · F03** `unpublish()` fragt die richtige Frage. Der Konfliktschutz
       prüft heute, ob ein *eigener* Eintrag existiert; er muss prüfen, ob der
       Knoten **danach noch öffentlich** ist. Damit fallen die drei Fälle —
       nur eigen, nur geerbt, beides — von selbst auseinander, und der gemischte
       hört auf, durch die Lücke zwischen zweien zu fallen.
       **Wache:** je ein Test für die drei Fälle; ein erfolgreicher Rückzug lässt
       keine wirksame öffentliche Lesbarkeit zurück.
+      Commit `8679e3d`.
 
-- [ ] **4 · F04** Ein `revoke()` glaubt seinem eigenen Rücklesen. Das Ergebnis
+- [x] **4 · F04** Ein `revoke()` glaubt seinem eigenen Rücklesen. Das Ergebnis
       von `_write()` wird gegen die Absicht verglichen wie in `grant()`; bei
       Abweichung `SilentDropError`. Zu vergleichen sind drei Dinge, nicht eins:
       das entzogene Recht, die zu behaltenden Einträge und der Vererbungszustand
       — ein Server, der die halbe ACL übernimmt, ist der interessantere Fall.
       **Wache:** vollständig ignorierte und teilweise übernommene Änderung.
+      Commit `3379ab6`.
 
 ## B · Vollständigkeit über die Schichten
 
-- [ ] **5 · F08** `search_in_collection()` meldet auch die materialseitige
+- [x] **5 · F08** `search_in_collection()` meldet auch die materialseitige
       Kürzung. Je Sammlung sagt `total_materials > returned_materials`, dass
       nicht alles bewertet wurde; das gehört in `truncated`. Weil `truncated`
       damit vier Ursachen bekommt, kommt der **Grund** dazu — der Bericht
@@ -132,47 +139,53 @@ Exit-Code. Dazu zwei, die dieser Runde eigen sind:
       **Wache:** der Fall des Berichts (zwei Materialien, Treffer an zweiter
       Stelle, `limit=1`) findet den Treffer oder meldet `truncated=True` —
       **und derselbe Fall ohne vom Server genannte Gesamtzahl**.
+      Commit `cb6cb47`.
 
-- [ ] **6 · §5.2** `collection_stats()` zählt nicht die gekürzte Kinderliste.
+- [x] **6 · §5.2** `collection_stats()` zählt nicht die gekürzte Kinderliste.
       `collections` stammt aus `len(page["collections"])`, obwohl daneben
       `total_collections` und `collections_truncated` liegen. Gemessen: sieben
       Untersammlungen, `sample=3`, gemeldet werden drei.
       **Wache:** die gemeldete Zahl ist die genannte Gesamtzahl, und die
       Unvollständigkeit steht daneben.
+      Commit `ea800e5`.
 
-- [ ] **7 · F09** Eine unvollständig gelesene Variantenliste erzeugt keine
+- [x] **7 · F09** Eine unvollständig gelesene Variantenliste erzeugt keine
       scheinbar gesicherte Ersatzvariante. Heute wird bei mehr als 50 Varianten
       `rendered_id` geleert und auf die erste geladene zurückgefallen — „nicht
       konfiguriert" und „nicht geladen" sehen gleich aus. Die beiden Zustände
       werden getrennt; eine gekürzte Liste sagt es, statt zu raten.
       **Wache:** 51 Varianten, `default="v50"`; und `choose()` weist eine
       existierende, nur nicht geladene Variante nicht mehr als unbekannt ab.
+      Commit `2e14d1d`.
 
 ## C · Robustheit
 
-- [ ] **8 · F05** Die Kodierung wird genau einmal verarbeitet. Wird aus
+- [x] **8 · F05** Die Kodierung wird genau einmal verarbeitet. Wird aus
       entpacktem Inhalt eine neue Antwort gebaut, dürfen `Content-Encoding` und
       `Content-Length` nicht die der komprimierten sein.
       **Wache:** derselbe Text als unkomprimiert und als gzip, je mit und ohne
       Grenze — vier Fälle, ein Ergebnis. **Und die Gegenprobe bleibt stehen:**
       ein entpackt zu großer Inhalt wird weiterhin abgelehnt.
+      Commit `013ebe1`.
 
-- [ ] **9 · F07** `path_segment()` weist `.` und `..` zurück. `quote(safe="")`
+- [x] **9 · F07** `path_segment()` weist `.` und `..` zurück. `quote(safe="")`
       kodiert alles, was Pfadgrenzen verschieben *kann* — außer den beiden
       Werten, die selbst welche sind. Gemessen verliert `.` ein Segment und
       `..` zwei. Der generierte Client hat dieselbe Stelle; **von Hand wird dort
       nichts geändert**, das gehört zu Schritt 14.
       **Wache:** beide Werte vor jedem Netzaufruf abgelehnt; zulässige
       Sonderzeichen weiterhin korrekt kodiert.
+      Commit `33c29bd`.
 
-- [ ] **10 · F11** `TextExtraction` schließt nur, was sie selbst erzeugt hat.
+- [x] **10 · F11** `TextExtraction` schließt nur, was sie selbst erzeugt hat.
       `Transport` merkt sich das Eigentum seit jeher (`_owns_client`) —
       gegengemessen, dort bleibt ein eingebrachter Client offen. Dieselbe Zeile,
       dasselbe Muster.
       **Wache:** eingebrachter Client übersteht `aclose()` und den
       Kontextmanager; selbst erzeugter wird weiterhin geschlossen.
+      Commit `9502344`.
 
-- [ ] **11 · F14** Ganzzahlige Steuerparameter werden als solche geprüft.
+- [x] **11 · F14** Ganzzahlige Steuerparameter werden als solche geprüft.
       `at_least()` prüft Zahl, Endlichkeit und Untergrenze — für Sekunden
       richtig, für eine Semaphore nicht: `asyncio.Semaphore(1.5)` erreicht die
       Null nie, an der sie blockieren würde. Gemessen: zehn gleichzeitige
@@ -181,16 +194,18 @@ Exit-Code. Dazu zwei, die dieser Runde eigen sind:
       `retries_before_switching`, in allen drei Clients.
       **Wache:** `1.5`, `"2"` und `inf` werden abgelehnt; eine gültige Grenze
       hält bei parallelen Anfragen.
+      Commit `26f37a2`.
 
-- [ ] **12 · F06** Die Fehlermeldung von `check_url()` maskiert das eingebettete
+- [x] **12 · F06** Die Fehlermeldung von `check_url()` maskiert das eingebettete
       Passwort. `mask_userinfo()` gibt es seit SEC-1 und steht zwei Module
       weiter; `refuse_userinfo()` benutzt es bereits. Eine Zeile.
       **Wache:** weder die Ausnahme noch ein daraus gebautes Agentenergebnis
       gibt den Dummy-Wert wieder.
+      Commit `c9856ab`.
 
 ## D · Parser und Fehlerverträge
 
-- [ ] **13 · F12** Markdown-Grenzen und Überschriften nach den Regeln, die ein
+- [x] **13 · F12** Markdown-Grenzen und Überschriften nach den Regeln, die ein
       Renderer anwendet. Zwei getrennte Ursachen: `_FENCE` behält die
       Öffnungslänge nicht (ein Dreifach-Fence schließt einen Vierfach-Block, und
       der Rest des Beispiels zerfällt in Stücke — gemessen an
@@ -200,25 +215,28 @@ Exit-Code. Dazu zwei, die dieser Runde eigen sind:
       **Wache:** drei bis fünf Backticks und Tilden, verschachtelte
       Beispiel-Fences, ungeschlossene Blöcke; `C#`, `F#`, gesetzte
       Abschlussmarkierungen.
+      Commit `b0395d8`.
 
-- [ ] **14 · F13** Eine Fehlerantwort, die kein JSON-Objekt ist, bleibt im
+- [x] **14 · F13** Eine Fehlerantwort, die kein JSON-Objekt ist, bleibt im
       Vertrag. `response.json()` gelingt auch für `['slow down']`, und `.get()`
       darauf ist ein `AttributeError` statt eines `RateLimitedError` — gemessen
       über `_error()` und über `chat()`. Erst die Form prüfen, sonst der
       Textrückfall; Status und `Retry-After` hängen ohnehin nicht am Format.
       **Wache:** Objekt, Liste, String, `null`, kaputtes JSON, HTML — sechs
       Formen, je die passende Ausnahme. Die Objektform bleibt gebunden.
+      Commit `403496c`.
 
-- [ ] **15 · F10** *(nur nach Entscheidung, siehe unten)* Die
+- [x] **15 · F10** *(nur nach Entscheidung, siehe unten)* Die
       URL-Normalisierung wird komponentenweise. Schema und Host bleiben
       groß-/kleinschreibungsblind, Pfad und Query behalten ihre Bedeutung.
       Betroffen: der Modul-Docstring, die Testdatei und
       `test_nur_die_gleiche_adresse_zaehlt`, dessen Beispiel `URL.upper()` dann
       keine Dublette mehr ist.
+      Commit `f019741`.
 
 ## E · Generierte Schicht und dauerhafte Absicherung
 
-- [ ] **16 · F15** Die beiden dokumentierten Erfolgsantworten werden übernommen.
+- [x] **16 · F15** Die beiden dokumentierten Erfolgsantworten werden übernommen.
       Nicht von Hand in generierten Dateien: die Spezifikation wird im
       Erzeugungsweg normalisiert, wie `strip_path_param_defaults()` es schon
       tut — `application/text` ist kein gültiger MIME-Typ und meint `text/plain`,
@@ -228,16 +246,19 @@ Exit-Code. Dazu zwei, die dieser Runde eigen sind:
       **Wache:** beide Antworten im normalen *und* im strengen Modus; und eine
       Wache, die die Zahl der nicht übernommenen Antworten an der Spec
       auszählt — so altert der Satz in der Doku nicht ein zweites Mal.
+      Commit `52434b9`.
 
-- [ ] **17 · §5.4** Zwei Gates in die CI, die diese Runde gebraucht hätte:
+- [x] **17 · §5.4** Zwei Gates in die CI, die diese Runde gebraucht hätte:
       Bau plus Installation aus dem Wheel, und eine Neugenerierung mit sauberem
       Diff. Beides lief in der Prüfung erfolgreich — als Gate hätte es F15
       früher gezeigt.
+      Commit `4297a16`.
 
-- [ ] **18 · §5.3** Der unterstützte Kontext für `--output` steht in
+- [x] **18 · §5.3** Der unterstützte Kontext für `--output` steht in
       ARCHITECTURE, nicht nur als Kommentar im Skript. Gemessen (und im Skript
       bereits notiert): außerhalb des Projektlayouts erzeugt derselbe Generator
       aus derselben Spec 556 andere Dateien.
+      Commit `4923587`.
 
 ## Zu entscheiden, bevor es losgeht
 
@@ -266,3 +287,56 @@ auch nicht. Die Rechtefälle aus A gehören nach dem Fix **auf Staging gemessen*
 — Sitzungsvorrang, Vererbung, still verworfene Änderungen — im eigenen
 Wegwerf-Ordner wie die übrigen Schreibtests. Vorher ist die ACL-Korrektur an
 einem Modell belegt, nicht an einem Server.
+
+## Ergebnis
+
+Achtzehn Schritte, achtzehn Commits, `3875df1` bis `4923587`, dazu der Plan
+selbst als `133301b`. Vor jedem Commit ruff, `mypy --strict` und die ganze
+Suite mit direkt gelesenem Exit-Code.
+
+Die Suite ist von **2069** auf **2171** Tests gewachsen. Die entscheidende
+Messung ist aber die andere: die 31 Nachstellungen aus
+`scratchpad/nachstellung_pruefbericht.py` behaupten jede *einen Defekt*.
+Gegen den reparierten Baum laufen **22 davon rot** — genau die
+Defektbehauptungen — und **9 bleiben grün**: das sind die Gegenproben, die
+grün bleiben müssen (`grant` bemerkt die stille Verwerfung; die Größengrenze
+greift weiter; `mask_userinfo` gibt es; die untere Schicht meldet die
+Kürzung, auch ohne genannte Gesamtzahl; `Transport` lässt einen fremden
+Client offen; die Objektform wird weiter ausgelesen; eine ganze Zahl
+begrenzt; `at_least` ist unverändert).
+
+### Fünf Korrekturen an mir selbst, alle durch Mutation gefunden
+
+1. **F01, Parallel-Wache.** Grün ohne zu prüfen: der Cookie-Speicher war noch
+   leer, als alle acht Anfragen gebaut wurden. Eine Anfrage vorweg, dann biss
+   sie.
+2. **F05, Fehlerantwort.** Mein Test behauptete, ein HTML-Fehlerkörper stehe
+   in der Meldung. Das sagt diese Bibliothek nicht zu — `_parse_body` liest
+   JSON. Mit gepacktem JSON-Körper geprüft.
+3. **F05, angekündigte Länge.** Mutiert, grün geblieben: `b"y" * 4000` packt
+   sich auf 30 Bytes, die Grenze wurde nie berührt. Mit unkomprimierbaren
+   Daten (gepackt 1023, entpackt 1000, Grenze 1010) mutiert, rot.
+4. **F13, falscher Prüfort.** `chat()` wickelt seine Fehler in die
+   Modellumschaltung; die Klasse ist dort nicht mehr sichtbar. Die Wachen
+   laufen über `models()`.
+5. **F15, ein Fehler gegen einen anderen getauscht.** Alles auf `text/plain`
+   abzubilden gab den Fehlerzweigen des JWT-Endpunkts
+   `ErrorResponse.from_dict(response.text)` — gemessen `ValueError`, wo vorher
+   `None` kam. Jetzt entscheidet das Schema.
+
+### Was offen bleibt
+
+**Die Live-Verifikation.** Die Rechtefälle aus A sind an einem Modell belegt,
+nicht an einem Server: Sitzungsvorrang, Vererbung und still verworfene
+Änderungen gehören auf Staging gemessen, im eigenen Wegwerf-Ordner wie die
+übrigen Schreibtests. Bis dahin ist der ACL-Teil geprüft, aber nicht bestätigt.
+
+**§5.1 und §6** sind weiterhin nicht Teil dieser Runde: konkurrierende
+Änderungen und die zehn Funktionsvorschläge sind Bau, nicht Reparatur.
+
+### Zwei Entscheidungen, so getroffen wie empfohlen
+
+**F10** ändert eine dokumentierte Zusage (`/A` ist keine Dublette von `/a`
+mehr) und gehört in die Release-Notiz. **F02** lehnt credentialbehaftete
+eingebrachte Clients ab, statt zu filtern — ein Filter müsste fremde
+Header-Namen aufzählen und wäre eine Grenze, die er nicht hält.
