@@ -544,9 +544,16 @@ child = await node.children.add(pdf_bytes, filename="loesung.pdf",
 await child.delete()                          # an ordinary node from here on
 ```
 
-`add()` is **two requests**: create the child, then upload the bytes. If the
-upload fails the child is removed again — a node without content shows up in
-every listing and downloads as nothing.
+`add()` writes in **two steps**: create the child, then upload the bytes. If
+the upload fails the child is removed again — a node without content shows up
+in every listing and downloads as nothing.
+
+Leaving out `order` costs a read before that. The next free position is how
+many children the node has, and that number is read from a one-record page;
+passing `order=` counts nothing at all. Where the repository states no total,
+the children are counted from a full page instead — unfiltered, which is what
+a total counts too — and if there are at least `LIST_MAX` of them the position
+cannot be determined: `add()` refuses and names `order=` as the way through.
 
 > **The combination that creates one cannot be guessed.** Measured on
 > 2026-08-27: `type=ccm:io_childobject` answers HTTP 500 (no such type),

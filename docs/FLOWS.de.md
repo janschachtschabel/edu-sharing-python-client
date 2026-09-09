@@ -558,9 +558,17 @@ kind = await node.children.add(pdf_bytes, filename="loesung.pdf",
 await kind.delete()                           # ab hier ein gewöhnlicher Knoten
 ```
 
-`add()` sind **zwei Anfragen**: das Kind anlegen, dann die Bytes hochladen.
-Schlägt der Upload fehl, wird das Kind wieder entfernt — ein Knoten ohne Inhalt
-steht in jeder Liste und lädt nichts herunter.
+`add()` schreibt in **zwei Schritten**: das Kind anlegen, dann die Bytes
+hochladen. Schlägt der Upload fehl, wird das Kind wieder entfernt — ein Knoten
+ohne Inhalt steht in jeder Liste und lädt nichts herunter.
+
+Ohne `order` kostet das vorher eine Lesung. Die nächste freie Position ist die
+Zahl der Kinder, und die steht auf einer Seite mit einem Datensatz; mit
+`order=` wird gar nicht gezählt. Nennt das Repositorium keine Gesamtzahl,
+werden die Kinder stattdessen von einer vollen Seite gezählt — ungefiltert,
+so wie eine Gesamtzahl auch zählt —, und sind es mindestens `LIST_MAX`, ist die
+Position nicht bestimmbar: `add()` verweigert und nennt `order=` als den Weg
+hindurch.
 
 > **Die nötige Kombination ist nicht zu erraten.** Gemessen am 27.08.2026:
 > `type=ccm:io_childobject` antwortet mit HTTP 500 (den Typ gibt es nicht),
