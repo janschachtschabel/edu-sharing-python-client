@@ -114,13 +114,17 @@ def test_der_waechter_findet_einen_verstoss():
 #: implizit schon, ``Nodes`` baute an vier Stellen selbst ``Node(data, self)``.
 #:
 #: Was hier steht, ist eine bewusste Ausnahme mit Begruendung, kein Rueckstand.
+#: Der Schluessel nennt auch die **Funktion**: die Begruendung gilt fuer eine
+#: Stelle, und ohne den Namen erlaubte der Eintrag jeden Rumpfimport dieses
+#: Moduls irgendwo in dieser Datei -- nachgewiesen an ``Skills._summary``
+#: (Pruefung 09.09.2026).
 ERLAUBT = {
     # ``skills_registry`` braucht ``skills`` fuer die Konventionen, und
     # ``Skills.registry`` braucht ``load_registry``. Den Rumpf zu verschieben
     # und zurueckzuexportieren -- der Vorschlag des Berichts -- taeuschte den
     # Zyklus nur an eine andere Stelle: die beiden Module bleiben zwei Haelften
     # einer Sache, und ein Import im Rumpf sagt das ehrlicher als ein Re-Export.
-    ("skills.py", "skills_registry"),
+    ("skills.py", "registry", "skills_registry"),
 }
 
 
@@ -151,7 +155,7 @@ def test_kein_modul_importiert_im_funktionsrumpf():
     verstoesse = [
         f"{datei}:{zeile} in {funktion}() -- from {modul}"
         for datei, zeile, funktion, modul in _rumpfimporte()
-        if (datei, modul) not in ERLAUBT
+        if (datei, funktion, modul) not in ERLAUBT
     ]
     assert not verstoesse, (
         "Import im Funktionsrumpf -- entweder aufloesen oder in ERLAUBT "
@@ -161,6 +165,6 @@ def test_kein_modul_importiert_im_funktionsrumpf():
 def test_die_ausnahmen_gibt_es_noch():
     """Eine Ausnahme fuer etwas, das es nicht mehr gibt, ist eine Karteileiche
     -- und die naechste Person haelt sie fuer eine Regel."""
-    tatsaechlich = {(d, m) for d, _, _, m in _rumpfimporte()}
+    tatsaechlich = {(d, f, m) for d, _, f, m in _rumpfimporte()}
     verwaist = sorted(ERLAUBT - tatsaechlich)
     assert not verwaist, f"in ERLAUBT, aber nicht mehr im Code: {verwaist}"

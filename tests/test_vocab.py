@@ -381,10 +381,6 @@ async def test_ein_laufender_abruf_fuellt_den_geleerten_cache_nicht_wieder():
     haelt = asyncio.Event()
     laeuft = asyncio.Event()
 
-    def handler(request: httpx.Request) -> httpx.Response:
-        laeuft.set()
-        return httpx.Response(200, json=FAECHER)
-
     async def langsam(request):
         laeuft.set()
         await haelt.wait()

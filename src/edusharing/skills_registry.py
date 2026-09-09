@@ -25,7 +25,6 @@ from typing import TYPE_CHECKING, Any
 from .content import MAX_TEXT_BYTES, decode_text
 from .dto import first, node_id_of, page_total, title_of
 from .errors import ContentTooLargeError, NotFoundError, PermissionDeniedError
-from .nodes import Node
 from .skills import WLO_SKILLS, SkillConventions, registry_mark
 from .skills_markdown import (
     RegistryContext,
@@ -250,7 +249,7 @@ async def _document_of(
     what a download needs is the record read again. A candidate without a
     file is unreadable, not an error.
     """
-    record = Node(chosen, repo.nodes)
+    record = repo.nodes.wrap(chosen)
     try:
         if "content" not in chosen or not record.content.download_url:
             record = await repo.node(registry_id)

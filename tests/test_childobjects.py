@@ -348,22 +348,6 @@ async def test_genau_am_deckel_ist_kein_fehler():
         assert len(await node.children.list()) == 200
 
 
-async def test_ohne_gesamtzahl_wird_nicht_geworfen():
-    """``pagination`` fehlt bei manchen Antworten ganz. Eine Auflistung an
-    einer nicht gemachten Angabe scheitern zu lassen waere schlechter als sie
-    auszuliefern -- die Wache gilt dem, was der Server *sagt*."""
-    class OhneZaehlung(Instanz):
-        def __call__(self, request):
-            if request.method == "GET" and request.url.path.endswith("/children"):
-                self.anfragen.append(request)
-                return httpx.Response(200, json={"nodes": self.kinder})
-            return super().__call__(request)
-
-    async with _repo(OhneZaehlung(kinder=[_kind("a", "a.txt", "0")])) as repo:
-        node = await repo.node(HAUPT)
-        assert len(await node.children.list()) == 1
-
-
 # --- Die Zaehlung beim Anhaengen ------------------------------------------
 
 async def test_anlegen_holt_nicht_die_ganze_liste():
@@ -457,15 +441,13 @@ async def test_eine_volle_seite_ohne_gesamtzahl_gilt_als_verdaechtig():
 
 
 async def test_eine_halbe_seite_ohne_gesamtzahl_ist_unverdaechtig():
-    """Gegenprobe: weniger als der Deckel *kann* nicht gekuerzt sein."""
-    class HalbOhneZaehlung(Instanz):
-        def __call__(self, request):
-            if request.method == "GET" and request.url.path.endswith("/children"):
-                self.anfragen.append(request)
-                return httpx.Response(200, json={"nodes": self.kinder})
-            return super().__call__(request)
+    """Gegenprobe: weniger als der Deckel *kann* nicht gekuerzt sein.
 
-    async with _repo(HalbOhneZaehlung(kinder=[_kind("a", "a.txt", "0")])) as repo:
+    ``pagination`` fehlt bei manchen Antworten ganz, und eine Auflistung an
+    einer nicht gemachten Angabe scheitern zu lassen waere schlechter, als
+    sie auszuliefern -- die Wache gilt dem, was der Server *sagt*.
+    """
+    async with _repo(OhneZaehlung(kinder=[_kind("a", "a.txt", "0")])) as repo:
         node = await repo.node(HAUPT)
         assert len(await node.children.list()) == 1
 
