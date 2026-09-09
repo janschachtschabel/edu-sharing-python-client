@@ -92,6 +92,21 @@ class OhneLoeschen(Instanz):
         return super().__call__(request)
 
 
+class OhneZaehlung(Instanz):
+    """Wie ``Instanz``, schickt aber kein ``pagination`` mit.
+
+    Diesen Server gibt es: ``list()`` traegt ihm ausdruecklich Rechnung,
+    und ``dto.page_total`` nennt ``ngsearch`` mit ``pagination: null``.
+    Drei Tests brauchen ihn und trugen ihn dreimal (Pruefung 09.09.2026).
+    """
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        if request.method == "GET" and request.url.path.endswith("/children"):
+            self.anfragen.append(request)
+            return httpx.Response(200, json={"nodes": self.kinder})
+        return super().__call__(request)
+
+
 def _repo(instanz) -> AsyncRepository:
     return AsyncRepository(
         REPO, backoff_base=0.0,
@@ -398,13 +413,6 @@ async def test_ohne_gesamtzahl_zaehlt_das_anlegen_trotzdem_richtig():
     Zaehlt niemand, wird gezaehlt wie vorher -- eine volle Auflistung ist
     teurer als eine Seite, aber eine falsche Position kostet die Reihenfolge.
     """
-    class OhneZaehlung(Instanz):
-        def __call__(self, request):
-            if request.method == "GET" and request.url.path.endswith("/children"):
-                self.anfragen.append(request)
-                return httpx.Response(200, json={"nodes": self.kinder})
-            return super().__call__(request)
-
     instanz = OhneZaehlung(kinder=[_kind("a", "a.txt", "0"),
                                    _kind("b", "b.txt", "1")])
     async with _repo(instanz) as repo:
@@ -425,15 +433,8 @@ async def test_eine_volle_seite_ohne_gesamtzahl_gilt_als_verdaechtig():
     abgelehnt; das ist sichtbar und behebbar. Eine still gekuerzte
     Anhangsliste ist es nicht.
     """
-    class VollOhneZaehlung(Instanz):
-        def __call__(self, request):
-            if request.method == "GET" and request.url.path.endswith("/children"):
-                self.anfragen.append(request)
-                return httpx.Response(200, json={"nodes": self.kinder})
-            return super().__call__(request)
-
-    voll = VollOhneZaehlung(kinder=[_kind(f"k{i}", f"{i}.txt", str(i))
-                                    for i in range(200)])
+    voll = OhneZaehlung(kinder=[_kind(f"k{i}", f"{i}.txt", str(i))
+                                for i in range(200)])
     async with _repo(voll) as repo:
         node = await repo.node(HAUPT)
         with pytest.raises(EduSharingError, match="200"):
@@ -450,16 +451,6 @@ async def test_eine_halbe_seite_ohne_gesamtzahl_ist_unverdaechtig():
     async with _repo(OhneZaehlung(kinder=[_kind("a", "a.txt", "0")])) as repo:
         node = await repo.node(HAUPT)
         assert len(await node.children.list()) == 1
-
-
-class OhneZaehlung(Instanz):
-    """Eine Instanz, die kein ``pagination`` mitschickt."""
-
-    def __call__(self, request):
-        if request.method == "GET" and request.url.path.endswith("/children"):
-            self.anfragen.append(request)
-            return httpx.Response(200, json={"nodes": self.kinder})
-        return super().__call__(request)
 
 
 async def test_der_rueckfall_zaehlt_dasselbe_wie_die_gesamtzahl():
