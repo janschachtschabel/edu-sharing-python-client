@@ -921,3 +921,62 @@ async def test_umgebende_leerzeichen_bleiben_stehen(repo, knoten):
     assert gelesen == [" Rand "], (
         f"die Instanz veraendert den Wert: {gelesen!r} -- dann ist der exakte "
         "Vergleich zu streng (Audit COR-7)")
+
+
+async def test_eine_gekuerzte_untersammlungsliste_meldet_sich_auch_live(repo, sammlung):
+    """``collections_truncated`` gegen die Instanz, nicht gegen eine Attrappe.
+
+    Drei Untersammlungen, zweimal gefragt: bei ``limit=2`` muss gekuerzt
+    gemeldet werden und duerfen nur zwei herauskommen, bei ``limit=3`` nicht --
+    sonst waere das Kennzeichen entweder blind oder immer wahr.
+
+    **Was er nicht zeigt, und das ist gemessen:** den zusaetzlichen Datensatz
+    aus ``maxItems=limit + 1``. Ihn zu entfernen laesst diesen Test gruen
+    (Live-Mutation 09.09.2026) -- diese Instanz nennt eine richtige
+    Gesamtzahl, und die traegt die Antwort hier allein. Der zusaetzliche
+    Datensatz ist gegen Antworten da, die keine oder eine zu kleine Zahl
+    nennen, und die kann kein Live-Test gegen einen ehrlichen Server
+    herstellen. Was gegen ihn zu zeigen ist, zeigt der Test darunter: dass
+    ``maxItems`` ueberhaupt mehr bringt, wenn man mehr verlangt.
+    """
+    unter = [await repo.create_collection(f"Unter {i}", parent=sammlung.id)
+             for i in range(3)]
+    try:
+        gekuerzt = await repo.flows.collection_contents(sammlung.id, limit=2)
+        ganz = await repo.flows.collection_contents(sammlung.id, limit=3)
+    finally:
+        await _wegwerfen(*unter)
+
+    assert gekuerzt["returned_collections"] == 2, "ausgeliefert wird das Limit"
+    assert len(gekuerzt["collections"]) == 2, "der eine mehr geht nicht raus"
+    assert gekuerzt["collections_truncated"] is True
+
+    assert ganz["returned_collections"] == 3
+    assert ganz["collections_truncated"] is False, (
+        "drei von dreien sind alle -- ein Kennzeichen, das immer wahr ist, "
+        "sagt so wenig wie eines, das immer falsch ist")
+
+
+async def test_der_endpunkt_liefert_so_viele_wie_verlangt(repo, sammlung):
+    """Die Annahme, auf der der ganze Deckel-Zug ruht.
+
+    ``page_cut`` fragt ``limit + 1`` an und liest die Antwort daran, ob der
+    eine zusaetzliche Datensatz ankommt. Das setzt voraus, dass der Endpunkt
+    ``maxItems`` **beachtet** und nicht bei einer eigenen Zahl deckelt.
+
+    Gemessen am 09.09.2026 an einem Wegwerf-Ordner mit 205 Kindern
+    (``maxItems=201`` -> 201 Datensaetze) und an einer Wegwerf-Sammlung mit
+    sechs Untersammlungen. Eine Messung, die niemand wiederholt, verfaellt --
+    darum steht sie hier als Wache: deckelt die Instanz eines Tages doch, wird
+    sie rot, und der Zug ist sichtbar auf Sand gebaut.
+    """
+    for i in range(3):
+        await repo.create_collection(f"Unter {i}", parent=sammlung.id)
+    geliefert = {}
+    for gefragt in (1, 2, 3, 4):
+        antwort = await repo.raw.json(
+            "GET",
+            f"/collection/v1/collections/-home-/{sammlung.id}/children/collections",
+            params={"maxItems": gefragt})
+        geliefert[gefragt] = len(antwort.get("collections") or [])
+    assert geliefert == {1: 1, 2: 2, 3: 3, 4: 3}, geliefert
