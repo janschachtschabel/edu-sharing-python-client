@@ -129,24 +129,39 @@ class ChildObjects:
         the existing ones*, not *without gaps*. A skipped number costs nothing;
         two attachments on one position cost the order.
 
-        And when nobody counts, the count happens as it used to. Not every
-        response carries a ``pagination`` -- ``list()`` allows for that
-        explicitly -- and the missing total read as **zero**, which put every
-        attachment on position 0 and had them all competing for it (review
-        2026-09-08). A full listing costs more than a page; a wrong position
-        costs the order.
+        Not every response carries a ``pagination``, which ``list()`` allows
+        for explicitly. The missing total first read as **zero**, putting
+        every attachment on position 0 (review 2026-09-08); the fallback then
+        counted through ``list()``, which filters on the aspect and therefore
+        answered a *different* number than the total does -- small enough to
+        hit a position already taken (review 2026-09-09). Counted here is the
+        second page's records, unfiltered, which is what a total counts too.
         """
-        response = await self._nodes.transport.json(
-            "GET",
-            f"/node/v1/nodes/-home-/{path_segment(self._node.id)}/children",
-            # No ``propertyFilter``: one record is fetched for its total, and
-            # none of its properties are read.
-            params={"maxItems": 1},
-        )
-        # -1 rather than 0 as the fallback: a stated ``0`` is an answer -- the
-        # node has no children yet -- and must not trigger the full listing.
-        gesagt = page_total(response, default=-1)
-        return gesagt if gesagt >= 0 else len(await self.list())
+        async def seite(max_items: int) -> dict[str, Any]:
+            return await self._nodes.transport.json(  # type: ignore[no-any-return]
+                "GET",
+                f"/node/v1/nodes/-home-/{path_segment(self._node.id)}/children",
+                # No ``propertyFilter``: records are fetched to be counted,
+                # and none of their properties are read.
+                params={"maxItems": max_items},
+            )
+
+        # One record for its total -- the ordinary case, and the cheap one.
+        # ``-1`` rather than ``0`` for "not stated": a stated ``0`` is an
+        # answer, the node has no children yet.
+        gesagt = page_total(await seite(1), default=-1)
+        if gesagt >= 0:
+            return gesagt
+
+        roh = len((await seite(LIST_MAX)).get("nodes") or [])
+        if roh >= LIST_MAX:
+            raise EduSharingError(
+                f"This node has at least {LIST_MAX} children and named no "
+                f"total, so the next free position cannot be determined. "
+                f"Pass ``order=`` to say where this attachment goes.",
+                url=render_url(self._nodes.repository_url, self._node.id),
+            )
+        return roh
 
     async def add(
         self,

@@ -468,3 +468,84 @@ async def test_eine_halbe_seite_ohne_gesamtzahl_ist_unverdaechtig():
     async with _repo(HalbOhneZaehlung(kinder=[_kind("a", "a.txt", "0")])) as repo:
         node = await repo.node(HAUPT)
         assert len(await node.children.list()) == 1
+
+
+class OhneZaehlung(Instanz):
+    """Eine Instanz, die kein ``pagination`` mitschickt."""
+
+    def __call__(self, request):
+        if request.method == "GET" and request.url.path.endswith("/children"):
+            self.anfragen.append(request)
+            return httpx.Response(200, json={"nodes": self.kinder})
+        return super().__call__(request)
+
+
+async def test_der_rueckfall_zaehlt_dasselbe_wie_die_gesamtzahl():
+    """Beide Wege von ``_count`` muessen dieselbe Zahl liefern.
+
+    ``pagination.total`` zaehlt **jedes** Kind, Versionen eingeschlossen; der
+    Rueckfall zaehlte ueber ``list()`` und damit nur die mit dem Aspekt. Fuer
+    denselben Knoten kamen so verschiedene Zahlen heraus -- und die kleinere
+    traf eine belegte Position (Pruefung 09.09.2026).
+
+    Nachgestellt mit einem Anhang auf Position **1** und einer Version ohne
+    Aspekt: mit Gesamtzahl wird 2 vergeben, ohne sie war es 1 -- genau die
+    Kollision, gegen die diese Zaehlung existiert.
+    """
+    bestand = [_kind("a", "a.txt", "1"), _kind("v", "alt.txt", None, serie=False)]
+    positionen = []
+    for klasse in (Instanz, OhneZaehlung):
+        instanz = klasse(kinder=list(bestand))
+        async with _repo(instanz) as repo:
+            node = await repo.node(HAUPT)
+            await node.children.add(b"x", filename="neu.txt", mimetype="text/plain")
+        angelegt = next(r for r in instanz.anfragen if r.method == "POST"
+                        and r.url.path.rstrip("/").endswith("/children"))
+        positionen.append(json.loads(angelegt.content)["ccm:childobject_order"])
+
+    mit, ohne = positionen
+    assert mit == ohne == ["2"], f"mit Gesamtzahl {mit}, ohne {ohne}"
+
+
+async def test_ohne_gesamtzahl_und_voll_wird_das_anlegen_erklaert_verweigert():
+    """Sind es so viele wie der Deckel und nennt niemand eine Zahl, ist die
+    naechste Position nicht bestimmbar.
+
+    Verweigert wird mit dem Ausweg, der hier hilft -- ``order=`` mitgeben --,
+    nicht mit dem Rat zum *Lesen*, den die Auflistung gibt. Vorher kam genau
+    dieser durch, weil ``_count`` auf ``list()`` zurueckfiel (Pruefung
+    09.09.2026).
+    """
+    voll = OhneZaehlung(kinder=[_kind(f"k{i}", f"{i}.txt", str(i))
+                                for i in range(200)])
+    async with _repo(voll) as repo:
+        node = await repo.node(HAUPT)
+        with pytest.raises(EduSharingError, match="order"):
+            await node.children.add(b"x", filename="neu.txt", mimetype="text/plain")
+
+
+async def test_mit_eigener_position_wird_gar_nicht_gezaehlt():
+    """Und der genannte Ausweg funktioniert auch dort, wo sonst verweigert
+    wuerde -- sonst waere die Meldung ein leeres Versprechen."""
+    voll = OhneZaehlung(kinder=[_kind(f"k{i}", f"{i}.txt", str(i))
+                                for i in range(200)])
+    async with _repo(voll) as repo:
+        node = await repo.node(HAUPT)
+        await node.children.add(b"x", filename="neu.txt", mimetype="text/plain",
+                                order=500)
+    gezaehlt = [r for r in voll.anfragen
+                if r.method == "GET" and r.url.path.endswith("/children")]
+    assert not gezaehlt, "mit eigener Position gibt es nichts zu zaehlen"
+
+
+async def test_die_gesamtzahl_kostet_weiterhin_einen_datensatz():
+    """Gegenprobe zur Optimierung aus MNT-4: der Normalfall darf nicht wieder
+    die ganze Liste holen."""
+    instanz = Instanz(kinder=[_kind("a", "a.txt", "0")])
+    async with _repo(instanz) as repo:
+        node = await repo.node(HAUPT)
+        await node.children.add(b"x", filename="b.txt", mimetype="text/plain")
+    gezaehlt = [r for r in instanz.anfragen
+                if r.method == "GET" and r.url.path.endswith("/children")]
+    assert [r.url.params.get("maxItems") for r in gezaehlt] == ["1"], (
+        [str(r.url) for r in gezaehlt])
