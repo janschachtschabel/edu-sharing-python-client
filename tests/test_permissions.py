@@ -307,6 +307,49 @@ async def test_unpublish_meldet_wenn_die_vererbung_oeffentlich_haelt():
     assert "geerbt" in str(fehler.value).lower() or "inherit" in str(fehler.value).lower()
 
 
+# --- F03/F04 (Fremdpruefung 09.09.2026) ------------------------------------
+
+async def test_unpublish_meldet_auch_wenn_es_beides_gibt():
+    """Der Fall, durch den der Konfliktschutz fiel: **eigenes und geerbtes**
+    Recht zugleich.
+
+    Geprueft wurde, ob es einen eigenen Eintrag gibt -- den gibt es hier, also
+    griff der Schutz nicht, das eigene Recht wurde entfernt und ``unpublish()``
+    meldete ``True``. Gemessen war der Knoten danach weiter oeffentlich. Die
+    Frage ist nicht, woher das Recht kommt, sondern ob der Knoten es hinterher
+    noch hat.
+    """
+    instanz = Instanz(
+        own=[_ace("alice", "Coordinator"), _ace(EVERYONE, CONSUMER, typ="EVERYONE")],
+        inherited=[_ace("ROLE_OWNER", "All", typ="OWNER"),
+                   _ace(EVERYONE, CONSUMER, typ="EVERYONE")])
+    async with instanz.repo() as repo:
+        knoten = await repo.node("n1")
+        with pytest.raises(ConflictError):
+            await knoten.permissions.unpublish()
+        assert (await knoten.permissions.get()).is_public is True
+    assert instanz.geschrieben == [], (
+        "ein Konflikt schreibt nicht halb -- sonst waere das eigene Recht weg "
+        "und der Knoten trotzdem oeffentlich")
+
+
+async def test_unpublish_ohne_vererbung_bleibt_moeglich():
+    """Die Gegenprobe: schneidet der Knoten die Vererbung ab, zaehlt das
+    geerbte Recht nicht mehr -- und der Rueckzug gelingt.
+
+    Ohne diesen Test waere die Wache gruen, wenn ``unpublish()`` jeden Knoten
+    mit einem geerbten Eintrag ablehnt.
+    """
+    instanz = Instanz(
+        inherits=False,
+        own=[_ace(EVERYONE, CONSUMER, typ="EVERYONE")],
+        inherited=[_ace(EVERYONE, CONSUMER, typ="EVERYONE")])
+    async with instanz.repo() as repo:
+        knoten = await repo.node("n1")
+        assert await knoten.permissions.unpublish() is True
+        assert (await knoten.permissions.get()).is_public is False
+
+
 # --- Formen ---------------------------------------------------------------
 
 def test_ace_leitet_den_typ_aus_dem_namen_ab():

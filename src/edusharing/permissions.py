@@ -338,18 +338,30 @@ class NodePermissions:
             ``True`` when the entry was removed, ``False`` when there was none.
 
         Raises:
-            ConflictError: when the node stays public because its parent is.
-                Measured: emptying the local ACL changes nothing in that case.
-                Reporting success would claim a privacy the node does not have;
-                cutting the inheritance instead would remove every grant from
-                above, which is a decision for the caller.
+            ConflictError: when the node would stay public afterwards because
+                its parent is public too. Measured: emptying the local ACL
+                changes nothing in that case. Reporting success would claim a
+                privacy the node does not have; cutting the inheritance
+                instead would remove every grant from above, which is a
+                decision for the caller. Nothing is written when this is
+                raised -- a half-done withdrawal would leave the node without
+                its own entry and public all the same.
         """
         current = await self.get()
-        if current.allows(EVERYONE, CONSUMER) and current.find(EVERYONE) is None:
+        # Not "is there an entry of its own": a node can carry both, and that
+        # combination walked straight through the old question -- the local
+        # entry went, the inherited one kept it public, and the answer was
+        # ``True`` (F02 of the 2026-09-09 review, measured). The question is
+        # what is left afterwards. ``revoke`` below takes Consumer off the
+        # local entry for everyone, so nothing local can still grant it; what
+        # remains that could is the inherited side, and ``is_public`` on an
+        # ACL without local entries is exactly that question.
+        from_above = Permissions(current.inherits, (), current.inherited)
+        if from_above.is_public:
             raise ConflictError(
-                f"Node {self._node.id!r} is public through its parent, not "
-                "through an entry of its own -- removing a local entry would "
-                "change nothing. To make it private, cut the inheritance "
+                f"Node {self._node.id!r} would stay public: the permission "
+                "also comes from its parent, and removing a local entry does "
+                "not touch that. To make it private, cut the inheritance "
                 "(that drops every inherited grant), or unpublish the parent."
             )
         return await self.revoke(EVERYONE, CONSUMER)
