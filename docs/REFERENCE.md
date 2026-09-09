@@ -762,7 +762,7 @@ collection of sub-collections as empty.
 ```python
 tree = await repo.flows.browse_tree(collection_id, depth=2)
 tree["opened"]        # 7
-tree["truncated"]     # False    <- True means the cap or a cycle cut it short
+tree["truncated"]     # False    <- True: the cap bit, or a page held more
 
 stats = await repo.flows.collection_stats(collection_id)
 stats["materials"]    # 42

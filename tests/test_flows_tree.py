@@ -124,15 +124,23 @@ async def test_ein_kreis_laeuft_nicht_endlos():
 
 
 async def test_dieselbe_untersammlung_unter_zwei_eltern():
-    """Ein DAG, kein Kreis. Beim zweiten Mal wird nicht noch einmal geoeffnet."""
+    """Ein DAG, kein Kreis. Beim zweiten Mal wird nicht noch einmal geoeffnet.
+
+    Und das ist **keine Kuerzung**: uebersprungen wird nur, was schon im Baum
+    steht. REFERENCE nannte bis zum 09.09.2026 "die Grenze oder ein Zyklus"
+    als Ursachen von ``truncated`` -- der Zyklus war nie eine, und die
+    gekuerzte Seite fehlte. Ein Kennzeichen, das aus dem falschen Grund
+    gesetzt schiene, waere fuer den Leser schlimmer als keines.
+    """
     instanz = Instanz(baum={"wurzel": ["a", "b"], "a": ["geteilt"],
                             "b": ["geteilt"], "geteilt": []},
                       inhalt={})
     async with instanz.repo() as repo:
-        await repo.flows.browse_tree("wurzel", depth=3)
+        baum = await repo.flows.browse_tree("wurzel", depth=3)
     geoeffnet = [p for p in instanz.anfragen
                  if p.endswith("/children/collections") and "geteilt" in p]
     assert len(geoeffnet) == 1, "eine Sammlung wird einmal geoeffnet"
+    assert baum["truncated"] is False, "ein Zyklus kuerzt nichts"
 
 
 async def test_der_deckel_wird_gemeldet():
@@ -561,3 +569,17 @@ async def test_der_baum_fragt_eine_sammlung_mehr_als_der_deckel():
     async with instanz.repo() as repo:
         await repo.flows.browse_tree("wurzel", depth=1, max_collections=4)
     assert gesehen == ["5"], gesehen
+
+
+async def test_die_tiefengrenze_ist_keine_kuerzung():
+    """Die zweite Haelfte derselben Aussage.
+
+    ``depth`` sagt, wie tief gegangen wird -- wer sie setzt, hat bekommen,
+    wonach er gefragt hat. ``truncated`` meldet, dass etwas **fehlt**, was
+    hineingehoert haette; die zwei duerfen sich nicht vermischen.
+    """
+    instanz = Instanz(baum={"wurzel": ["a"], "a": ["b"], "b": []}, inhalt={})
+    async with instanz.repo() as repo:
+        baum = await repo.flows.browse_tree("wurzel", depth=1, max_collections=50)
+    assert baum["opened"] == 1
+    assert baum["truncated"] is False, "die gefragte Tiefe ist keine Kuerzung"

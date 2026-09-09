@@ -777,7 +777,7 @@ eine Sammlung aus Untersammlungen leer aussehen.
 ```python
 tree = await repo.flows.browse_tree(collection_id, depth=2)
 tree["opened"]        # 7
-tree["truncated"]     # False    <- True heißt: Grenze oder Zyklus haben gekürzt
+tree["truncated"]     # False    <- True: der Deckel griff, oder eine Seite hielt mehr
 
 stats = await repo.flows.collection_stats(collection_id)
 stats["materials"]    # 42
