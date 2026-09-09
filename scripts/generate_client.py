@@ -75,6 +75,60 @@ def strip_path_param_defaults(spec: dict) -> int:
     return n
 
 
+#: Inhaltstypen, die in der Spec stehen und aus denen der Generator nichts
+#: machen kann. ``application/text`` ist kein gueltiger MIME-Typ, ``*/*`` ist
+#: ein Platzhalter und kein Typ. Der Generator laesst beide schweigend fallen.
+#:
+#: Gemessen am 09.09.2026: sieben Antworten, davon zwei **Erfolgsantworten**
+#: -- ``GET .../permissions/jwt`` und ``GET /ltiplatform/v13/content`` hatten
+#: damit gar keinen 200-Zweig, lieferten ``parsed=None`` und warfen mit
+#: ``raise_on_unexpected_status=True`` einen ``UnexpectedStatus`` fuer Status
+#: 200 (Fremdpruefung F15).
+UNBRAUCHBARE_TYPEN = ("application/text", "*/*")
+
+
+def _zielart(schema: dict) -> str:
+    """Welchen Typ der Generator lesen soll -- entschieden am **Schema**.
+
+    Der deklarierte Inhaltstyp ist an diesen Stellen erfunden; das Schema
+    daneben ist es nicht. ``{"type": "string"}`` ist Text, ein ``$ref`` auf
+    ``ErrorResponse`` ist ein JSON-Objekt.
+
+    Blind auf ``text/plain`` abzubilden war der erste Anlauf und tauschte
+    einen Fehler gegen einen anderen: die 400er bis 500er des JWT-Endpunkts
+    bekamen ``ErrorResponse.from_dict(response.text)`` und brachen gemessen
+    mit ``ValueError: dictionary update sequence element #0 has length 1`` ab,
+    wo sie vorher ``None`` gaben.
+    """
+    return "text/plain" if schema.get("type") == "string" else "application/json"
+
+
+def normalise_content_types(spec: dict) -> int:
+    """Ersetze unbrauchbare Antwort-Inhaltstypen. Gibt die Anzahl zurueck.
+
+    Normalisiert wird die **Spec** im Erzeugungsweg, nicht die erzeugte
+    Datei: an generierten Dateien wird nichts von Hand geaendert.
+    """
+    n = 0
+    for item in spec.get("paths", {}).values():
+        for method, op in item.items():
+            if method not in METHODS:
+                continue
+            for antwort in (op.get("responses") or {}).values():
+                content = antwort.get("content")
+                if not content:
+                    continue
+                for alt in UNBRAUCHBARE_TYPEN:
+                    if alt not in content:
+                        continue
+                    ziel = _zielart(content[alt].get("schema") or {})
+                    if ziel in content:
+                        continue
+                    content[ziel] = content.pop(alt)
+                    n += 1
+    return n
+
+
 def generator_version() -> str:
     """Welche Fassung des Generators uv.lock festhaelt."""
     lock = tomllib.loads((ROOT / "uv.lock").read_text(encoding="utf-8"))
@@ -151,6 +205,9 @@ def main() -> int:
 
     n = strip_path_param_defaults(spec)
     print(f"Pfad-Parameter-Defaults entfernt: {n}")
+
+    m = normalise_content_types(spec)
+    print(f"Antwort-Inhaltstypen normalisiert: {m}")
 
     tmp = args.output.parent / "_spec-normalisiert.json"
     tmp.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")

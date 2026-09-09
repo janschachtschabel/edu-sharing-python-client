@@ -126,9 +126,26 @@ Both the check and the repair live in `scripts/generate_client.py`. The script
 exits with code 1 if even one file fails to parse; the syntax check is part of
 generating, not optional.
 
-> The only remaining warning: one `500` response is declared in the spec as
-> `application/text` (not a valid MIME type) and is skipped. It affects the
-> error case of a single endpoint.
+> **Content types the spec invents.** Counted against the reference spec on
+> 2026-09-09: **seven** responses declare a type the generator cannot use --
+> `application/text` (not a valid MIME type) six times on
+> `GET .../permissions/jwt`, and `*/*` (a placeholder, not a type) once on
+> `GET /ltiplatform/v13/content`. Two of the seven are **success**
+> responses, and until then this page said "the only remaining warning: one
+> `500`" — a sentence that calmed a review instead of guiding it. Both
+> endpoints therefore had no `200` branch at all: `parsed=None`, and
+> `UnexpectedStatus` for status 200 under `raise_on_unexpected_status`
+> (external review F15).
+>
+> `normalise_content_types` in `scripts/generate_client.py` replaces them
+> before generating, deciding by the **schema** beside them and not by the
+> invented type: `{"type": "string"}` becomes `text/plain`, a `$ref` becomes
+> `application/json`. Mapping all of them to text was the first attempt and
+> traded one defect for another — the JWT endpoint's error branches then read
+> `ErrorResponse.from_dict(response.text)` and raised `ValueError` where they
+> used to return `None`. The spec is normalised, never the generated file.
+> `tests/test_generated_layer.py` counts what is left, so the number in this
+> paragraph cannot age unnoticed.
 
 ### What E1 costs, and how it is contained
 

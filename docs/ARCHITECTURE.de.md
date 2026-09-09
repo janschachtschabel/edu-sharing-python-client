@@ -140,9 +140,27 @@ Prüfung und Reparatur stehen beide in `scripts/generate_client.py`. Das Skript
 endet mit Code 1, wenn auch nur eine Datei nicht parst; die Syntaxprüfung
 gehört zum Erzeugen, sie ist nicht optional.
 
-> Die einzige verbleibende Warnung: eine `500`-Antwort ist in der Spezifikation
-> als `application/text` deklariert (kein gültiger MIME-Typ) und wird
-> übersprungen. Betroffen ist der Fehlerfall eines einzelnen Endpunkts.
+> **Inhaltstypen, die die Spec erfindet.** Am 09.09.2026 gegen die
+> Referenzspezifikation ausgezählt: **sieben** Antworten deklarieren einen Typ,
+> mit dem der Generator nichts anfangen kann — sechsmal `application/text`
+> (kein gültiger MIME-Typ) an `GET .../permissions/jwt` und einmal `*/*` (ein
+> Platzhalter, kein Typ) an `GET /ltiplatform/v13/content`. Zwei der sieben
+> sind **Erfolgsantworten**, und bis dahin stand hier „die einzige verbleibende
+> Warnung: eine `500`" — ein Satz, der eine Prüfung beruhigt, statt sie zu
+> leiten. Beide Endpunkte hatten deshalb gar keinen `200`-Zweig: `parsed=None`,
+> und mit `raise_on_unexpected_status` ein `UnexpectedStatus` für Status 200
+> (Fremdprüfung F15).
+>
+> `normalise_content_types` in `scripts/generate_client.py` ersetzt sie vor dem
+> Erzeugen und entscheidet dabei am **Schema** daneben, nicht am erfundenen
+> Typ: `{"type": "string"}` wird `text/plain`, ein `$ref` wird
+> `application/json`. Alle auf Text abzubilden war der erste Anlauf und
+> tauschte einen Fehler gegen einen anderen — die Fehlerzweige des
+> JWT-Endpunkts lasen dann `ErrorResponse.from_dict(response.text)` und
+> brachen mit `ValueError` ab, wo sie vorher `None` gaben. Normalisiert wird
+> die Spec, nie die erzeugte Datei. `tests/test_generated_layer.py` zählt
+> nach, was übrig ist, damit die Zahl in diesem Absatz nicht unbemerkt
+> altert.
 
 ### Was E1 kostet und wie es eingehegt wird
 

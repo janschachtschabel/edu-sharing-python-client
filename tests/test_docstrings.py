@@ -200,6 +200,12 @@ VERWEIS_ERLAUBT = {
     # Kein Verweis, sondern Markdown: ``_so_`` steht dort fuer Kursivschrift,
     # und der Satz handelt gerade davon, dass sie escaped werden muss.
     ("test_skills_markdown.py", "_so_"),
+    # ``_parse_response`` gibt es -- in jeder der 389 erzeugten
+    # Endpunktdateien. Die Wache sucht Namen, die *diese* Datei bindet, und
+    # der Test erreicht die Funktion ueber ein Modulattribut
+    # (``endpunkt._parse_response``). Ein echter Verweis, nur nicht auf einen
+    # Namen dieses Moduls.
+    ("test_generated_layer.py", "_parse_response"),
 }
 
 #: Die Wurzeln, in denen ein Name stehen darf.
