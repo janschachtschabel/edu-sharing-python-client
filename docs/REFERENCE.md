@@ -1310,7 +1310,8 @@ rather than reporting success.
 |---|---|
 | `error_from_response(status, url, body)` | picks the class for a status code |
 | `details_withheld(error)` | `bool` — the instance hides its error details |
-| `at_least(name, value, limit)` | the bounds check the clients apply to their settings; raises `EduSharingError` naming the setting |
+| `at_least(name, value, limit)` | the bounds check for the **continuous** settings — seconds, a backoff base; raises `EduSharingError` naming the setting |
+| `whole_number(name, value, limit)` | the same for a setting that **counts** — `max_concurrency`, `max_retries`, `retries_before_switching`. A fraction is refused, `2.0` included: `asyncio.Semaphore(1.5)` never reaches the zero at which it blocks, so the limit silently stopped limiting |
 | `check_client(client, timeout=…)` | the three rules for an injected `httpx.AsyncClient`: no `timeout` beside it, no `follow_redirects=True`, and no credentials of its own — `auth=` or any default header beyond the four httpx sets itself |
 | `redirect_error(status, location, url, service=…, env_var=…)` | the 3xx all four clients report instead of following. The message names the target host only; the whole `Location` is on the exception as `.location` |
 | `non_json_error(status, url, body, service=…)` | a body that does not parse as JSON, as `ServerError` rather than `json.JSONDecodeError` |

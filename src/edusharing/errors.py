@@ -21,6 +21,7 @@ from urllib.parse import urlsplit
 
 __all__ = [
     "at_least",
+    "whole_number",
     "check_client",
     "non_json_error",
     "redirect_error",
@@ -415,6 +416,37 @@ def non_json_error(status: int, url: str, body: str, *, service: str) -> ServerE
 #: preference.
 _HTTPX_OWN_HEADERS = frozenset(
     {"accept", "accept-encoding", "connection", "user-agent"})
+
+
+def whole_number(name: str, value: object, limit: int) -> None:
+    """Reject a counting parameter that is not a whole number.
+
+    ``at_least`` guards the continuous settings -- seconds, a backoff base --
+    where a fraction means something. For a count it means nothing, and one
+    slips past quietly: ``asyncio.Semaphore(1.5)`` counts down 1.5, 0.5,
+    -0.5 and never reaches the zero at which it would block. Measured
+    2026-09-09, a ``Transport`` with ``max_concurrency=1.5`` ran all ten
+    concurrent requests at once, where ``2`` ran two (F14). Nothing raised,
+    nothing logged -- the limit was simply not a limit.
+
+    ``2.0`` is refused too, although it is a whole value. A setting read from
+    JSON or a config file arrives as a float exactly like ``1.5`` does, and a
+    rule with an exception is a rule people get wrong. ``bool`` is an ``int``
+    in Python and is refused here as in ``at_least``: ``max_retries=True`` is
+    a typo, not a budget of one.
+
+    Raises:
+        EduSharingError: for anything that is not an ``int``, and for an int
+            below ``limit``.
+    """
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise EduSharingError(
+            f"{name}={value!r} is not a whole number. This setting counts "
+            f"something, so it takes a whole number of at least {limit} -- a "
+            "fraction cannot be counted down to and would leave the limit "
+            "without effect."
+        )
+    at_least(name, value, limit)
 
 
 def check_client(client: object | None, *, timeout: float | None) -> None:

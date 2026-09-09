@@ -22,7 +22,7 @@ from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from random import random
 
-from .errors import at_least
+from .errors import at_least, whole_number
 
 __all__ = ["DEFAULT_MAX_RETRY_AFTER", "RETRYABLE_STATUS", "RetryPolicy",
            "parse_retry_after"]
@@ -81,7 +81,7 @@ class RetryPolicy:
     max_retry_after: float = DEFAULT_MAX_RETRY_AFTER
 
     def __post_init__(self) -> None:
-        at_least("max_retries", self.max_retries, 0)
+        whole_number("max_retries", self.max_retries, 0)
         at_least("backoff_base", self.backoff_base, 0)
         at_least("max_retry_after", self.max_retry_after, 0)
 

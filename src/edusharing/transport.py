@@ -44,6 +44,7 @@ from .errors import (
     error_from_response,
     non_json_error,
     redirect_error,
+    whole_number,
 )
 from .retry import RetryPolicy, parse_retry_after
 from .urls import normalize_repository_url, rest_base
@@ -260,7 +261,7 @@ class Transport:
         if timeout is None:
             timeout = DEFAULT_TIMEOUT
         at_least("timeout", timeout, 0.001)
-        at_least("max_concurrency", max_concurrency, 1)
+        whole_number("max_concurrency", max_concurrency, 1)
         # Budget and waiting live in one policy the three clients share --
         # it checks its own bounds (audit ARC-2).
         self._retry = RetryPolicy(max_retries=max_retries, backoff_base=backoff_base)

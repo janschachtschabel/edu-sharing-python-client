@@ -44,6 +44,7 @@ from ..errors import (
     error_class_for,
     non_json_error,
     redirect_error,
+    whole_number,
 )
 from ..retry import RETRYABLE_STATUS, RetryPolicy, parse_retry_after
 from ..urls import path_segment, refuse_userinfo
@@ -161,9 +162,9 @@ class BildungsAPI:
         # Budget and waiting live in the policy the three clients share; it
         # checks its own bounds (audit ARC-2).
         self._retry = RetryPolicy(max_retries=max_retries, backoff_base=backoff_base)
-        at_least("max_concurrency", max_concurrency, 1)
+        whole_number("max_concurrency", max_concurrency, 1)
         at_least("models_cache_seconds", models_cache_seconds, 0)
-        at_least("retries_before_switching", retries_before_switching, 0)
+        whole_number("retries_before_switching", retries_before_switching, 0)
         self._api_key = api_key
         refuse_userinfo(
             base_url,

@@ -346,7 +346,11 @@ selbst; aus der genannten Gesamtzahl allein gelesen hiess sie genau dort
 "vollständig", wo das Repositorium nichts sagte — also dort, wo die Frage am
 meisten wog.
 
-`at_least(name, value, limit)` ist die Grenzprüfung, die die Clients auf ihre Einstellungen anwenden;
+`at_least(name, value, limit)` ist die Grenzprüfung für die **stetigen**
+Einstellungen der Clients und `whole_number(name, value, limit)` die für die
+**zählenden** (`max_concurrency`, `max_retries`, `retries_before_switching`) —
+dort wird eine Bruchzahl abgelehnt, weil eine Semaphore, die 1.5 herunterzählt,
+die Null nie erreicht, an der sie blockieren würde;
 `check_client(client, timeout=…)` trägt die drei Regeln für einen mitgebrachten Client —
 kein `timeout` daneben, kein `follow_redirects=True`, weil httpx eigene Kopfzeilen über
 Ursprungsgrenzen hinweg behält und ein API-Schlüssel damit mitwandert, und keine

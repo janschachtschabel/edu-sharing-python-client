@@ -1188,3 +1188,55 @@ async def test_eine_gepackte_fehlerantwort_bleibt_lesbar():
             await t.download("/skill.md", max_bytes=1000)
     assert "kaputt" in str(fehler.value)
     assert "DAOException" in str(fehler.value)
+
+
+# --- F14 (Fremdpruefung 09.09.2026): eine Grenze, die nicht begrenzt -------
+#
+# ``at_least`` prueft Zahl, Endlichkeit und Untergrenze. Fuer Sekunden ist das
+# richtig; fuer eine Semaphore nicht. ``asyncio.Semaphore(1.5)`` zaehlt 1.5,
+# 0.5, -0.5 und erreicht die Null nie, an der sie blockieren wuerde.
+#
+# Gemessen am 09.09.2026: ein Transport mit ``max_concurrency=1.5`` liess zehn
+# gleichzeitig gestartete Anfragen alle zugleich laufen.
+
+
+@pytest.mark.parametrize("wert", [1.5, 2.0, "2", None])
+def test_eine_gebrochene_parallelitaetsgrenze_wird_abgelehnt(wert):
+    """``2.0`` ist dabei: es *ist* ganzzahlig, aber es ist keine ganze Zahl,
+    und eine Konfiguration, die aus JSON kommt, liefert genau solche Werte.
+    Die Regel bleibt einfacher, wenn sie keine Ausnahme hat."""
+    with pytest.raises(EduSharingError):
+        Transport(REPO, max_concurrency=wert)
+
+
+@pytest.mark.parametrize("wert", [1.5, "3"])
+def test_eine_gebrochene_wiederholungszahl_ebenso(wert):
+    with pytest.raises(EduSharingError):
+        Transport(REPO, max_retries=wert)
+
+
+def test_die_stetigen_groessen_duerfen_weiterhin_bruchzahlen_sein():
+    """Die Gegenprobe. Sekunden sind keine Anzahl -- eine Regel, die
+    ``timeout=0.5`` ablehnt, waere die falsche Regel am falschen Parameter."""
+    t = Transport(REPO, timeout=0.5, backoff_base=0.25)
+    assert t.backoff_base == 0.25
+
+
+async def test_eine_ganzzahlige_grenze_haelt_bei_parallelen_anfragen():
+    """Und das Verhalten selbst, nicht nur die Ablehnung."""
+    gleichzeitig = 0
+    hoechststand = 0
+
+    async def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal gleichzeitig, hoechststand
+        gleichzeitig += 1
+        hoechststand = max(hoechststand, gleichzeitig)
+        await asyncio.sleep(0.01)
+        gleichzeitig -= 1
+        return httpx.Response(200, json={})
+
+    async with _transport(handler, max_concurrency=2) as transport:
+        await asyncio.gather(*(
+            transport.request("GET", f"/node/v1/nodes/-home-/n{i}")
+            for i in range(10)))
+    assert hoechststand == 2

@@ -330,7 +330,11 @@ of them?"*. Ask the endpoint for `limit + 1` and the page answers for itself;
 reading the stated total alone said "complete" exactly where the repository
 stated nothing, which is where the question mattered most.
 
-`at_least(name, value, limit)` is the bounds check the clients apply to their settings;
+`at_least(name, value, limit)` is the bounds check for the clients' **continuous**
+settings and `whole_number(name, value, limit)` the one for those that **count**
+(`max_concurrency`, `max_retries`, `retries_before_switching`) -- a fraction is
+refused there, because a semaphore counting 1.5 never reaches the zero at which
+it would block;
 `check_client(client, timeout=…)` holds the three rules for a client the caller brings
 along -- no `timeout` beside it, no `follow_redirects=True`, because httpx keeps
 custom headers across a cross-origin redirect and an API key would travel with them,
