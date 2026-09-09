@@ -350,6 +350,72 @@ async def test_unpublish_ohne_vererbung_bleibt_moeglich():
         assert (await knoten.permissions.get()).is_public is False
 
 
+async def test_revoke_glaubt_seinem_eigenen_ruecklesen_nicht_blind():
+    """F04: der Server bestaetigt mit 200 und speichert nichts.
+
+    ``_write()`` liest bereits zurueck -- eine zweite Anfrage, bezahlt und
+    weggeworfen. ``grant()`` vergleicht dieses Ergebnis seit jeher und meldet
+    ``SilentDropError``; ``revoke()`` gab ``True`` zurueck, ohne hinzusehen.
+    """
+    instanz = Instanz(own=[_ace("alice", "Coordinator")], taub=True)
+    async with instanz.repo() as repo:
+        knoten = await repo.node("n1")
+        with pytest.raises(SilentDropError):
+            await knoten.permissions.revoke("alice", "Coordinator")
+
+
+async def test_revoke_bemerkt_auch_eine_halb_uebernommene_aenderung():
+    """Der interessantere Fall: der Server nimmt einen Teil und laesst den
+    Rest fallen. Ein Vergleich, der nur das entzogene Recht ansieht, waere
+    hier gruen."""
+    class Halb(Instanz):
+        def handler(self, request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("/permissions") and request.method == "POST":
+                koerper = json.loads(request.content)
+                self.geschrieben.append(koerper)
+                # Das entzogene Recht geht -- und bob geht gleich mit.
+                self.own = [a for a in koerper["permissions"]
+                            if a["authority"]["authorityName"] != "bob"]
+                return httpx.Response(200, content=b"")
+            return super().handler(request)
+
+    instanz = Halb(own=[_ace("alice", "Coordinator"), _ace("bob", "Consumer")])
+    async with instanz.repo() as repo:
+        knoten = await repo.node("n1")
+        with pytest.raises(SilentDropError) as fehler:
+            await knoten.permissions.revoke("alice", "Coordinator")
+    assert "bob" in str(fehler.value)
+
+
+async def test_revoke_meldet_wenn_die_vererbung_umgeworfen_wird():
+    """Und der dritte Teil des Zustands: ob der Knoten noch erbt."""
+    class Kippt(Instanz):
+        def handler(self, request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("/permissions") and request.method == "POST":
+                koerper = json.loads(request.content)
+                self.geschrieben.append(koerper)
+                self.own = list(koerper["permissions"])
+                self.inherits = not koerper["inherited"]
+                return httpx.Response(200, content=b"")
+            return super().handler(request)
+
+    instanz = Kippt(own=[_ace("alice", "Coordinator")])
+    async with instanz.repo() as repo:
+        knoten = await repo.node("n1")
+        with pytest.raises(SilentDropError):
+            await knoten.permissions.revoke("alice", "Coordinator")
+
+
+async def test_ein_gelungener_entzug_meldet_weiterhin_true():
+    """Die Gegenprobe zu allen dreien: ein Server, der tut was er sagt."""
+    instanz = Instanz(own=[_ace("alice", "Coordinator"), _ace("bob", "Consumer")])
+    async with instanz.repo() as repo:
+        knoten = await repo.node("n1")
+        assert await knoten.permissions.revoke("alice", "Coordinator") is True
+        danach = await knoten.permissions.get()
+    assert [a.authority for a in danach.own] == ["bob"]
+
+
 # --- Formen ---------------------------------------------------------------
 
 def test_ace_leitet_den_typ_aus_dem_namen_ab():

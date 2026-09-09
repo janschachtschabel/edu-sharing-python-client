@@ -293,6 +293,11 @@ class NodePermissions:
         Returns:
             ``True`` when something was written, ``False`` when there was
             nothing to take.
+
+        Raises:
+            SilentDropError: when the repository answered 200 and the ACL
+                that came back is not the one that was sent -- see
+                ``_not_stored``.
         """
         current = await self.get()
         existing = current.find(authority)
@@ -306,7 +311,20 @@ class NodePermissions:
 
         others = tuple(a for a in current.own if a.authority != authority)
         aces = others + ((Ace(authority, existing.authority_type, rest),) if rest else ())
-        await self._write(current.inherits, aces)
+        after = await self._write(current.inherits, aces)
+        problems = self._not_stored(
+            after, current.inherits, aces, authority, permissions)
+        if problems:
+            raise SilentDropError(
+                f"The repository reported 200 and the local ACL of node "
+                f"{self._node.id!r} did not come back as it was sent: "
+                + "; ".join(problems)
+                + ". The POST replaces the whole local list, so a write "
+                "that is accepted and not stored can take away more than "
+                "it was asked to -- and reporting success would report a "
+                "permission as withdrawn that is still in force.",
+                dropped=[authority],
+            )
         return True
 
     async def publish(self) -> bool:
@@ -370,6 +388,54 @@ class NodePermissions:
 
     def _path(self) -> str:
         return f"/node/v1/nodes/-home-/{path_segment(self._node.id)}/permissions"
+
+    def _not_stored(
+        self, after: Permissions, inherits: bool, aces: tuple[Ace, ...],
+        authority: str, permissions: tuple[str, ...],
+    ) -> list[str]:
+        """What the repository did not do, in words -- empty when it did.
+
+        ``_write`` reads the ACL back already: a second request, paid for and
+        then thrown away, because ``revoke`` returned ``True`` without looking
+        at it while ``grant`` has compared it all along (F04 of the 2026-09-09
+        review). Measured with the ACL model of the test suite: against a
+        repository that answers 200 and stores nothing, ``revoke`` reported
+        success.
+
+        Three things are compared, not one. The **withdrawn** permission is
+        the direct promise. The **kept** entries matter because the POST
+        replaces the whole local list -- an entry that does not come back is a
+        permission nobody asked to lose, and measured (2026-08-28) a ``GROUP_``
+        name with no group behind it is discarded with 200 and no error. And
+        **inheritance**, because a repository that flips it changes every grant
+        from above at once.
+
+        Lenient in the safe direction: an entry that comes back with more than
+        was sent is not a loss, and the order of the list is not compared.
+        """
+        problems: list[str] = []
+
+        stored = after.find(authority)
+        if permissions:
+            still = [p for p in permissions if stored and stored.allows(p)]
+            if still:
+                problems.append(f"{authority} still holds {', '.join(still)}")
+        elif stored is not None:
+            problems.append(f"the whole entry for {authority} is still there")
+
+        for ace in aces:
+            kept = after.find(ace.authority)
+            missing = [p for p in ace.permissions if not (kept and kept.allows(p))]
+            if missing:
+                problems.append(
+                    f"{ace.authority} lost {', '.join(missing)}, which was not "
+                    "asked for")
+
+        if after.inherits != inherits:
+            problems.append(
+                f"inheritance came back as {after.inherits} and was sent as "
+                f"{inherits}")
+        return problems
 
     async def _write(self, inherits: bool, aces: tuple[Ace, ...]) -> Permissions:
         """Send the local ACL and read it back.
