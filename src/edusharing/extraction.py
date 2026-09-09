@@ -165,6 +165,7 @@ class TextExtraction:
         self.backoff_base = self._retry.backoff_base
         self._resolve = resolve
         self._client = client or httpx.AsyncClient(timeout=timeout)
+        self._owns_client = client is None
 
     @classmethod
     def from_env(cls, **kwargs: Any) -> TextExtraction:
@@ -272,12 +273,19 @@ class TextExtraction:
         return _result(normalised, response, max_chars)
 
     async def aclose(self) -> None:
-        """Close the connection pool. ``async with`` does this itself.
+        """Close the connection pool, if it was created here.
 
-        Without it the pool towards the text extraction service stays open until the
-        interpreter ends.
+        Without it the pool towards the text extraction service stays open
+        until the interpreter ends.
+
+        An injected client is **not** closed. It belongs to whoever passed it,
+        and closing it takes the connection pool away from everything else
+        using it -- measured 2026-09-09, ``shared.is_closed`` was true after
+        this service was closed (F11). ``Transport`` and ``BildungsAPI`` have
+        kept this apart all along; this one did not.
         """
-        await self._client.aclose()
+        if self._owns_client:
+            await self._client.aclose()
 
     async def __aenter__(self) -> Self:
         return self

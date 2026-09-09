@@ -1108,7 +1108,7 @@ Model choice, when you do not pass one:
 
 | Call | Result |
 |---|---|
-| `TextExtraction(base_url=…)` | the client |
+| `TextExtraction(base_url=…)` | the client. `aclose()` closes the connection pool only when this class made it — an injected `client=` belongs to the caller and stays open, as with `Transport` and `BildungsAPI` |
 | `TextExtraction.from_env()` | needs `EDU_SHARING_TEXT_EXTRACTION_URL` |
 | `service.ping()` | `dict` — the service's own health answer |
 | `service.text_of(url, method=…, output_format=…, lang=…, max_chars=…)` | `ExtractedText` — `text`, `lang`, `status`, `char_count`, `truncated`, `reason` |

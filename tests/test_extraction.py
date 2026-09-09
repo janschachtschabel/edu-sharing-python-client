@@ -512,3 +512,46 @@ async def test_eine_gewoehnliche_adresse_geht_weiterhin_durch():
     async with client:
         ergebnis = await client.text_of("https://example.org/seite")
     assert ergebnis.text == "Volltext"
+
+
+# --- F11 (Fremdpruefung 09.09.2026): wem gehoert der Client ----------------
+#
+# ``Transport`` und ``BildungsAPI`` merken sich seit jeher, ob sie den Client
+# selbst gebaut haben, und schliessen nur dann. ``TextExtraction`` schloss
+# immer -- gemessen am 09.09.2026 war ein eingebrachter Client nach
+# ``aclose()`` geschlossen. Wer den Verbindungspool teilt, kann danach nichts
+# mehr senden, und das ausgerechnet bei Dependency Injection, dem Fall, fuer
+# den ``client=`` da ist.
+
+
+def _leerer_client() -> httpx.AsyncClient:
+    return httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda _r: httpx.Response(200, json={})))
+
+
+async def test_ein_eingebrachter_client_bleibt_offen():
+    geteilt = _leerer_client()
+    dienst = TextExtraction("https://extraktion.test", client=geteilt)
+    await dienst.aclose()
+    assert geteilt.is_closed is False
+    await geteilt.aclose()
+
+
+async def test_ein_eingebrachter_client_ueberlebt_auch_den_kontextmanager():
+    """``async with`` ruft dasselbe ``aclose`` -- der Weg, den ein Dienst mit
+    eigenem Lebenszyklus tatsaechlich nimmt."""
+    geteilt = _leerer_client()
+    async with TextExtraction("https://extraktion.test", client=geteilt):
+        pass
+    assert geteilt.is_closed is False
+    await geteilt.aclose()
+
+
+async def test_ein_selbst_gebauter_client_wird_weiterhin_geschlossen():
+    """Die Gegenprobe. Ohne sie waere die Wache gruen, wenn ``aclose()``
+    ueberhaupt nichts mehr schliesst -- und der Pool bliebe bis zum Ende des
+    Interpreters offen, was genau der Grund fuer die Methode ist."""
+    dienst = TextExtraction("https://extraktion.test")
+    async with dienst:
+        pass
+    assert dienst._client.is_closed is True

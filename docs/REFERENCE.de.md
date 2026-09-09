@@ -1130,7 +1130,7 @@ Modellwahl, wenn Sie keines übergeben:
 
 | Aufruf | Ergebnis |
 |---|---|
-| `TextExtraction(base_url=…)` | der Client |
+| `TextExtraction(base_url=…)` | der Client. `aclose()` schließt den Verbindungspool nur, wenn diese Klasse ihn gebaut hat — ein mitgebrachter `client=` gehört dem Aufrufer und bleibt offen, wie bei `Transport` und `BildungsAPI` |
 | `TextExtraction.from_env()` | braucht `EDU_SHARING_TEXT_EXTRACTION_URL` |
 | `service.ping()` | `dict` — die Gesundheitsantwort des Dienstes |
 | `service.text_of(url, method=…, output_format=…, lang=…, max_chars=…)` | `ExtractedText` — `text`, `lang`, `status`, `char_count`, `truncated`, `reason` |
