@@ -259,7 +259,7 @@ davon zutreffen:
 
 ### Die Schritte
 
-- [ ] **N1 · Der deklarierte Boden wird geprüft.** Ein Job `minimum`: Python
+- [x] **N1 · Der deklarierte Boden wird geprüft.** Commit `c2207ba`. Ein Job `minimum`: Python
       3.11 (die deklarierte Untergrenze), Projekt ohne Auflösung installieren,
       dann `httpx==0.27.0` und `attrs==23.2.0` daneben, dann die Suite.
 
@@ -270,7 +270,7 @@ davon zutreffen:
       `attrs==22.1.0` bricht die Sammlung sofort ab
       (`TypeError: field() got an unexpected keyword argument 'alias'`).
 
-- [ ] **N2 · Vier Schichten, fünf Verträge.** Eine Datei
+- [x] **N2 · Vier Schichten, fünf Verträge.** Commit `774fcb1`. Eine Datei
       `tests/test_integration_sync.py`. Abnahmekriterium der Reihe B im
       Bericht ist wörtlich: „ACL-, Referenz-, Quellen- und
       Vollständigkeitsinformationen bleiben bis zur öffentlichen Oberfläche
@@ -289,3 +289,43 @@ davon zutreffen:
       zurückgedreht, der Test muss rot werden. Ein Integrationstest, der auch
       ohne die Reparatur grün bleibt, misst nur den Durchgriff — den prüft
       `test_sync_surface.py` schon.
+
+### Ergebnis des Nachtrags
+
+Zwei Schritte, zwei Commits — `c2207ba` und `774fcb1` —, dazu der Plan als
+`61d26ab`. Vor dem Commit ruff, `mypy --strict` und die ganze Suite mit direkt
+gelesenem Exit-Code. Die Suite ist von **2221** auf **2228** Tests gewachsen.
+
+Was gemessen wurde, statt es zu glauben:
+
+- **Der Boden hält.** `httpx==0.27.0`, `attrs==23.2.0`, Python 3.11: 2221
+  passed, Exit 0 — in einer Umgebung, die mit genau der Schrittfolge gebaut
+  wurde, die der Job jetzt ausführt. Auch die Pin-Ableitung ist nicht nur
+  gelesen: der Schritt wurde aus der YAML-Datei herausgeholt und als Skript
+  ausgeführt, damit das eingebettete Here-Document den Block-Skalar wirklich
+  überlebt.
+- **Der Job kann rot werden.** `attrs==22.1.0` bricht schon beim Einsammeln ab:
+  `TypeError: field() got an unexpected keyword argument 'alias'`. Ohne diese
+  Messung wäre „grün" hier keine Aussage.
+- **Der httpx-Boden ist konservativer als nötig.** `httpx==0.26.0` besteht die
+  ganze Suite, `0.20.0` besteht `test_transport.py` und `test_repository.py`.
+  Die Bibliothek benutzt nichts, was jünger wäre. Die Deklaration bleibt
+  trotzdem bei `>=0.27`: eine gesenkte Untergrenze verspricht Unterstützung für
+  Fassungen, die kein Job prüft — das wäre dieselbe ungedeckte Zusage in die
+  andere Richtung.
+- **Alle fünf Integrationswachen sind rot unter Mutation**, jede mit der
+  zurückgedrehten Reparatur einzeln geprüft und der Baum danach unverändert.
+
+### Was der Nachtrag nicht anfasst
+
+- **Reihen C–F** aus §7 — die acht Flow-Entwürfe und der gemeinsame
+  Ablaufkern. Das ist Bau, nicht Anpassung, und gehört entschieden statt
+  nebenbei gemacht.
+- **Der CHANGELOG.** Weder die F- noch die R-Runde hat dort einen Eintrag,
+  obwohl beide das Verhalten geändert haben — `facet_meta`, `source_url`,
+  `truncated_by` sind für einen Anwender neue Zusagen. Die Plandokumente sind
+  bisher der einzige Ort, an dem das steht. Das ist ein eigener Schritt und
+  keine Anpassung aus §7, deshalb hier nur benannt.
+- **Die Live-Verifikation der Rechtefälle.** Der ACL-Durchgang oben ist an
+  einem Modell belegt, nicht an einem Server; er prüft, dass der stille Verlust
+  den blockierenden Aufrufer erreicht, nicht dass die Instanz sich so verhält.
