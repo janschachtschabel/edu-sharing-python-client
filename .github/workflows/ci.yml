@@ -184,3 +184,77 @@ jobs:
         run: |
           git --no-pager diff --stat -- src/edusharing/_generated
           git diff --exit-code -- src/edusharing/_generated
+
+  # --- Abschnitt 7 der Zweitpruefung vom 09.09.2026 -------------------------
+
+  minimum:
+    # `test` installiert `uv.lock` -- also die *obere* Kante: gemessen am
+    # 09.09.2026 attrs 26.1.0 und httpx 0.28.1. Der Boden, den `pyproject.toml`
+    # zusagt (`httpx>=0.27`, `attrs>=23.2`, `requires-python >=3.11`), lief in
+    # keinem Job. Eine Zusage, die niemand prueft, ist eine Vermutung.
+    #
+    # Heute ist dieser Job gruen -- der Boden haelt, gemessen 2221 passed. Sein
+    # Wert liegt nach vorn: der erste Aufruf, der eine neuere httpx-Fassung
+    # braucht, macht ihn rot, waehrend die Matrix weiter gruen bleibt. Dass er
+    # das ueberhaupt kann, ist nachgestellt: mit `attrs==22.1.0` bricht schon
+    # das Einsammeln ab (`field() got an unexpected keyword argument 'alias'`).
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.11"
+      - name: Install uv
+        run: pip install uv==0.12.10
+
+      # Die Pins kommen aus der Deklaration, nicht aus dieser Datei. Stuenden
+      # sie hier, pruefte dieser Job nach einem angehobenen `>=` weiter die
+      # alte Fassung -- und die neue, tatsaechlich zugesagte, keine.
+      #
+      # Eine Form, die das Muster nicht trifft (etwa `httpx>=0.27,<1.0`), laesst
+      # den Job stehen statt die Abhaengigkeit stillschweigend zu ueberspringen.
+      - name: Read the declared floors
+        run: |
+          python - > "$RUNNER_TEMP/floors.txt" <<'PY'
+          import pathlib
+          import re
+          import tomllib
+
+          deps = tomllib.loads(
+              pathlib.Path("pyproject.toml").read_text("utf-8")
+          )["project"]["dependencies"]
+          pins = []
+          for dep in deps:
+              passt = re.fullmatch(
+                  r"([A-Za-z0-9._-]+)\s*>=\s*([0-9][0-9A-Za-z.*+!-]*)", dep.strip())
+              if not passt:
+                  raise SystemExit(
+                      f"{dep!r} ist keine reine >=-Untergrenze. Dieser Job kennt "
+                      "nur die; lieber laut stehenbleiben als die Abhaengigkeit "
+                      "ungeprueft lassen.")
+              pins.append(f"{passt.group(1)}=={passt.group(2)}")
+          print(" ".join(pins))
+          PY
+          cat "$RUNNER_TEMP/floors.txt"
+
+      # Die Umgebung liegt ausserhalb des Arbeitsverzeichnisses: mehrere Tests
+      # laufen mit `rglob` ueber das Repository, und ein venv daneben waere fuer
+      # sie einfach mehr Repository.
+      #
+      # `--no-deps` fuer das Projekt, sonst loest der Aufloeser `>=` nach oben
+      # auf und installiert genau das, was dieser Job nicht meint. pytest ist
+      # nicht gepinnt: die Frage sind die Laufzeitabhaengigkeiten, nicht das
+      # Werkzeug.
+      - name: Install at the declared floor
+        run: |
+          python -m venv "$RUNNER_TEMP/floor"
+          uv pip install --python "$RUNNER_TEMP/floor/bin/python" --no-deps -e .
+          uv pip install --python "$RUNNER_TEMP/floor/bin/python" \
+            $(cat "$RUNNER_TEMP/floors.txt") "pytest>=8.0" "pytest-asyncio>=0.24"
+          "$RUNNER_TEMP/floor/bin/python" -c \
+            "import attrs, httpx; print('httpx', httpx.__version__, '| attrs', attrs.__version__)"
+
+      - name: Tests
+        run: |
+          "$RUNNER_TEMP/floor/bin/python" -m pytest -q --tb=short
