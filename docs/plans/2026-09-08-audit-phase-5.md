@@ -163,4 +163,20 @@ und die elf, die in keiner Phase standen.
   steht an **sechs** Stellen, und vom Kopfhinweis bis zum ersten Statusabsatz
   sind es 96 Zeilen — „rund hundert".
 
+- [x] **31 · Die offenen Dinge** Zwei Punkte hatte ich in Runde 30 benannt
+  und liegengelassen; beide sind zu.
+
+  **Der Ausnahmeschlüssel nennt die Stelle vollständig.** Der blanke
+  Funktionsname ließ eine gleichnamige Funktion auf Modulebene die Ausnahme
+  erben — und beide Wächter blieben dabei grün. Mit `Skills.registry` statt
+  `registry` schlagen jetzt beide an.
+
+  **Und der Deckel wird gemessen statt geraten.** Ich hatte geschrieben, ein
+  Server, der die Seitengröße als `total` meldet, sei „prinzipiell nicht
+  erkennbar". Das stimmte nicht: man kann einen Datensatz **mehr** anfordern
+  als der Deckel nimmt, und was ankommt, sagt es — ohne jede Gesamtzahl.
+  Live gemessen mit 205 Kindern in einem Wegwerf-Ordner: `maxItems=201`
+  liefert 201 Datensätze. Damit fällt auch die falsche Ablehnung bei genau
+  200 Kindern weg, die als bewusster Preis dabeistand.
+
 Damit ist der Bericht abgearbeitet und dreimal nachgeprüft.

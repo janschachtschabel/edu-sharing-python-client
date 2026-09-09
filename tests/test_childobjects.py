@@ -23,6 +23,7 @@ import httpx
 import pytest
 
 from edusharing import AsyncRepository
+from edusharing.childobjects import LIST_MAX
 from edusharing.errors import EduSharingError, ValidationError
 
 REPO = "https://repo.test/edu-sharing"
@@ -412,21 +413,50 @@ async def test_ohne_gesamtzahl_zaehlt_das_anlegen_trotzdem_richtig():
     assert json.loads(angelegt.content)["ccm:childobject_order"] == ["2"]
 
 
-async def test_eine_volle_seite_ohne_gesamtzahl_gilt_als_verdaechtig():
-    """Die Luecke, die MNT-4 offen liess (Pruefung 08.09.2026).
+async def test_genau_am_deckel_ohne_gesamtzahl_ist_vollstaendig():
+    """Genau ``LIST_MAX`` Kinder und keine genannte Zahl -- und trotzdem
+    kein Fehler.
 
-    Ohne ``pagination`` kann niemand sagen, ob die Seite alles ist -- und genau
-    ``LIST_MAX`` Datensaetze sind das Bild einer Kappung. Der seltene Fall
-    "genau 200 Kinder, Server nennt keine Zahl" wird damit faelschlich
-    abgelehnt; das ist sichtbar und behebbar. Eine still gekuerzte
-    Anhangsliste ist es nicht.
+    Bis zum 09.09.2026 wurde das faelschlich abgelehnt: eine volle Seite war
+    das Bild einer Kappung, und ohne ``pagination`` liess sich das nicht
+    unterscheiden. Die falsche Ablehnung stand als bewusster Preis dabei.
+
+    Sie war nicht noetig. Gefragt wird nach **einem Datensatz mehr** als der
+    Deckel: kommen 200, sind es 200; kaemen 201, waeren es mehr. Gemessen
+    gegen edu-sharing 11.0 mit 205 Kindern -- ``maxItems=201`` liefert 201,
+    die Instanz deckelt nicht bei 200.
     """
     voll = OhneZaehlung(kinder=[_kind(f"k{i}", f"{i}.txt", str(i))
                                 for i in range(200)])
     async with _repo(voll) as repo:
         node = await repo.node(HAUPT)
+        assert len(await node.children.list()) == 200
+
+
+async def test_einer_ueber_dem_deckel_ohne_gesamtzahl_wird_gemeldet():
+    """Die Gegenprobe, und der Grund fuer den einen Datensatz mehr: bei 201
+    ist die Seite nicht mehr alles, und das sagt sie selbst -- ohne dass
+    irgendwer eine Gesamtzahl nennen muesste."""
+    zuviel = OhneZaehlung(kinder=[_kind(f"k{i}", f"{i}.txt", str(i))
+                                  for i in range(201)])
+    async with _repo(zuviel) as repo:
+        node = await repo.node(HAUPT)
         with pytest.raises(EduSharingError, match="200"):
             await node.children.list()
+
+
+async def test_die_auflistung_fragt_einen_datensatz_mehr_als_den_deckel():
+    """Woran alles darueber haengt. Ohne den einen zusaetzlichen Datensatz
+    waere eine volle Seite wieder mehrdeutig, und die Kappungsfrage haenge
+    erneut daran, dass der Server eine Gesamtzahl nennt -- und dass sie
+    stimmt."""
+    instanz = Instanz(kinder=[_kind("a", "a.txt", "0")])
+    async with _repo(instanz) as repo:
+        await (await repo.node(HAUPT)).children.list()
+    gelesen = [r for r in instanz.anfragen
+               if r.method == "GET" and r.url.path.endswith("/children")]
+    assert [r.url.params.get("maxItems") for r in gelesen] == ["201"], (
+        [str(r.url) for r in gelesen])
 
 
 async def test_eine_halbe_seite_ohne_gesamtzahl_ist_unverdaechtig():
@@ -478,7 +508,7 @@ async def test_ohne_gesamtzahl_und_voll_wird_das_anlegen_erklaert_verweigert():
     09.09.2026).
     """
     voll = OhneZaehlung(kinder=[_kind(f"k{i}", f"{i}.txt", str(i))
-                                for i in range(200)])
+                                for i in range(201)])
     async with _repo(voll) as repo:
         node = await repo.node(HAUPT)
         with pytest.raises(EduSharingError, match="order"):
@@ -574,3 +604,51 @@ async def test_ein_anhang_ohne_ordnung_bestimmt_nichts():
     angelegt = next(r for r in instanz.anfragen if r.method == "POST"
                     and r.url.path.rstrip("/").endswith("/children"))
     assert json.loads(angelegt.content)["ccm:childobject_order"] == ["1"]
+
+
+class MeldetDieSeite(Instanz):
+    """Nennt als ``total`` die **Seitengroesse** und beachtet ``maxItems``.
+
+    Es gibt keinen Weg, so eine Antwort von einer wahren zu unterscheiden --
+    ein Knoten mit genau so vielen Kindern sendet dasselbe.
+    """
+
+    def __call__(self, request):
+        if request.method == "GET" and request.url.path.endswith("/children"):
+            self.anfragen.append(request)
+            grenze = int(request.url.params.get("maxItems") or LIST_MAX)
+            seite = self.kinder[:grenze]
+            return httpx.Response(200, json={
+                "nodes": seite,
+                "pagination": {"total": len(seite), "from": 0,
+                               "count": len(seite)}})
+        return super().__call__(request)
+
+
+async def test_eine_gemeldete_seitengroesse_taeuscht_keine_vollstaendigkeit_vor():
+    """Der Grund fuer den einen Datensatz ueber dem Deckel.
+
+    Solange genau ``LIST_MAX`` geholt wurden, war eine so gemeldete Gesamtzahl
+    ``LIST_MAX`` -- und die Kappungsfrage lautete "ist ``total`` groesser als
+    der Deckel?", also nein. Ein Knoten mit 250 Kindern lieferte damit still
+    die ersten 200 (gemessen 09.09.2026).
+
+    Jetzt kommen 201 Datensaetze an, und schon die Zahl der Datensaetze sagt
+    es -- unabhaengig davon, was der Server ueber die Gesamtheit behauptet.
+    """
+    viele = MeldetDieSeite(kinder=[_kind(f"k{i}", f"{i}.txt", str(i))
+                                   for i in range(250)])
+    async with _repo(viele) as repo:
+        node = await repo.node(HAUPT)
+        with pytest.raises(EduSharingError, match="at least 201"):
+            await node.children.list()
+
+
+async def test_eine_gemeldete_seitengroesse_unter_dem_deckel_ist_kein_fehler():
+    """Gegenprobe: dieselbe Antwortform mit wenigen Kindern ist vollstaendig,
+    und die Wache darf sie nicht ablehnen."""
+    wenige = MeldetDieSeite(kinder=[_kind(f"k{i}", f"{i}.txt", str(i))
+                                    for i in range(3)])
+    async with _repo(wenige) as repo:
+        node = await repo.node(HAUPT)
+        assert len(await node.children.list()) == 3

@@ -74,7 +74,15 @@ and in [`docs/audits/`](docs/audits/).
   200 and kept silent about the rest -- the one listing in this library that
   shortened without saying so. The cap is `LIST_MAX` now and anything above it
   raises: there is no use for which the first 200 would be right, and
-  `list[Node]` has no room to say "incomplete". `add()` reads that one page
+  `list[Node]` has no room to say "incomplete". Whether a page **is** all of
+  them is settled by asking for one record more than the cap, so the question
+  needs no `pagination`: 201 arriving means there are more than 200, and 200
+  arriving means there are 200. Measured against edu-sharing 11.0 on
+  2026-09-09 in a throwaway folder with 205 children -- `maxItems=201` answers
+  with 201 records. That closes both ends of the heuristic it replaces:
+  exactly 200 children with no total stated used to be refused although
+  nothing was cut, and a repository stating the *page size* as its total made
+  a cut page look complete. `add()` reads that one page
   instead of one per file -- the cost MNT-4 objected to -- and takes **one
   past the highest position in use**, not the number of children. The audit
   prescribed the number ("order from a `limit=1` page's total"); it says the
