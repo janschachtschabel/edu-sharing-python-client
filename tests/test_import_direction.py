@@ -115,24 +115,19 @@ def test_der_waechter_findet_einen_verstoss():
 #: implizit schon, ``Nodes`` baute an vier Stellen selbst ``Node(data, self)``.
 #:
 #: Was hier steht, ist eine bewusste Ausnahme mit Begruendung, kein Rueckstand.
-#: Der Schluessel nennt auch die **Funktion**: die Begruendung gilt fuer eine
-#: Stelle, und ohne den Namen erlaubte der Eintrag jeden Rumpfimport dieses
-#: Moduls irgendwo in dieser Datei -- nachgewiesen an ``Skills._summary``
+#: Der Schluessel nennt die Stelle vollstaendig -- Datei, **Weg zur
+#: Funktion**, Modul. Die Begruendung gilt einer Stelle: ohne den
+#: Funktionsnamen erlaubte der Eintrag jeden Rumpfimport dieses Moduls
+#: irgendwo in dieser Datei (nachgewiesen an ``Skills._summary``), und ohne
+#: den Weg dorthin erbte ihn eine gleichnamige Funktion auf Modulebene
 #: (Pruefung 09.09.2026).
-#:
-#: Der Name ist der **blanke** Funktionsname, nicht der qualifizierte. Wer
-#: den Import aus ``Skills.registry`` entfernt, laesst den Eintrag verwaisen
-#: -- und ``test_die_ausnahmen_gibt_es_noch`` faengt genau das. Nur eine
-#: absichtlich gleichnamige Funktion auf Modulebene erbte ihn; dafuer
-#: braeuchte es den qualifizierten Namen, und diesen Fall muesste jemand
-#: herstellen wollen (Pruefung 09.09.2026, gemessen und angenommen).
 ERLAUBT = {
     # ``skills_registry`` braucht ``skills`` fuer die Konventionen, und
     # ``Skills.registry`` braucht ``load_registry``. Den Rumpf zu verschieben
     # und zurueckzuexportieren -- der Vorschlag des Berichts -- taeuschte den
     # Zyklus nur an eine andere Stelle: die beiden Module bleiben zwei Haelften
     # einer Sache, und ein Import im Rumpf sagt das ehrlicher als ein Re-Export.
-    ("skills.py", "registry", "skills_registry"),
+    ("skills.py", "Skills.registry", "skills_registry"),
 }
 
 
@@ -160,18 +155,40 @@ def _eigener_rumpf(fn: ast.AST) -> list[ast.AST]:
     return gefunden
 
 
+def _funktionen(knoten: ast.AST, praefix: str = "") -> list[tuple[str, ast.AST]]:
+    """Jede Funktion im Baum, mit dem Weg zu ihr im Namen.
+
+    ``Skills.registry`` statt ``registry``: eine Ausnahme in ``ERLAUBT`` gilt
+    **einer** Stelle, und der blanke Name nennt sie nicht. Wer den Import aus
+    der Methode entfernt und ihn in eine gleichnamige Funktion daneben
+    schreibt, erbte sonst die Ausnahme mitsamt ihrer Begruendung -- die dann
+    von etwas anderem handelt (Pruefung 09.09.2026).
+    """
+    gefunden: list[tuple[str, ast.AST]] = []
+    for kind in ast.iter_child_nodes(knoten):
+        if isinstance(kind, ast.ClassDef):
+            gefunden.extend(_funktionen(kind, f"{praefix}{kind.name}."))
+        elif isinstance(kind, ast.FunctionDef | ast.AsyncFunctionDef):
+            name = f"{praefix}{kind.name}"
+            gefunden.append((name, kind))
+            gefunden.extend(_funktionen(kind, f"{name}."))
+        else:
+            # Durch alles andere hindurch -- eine Funktion kann in einem
+            # ``if`` oder ``try`` stehen, ohne dass sich ihr Weg aendert.
+            gefunden.extend(_funktionen(kind, praefix))
+    return gefunden
+
+
 def _rumpfimporte_aus(baum: ast.AST, datei: str) -> list[tuple[str, int, str, str]]:
     """Jeder Import, der im Rumpf einer Funktion steht, aus einem Baum."""
     gefunden = []
-    for knoten in ast.walk(baum):
-        if not isinstance(knoten, ast.FunctionDef | ast.AsyncFunctionDef):
-            continue
+    for name, knoten in _funktionen(baum):
         for innen in _eigener_rumpf(knoten):
             if isinstance(innen, ast.ImportFrom):
-                gefunden.append((datei, innen.lineno, knoten.name,
+                gefunden.append((datei, innen.lineno, name,
                                  innen.module or ""))
             elif isinstance(innen, ast.Import):
-                gefunden.append((datei, innen.lineno, knoten.name,
+                gefunden.append((datei, innen.lineno, name,
                                  innen.names[0].name))
     # Nach Zeile, damit die Verstossmeldung in Lesereihenfolge steht --
     # der Abstieg oben nimmt den Stapel von hinten.
@@ -228,4 +245,27 @@ def test_ein_verschachtelter_import_wird_einmal_gemeldet():
             return innen
     """)
     gefunden = _rumpfimporte_aus(ast.parse(quelle), "probe.py")
-    assert [(f, m) for _, _, f, m in gefunden] == [("innen", "x")], gefunden
+    assert [(f, m) for _, _, f, m in gefunden] == [("aussen.innen", "x")], gefunden
+
+
+def test_gleiche_namen_an_verschiedenen_stellen_sind_verschiedene_schluessel():
+    """Eine Ausnahme gilt **einer** Stelle, also muss der Schluessel sie nennen.
+
+    Der blanke Funktionsname genuegt dafuer nicht: eine Methode ``A.f`` und
+    eine Funktion ``f`` auf Modulebene ergaben denselben, und wer den Import
+    aus der Methode entfernt und ihn in eine gleichnamige Funktion daneben
+    schreibt, erbte die Ausnahme mitsamt ihrer Begruendung -- die dann von
+    etwas anderem handelt (Pruefung 09.09.2026).
+    """
+    quelle = textwrap.dedent("""
+        class A:
+            def f(self):
+                from x import y
+                return y
+
+        def f():
+            from x import y
+            return y
+    """)
+    namen = [fn for _, _, fn, _ in _rumpfimporte_aus(ast.parse(quelle), "probe.py")]
+    assert namen == ["A.f", "f"], namen
