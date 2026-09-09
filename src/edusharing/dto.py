@@ -131,9 +131,19 @@ def render_url(repository_url: str, node_id: str) -> str:
 def page_total(response: dict[str, Any], default: int = 0) -> int:
     """``pagination.total`` from a listing response.
 
-    ``default`` for a response that carries no total: ``ngsearch`` answers
-    with ``pagination: null``, and what should count instead is the caller's
-    decision — usually 0, sometimes the number of records in hand.
+    ``default`` for a response that carries no total — what should count
+    instead is the caller's decision, usually 0 and sometimes the number of
+    records in hand.
+
+    That such a response exists is an **allowance, not an observation**. The
+    docstring claimed until 2026-09-09 that ``ngsearch`` answers with
+    ``pagination: null``; nothing measured it, and measuring it says the
+    opposite — against edu-sharing 11.0 the search states ``total: 1591`` for
+    a word with 1591 records and ``total: 0`` for one with none, and the two
+    listing endpoints state theirs as well. The allowance is kept because a
+    default costs nothing and a missing total would otherwise read as nought;
+    what must not rest on it is an answer, which is why ``page_cut`` reads the
+    records too.
 
     A stated ``0`` is an answer, not a missing one, and is returned as such.
     The eight call sites this replaced all wrote ``or``, which handed a caller
@@ -169,11 +179,13 @@ def page_cut(records: Sequence[Any], response: dict[str, Any], limit: int) -> bo
     with ``total: 3``, not 5 (edu-sharing 11.0, 2026-09-09) — so the total
     counts the same set the records come from.
 
-    Neither half suffices alone, and both blind spots were measured: reading
-    the total alone made the answer ``False`` exactly where nothing was stated
-    — the shape ``page_total`` names for ``ngsearch`` — and believed a
-    repository that states the *page size* as its total; counting records
-    alone cannot see past what it asked for.
+    Neither half suffices alone. Reading the total alone answers ``False``
+    wherever a response carries none — and it believes a repository that
+    states fewer than it handed over, or its *page size* as its total.
+    Counting records alone cannot see past what it asked for. Which of those
+    shapes any given repository produces is not something this function can
+    know, and after 2026-09-09 it no longer has to: what arrives decides, and
+    a stated total can only add to that answer, never take from it.
 
     ``default=-1`` says “nothing stated” rather than “nought”, but here the two
     are the same answer: both are below any ``limit``, so the record count

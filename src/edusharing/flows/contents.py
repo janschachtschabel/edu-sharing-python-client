@@ -133,8 +133,10 @@ async def collection_contents(
 
     # Dieser Endpunkt nennt eine echte Gesamtzahl -- gemessen am 08.09.2026
     # gegen Staging: bei ``maxItems=1`` an einer Sammlung mit zwei
-    # Untersammlungen kommt ein Eintrag und ``total: 2``. Das ist nicht
-    # selbstverstaendlich; ``ngsearch`` antwortet mit ``pagination: null``.
+    # Untersammlungen kommt ein Eintrag und ``total: 2``. (Der Zusatz "das
+    # ist nicht selbstverstaendlich, ``ngsearch`` antwortet mit
+    # ``pagination: null``" stand hier bis zum 09.09.2026 und ist falsch:
+    # gemessen nennt auch die Suche eine Zahl.)
     #
     # Genau daran zu haengen war der blinde Fleck: ohne genannte Zahl galt
     # die gelieferte als Gesamtzahl, und das Kennzeichen war damit ``False``,

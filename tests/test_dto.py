@@ -130,8 +130,14 @@ def test_page_total_liest_die_gesamtzahl():
 @pytest.mark.parametrize("antwort", [{}, {"pagination": None}, {"pagination": {}},
                                      {"pagination": {"total": None}}])
 def test_page_total_faellt_auf_die_vorgabe(antwort):
-    """``ngsearch`` liefert ``pagination: null`` -- dort gibt es keine
-    Gesamtzahl, und der Aufrufer sagt, was dann gelten soll."""
+    """Traegt eine Antwort keine Gesamtzahl, sagt der Aufrufer, was gilt.
+
+    Dass es solche Antworten gibt, ist eine **Vorsorge und keine
+    Beobachtung**: die Behauptung, ``ngsearch`` antworte mit
+    ``pagination: null``, stand bis zum 09.09.2026 im Docstring und ist
+    gemessen falsch -- die Suche nennt ``total: 1591`` fuer ein Wort mit
+    1591 Datensaetzen und ``total: 0`` fuer eines ohne.
+    """
     assert page_total(antwort) == 0
     assert page_total(antwort, default=7) == 7
 

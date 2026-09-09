@@ -64,9 +64,10 @@ and in [`docs/audits/`](docs/audits/).
   2026-09-09).
 - **Every truncation flag stops depending on a stated total** (review
   2026-09-09). Seven places asked *"is this page all of them?"* and read the
-  answer off `pagination.total`, which made every one of them say "complete"
-  exactly where the repository stated nothing -- the shape `page_total` names
-  for `ngsearch`. They ask for **one record over their cap** now and read the
+  answer off `pagination.total` alone. That said "complete" wherever a
+  response carries no total at all, and wherever a stated one is no larger
+  than the page -- a repository that says 9 while handing over 3 was taken at
+  its word. They ask for **one record over their cap** now and read the
   answer off what arrives (`dto.page_cut`): `node.children.list()`, the
   position `children.add()` picks, `collection_contents` for material and for
   sub-collections, `browse_tree`, and the skills walk's files, its
@@ -82,9 +83,9 @@ and in [`docs/audits/`](docs/audits/).
   children with no total stated used to be refused although nothing was cut.
 - **`collection_contents` no longer reports nought material beside twenty**
   (review 2026-09-09). `total_materials` read the stated total with a default
-  of `0`, so where the node endpoint states none -- the shape `page_total`
-  names for `ngsearch` -- a caller comparing it against `returned_materials`
-  read that there is less than what he is holding. It is `offset` plus what
+  of `0`, so where the node endpoint states none, a caller comparing it
+  against `returned_materials` read that there is less than what he is
+  holding. It is `offset` plus what
   was seen there now, a lower bound, and the material is asked for one record
   over `limit` like the sub-collections, so a cut shows in the comparison.
 - **`Nodes.wrap(data)`** turns a record from any response into a `Node` without

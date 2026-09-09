@@ -180,3 +180,33 @@ und die elf, die in keiner Phase standen.
   200 Kindern weg, die als bewusster Preis dabeistand.
 
 Damit ist der Bericht abgearbeitet und dreimal nachgeprüft.
+
+- [x] **32 · Ein Muster, sieben Stellen** Aus dem zweiten offenen Punkt wurde
+  ein Zug. Die Frage „ist diese Seite alles?" stand an **sieben** Stellen und
+  war überall aus `pagination.total` beantwortet — also „vollständig", wo
+  keine Zahl genannt wird, und ebenso, wo eine genannte nicht größer ist als
+  die Seite. `dto.page_cut` ist jetzt die eine Lesart; jede Stelle fragt einen
+  Datensatz mehr, als sie ausliefert.
+
+  **Drei Live-Messungen tragen das** (09.09.2026, edu-sharing 11.0, alles in
+  selbst angelegten Wegwerf-Objekten, danach gelöscht): der Knoten-Endpunkt
+  liefert auf `maxItems=201` **201** Datensätze von 205; der Sammlungs-Endpunkt
+  beachtet `maxItems` genauso; und `pagination.total` **respektiert den
+  Filter** — drei Dateien neben zwei Unterordnern ergeben bei `filter=files`
+  `total: 3`, nicht 5. Erst das Letzte macht den Vergleich „genannte Zahl gegen
+  Gezeigtes" zulässig, und der ist strenger als der gegen den Deckel.
+
+  **Zwei eigene Fehler dabei gefunden.** Ich hatte `default=-1` als die
+  verborgene Feinheit des Helfers bezeichnet — sie ist keine, `-1` und `0`
+  liegen beide unter jedem Deckel. Und mein erster Helfer verglich gegen den
+  Deckel statt gegen das Gezeigte, was in `skills_registry` eine Verschärfung
+  zurückgenommen hätte: erschöpfend verglichen, 1326 Kombinationen.
+
+  **Und eine Behauptung, die niemand gemessen hatte.** „`ngsearch` antwortet
+  mit `pagination: null`" stand seit `ae05dcb` im Quelltext und wurde von dort
+  in Kommentare, Tests und meine eigenen neuen Texte weitergetragen. Gemessen
+  ist das Gegenteil: die Suche nennt `total: 1591`. Alle drei Endpunkte, die
+  diese Bibliothek auflistet, nennen eine Zahl. Die Vorgabe in `page_total`
+  bleibt — sie kostet nichts —, aber sie steht jetzt als **Vorsorge** da und
+  nicht als Beobachtung. Der Eintrag 29 oben trägt den Satz noch; er ist die
+  Aufzeichnung seines Tages und bleibt, wie er ist.

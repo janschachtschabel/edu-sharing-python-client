@@ -479,8 +479,9 @@ async def test_untersammlungen_nennen_ihre_gesamtzahl():
 
     Der Endpunkt liefert eine echte Gesamtzahl -- gemessen am 08.09.2026 gegen
     Staging: bei ``maxItems=1`` an einer Sammlung mit zwei Untersammlungen
-    kommt **ein** Eintrag und ``total: 2``. Das ist nicht selbstverstaendlich,
-    ``ngsearch`` antwortet mit ``pagination: null``.
+    kommt **ein** Eintrag und ``total: 2``. (Der Zusatz, das sei nicht
+    selbstverstaendlich, weil ``ngsearch`` mit ``pagination: null``
+    antworte, stand hier bis zum 09.09.2026 und ist gemessen falsch.)
     """
     async with _repo(MitVielenUntersammlungen(geliefert=5, gesamt=12)) as repo:
         antwort = await repo.flows.collection_contents("c1", limit=5)
@@ -528,8 +529,10 @@ async def test_die_untersammlungen_werden_wirklich_gedeckelt():
 class MitBestand(Instanz):
     """Beachtet ``maxItems`` -- liefert also genau so viele wie ein Server.
 
-    ``nennt_gesamtzahl=False`` ist die Antwortform ohne ``pagination``, die
-    ``page_total`` fuer ``ngsearch`` ausdruecklich vorsieht.
+    ``nennt_gesamtzahl=False`` ist die Antwortform ohne ``pagination``, fuer
+    die ``page_total`` eine Vorgabe hat. Gemessen ist sie nicht -- alle drei
+    Endpunkte, die diese Bibliothek auflistet, nennen eine Zahl (09.09.2026).
+    Geprueft wird sie trotzdem: die Antwort darf nicht daran haengen.
     """
 
     def __init__(self, bestand: int, nennt_gesamtzahl: bool = False) -> None:

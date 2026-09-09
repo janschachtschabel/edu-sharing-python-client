@@ -96,9 +96,11 @@ class OhneLoeschen(Instanz):
 class OhneZaehlung(Instanz):
     """Wie ``Instanz``, schickt aber kein ``pagination`` mit.
 
-    Diesen Server gibt es: ``list()`` traegt ihm ausdruecklich Rechnung,
-    und ``dto.page_total`` nennt ``ngsearch`` mit ``pagination: null``.
-    Drei Tests brauchen ihn und trugen ihn dreimal (Pruefung 09.09.2026).
+    ``list()`` traegt so einer Antwort ausdruecklich Rechnung. Gemessen ist
+    sie nicht -- am 09.09.2026 nannte jeder Endpunkt, den diese Bibliothek
+    auflistet, eine Zahl. Geprueft wird sie trotzdem, denn keine Antwort
+    dieses Moduls darf daran haengen, dass jemand eine nennt.
+    Drei Tests brauchen sie und trugen sie dreimal (Pruefung 09.09.2026).
     """
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
@@ -395,9 +397,8 @@ async def test_ohne_gesamtzahl_zaehlt_das_anlegen_trotzdem_richtig():
 
     ``page_total`` liefert ohne ``pagination`` die Vorgabe -- das war 0, also
     bekam **jeder** Anhang die Position 0 und alle konkurrierten um dieselbe
-    Stelle (Pruefung 08.09.2026). Genau diesen Server gibt es: ``list()``
-    toleriert ihn ausdruecklich, und ``dto.page_total`` nennt ``ngsearch`` mit
-    ``pagination: null``.
+    Stelle (Pruefung 08.09.2026). ``list()`` toleriert so eine Antwort
+    ausdruecklich; gemessen ist sie nicht (siehe ``OhneZaehlung``).
 
     Zaehlt niemand, wird gezaehlt wie vorher -- eine volle Auflistung ist
     teurer als eine Seite, aber eine falsche Position kostet die Reihenfolge.
