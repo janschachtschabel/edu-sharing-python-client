@@ -803,7 +803,7 @@ Gang, der früh abgebrochen hat, heißt nicht „es gibt keins".
 |---|---|
 | `repo.flows.add_material(title, url=…, parent_id=…, subject=…, if_exists=…)` | `{id, title, url, parent_id, name, collection, public, unresolved, existing, created, warnings}` — `if_exists="return"` nennt einen vorhandenen Datensatz zu `url`, statt einen zweiten anzulegen |
 | `validate_if_exists(if_exists)` | wirft `ValidationError`, wenn nicht `return`, `raise` oder `create` |
-| `find_by_url(repo, url)` | `{id, title, url} \| None` — der Datensatz, der diese Adresse schon trägt; `ValidationError`, wenn der Metadatensatz nicht nach `ccm:wwwurl` filtern kann Verglichen wird komponentenweise: Schema und Host schreibungsblind, **Pfad und Query nicht** (geändert am 09.09.2026 — bisher wurde die ganze Adresse kleingeschrieben, `/A` traf also `/a`) |
+| `find_by_url(repo, url)` | `{id, title, url} \| None` — der Datensatz, der diese Adresse schon trägt; `ValidationError`, wenn der Metadatensatz nicht nach `ccm:wwwurl` filtern kann Verglichen wird komponentenweise: Schema und Host schreibungsblind, **Pfad und Query nicht** (geändert am 09.09.2026 — bisher wurde die ganze Adresse kleingeschrieben, `/A` traf also `/a`). Eine gespeicherte Adresse, die sich nicht lesen lässt, wird übersprungen; ein unlesbares `url`-Argument ist ein `ValidationError` |
 | `check_before_create(repo, url, if_exists)` | `(existing, warnings)` — wendet `if_exists` an; wirft `ConflictError` bei `"raise"` |
 | `DUPLICATE_SCAN_LIMIT` | `20` — verglichene Treffer je Prüfung |
 | `repo.flows.update_material(node_id, …)` | `{id, title, url, name, unresolved}` |

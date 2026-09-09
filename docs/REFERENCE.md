@@ -788,7 +788,7 @@ stopped early is not "there is none".
 |---|---|
 | `repo.flows.add_material(title, url=…, parent_id=…, subject=…, if_exists=…)` | `{id, title, url, parent_id, name, collection, public, unresolved, existing, created, warnings}` — `if_exists="return"` names an existing record for `url` instead of creating a second |
 | `validate_if_exists(if_exists)` | raises `ValidationError` unless `return`, `raise` or `create` |
-| `find_by_url(repo, url)` | `{id, title, url} \| None` — the record already carrying this address; `ValidationError` when the metadata set cannot filter on `ccm:wwwurl`. Compared by component: scheme and host case-insensitive, **path and query not** (changed 2026-09-09 — the whole address used to be lowered, so `/A` matched `/a`) |
+| `find_by_url(repo, url)` | `{id, title, url} \| None` — the record already carrying this address; `ValidationError` when the metadata set cannot filter on `ccm:wwwurl`. Compared by component: scheme and host case-insensitive, **path and query not** (changed 2026-09-09 — the whole address used to be lowered, so `/A` matched `/a`). A stored address that cannot be read is skipped; an unreadable `url` argument is a `ValidationError` |
 | `check_before_create(repo, url, if_exists)` | `(existing, warnings)` — applies `if_exists`; raises `ConflictError` for `"raise"` |
 | `DUPLICATE_SCAN_LIMIT` | `20` — hits compared per check |
 | `repo.flows.update_material(node_id, …)` | `{id, title, url, name, unresolved}` |

@@ -274,3 +274,50 @@ async def test_eine_http_adresse_ist_nie_unaufloesbar():
         ergebnis = await repo.search(
             filters={"ccm:wwwurl": "https://beispiel.test/seite"}, limit=5)
     assert ergebnis.unresolved == []
+
+
+# --- R09 (Zweitpruefung 09.09.2026): ein unlesbarer Kandidat ---------------
+#
+# Die komponentenweise Verarbeitung aus F10 ruft ``urlsplit`` -- ohne
+# Behandlung. Eine fremde gespeicherte ``ccm:wwwurl`` muss aber nicht
+# syntaktisch gueltig sein. Gemessen am 09.09.2026: ein Kandidat mit
+# ``https://[broken`` beendete ``find_by_url`` mit ``ValueError: Invalid IPv6
+# URL`` -- keine Bibliotheksausnahme, und ``add_material`` bricht davor ab.
+#
+# Die alte rohe Zeichenkettenpruefung war fuer Pfad-Gleichheit falsch, konnte
+# an keinem Kandidaten aber scheitern. Ein Fix, der eine neue Fehlerart
+# einfuehrt, gehoert zu Ende gebracht.
+
+KAPUTT = "https://[broken"
+
+
+async def test_ein_kaputter_kandidat_beendet_die_pruefung_nicht():
+    """Er ist nicht dieselbe Adresse wie eine gueltige -- also wird er
+    uebersprungen, nicht beklagt."""
+    instanz = Instanz([_treffer("kaputt", KAPUTT), _treffer("gleich", URL)])
+    async with instanz.repo() as repo:
+        gefunden = await find_by_url(repo, URL)
+    assert gefunden is not None and gefunden["id"] == "gleich"
+
+
+async def test_ein_kaputter_kandidat_allein_heisst_keine_dublette():
+    instanz = Instanz([_treffer("kaputt", KAPUTT)])
+    async with instanz.repo() as repo:
+        assert await find_by_url(repo, URL) is None
+
+
+async def test_eine_kaputte_eigene_adresse_ist_ein_bibliotheksfehler():
+    """Der andere Fall, und er ist ein anderer: die Adresse kommt vom
+    Aufrufer, und er soll erfahren, dass sie unbrauchbar ist."""
+    instanz = Instanz([])
+    async with instanz.repo() as repo:
+        with pytest.raises(ValidationError):
+            await find_by_url(repo, KAPUTT)
+
+
+async def test_add_material_bricht_an_einem_kaputten_nachbarn_nicht_ab():
+    """Der Weg, auf dem es wirklich weh tut."""
+    instanz = Instanz([_treffer("kaputt", KAPUTT)])
+    async with instanz.repo() as repo:
+        got = await repo.flows.add_material("Neu", url=URL)
+    assert got["created"] is True

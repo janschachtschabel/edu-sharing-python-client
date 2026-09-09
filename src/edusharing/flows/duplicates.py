@@ -45,9 +45,9 @@ _NOT_A_CRITERION = (
 )
 
 
-def _comparable(url: str) -> str:
-    """The address as a comparison key: scheme and authority lowered, the rest
-    left exactly as it is.
+def _comparable(url: str) -> str | None:
+    """The address as a comparison key -- scheme and authority lowered, the
+    rest left exactly as it is -- or ``None`` when it cannot be read at all.
 
     Until 2026-09-09 the **whole** address was lowered, path and query
     included, and the module said so ("ignores case and nothing else"). It was
@@ -60,8 +60,19 @@ def _comparable(url: str) -> str:
 
     Anything that is not an absolute address is compared as given: there is
     nothing to normalise, and guessing would be the same mistake again.
+
+    ``urlsplit`` raises on some addresses -- ``https://[broken`` gives
+    ``ValueError: Invalid IPv6 URL``. A stored ``ccm:wwwurl`` comes from
+    whoever created the record and need not be syntactically valid, and
+    measured 2026-09-09 such a neighbour ended the whole check with an
+    exception from the standard library (R09). The old raw string comparison
+    was wrong about paths but could not fail here; a fix that introduces a new
+    kind of failure is not finished.
     """
-    teile = urlsplit(url.strip())
+    try:
+        teile = urlsplit(url.strip())
+    except ValueError:
+        return None
     if not teile.scheme or not teile.netloc:
         return url.strip()
     return urlunsplit((teile.scheme.lower(), teile.netloc.lower(),
@@ -76,17 +87,28 @@ async def find_by_url(repo: AsyncRepository, url: str) -> dict[str, Any] | None:
         input in the case of its scheme and host. Compared is ``_comparable``:
         those two are case-insensitive, path and query are not.
 
+    A stored address that cannot be read is **skipped**, not complained
+    about: it is not the same address as a readable one, so it is not the
+    duplicate being looked for. The address the *caller* passes is a different
+    matter -- there an unreadable value is a ``ValidationError``, because
+    nobody else can fix it.
+
     Raises:
         ValidationError: when the metadata set does not accept ``ccm:wwwurl``
             as a criterion -- or when the search could not take this value
             as one (it passes only ``http(s)://`` addresses through; anything
-            else lands in ``unresolved`` and is not sent). Not swallowed: the
-            caller decides whether a check that cannot run is a warning or a
-            refusal.
+            else lands in ``unresolved`` and is not sent) -- or when ``url``
+            itself cannot be read as an address. Not swallowed: the caller
+            decides whether a check that cannot run is a warning or a refusal.
     """
-    wanted = _comparable(url)
-    if not wanted:
+    if not url.strip():
         return None
+    wanted = _comparable(url)
+    if wanted is None:
+        raise ValidationError(
+            f"{url!r} cannot be read as an address, so it cannot be compared "
+            "against anything -- the duplicate check did not run."
+        )
     if not wanted.lower().startswith(("http://", "https://")):
         # The search takes only http(s) addresses as a criterion. Asking anyway
         # would cost a vocabulary lookup and an unfiltered search for the same
@@ -99,7 +121,7 @@ async def find_by_url(repo: AsyncRepository, url: str) -> dict[str, Any] | None:
         raise ValidationError(_NOT_A_CRITERION.format(url=url))
     for hit in result.hits:
         stored = (hit.source_url or "").strip()
-        if stored and _comparable(stored) == wanted:
+        if stored and _comparable(stored) == wanted:  # None never equals it
             return {"id": hit.id, "title": hit.title, "url": stored}
     return None
 
