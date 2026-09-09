@@ -131,4 +131,36 @@ und die elf, die in keiner Phase standen.
   weiteren Stellen das Antwortfeld `raw["content"]["hash"]` und ist dort die
   Konvention des Projekts.
 
-Damit ist der Bericht abgearbeitet und zweimal nachgeprüft.
+- [x] **30 · Dritte Prüfung** Acht Commits, `f4e626a` … `b1273a2`. Anlass war
+  gemessen: **beide MAJOR dieser Sitzung steckten in einer Nachbesserung, nicht
+  im ursprünglichen Fix.** Also wurden die Nachbesserungen geprüft.
+
+  **Kein MAJOR.** Die Kette an `_count` — dreimal umgebaut — ist zur Ruhe
+  gekommen; die Matrix aus Serverantworten liefert überall dieselbe Zahl auf
+  beiden Wegen, und die beiden Regressionen werden durch Mutation weiterhin rot.
+
+  **Der eine Fund, der Code betraf, war die Zusage selbst.** `add()` sagt
+  *hinter den bestehenden* und nahm die **Anzahl** der Kinder — was dasselbe
+  nur sagt, solange die Nummern lückenlos bei 0 beginnen. Gemessen: zwei
+  Anhänge mit `order=` auf 5 und 6, der nächste bekam 2 und stand in `list()`
+  **zuerst**. Audit MNT-4 hat genau diese Bauform vorgeschrieben („order from a
+  `limit=1` page's total"); der Befund selbst — der stille Deckel — bleibt
+  behoben, die Nebenvorschrift ist gegen die Messung revidiert. Aus `_count`
+  wurde `_next_position`, und die Zweipfad-Struktur, aus der beide MAJOR kamen,
+  fällt damit weg.
+
+  **Zwei Rücknahmen kamen nicht überall an.** Die COR-11- und die
+  COR-9-Berichtigung standen im Code, aber nicht in den Statusabsätzen des
+  Audits — und `c2a95ff` hatte gerade einen Kopfhinweis gesetzt, der Leser
+  ausdrücklich auf diese Absätze als aktuellen Stand verweist.
+
+  **Und drei eigene Funde vorweg**, bevor die Prüfung zurückkam: `94866a3`
+  legte eine dritte Kopie derselben Attrappe an, unter ihren Nutzern; die
+  Dokumente beschrieben `add()` noch nach dem Stand davor; und meine eigene
+  Berichtigung dazu setzte die Deckelgrenze eins zu hoch.
+
+  Zwei Zahlenbehauptungen wurden nachgeprüft und halten: die Teilantwort-Regel
+  steht an **sechs** Stellen, und vom Kopfhinweis bis zum ersten Statusabsatz
+  sind es 96 Zeilen — „rund hundert".
+
+Damit ist der Bericht abgearbeitet und dreimal nachgeprüft.
