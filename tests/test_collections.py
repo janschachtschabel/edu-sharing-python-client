@@ -398,7 +398,7 @@ def _aendern_router(gespeichert: dict, leere_form: str = "eintrag"):
     ``leere_form`` sagt, wie sie eine geleerte Eigenschaft zurueckgibt --
     **drei** Formen, und alle drei heissen dasselbe:
 
-    * ``"eintrag"``  -- ``["\u0022"]``, eine Liste mit leerem Eintrag
+    * ``"eintrag"``  -- ``[""]``, eine Liste mit leerem Eintrag
     * ``"leer"``     -- ``[]``, die leere Liste
     * ``"weg"``      -- die Eigenschaft fehlt ganz
 

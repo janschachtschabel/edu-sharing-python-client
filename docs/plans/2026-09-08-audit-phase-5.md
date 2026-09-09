@@ -91,7 +91,7 @@ beschrieben.
 Damit ist der Bericht vollständig abgearbeitet — die 44 Befunde der Roadmap
 und die elf, die in keiner Phase standen.
 
-- [x] **29 · Prüfungsnachlese** Sechs Commits, `94866a3` … `fabd995`.
+- [x] **29 · Prüfungsnachlese** Fünf Commits, `94866a3` … `fabd995`.
 
   **Der MAJOR traf wieder meine eigene Nachlese.** `_count` fiel bei fehlender
   Gesamtzahl auf `list()` zurück — und `list()` filtert auf den Aspekt, während
