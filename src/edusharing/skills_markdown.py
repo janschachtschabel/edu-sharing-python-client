@@ -74,7 +74,20 @@ _TITLE_LINK = re.compile(r"(?<!!)\[([^\]]+)\]\(([^)\s]+)")
 _ESCAPED = re.compile(r"\\([!-/:-@\[-`{-~])")
 #: ``#`` to ``######``, at most three of indent, and a space after the hashes.
 _HEADING = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+(.*?))?[ \t]*$")
-_FENCE = re.compile(r"^ {0,3}(```|~~~)")
+#: A fence is three **or more** backticks or tildes, and the length is
+#: part of it: a shorter run does not close a longer one. Reading only
+#: three let the first inner three-backtick line close a four-backtick
+#: block, and the rest of the example fell into alternating pieces --
+#: measured 2026-09-09, a ``::: ki-skill`` shown inside a four-backtick
+#: example counted as an active reference (F12), so documentation walked
+#: into the skill catalogue. Group 2 is the info string: an opening fence
+#: may carry one, a closing fence may not.
+_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})[ 	]*(.*)$")
+#: A run of ``#`` closes an ATX heading only when a space stands before
+#: it, or when the whole content is that run. ``.rstrip('#')`` knew
+#: neither and turned ``## C#`` into ``C`` -- a language name, a context
+#: name, and the section a registry is picked by.
+_ATX_ENDE = re.compile(r"(?:^|[ 	])#+[ 	]*$")
 _BLOCK_END = re.compile(r"^:::[ \t]*\r?$")
 
 
@@ -223,7 +236,7 @@ def parse_sections(text: str) -> list[MarkdownSection]:
     for offset, line in _lines_outside_fences(text):
         m = _HEADING.match(line.rstrip("\r\n"))
         if m:
-            title = (m.group(2) or "").rstrip("#").strip()
+            title = _ATX_ENDE.sub("", (m.group(2) or "").rstrip()).strip()
             heads.append((len(m.group(1)), title, offset, offset + len(line)))
 
     ends = [len(text)] * len(heads)
@@ -263,18 +276,22 @@ def _fenced_spans(text: str) -> list[tuple[int, int]]:
     not markup -- neither a heading nor a block. An unclosed fence runs to the
     end of the document, as it does for a Markdown renderer."""
     spans: list[tuple[int, int]] = []
-    opened: tuple[str, int] | None = None
+    # (fence character, its length, where the block started)
+    opened: tuple[str, int, int] | None = None
     offset = 0
     for line in text.splitlines(keepends=True):
         fence = _FENCE.match(line.rstrip("\r\n"))
-        if fence and opened is None:
-            opened = (fence.group(1), offset)
-        elif fence and opened is not None and fence.group(1) == opened[0]:
-            spans.append((opened[1], offset + len(line)))
-            opened = None
+        if fence is not None:
+            zeichen, laenge = fence.group(1)[0], len(fence.group(1))
+            if opened is None:
+                opened = (zeichen, laenge, offset)
+            elif (zeichen == opened[0] and laenge >= opened[1]
+                    and not fence.group(2).strip()):
+                spans.append((opened[2], offset + len(line)))
+                opened = None
         offset += len(line)
     if opened is not None:
-        spans.append((opened[1], len(text)))
+        spans.append((opened[2], len(text)))
     return spans
 
 

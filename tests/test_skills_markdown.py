@@ -10,6 +10,8 @@ gegen Staging gemessen: ``skill_registry.md`` traegt 7 ``::: ki-skill``-Bloecke
 und 3 Kontexte.
 """
 
+import pytest
+
 from edusharing.skills_markdown import layout_contexts, parse_blocks, parse_sections
 
 RENDER = "https://repo.test/edu-sharing/components/render/"
@@ -230,3 +232,103 @@ def test_ein_unvollstaendiges_beispiel_im_zaun_verschluckt_keinen_echten_block()
     doc = (f"```\n::: ki-skill\n[Beispiel]({RENDER}{A})\n```\n\n"
            f"::: ki-skill\n[Echt]({RENDER}{B})\n:::\n")
     assert [r.node_id for r in parse_blocks(doc)] == [B]
+
+
+# --- F12 (Fremdpruefung 09.09.2026): Fences und Ueberschriften -------------
+#
+# Zwei getrennte Ursachen in einer Datei.
+#
+# **Die Fence-Laenge wurde nicht behalten.** ``^ {0,3}(```|~~~)`` liefert immer
+# drei Zeichen, egal wie lang der Fence wirklich ist. Ein Vierfach-Fence --
+# die uebliche Art, einen Codeblock *in* einem Codeblock zu zeigen -- wurde
+# damit vom ersten inneren Dreifach-Fence geschlossen, und der Rest des
+# Beispiels zerfiel in Stuecke. Gemessen am 09.09.2026 galt ein
+# ``::: ki-skill``-Beispiel innerhalb eines Codeblocks als **aktiver
+# Verweis**: Dokumentation wandert damit in den Skill-Katalog.
+#
+# **``.rstrip("#")`` nahm die Raute des Titels.** ``## C#`` ergab ``C``. Nach
+# den Markdown-Regeln schliesst eine Rautenfolge eine Ueberschrift nur, wenn
+# ein Leerzeichen davorsteht.
+
+VIERFACH = (
+    "# Anleitung\n"
+    "\n"
+    "````markdown\n"
+    "```\n"
+    "::: ki-skill\n"
+    "[Beispiel](https://repo.test/edu-sharing/components/render/"
+    "11111111-1111-1111-1111-111111111111)\n"
+    ":::\n"
+    "```\n"
+    "````\n"
+)
+
+
+def test_ein_vierfach_fence_bleibt_ein_block():
+    """Die Ursache, direkt gemessen: ein Renderer sieht hier einen Block."""
+    from edusharing.skills_markdown import _fenced_spans
+
+    anfang = VIERFACH.index("````markdown")
+    assert _fenced_spans(VIERFACH) == [(anfang, len(VIERFACH))]
+
+
+def test_ein_beispiel_im_codeblock_ist_kein_verweis():
+    """Und die Wirkung, an der oeffentlichen Funktion."""
+    assert parse_blocks(VIERFACH) == []
+
+
+@pytest.mark.parametrize("zeichen", ["`", "~"])
+@pytest.mark.parametrize("laenge", [3, 4, 5])
+def test_ein_fence_wird_nur_von_einem_mindestens_so_langen_geschlossen(zeichen, laenge):
+    """Die Markdown-Regel: gleiches Zeichen, mindestens dieselbe Laenge."""
+    from edusharing.skills_markdown import _fenced_spans
+
+    fence = zeichen * laenge
+    kurz = zeichen * (laenge - 1) if laenge > 3 else ""
+    text = f"{fence}\n{kurz}\ninnen\n{fence}\ndraussen\n"
+    spans = _fenced_spans(text)
+    assert len(spans) == 1
+    assert text[spans[0][0]:spans[0][1]].endswith(f"{fence}\n")
+    assert "draussen" not in text[spans[0][0]:spans[0][1]]
+
+
+def test_ein_laengerer_fence_schliesst_einen_kuerzeren():
+    """Die Gegenrichtung, damit die Regel nicht zu streng wird."""
+    from edusharing.skills_markdown import _fenced_spans
+
+    text = "```\ninnen\n`````\ndraussen\n"
+    spans = _fenced_spans(text)
+    assert len(spans) == 1
+    assert "draussen" not in text[spans[0][0]:spans[0][1]]
+
+
+def test_eine_abschlusszeile_mit_infozeichenkette_schliesst_nicht():
+    """Auch eine Regel: der schliessende Fence traegt nichts hinter sich."""
+    from edusharing.skills_markdown import _fenced_spans
+
+    text = "```\ninnen\n``` python\nweiter\n"
+    spans = _fenced_spans(text)
+    assert spans == [(0, len(text))], "unschliessbar, also bis zum Ende"
+
+
+def test_ein_anderes_zeichen_schliesst_nicht():
+    from edusharing.skills_markdown import _fenced_spans
+
+    text = "```\ninnen\n~~~\nweiter\n"
+    assert _fenced_spans(text) == [(0, len(text))]
+
+
+@pytest.mark.parametrize("zeile,titel", [
+    ("## C#", "C#"),
+    ("## F#", "F#"),
+    ("# C++ und C#", "C++ und C#"),
+    ("## Titel ###", "Titel"),
+    ("## Titel #", "Titel"),
+    ("## ###", ""),
+    ("## Titel", "Titel"),
+])
+def test_die_raute_faellt_nur_nach_der_markdown_regel(zeile, titel):
+    """Eine schliessende Rautenfolge braucht ein Leerzeichen davor. ``C#`` hat
+    keins -- die Raute gehoert zum Namen."""
+    abschnitte = parse_sections(zeile + "\nInhalt\n")
+    assert [a.title for a in abschnitte] == [titel]
