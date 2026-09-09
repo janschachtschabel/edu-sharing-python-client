@@ -432,6 +432,41 @@ def test_raw_synchron(repo):
 
 # --- Durchgereichte Schichten ---------------------------------------------
 
+#: Genau diese vier geben das **asynchrone** Objekt heraus -- absichtlich,
+#: fuer den Zugriff auf ihre Einstellungen. Ein Aufruf darauf aus
+#: blockierendem Code liefert eine Coroutine: kein Fehler, keine Wirkung.
+#: Der Skill nennt sie in 5.12 und die blockierenden Gegenstuecke dazu.
+DURCHGEREICHT = {"collections", "nodes", "searcher", "vocab"}
+
+
+def test_genau_diese_schichten_werden_durchgereicht(repo):
+    """Dass es **genau** diese vier sind, stand bisher nur im Skill.
+
+    Der Test darunter prueft, dass sie erreichbar sind -- nicht, dass keine
+    fuenfte dazukommt. Eine neue waere eine stille Falle: der Aufruf gibt
+    eine Coroutine zurueck, tut nichts und meldet nichts. Eine
+    weggefallene liesse den Skill eine Falle nennen, die es nicht mehr gibt.
+
+    Gemessen am 09.09.2026: ``raw`` ist ``SyncTransport``, ``flows``,
+    ``skills``, ``people`` und ``relations`` sind umhuellt -- vier bleiben.
+    """
+    asynchron = set()
+    for name in dir(type(repo)):
+        if name.startswith("_"):
+            continue
+        if not isinstance(getattr(type(repo), name, None), property):
+            continue
+        wert = getattr(repo, name)
+        if any(inspect.iscoroutinefunction(fn)
+               for eigen, fn in inspect.getmembers(type(wert), inspect.isfunction)
+               if not eigen.startswith("_")):
+            asynchron.add(name)
+    assert asynchron == DURCHGEREICHT, (
+        f"asynchron durchgereicht: {sorted(asynchron)}, erwartet "
+        f"{sorted(DURCHGEREICHT)} -- entweder den Durchgriff nachziehen oder "
+        "DURCHGEREICHT und SKILL 5.12 aendern, beide zusammen")
+
+
 def test_schichten_sind_erreichbar(repo):
     """searcher, collections, nodes und vocab geben die asynchronen Objekte --
     absichtlich, fuer Zugriff auf ihre Einstellungen."""
