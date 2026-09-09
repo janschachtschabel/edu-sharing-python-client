@@ -257,6 +257,99 @@ async def test_die_suche_meldet_das_abschneiden():
     assert len(ergebnis["hits"]) < 10
 
 
+# --- F08 (Fremdpruefung 09.09.2026): die materialseitige Kuerzung ----------
+#
+# ``truncated`` zaehlte zwei Ursachen: den Deckel auf die Zahl geoeffneter
+# Sammlungen und eine Seite mit mehr Untersammlungen als erlaubt. Die dritte
+# fehlte -- je Sammlung werden hoechstens ``limit`` Materialien bewertet.
+#
+# Gemessen am 09.09.2026: eine Sammlung mit zwei Materialien, der Treffer an
+# zweiter Stelle, ``limit=1`` -> ``hits=[]`` und ``truncated=False``. Genau die
+# Unterscheidung, zu der die Docstring auffordert ("an empty result from a walk
+# that stopped early is not 'there is none'"), war damit unmoeglich.
+
+
+async def test_die_suche_meldet_auch_die_gekuerzte_materialliste():
+    instanz = Instanz(baum={"wurzel": []},
+                      inhalt={"wurzel": [_material("m1", "Other"),
+                                         _material("m2", "Photosynthese")]})
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.search_in_collection(
+            "wurzel", "Photosynthese", limit=1)
+    assert ergebnis["hits"] == [], "der Treffer wurde nie gelesen"
+    assert ergebnis["truncated"] is True
+    assert ergebnis["truncated_by"] == ["material"]
+
+
+class OhneGesamtzahl(Instanz):
+    """Eine Instanz, die keine ``pagination`` mitschickt.
+
+    Die Abnahme des Berichts verlangt es ausdruecklich: die Kuerzung muss auch
+    dann auffallen, wenn der Endpunkt keine Gesamtzahl nennt. Sie faellt auf,
+    weil ``collection_contents`` einen Datensatz mehr liest, als es zeigt.
+    """
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        antwort = super().handler(request)
+        if request.url.path.endswith("/children"):
+            koerper = json.loads(antwort.content)
+            koerper.pop("pagination", None)
+            return httpx.Response(200, json=koerper)
+        return antwort
+
+
+async def test_die_kuerzung_faellt_auch_ohne_genannte_gesamtzahl_auf():
+    instanz = OhneGesamtzahl(
+        baum={"wurzel": []},
+        inhalt={"wurzel": [_material("m1", "Other"),
+                           _material("m2", "Photosynthese")]})
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.search_in_collection(
+            "wurzel", "Photosynthese", limit=1)
+    assert ergebnis["truncated"] is True
+    assert ergebnis["truncated_by"] == ["material"]
+
+
+async def test_eine_vollstaendig_gelesene_sammlung_meldet_keine_kuerzung():
+    """Die Gegenprobe. Ohne sie waere die Wache gruen, wenn jede Suche
+    ``truncated=True`` meldet."""
+    instanz = Instanz(baum={"wurzel": []},
+                      inhalt={"wurzel": [_material("m1", "Other"),
+                                         _material("m2", "Photosynthese")]})
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.search_in_collection(
+            "wurzel", "Photosynthese", limit=50)
+    assert [h["id"] for h in ergebnis["hits"]] == ["m2"]
+    assert ergebnis["truncated"] is False
+    assert ergebnis["truncated_by"] == []
+
+
+async def test_der_grund_unterscheidet_sammlungen_von_material():
+    """Die zwei Gruende verlangen verschiedene Abhilfe: ``max_collections``
+    oder ``limit``. Ein blosses ``True`` sagt nicht, welche."""
+    instanz = Instanz(baum={"wurzel": [f"k{i}" for i in range(10)],
+                            **{f"k{i}": [] for i in range(10)}},
+                      inhalt={f"k{i}": [_material(f"m{i}", "Zelle")]
+                              for i in range(10)})
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.search_in_collection(
+            "wurzel", "zelle", depth=2, max_collections=3)
+    assert ergebnis["truncated_by"] == ["collections"]
+
+
+async def test_die_zahl_gelesener_materialien_steht_daneben():
+    """``searched`` zaehlt Sammlungen, nicht Materialien -- der Bericht nennt
+    das ausdruecklich als Stolperstelle. Also steht die zweite Zahl dabei."""
+    instanz = Instanz(baum={"wurzel": []},
+                      inhalt={"wurzel": [_material(f"m{i}", "Zelle")
+                                         for i in range(5)]})
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.search_in_collection(
+            "wurzel", "zelle", limit=2)
+    assert ergebnis["searched"] == 1
+    assert ergebnis["materials_read"] == 2
+
+
 async def test_eine_leere_anfrage_wird_abgelehnt():
     instanz = Instanz()
     async with instanz.repo() as repo:

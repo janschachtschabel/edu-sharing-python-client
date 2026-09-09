@@ -563,10 +563,16 @@ zu haben.**
   als genaue Zahl meldet, behauptet eine Zahl, die keine ist.
 - `browse_tree`/`search_in_collection`: `truncated=True` → in der Antwort
   fehlt etwas, das hineingehört — der Deckel darauf, wie viele Sammlungen
-  geöffnet werden, oder eine Seite mit mehr Untersammlungen als
-  `max_collections`. Ein leeres Ergebnis heißt dann **nicht** „es gibt
-  keins". Ein Zyklus und die gefragte `depth` sind keins von beidem: sie
-  setzen nichts.
+  geöffnet werden, eine Seite mit mehr Untersammlungen als
+  `max_collections`, oder (nur `search_in_collection`) eine Sammlung, deren
+  Material bei `limit` abgeschnitten wurde. Ein leeres Ergebnis heißt dann
+  **nicht** „es gibt keins". Ein Zyklus und die gefragte `depth` sind keins
+  von beidem: sie setzen nichts.
+- `search_in_collection`: `truncated_by` nennt den Deckel — `"collections"`
+  (dann `max_collections`/`depth` heben) oder `"material"` (dann `limit`).
+  Und `searched` zählt **Sammlungen**; `materials_read` zählt, was
+  tatsächlich verglichen wurde. Wer das erste für das zweite hält, hält
+  eine Stichprobe für das Ganze.
 - `collection_contents`: `collections_truncated=True` → die
   **Unter**sammlungen sind bei `limit` gedeckelt wie das Material. Lies es;
   eine gekürzte Liste sieht aus wie eine Sammlung mit weniger Kindern, als

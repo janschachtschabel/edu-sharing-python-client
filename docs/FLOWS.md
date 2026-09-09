@@ -1037,7 +1037,11 @@ serialised hit actually carries. For full text across the whole repository,
 `flows.search` is the better tool.
 
 > **Read `truncated`.** An empty result from a walk that stopped early is not
-> "there is none".
+> "there is none". `truncated_by` says which cap to raise: `"collections"`
+> for the walk, `"material"` for the per-collection listing — until
+> 2026-09-09 the material side set nothing, so a collection of two with
+> `limit=1` answered "no hit, nothing was cut". And `searched` counts
+> collections; `materials_read` counts what was actually compared.
 
 **Behind it** — one request per collection for the walk, two more per
 collection for its material:

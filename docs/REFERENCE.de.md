@@ -770,7 +770,7 @@ eine Sammlung aus Untersammlungen leer aussehen.
 | Aufruf | Liefert |
 |---|---|
 | `repo.flows.browse_tree(collection_id, depth=…, max_collections=…)` | `{id, collections, opened, truncated}`, verschachtelt |
-| `repo.flows.search_in_collection(collection_id, query, …)` | `{query, hits, searched, unreadable, failed, truncated}` |
+| `repo.flows.search_in_collection(collection_id, query, …)` | `{query, hits, searched, materials_read, unreadable, failed, truncated, truncated_by}` — `searched` zählt Sammlungen, `materials_read` das Verglichene; `truncated_by` trägt `"collections"`, `"material"` oder beides |
 | `repo.flows.collection_stats(collection_id, …)` | `{id, materials, collections, sampled, complete, by}` |
 | `DEFAULT_MAX_COLLECTIONS` | die voreingestellte Obergrenze des Gangs |
 

@@ -196,13 +196,26 @@ async def search_in_collection(
         limit: how much material to read per collection.
 
     Returns:
-        ``{query, hits, searched, unreadable, failed, truncated}``.
+        ``{query, hits, searched, materials_read, unreadable, failed,
+        truncated, truncated_by}``.
+
+        **``searched`` counts collections, ``materials_read`` counts what was
+        actually compared.** The two are far apart in a wide collection, and
+        reading the first as the second reads a sample as the whole.
+
         **``unreadable`` counts the collections the walk could not open** --
         refused, not absent -- and ``failed`` names each of them with its id
         and the reason (``"PermissionDeniedError: ..."``). Together with
         ``truncated`` they separate "there is nothing" from "you were not
         shown everything". **Read ``truncated``**: an empty result from a walk
         that stopped early is not "there is none".
+
+        ``truncated_by`` says which cap to raise: ``"collections"`` for the
+        walk (``max_collections``, ``depth``), ``"material"`` for the per
+        collection listing (``limit``). Until 2026-09-09 the material side
+        set nothing at all -- a collection of two with ``limit=1`` answered
+        "no hit, nothing was cut" (F08). A cycle and the ``depth`` you asked
+        for are in neither list: they leave nothing out.
 
     Raises:
         ValueError: on an empty query.
@@ -251,13 +264,23 @@ async def search_in_collection(
         for hit in page["materials"]
         if _matches(hit, needle)
     ]
+    # Two remedies, so two reasons. Fewer collections than were found means
+    # raising ``max_collections`` or ``depth``; a page cut short means raising
+    # ``limit``. A bare ``True`` said neither (F08, 2026-09-09).
+    reasons = []
+    if tree["truncated"] or len(found) > len(ids):
+        reasons.append("collections")
+    if any(page["total_materials"] > page["returned_materials"] for page in readable):
+        reasons.append("material")
     return {
         "query": query,
         "hits": hits,
         "searched": len(readable),
+        "materials_read": sum(len(page["materials"]) for page in readable),
         "unreadable": len(refused),
         "failed": [{"id": cid, "reason": f"{type(e).__name__}: {e}"} for cid, e in refused],
-        "truncated": tree["truncated"] or len(found) > len(ids),
+        "truncated": bool(reasons),
+        "truncated_by": reasons,
     }
 
 

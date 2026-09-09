@@ -537,9 +537,15 @@ values that were **not** written. The material exists without them.
   it as an exact figure states a number that is not one.
 - `browse_tree`/`search_in_collection`: `truncated=True` → something is
   missing that belongs in the answer — the cap on how many collections are
-  opened, or a page holding more sub-collections than `max_collections`. An
-  empty result then does **not** mean "there is none". A cycle and the
-  `depth` you asked for are neither: they set nothing.
+  opened, a page holding more sub-collections than `max_collections`, or
+  (`search_in_collection` only) a collection whose material was cut at
+  `limit`. An empty result then does **not** mean "there is none". A cycle
+  and the `depth` you asked for are neither: they set nothing.
+- `search_in_collection`: `truncated_by` names the cap — `"collections"`
+  (raise `max_collections`/`depth`) or `"material"` (raise `limit`). And
+  `searched` counts **collections**; `materials_read` counts what was
+  actually compared. Reading the first as the second reads a sample as the
+  whole.
 - `collection_contents`: `collections_truncated=True` → the **sub**-collections
   were capped at `limit` like the material. Read it; a shortened list looks
   like a collection with fewer children than it has. Where the endpoint

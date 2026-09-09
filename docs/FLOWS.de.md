@@ -1068,7 +1068,12 @@ serialisierter Treffer wirklich trägt. Für Volltext über den ganzen Bestand i
 `flows.search` das bessere Werkzeug.
 
 > **`truncated` lesen.** Ein leeres Ergebnis aus einem Lauf, der früh
-> aufgehört hat, ist kein „gibt es nicht".
+> aufgehört hat, ist kein „gibt es nicht". `truncated_by` sagt, welcher
+> Deckel zu heben ist: `"collections"` für den Lauf, `"material"` für das
+> Listing je Sammlung — bis zum 09.09.2026 setzte die Materialseite gar
+> nichts, eine Sammlung mit zwei Einträgen und `limit=1` antwortete also
+> „kein Treffer, nichts gekürzt". Und `searched` zählt Sammlungen;
+> `materials_read` zählt, was verglichen wurde.
 
 **Was dahinter läuft** — eine Anfrage je Sammlung für den Lauf, zwei weitere je
 Sammlung für ihr Material:
