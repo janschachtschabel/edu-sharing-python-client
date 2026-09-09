@@ -159,13 +159,21 @@ def page_cut(records: Sequence[Any], response: dict[str, Any], limit: int) -> bo
     collection of six sub-collections answers ``maxItems=5`` with five and
     ``maxItems=7`` with six.
 
-    The stated total still counts, because a repository that says 250 while
-    handing over 201 has answered the question itself. Neither half suffices
-    alone, and both blind spots were measured: reading the total alone made the
-    answer ``False`` exactly where nothing was stated — the shape ``page_total``
-    names for ``ngsearch`` — and believed a repository that states the *page
-    size* as its total; counting records alone cannot see past what it asked
-    for.
+    The stated total still counts, and it is compared against what the caller
+    actually gets to keep — not against ``limit``. A repository that says 250
+    while handing over 201 has answered the question itself, and so has one
+    that says 9 while handing over 3. Comparing against ``limit`` instead
+    missed the second kind (review 2026-09-09). That the two numbers are
+    comparable at all is measured: ``pagination.total`` respects ``filter``
+    — a folder of three files and two subfolders answers ``filter=files``
+    with ``total: 3``, not 5 (edu-sharing 11.0, 2026-09-09) — so the total
+    counts the same set the records come from.
+
+    Neither half suffices alone, and both blind spots were measured: reading
+    the total alone made the answer ``False`` exactly where nothing was stated
+    — the shape ``page_total`` names for ``ngsearch`` — and believed a
+    repository that states the *page size* as its total; counting records
+    alone cannot see past what it asked for.
 
     ``default=-1`` says “nothing stated” rather than “nought”, but here the two
     are the same answer: both are below any ``limit``, so the record count
@@ -180,4 +188,5 @@ def page_cut(records: Sequence[Any], response: dict[str, Any], limit: int) -> bo
         limit: the cap the caller promises its own reader — **not** the
             ``maxItems`` that was sent, which is one higher.
     """
-    return len(records) > limit or page_total(response, default=-1) > limit
+    gezeigt = min(len(records), limit)
+    return len(records) > limit or page_total(response, default=-1) > gezeigt

@@ -177,6 +177,31 @@ def test_page_cut_faellt_nicht_auf_eine_gemeldete_seitengroesse_herein():
     assert page_cut(list(range(6)), {"pagination": {"total": 6}}, 5) is True
 
 
+def test_page_cut_vergleicht_die_zahl_mit_dem_gezeigten_nicht_mit_dem_limit():
+    """Ein Server, der 9 nennt und 3 liefert, hat die Frage beantwortet --
+    auch wenn beide Zahlen unter dem Deckel liegen.
+
+    Gegen ``limit`` verglichen fiel genau das durch (Pruefung 09.09.2026).
+    Dass die zwei Zahlen vergleichbar sind, ist gemessen: ``pagination.total``
+    beachtet ``filter`` -- ein Ordner mit drei Dateien und zwei Unterordnern
+    antwortet auf ``filter=files`` mit ``total: 3``, nicht 5.
+    """
+    assert page_cut([1, 2, 3], {"pagination": {"total": 9}}, 50) is True
+    assert page_cut([1, 2, 3], {"pagination": {"total": 3}}, 50) is False
+
+
+def test_page_cut_glaubt_den_datensaetzen_gegen_eine_zu_kleine_zahl():
+    """Ein Server, der 51 Datensaetze schickt und ``total: 40`` nennt,
+    widerspricht sich. Was angekommen **ist**, wiegt schwerer als was
+    behauptet wird -- sonst haengt die Antwort wieder an einer Zusage.
+
+    Genau in dieser Form unterscheidet sich der Helfer von der oertlichen
+    Bedingung, die ``skills_registry`` vorher trug (erschoepfend verglichen
+    am 09.09.2026: 51 von 6812 Kombinationen, alle diese).
+    """
+    assert page_cut(list(range(51)), {"pagination": {"total": 40}}, 50) is True
+
+
 def test_page_cut_nimmt_eine_genannte_null_als_antwort():
     """Eine genannte ``0`` ist eine Auskunft, kein Schweigen -- und eine leere
     Sammlung ist nicht gekuerzt."""

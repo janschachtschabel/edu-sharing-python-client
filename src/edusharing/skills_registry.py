@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from .content import MAX_TEXT_BYTES, decode_text
-from .dto import first, node_id_of, page_total, title_of
+from .dto import first, node_id_of, page_cut, page_total, title_of
 from .errors import ContentTooLargeError, NotFoundError, PermissionDeniedError
 from .skills import WLO_SKILLS, SkillConventions, registry_mark
 from .skills_markdown import (
@@ -179,7 +179,12 @@ async def load_registry(
     try:
         listing = await repo.raw.json(
             "GET", f"/node/v1/nodes/-home-/{seg}/children",
-            params={"filter": "files", "maxItems": REGISTRY_SCAN_MAX, "skipCount": 0,
+            # Eine Datei mehr als der Deckel: kommt sie an, liegt die Registry
+            # vielleicht dahinter. Aus der genannten Gesamtzahl allein gelesen
+            # war das nie so -- die Vorgabe war die gelieferte Zahl, und die
+            # ist nie kleiner als sie selbst (Pruefung 09.09.2026).
+            params={"filter": "files", "maxItems": REGISTRY_SCAN_MAX + 1,
+                    "skipCount": 0,
                     "propertyFilter": ["-all-", conventions.type_property]},
         )
     except NotFoundError:
@@ -189,9 +194,14 @@ async def load_registry(
         # server failure is not, and raises like everywhere else.
         return SkillRegistry(collection_id, reason="unreadable")
 
-    nodes = list(listing.get("nodes") or [])
-    total = page_total(listing, default=len(nodes))
-    scan_truncated = (len(nodes), total) if total > len(nodes) else None
+    roh = list(listing.get("nodes") or [])
+    nodes = roh[:REGISTRY_SCAN_MAX]
+    gesagt = page_total(listing, default=-1)
+    # Ohne genannte Zahl das Gesehene: eine untere Schranke, und mit dem
+    # Hinweis daneben liest sie sich auch als eine.
+    total = gesagt if gesagt >= 0 else len(roh)
+    scan_truncated = ((len(nodes), total)
+                      if page_cut(roh, listing, REGISTRY_SCAN_MAX) else None)
     candidates = [n for n in nodes if _is_registry_candidate(n, conventions)]
     if not candidates:
         return SkillRegistry(collection_id, reason="no_registry", scan_truncated=scan_truncated)

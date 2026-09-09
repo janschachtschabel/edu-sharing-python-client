@@ -62,6 +62,24 @@ and in [`docs/audits/`](docs/audits/).
   real one -- which made it `false` exactly when nothing was stated, so nine
   sub-collections at `limit=5` came back as five and "not truncated" (review
   2026-09-09).
+- **Every truncation flag stops depending on a stated total** (review
+  2026-09-09). Seven places asked *"is this page all of them?"* and read the
+  answer off `pagination.total`, which made every one of them say "complete"
+  exactly where the repository stated nothing -- the shape `page_total` names
+  for `ngsearch`. They ask for **one record over their cap** now and read the
+  answer off what arrives (`dto.page_cut`): `node.children.list()`, the
+  position `children.add()` picks, `collection_contents` for material and for
+  sub-collections, `browse_tree`, and the skills walk's files, its
+  sub-collections and its registry scan. The stated total still counts, and
+  against **what the caller keeps** rather than against the cap -- a
+  repository that says 9 while handing over 3 has answered the question too.
+  Two measurements against edu-sharing 11.0 carry it: both listing endpoints
+  honour `maxItems` exactly (205 children answer `maxItems=201` with 201; six
+  sub-collections answer `maxItems=5` with five), and `pagination.total`
+  respects `filter` (three files beside two subfolders answer `filter=files`
+  with `total: 3`), so the total counts the same set the records come from.
+  The wrong refusal this replaces is gone with it: exactly `LIST_MAX`
+  children with no total stated used to be refused although nothing was cut.
 - **`collection_contents` no longer reports nought material beside twenty**
   (review 2026-09-09). `total_materials` read the stated total with a default
   of `0`, so where the node endpoint states none -- the shape `page_total`

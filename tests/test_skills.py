@@ -27,6 +27,7 @@ from edusharing import AsyncRepository
 from edusharing.content import MAX_TEXT_BYTES
 from edusharing.errors import PermissionDeniedError, ServerError
 from edusharing.skills import _PAGE, WLO_SKILLS, SkillConventions
+from edusharing.skills_registry import REGISTRY_SCAN_MAX
 
 REPO = "https://repo.test/edu-sharing"
 SKILL = WLO_SKILLS.skill_type
@@ -884,3 +885,44 @@ async def test_die_skill_listen_fragen_einen_datensatz_mehr():
                if r.url.path.endswith(("/children", "/children/collections"))}
     assert gefragt.get("children") == str(_PAGE + 1), gefragt
     assert gefragt.get("collections") == str(_PAGE + 1), gefragt
+
+
+async def test_eine_abgeschnittene_dateiliste_ohne_gesamtzahl_ist_auch_eine():
+    """Der blinde Fleck (Pruefung 09.09.2026).
+
+    ``scan_truncated`` unterscheidet "hier ist keine Registry" von "nicht
+    gefunden, aber auch nicht zu Ende gesucht" -- und war ``None``, sobald der
+    Endpunkt keine Gesamtzahl nannte: die Vorgabe war die **gelieferte** Zahl,
+    und die ist nie kleiner als sie selbst.
+
+    Hier liegen 51 Dateien in der Sammlung und keine davon ist eine Registry.
+    Ohne den Hinweis liest sich das als "es gibt keine".
+    """
+    instanz = OhneSeitenzahl(dateien=REGISTRY_SCAN_MAX + 1)
+    async with instanz.repo() as repo:
+        reg = await repo.skills.registry(COLL)
+    assert reg.reason == "no_registry"
+    assert reg.scan_truncated is not None, "gesucht wurde nicht zu Ende"
+    gesehen, gesamt = reg.scan_truncated
+    assert gesehen == REGISTRY_SCAN_MAX
+    assert gesamt > gesehen
+
+
+async def test_genau_eine_seite_ohne_gesamtzahl_ist_zu_ende_gesucht():
+    """Gegenprobe: genau ``REGISTRY_SCAN_MAX`` Dateien sind alle -- sonst
+    truege jeder Befund "keine Registry" einen Vorbehalt, der nichts sagt."""
+    instanz = OhneSeitenzahl(dateien=REGISTRY_SCAN_MAX)
+    async with instanz.repo() as repo:
+        reg = await repo.skills.registry(COLL)
+    assert reg.reason == "no_registry"
+    assert reg.scan_truncated is None
+
+
+async def test_der_registry_scan_fragt_eine_datei_mehr():
+    """Woran die beiden Tests darueber haengen."""
+    instanz = OhneSeitenzahl(dateien=3)
+    async with instanz.repo() as repo:
+        await repo.skills.registry(COLL)
+    gefragt = [r.url.params.get("maxItems") for r in instanz.anfragen
+               if r.url.path.endswith(f"/{COLL}/children")]
+    assert gefragt == [str(REGISTRY_SCAN_MAX + 1)], gefragt
