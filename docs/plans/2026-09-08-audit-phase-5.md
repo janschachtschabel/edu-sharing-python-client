@@ -261,3 +261,36 @@ Damit ist der Bericht abgearbeitet und dreimal nachgeprüft.
 
   Dreimal in dieser Sitzung dasselbe Muster: eine Wache, die grün ist, ohne zu
   prüfen. Gefunden wurde es jedes Mal durch Mutation, keinmal durch Lesen.
+
+- [x] **35 · Dokumente und Nutzungs-Skill** Sechs Commits, `6b7faa9` …
+  `cfd5407`. Entwicklungspause; gemessen statt gemeint.
+
+  **Der Code in den Dokumenten lief gegen nichts.** Die Beispiele in
+  `docs/examples` werden ausgeführt, die Blöcke in README, FLOWS, REFERENCE,
+  ARCHITECTURE und SKILL nicht — 1133 Attributzugriffe, ungeprüft.
+  `test_docs_code.py` fragt zwei Dinge: parst der Block, und gibt es, was er
+  aufruft. Drei Funde, je zweisprachig: `await repo.resolve(...)` in beiden
+  READMEs (die **synchrone** Fassade hat es, die asynchrone nicht), ein
+  FLOWS-Block mit HTTP als `python` ausgezeichnet, ein REFERENCE-Block mit
+  einer Zeichenkette über zwei Zeilen.
+
+  **Eine Behauptung, die zweimal falsch war.** „`browse_tree` sichert gegen
+  Zyklen und sagt es über `truncated`" — gemessen setzt ein Zyklus es nicht,
+  und die Tiefengrenze auch nicht. Stand in REFERENCE **und** im Skill, wo sie
+  schwerer wiegt: ein Modell schließt daraus auf ein Kennzeichen, das nie
+  kommt. Beide berichtigt, beide Messungen gepinnt.
+
+  **Und ein Kennzeichen fehlte ganz:** `collections_truncated`, von sechs das
+  einzige, das der Skill nicht nannte — genau das, was API-3 eingeführt hat.
+
+  **Drei Aussagen wurden von Prosa zu Wachen:** dass es *genau* vier asynchron
+  durchgereichte Schichten gibt (der Skill nennt sie in 5.12, gepinnt war nur
+  ihre Erreichbarkeit), dass beide Sprachfassungen dasselbe Gerüst haben, und
+  dass das Inhaltsverzeichnis der README jedes Kapitel führt — `Releasing` und
+  `Security` fehlten dort seit OPS-3.
+
+  **Zweimal hätte ich fast Falsches gemeldet.** `SyncNode` reicht jeden
+  Lesezugriff per `__getattr__` durch, was `hasattr` nicht sieht — drei
+  gemeldete Fehler waren keine. Und meine erste Ankerregel fasste Leerzeichen
+  zusammen und behauptete zehn tote Verweise, die keine waren. Beide Male hat
+  die Nachmessung es gezeigt, nicht das Nachdenken.
