@@ -241,3 +241,51 @@ ACL-Prüfung von `grant` sind an einem Modell belegt, nicht an einem Server.
 
 Abschnitte 5 und 6 des Berichts — acht Flow-Entwürfe und ein gemeinsamer
 Ablaufkern — bleiben Bau, nicht Reparatur.
+
+---
+
+## Nachtrag · Abschnitt 7 des Berichts (Empfohlene Umsetzung und Abnahme)
+
+Reihe A und B sind mit R01–R10 abgearbeitet. Reihen C–F sind Bau, nicht
+Anpassung, und bleiben es. Daneben nennt Abschnitt 7 drei Dinge, die
+tatsächlich Anpassung an Vorhandenem sind. Gemessen am 09.09.2026, welche
+davon zutreffen:
+
+| Empfehlung aus §7 | Gemessen | Folge |
+|---|---|---|
+| „Ein kleiner Job mit den tatsächlich deklarierten Mindestversionen der Laufzeitabhängigkeiten" | Es gibt keinen. `uv sync --locked` installiert, was `uv.lock` pinnt: **attrs 26.1.0**, **httpx 0.28.1** — die *obere* Kante. Der deklarierte Boden `attrs>=23.2`, `httpx>=0.27` läuft in keinem Job | **N1** |
+| „Wenige gezielte Integrationstests: HTTP-Antwort → Modell → öffentlicher Flow → synchroner Wrapper" | `test_sync_surface.py` geht alle vier Schichten, prüft aber nur die **Form** („ist es keine Coroutine"). Kein einziger der in dieser Runde reparierten Werte — `facet_meta`, `source_url`, `variants_total`, das ausgeschlossene Original — wird durch den synchronen Zugang hindurch geprüft | **N2** |
+| „Bei der Neugenerierung … auch die tatsächlich zugesagten Antwort- und Identifikatorverträge" | Ist da: `test_generated_layer.py` pinnt beide 200-Parser in beiden Betriebsarten, die JSON-lesenden Fehlerzweige und die Vollständigkeit der Erfolgsantworten. Der `test`-Job läuft auf demselben Baum, den der `generate`-Job als deckungsgleich mit der Spec nachweist | keine |
+
+### Die Schritte
+
+- [ ] **N1 · Der deklarierte Boden wird geprüft.** Ein Job `minimum`: Python
+      3.11 (die deklarierte Untergrenze), Projekt ohne Auflösung installieren,
+      dann `httpx==0.27.0` und `attrs==23.2.0` daneben, dann die Suite.
+
+      Vorher gemessen: der Boden hält (2221 passed). Der Job ist heute also
+      grün — sein Wert liegt nach vorn: der erste Aufruf, der eine neuere
+      httpx-Fassung braucht, macht ihn rot, während die Matrix weiter grün
+      bleibt. Damit das keine Behauptung ist, die Gegenprobe: mit
+      `attrs==22.1.0` bricht die Sammlung sofort ab
+      (`TypeError: field() got an unexpected keyword argument 'alias'`).
+
+- [ ] **N2 · Vier Schichten, fünf Verträge.** Eine Datei
+      `tests/test_integration_sync.py`. Abnahmekriterium der Reihe B im
+      Bericht ist wörtlich: „ACL-, Referenz-, Quellen- und
+      Vollständigkeitsinformationen bleiben bis zur öffentlichen Oberfläche
+      korrekt". Also je ein Durchgang pro genannter Art, von der
+      HTTP-Antwort bis zum blockierenden `Repository`:
+
+      | Art | Vertrag | Über |
+      |---|---|---|
+      | ACL | `grant` meldet nicht wahr, wenn der Server einen anderen Eintrag verliert (R03) | `repo.node(...).permissions.grant` |
+      | Referenz | `related` gibt das eigene Original nicht als Ähnliches aus (R08) | `repo.flows.related` |
+      | Quellen | der Repository-Text nimmt die Quell-URL mit (R07) | `repo.flows.text` |
+      | Vollständigkeit | die Facetten-Restanzahl kommt an (R06) | `repo.flows.search` |
+      | Vollständigkeit | die gekürzte Variantenliste kommt an (R04) | `repo.flows.page` |
+
+      Jede dieser Wachen wird mutiert: die Reparatur im Quelltext
+      zurückgedreht, der Test muss rot werden. Ein Integrationstest, der auch
+      ohne die Reparatur grün bleibt, misst nur den Durchgriff — den prüft
+      `test_sync_surface.py` schon.
