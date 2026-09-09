@@ -1009,7 +1009,7 @@ Nur die Sammlungen. Ihr Material ist eine zweite Anfrage je Knoten —
 
 **Was dahinter läuft** — eine Anfrage je geöffneter Sammlung:
 
-```python
+```text
 # was repo.flows.browse_tree("abc", depth=2) tut
 GET /collection/v1/collections/-home-/abc/children/collections
 # dann dasselbe je Kind, bis zur Tiefe, unter Auslassung schon gesehener IDs

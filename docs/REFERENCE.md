@@ -946,9 +946,7 @@ kurz = await api.respond("Warum ist der Himmel blau?",
                          max_output_tokens=32)
 kurz.truncated       # True
 kurz.reason          # "max_output_tokens"
-kurz.text            # "Thinking Process:
-
-1. **Analyze…"  <- not an answer
+kurz.text            # "Thinking Process:\n\n1. **Analyze..." <- not an answer
 ```
 
 **Thinking is paid from the same budget.** A reasoning model given 32 tokens

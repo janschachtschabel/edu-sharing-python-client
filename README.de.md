@@ -884,7 +884,7 @@ Veranstaltung, …) und `ccm:oeh_extendedData` (Freitext). Nichts in dieser
 Bibliothek kennt sie, und nichts muss das:
 
 ```python
-uri = await repo.resolve("ccm:oeh_extendedType", "KI-Prompt")   # URI dieser Instanz
+uri = await repo.vocab.resolve("ccm:oeh_extendedType", "KI-Prompt")  # URI dieser Instanz
 await node.update(properties={
     "ccm:oeh_extendedType": [uri],
     "ccm:oeh_extendedData": [json.dumps({"modell": "gpt-5", "temperatur": 0.2})],

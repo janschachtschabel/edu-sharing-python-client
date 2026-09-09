@@ -860,7 +860,7 @@ content type plus an open data area — WLO calls them `ccm:oeh_extendedType`
 and nothing needs to:
 
 ```python
-uri = await repo.resolve("ccm:oeh_extendedType", "KI-Prompt")   # this instance's URI
+uri = await repo.vocab.resolve("ccm:oeh_extendedType", "KI-Prompt")  # this instance's URI
 await node.update(properties={
     "ccm:oeh_extendedType": [uri],
     "ccm:oeh_extendedData": [json.dumps({"modell": "gpt-5", "temperatur": 0.2})],

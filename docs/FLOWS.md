@@ -979,7 +979,7 @@ Only the collections. Their material is a second request per node —
 
 **Behind it** — one request per collection opened:
 
-```python
+```text
 # what repo.flows.browse_tree("abc", depth=2) does
 GET /collection/v1/collections/-home-/abc/children/collections
 # then the same for each child, to the given depth, skipping ids already seen
