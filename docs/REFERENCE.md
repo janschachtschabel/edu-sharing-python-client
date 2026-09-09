@@ -93,7 +93,7 @@ Credentials never reach a log line — see *Logging* in the README.
 |---|---|
 | `repo.raw.json("GET", "/node/v1/nodes/-home-/{id}/metadata")` | the parsed body |
 | `repo.raw.request("POST", path, json=…)` | `httpx.Response` |
-| `repo.raw.download(path, max_bytes=…)` | `bytes` — streamed past `max_bytes`, retried like any GET |
+| `repo.raw.download(path, max_bytes=…)` | `bytes` — streamed past `max_bytes`, retried like any GET. The limit counts **unpacked** bytes; a compressed response is decoded once, and the response handed back no longer claims an encoding it no longer carries |
 | `repo.raw.is_repository_url(url)` | `bool` — whether credentials would be attached |
 
 ```python

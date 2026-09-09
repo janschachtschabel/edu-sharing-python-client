@@ -7,6 +7,9 @@ dass die Gleichzeitigkeit begrenzt bleibt.
 """
 
 import asyncio
+import gzip
+import json
+import random
 
 import httpx
 import pytest
@@ -1094,3 +1097,94 @@ async def test_ein_externer_download_traegt_die_anmeldung_des_repositoriums_nich
         await transport.download("https://cdn.example.test/datei")
 
     assert gesehen == [("cdn.example.test", "", "")]
+
+
+# --- F05 (Fremdpruefung 09.09.2026): Kodierung genau einmal ----------------
+#
+# Mit ``max_bytes`` liest ``_send`` den Koerper stueckweise -- und
+# ``aiter_bytes()`` liefert bereits **entpackte** Bytes. Aus ihnen wurde dann
+# eine neue Antwort gebaut, mit den urspruenglichen Kopfzeilen und damit auch
+# mit ``Content-Encoding: gzip``. Die neue Antwort entpackte ein zweites Mal.
+#
+# Gemessen am 09.09.2026: derselbe gzip-Strom lud ohne Grenze richtig, mit
+# ``max_bytes=1000`` ergab er ``TransportError: DecodingError ... incorrect
+# header check`` -- bei einem Inhalt weit unter der Grenze. Deterministisch,
+# also half auch keine Wiederholung.
+
+TEXT = b"# Ein kleiner Skill\n\nNur ein paar Zeilen.\n"
+
+
+def _gzip_handler(inhalt: bytes = TEXT, *, status: int = 200):
+    gepackt = gzip.compress(inhalt)
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            status, content=gepackt,
+            headers={"content-encoding": "gzip",
+                     "content-length": str(len(gepackt))})
+    return handler
+
+
+@pytest.mark.parametrize("grenze", [None, 1000])
+@pytest.mark.parametrize("gepackt", [False, True])
+async def test_derselbe_text_kommt_gepackt_wie_ungepackt_an(gepackt, grenze):
+    """Vier Faelle, ein Ergebnis. Das ist der ganze Befund."""
+    handler = _gzip_handler() if gepackt else (
+        lambda _r: httpx.Response(200, content=TEXT))
+    async with _transport(handler) as transport:
+        assert await transport.download("/skill.md", max_bytes=grenze) == TEXT
+
+
+async def test_die_kopfzeilen_beschreiben_den_koerper_der_ankommt():
+    """Die Ursache, nicht nur ihre Wirkung: eine Antwort, deren Koerper
+    entpackt ist, darf sich nicht als gepackt ausgeben -- und ihre Laenge ist
+    die des entpackten."""
+    async with _transport(_gzip_handler()) as transport:
+        antwort = await transport.request("GET", "/skill.md", max_bytes=1000)
+    assert "content-encoding" not in antwort.headers
+    assert antwort.headers["content-length"] == str(len(TEXT))
+
+
+async def test_die_groessengrenze_gilt_weiterhin_dem_entpackten_inhalt():
+    """Die Gegenprobe, ohne die der Fix den Schutz mitnehmen koennte: die
+    komprimierte Groesse liegt unter der Grenze, die entpackte darueber."""
+    gross = b"x" * 100_000
+    async with _transport(_gzip_handler(gross)) as transport:
+        with pytest.raises(ContentTooLargeError):
+            await transport.download("/gross.bin", max_bytes=1000)
+    assert len(gzip.compress(gross)) < 1000
+
+
+async def test_eine_angekuendigte_gepackte_groesse_lehnt_nicht_vorschnell_ab():
+    """Die angekuendigte Laenge ist die der **gepackten** Bytes; die Grenze
+    meint die entpackten. Sie gegeneinander zu halten lehnt einen Inhalt ab,
+    der hineinpasst.
+
+    Unkomprimierbare Daten, damit der Fall ueberhaupt eintritt: gepackt sind
+    es 1023 Bytes, entpackt 1000, die Grenze liegt bei 1010. Mit gut
+    komprimierbaren Daten -- ``b"y" * 4000`` -- laege die angekuendigte Laenge
+    weit unter jeder Grenze, und dieser Test waere gruen, ohne die Regel je zu
+    beruehren. Genau so stand er zuerst da.
+    """
+    zufall = random.Random(7)
+    inhalt = bytes(zufall.randrange(256) for _ in range(1000))
+    assert len(gzip.compress(inhalt)) > 1010, "sonst prueft der Test nichts"
+    async with _transport(_gzip_handler(inhalt)) as transport:
+        assert await transport.download("/klein.bin", max_bytes=1010) == inhalt
+
+
+async def test_eine_gepackte_fehlerantwort_bleibt_lesbar():
+    """Auch der Fehlerweg liest stueckweise, also entpackt auch er.
+
+    Geprueft am **Text der Meldung**: nur ein genau einmal entpackter Koerper
+    laesst sich als JSON lesen, und nur dann steht die Ursache im Fehler
+    statt eines nackten "HTTP 500". Vorher endete dieser Weg im
+    ``DecodingError`` -- also gar nicht als ``ServerError``.
+    """
+    koerper = json.dumps({"error": "org.edu_sharing.DAOException",
+                          "message": "kaputt"}).encode()
+    async with _transport(_gzip_handler(koerper, status=500), max_retries=0) as t:
+        with pytest.raises(ServerError) as fehler:
+            await t.download("/skill.md", max_bytes=1000)
+    assert "kaputt" in str(fehler.value)
+    assert "DAOException" in str(fehler.value)

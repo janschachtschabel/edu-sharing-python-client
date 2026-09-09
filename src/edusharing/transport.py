@@ -480,8 +480,14 @@ class Transport:
             files=files, headers=headers,
         ) as response:
             success = response.status_code < 300
+            # The announced length describes the bytes on the wire. With a
+            # content encoding those are the *packed* ones, and the limit is
+            # about what they unpack to -- holding one against the other
+            # refuses content that fits. The count below sees the unpacked
+            # bytes and is the check that matters (F05, 2026-09-09).
             announced = response.headers.get("content-length", "")
-            if success and announced.isascii() and announced.isdigit():
+            if (success and "content-encoding" not in response.headers
+                    and announced.isascii() and announced.isdigit()):
                 _check_size(int(announced), max_bytes, url)
             chunks: list[bytes] = []
             received = 0
@@ -492,8 +498,19 @@ class Transport:
                 elif received > _ERROR_PAGE_LIMIT:
                     break
                 chunks.append(chunk)
+            # ``aiter_bytes`` hands over the DECODED body, so the two
+            # headers that describe the encoded one no longer describe this
+            # content. Carrying them along made the new response unpack a
+            # second time: measured 2026-09-09, the same gzip stream loaded
+            # correctly without a limit and raised ``DecodingError: incorrect
+            # header check`` with one, at a size far below it (F05).
+            # Deterministic, so no retry ever cured it. httpx fills the length
+            # in from the body it is given.
+            passend = httpx.Headers(response.headers)
+            passend.pop("content-encoding", None)
+            passend.pop("content-length", None)
             return httpx.Response(
-                response.status_code, headers=response.headers,
+                response.status_code, headers=passend,
                 content=b"".join(chunks), request=response.request,
             )
 

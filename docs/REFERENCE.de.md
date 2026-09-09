@@ -98,7 +98,7 @@ README.
 |---|---|
 | `repo.raw.json("GET", "/node/v1/nodes/-home-/{id}/metadata")` | der geparste Rumpf |
 | `repo.raw.request("POST", path, json=…)` | `httpx.Response` |
-| `repo.raw.download(path, max_bytes=…)` | `bytes` — gestreamt und über `max_bytes` gedeckelt, wiederholt wie jedes GET |
+| `repo.raw.download(path, max_bytes=…)` | `bytes` — gestreamt und über `max_bytes` gedeckelt, wiederholt wie jedes GET. Die Grenze zählt **entpackte** Bytes; eine komprimierte Antwort wird genau einmal dekodiert, und die zurückgegebene Antwort behauptet keine Kodierung mehr, die sie nicht mehr trägt |
 | `repo.raw.is_repository_url(url)` | `bool` — ob Zugangsdaten mitgingen |
 
 ```python
