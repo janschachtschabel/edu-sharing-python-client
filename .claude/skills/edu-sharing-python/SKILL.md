@@ -325,6 +325,11 @@ exception as `.location`.
 `page_total(response, default=…)`. Every object of this library is built
 through them, so the same record always reads the same way.
 
+`page_cut(records, response, limit)` is the one reading of *"is this page all
+of them?"*. Ask the endpoint for `limit + 1` and the page answers for itself;
+reading the stated total alone said "complete" exactly where the repository
+stated nothing, which is where the question mattered most.
+
 `at_least(name, value, limit)` is the bounds check the clients apply to their settings;
 `check_client(client, timeout=…)` holds the two rules for a client the caller brings
 along -- no `timeout` beside it, and no `follow_redirects=True`, because httpx keeps

@@ -1338,6 +1338,7 @@ Not needed for ordinary use; documented because they are importable.
 | `bare_id(ref)` | `str` — a node id without its `workspace://SpacesStore/` prefix |
 | `render_url(repository_url, node_id)` | `str` — the viewer URL, `""` for an empty id |
 | `page_total(response, default=0)` | `int` — `pagination.total` from a listing |
+| `page_cut(records, response, limit)` | `bool` — whether a page fetched with `maxItems=limit + 1` is missing some. The extra record answers it without a stated total; the stated one still counts when it is larger |
 | `Transport` | the HTTP layer: retries, backoff, the credential boundary |
 | `Transport.is_repository_url(url)` | `bool` |
 | `RetryPolicy(max_retries=…, backoff_base=…, max_retry_after=…)` | the one retry rule the three clients share |

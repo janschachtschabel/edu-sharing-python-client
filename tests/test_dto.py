@@ -19,6 +19,7 @@ from edusharing.dto import (
     bare_id,
     first,
     node_id_of,
+    page_cut,
     page_total,
     render_url,
     stored_title_of,
@@ -134,6 +135,52 @@ def test_page_total_faellt_auf_die_vorgabe(antwort):
     assert page_total(antwort) == 0
     assert page_total(antwort, default=7) == 7
 
+
+# --- page_cut --------------------------------------------------------------
+#
+# Gefragt wird mit ``maxItems=limit + 1``; ``limit`` ist, was der Aufrufer
+# seinem eigenen Leser zusagt. Beide Endpunkte beachten ``maxItems`` genau --
+# gemessen am 09.09.2026 gegen edu-sharing 11.0.
+
+
+def test_page_cut_sieht_den_einen_datensatz_ueber_dem_limit():
+    """Der Kern: die Seite beantwortet die Frage selbst."""
+    assert page_cut(list(range(6)), {}, 5) is True
+
+
+def test_page_cut_ohne_gesamtzahl_und_genau_am_limit_ist_vollstaendig():
+    """Und das ist die Haelfte, die vorher fehlte: genau ``limit`` Datensaetze
+    sind vollstaendig, weil einer mehr angefordert war und nicht kam."""
+    assert page_cut(list(range(5)), {}, 5) is False
+
+
+@pytest.mark.parametrize("antwort", [{}, {"pagination": None},
+                                     {"pagination": {"total": None}},
+                                     {"pagination": {"total": ""}}])
+def test_page_cut_verlaesst_sich_nicht_auf_eine_genannte_zahl(antwort):
+    """Alle Formen von "nichts gesagt". Ohne den zusaetzlichen Datensatz war
+    die Antwort hier genau dann ``False``, wenn niemand etwas sagte -- also
+    dort, wo sie am wenigsten wert war."""
+    assert page_cut(list(range(6)), antwort, 5) is True
+    assert page_cut(list(range(5)), antwort, 5) is False
+
+
+def test_page_cut_glaubt_einer_gesamtzahl_ueber_dem_limit():
+    """Wer 250 sagt und 6 liefert, hat die Frage selbst beantwortet -- da
+    braucht es den zusaetzlichen Datensatz nicht."""
+    assert page_cut(list(range(3)), {"pagination": {"total": 250}}, 5) is True
+
+
+def test_page_cut_faellt_nicht_auf_eine_gemeldete_seitengroesse_herein():
+    """Ein Server, der als ``total`` die **Seitengroesse** nennt, ist von einem
+    ehrlichen nicht zu unterscheiden. Die Datensaetze entscheiden trotzdem."""
+    assert page_cut(list(range(6)), {"pagination": {"total": 6}}, 5) is True
+
+
+def test_page_cut_nimmt_eine_genannte_null_als_antwort():
+    """Eine genannte ``0`` ist eine Auskunft, kein Schweigen -- und eine leere
+    Sammlung ist nicht gekuerzt."""
+    assert page_cut([], {"pagination": {"total": 0}}, 5) is False
 
 # --- Die Wache -------------------------------------------------------------
 

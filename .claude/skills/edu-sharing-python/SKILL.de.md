@@ -340,6 +340,12 @@ Schreibvorgang erhält), `node_id_of(raw)`, `bare_id(ref)`, `render_url(reposito
 `page_total(response, default=…)`. Jedes Objekt dieser Bibliothek entsteht
 über sie, damit derselbe Datensatz sich immer gleich liest.
 
+`page_cut(records, response, limit)` ist die eine Lesart der Frage *"ist diese
+Seite alles?"*. Gefragt wird nach `limit + 1`, dann beantwortet die Seite sie
+selbst; aus der genannten Gesamtzahl allein gelesen hiess sie genau dort
+"vollständig", wo das Repositorium nichts sagte — also dort, wo die Frage am
+meisten wog.
+
 `at_least(name, value, limit)` ist die Grenzprüfung, die die Clients auf ihre Einstellungen anwenden;
 `check_client(client, timeout=…)` trägt die zwei Regeln für einen mitgebrachten Client —
 kein `timeout` daneben, kein `follow_redirects=True`, weil httpx eigene Kopfzeilen über

@@ -1363,6 +1363,7 @@ sind.
 | `bare_id(ref)` | `str` — eine Knoten-id ohne das Präfix `workspace://SpacesStore/` |
 | `render_url(repository_url, node_id)` | `str` — die Ansichts-Adresse, `""` bei leerer id |
 | `page_total(response, default=0)` | `int` — `pagination.total` aus einer Auflistung |
+| `page_cut(records, response, limit)` | `bool` — ob eine mit `maxItems=limit + 1` geholte Seite gekürzt ist. Der eine zusätzliche Datensatz beantwortet das ohne genannte Gesamtzahl; eine genannte zählt weiter mit, wenn sie größer ist |
 | `Transport` | die HTTP-Schicht: Wiederholungen, Wartezeiten, Zugangsdaten-Grenze |
 | `Transport.is_repository_url(url)` | `bool` |
 | `RetryPolicy(max_retries=…, backoff_base=…, max_retry_after=…)` | die eine Wiederholungs-Regel der drei Clients |

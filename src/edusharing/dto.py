@@ -16,12 +16,14 @@ that turns a record into an object of this library goes through here.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 __all__ = [
     "bare_id",
     "first",
     "node_id_of",
+    "page_cut",
     "page_total",
     "title_of",
     "render_url",
@@ -144,3 +146,38 @@ def page_total(response: dict[str, Any], default: int = 0) -> int:
     # waere schlechter als die Vorgabe zu nehmen. Eine genannte ``0`` ist
     # davon nicht betroffen.
     return default if total in (None, "") else int(total)
+
+
+def page_cut(records: Sequence[Any], response: dict[str, Any], limit: int) -> bool:
+    """Whether a page fetched with ``maxItems=limit + 1`` is missing some.
+
+    Ask for one record over the cap and the page answers for itself: ``limit +
+    1`` arriving means there are more than ``limit``, and fewer arriving means
+    there are not — the question needs no total. Measured against edu-sharing
+    11.0 on 2026-09-09, both listing endpoints honour ``maxItems`` exactly: a
+    folder of 205 children answers ``maxItems=201`` with 201 records, and a
+    collection of six sub-collections answers ``maxItems=5`` with five and
+    ``maxItems=7`` with six.
+
+    The stated total still counts, because a repository that says 250 while
+    handing over 201 has answered the question itself. Neither half suffices
+    alone, and both blind spots were measured: reading the total alone made the
+    answer ``False`` exactly where nothing was stated — the shape ``page_total``
+    names for ``ngsearch`` — and believed a repository that states the *page
+    size* as its total; counting records alone cannot see past what it asked
+    for.
+
+    ``default=-1`` says “nothing stated” rather than “nought”, but here the two
+    are the same answer: both are below any ``limit``, so the record count
+    carries the decision either way. Replacing it with ``0`` changes no
+    outcome — measured by mutation on 2026-09-09, after this docstring first
+    claimed the choice was load-bearing. It is kept because it says what it
+    means, not because it decides anything.
+
+    Args:
+        records: what the response actually carried, unsliced.
+        response: the listing response, for its stated total.
+        limit: the cap the caller promises its own reader — **not** the
+            ``maxItems`` that was sent, which is one higher.
+    """
+    return len(records) > limit or page_total(response, default=-1) > limit

@@ -26,7 +26,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from .dto import page_total, render_url
+from .dto import page_cut, page_total, render_url
 from .errors import EduSharingError, ValidationError
 from .urls import path_segment
 
@@ -92,10 +92,11 @@ class ChildObjects:
                 -- downloading them, showing them, counting them -- and the
                 return type has no room to say "incomplete" (audit MNT-4).
         """
-        roh, gesamt = await self._seite()
-        if _ist_gekuerzt(roh, gesamt):
+        antwort = await self._seite()
+        roh = list(antwort.get("nodes") or [])
+        if page_cut(roh, antwort, LIST_MAX):
             raise EduSharingError(
-                f"This node has {_wie_viele(roh, gesamt)} children and this "
+                f"This node has {_wie_viele(roh, antwort)} children and this "
                 f"listing reads at most {LIST_MAX}. Returning the first "
                 f"{LIST_MAX} would look like the whole set. Read them through "
                 f"the children endpoint with your own paging.",
@@ -105,28 +106,23 @@ class ChildObjects:
         children.sort(key=_order_key)
         return [self._nodes.wrap(data) for data in children]
 
-    async def _seite(self) -> tuple[_Records, int]:
-        """One page of child records -- one more than the cap -- and the total
-        the repository stated.
+    async def _seite(self) -> dict[str, Any]:
+        """One page of child records -- one more than the cap.
 
         ``LIST_MAX + 1``, so that the page answers for itself whether it is all
         of them: one record over the cap means there are more, fewer means there
         are not. See ``_ist_gekuerzt``.
 
-        ``-1`` where no total was stated: some responses carry no ``pagination``
-        at all, and a stated ``0`` is an answer -- the node has no children yet
-        -- which must not read as "not said".
-
         Shared by ``list()`` and ``_next_position()`` so that both read the same
         page the same way. What each does with a cut page stays with it, because
         the advice differs: read them yourself, or name the position yourself.
         """
-        response = await self._nodes.transport.json(
+        response: dict[str, Any] = await self._nodes.transport.json(
             "GET",
             f"/node/v1/nodes/-home-/{path_segment(self._node.id)}/children",
             params={"maxItems": LIST_MAX + 1, "propertyFilter": "-all-"},
         )
-        return list(response.get("nodes") or []), page_total(response, default=-1)
+        return response
 
     async def _next_position(self) -> int:
         """One past the highest position the attachments hold.
@@ -146,10 +142,11 @@ class ChildObjects:
         defended as a harmless skip; the skip was never needed, and the two ways
         of counting were what collided twice (reviews 2026-09-08 and -09).
         """
-        roh, gesamt = await self._seite()
-        if _ist_gekuerzt(roh, gesamt):
+        antwort = await self._seite()
+        roh = list(antwort.get("nodes") or [])
+        if page_cut(roh, antwort, LIST_MAX):
             raise EduSharingError(
-                f"This node has {_wie_viele(roh, gesamt)} children and this "
+                f"This node has {_wie_viele(roh, antwort)} children and this "
                 f"listing reads at most {LIST_MAX}, so the highest position in "
                 f"use cannot be read and the next free one cannot be "
                 f"determined. Pass ``order=`` to say where this attachment "
@@ -259,36 +256,15 @@ def _anhaenge(roh: _Records) -> _Records:
     return [data for data in roh if CHILD_ASPECT in (data.get("aspects") or [])]
 
 
-def _wie_viele(roh: _Records, gesamt: int) -> str:
+def _wie_viele(roh: _Records, response: dict[str, Any]) -> str:
     """How many children to name in a refusal.
 
     The stated total only when it is larger than what arrived -- a total
     equal to the page size says nothing beyond what was counted, and naming
     it as *the* number would overstate what is known.
     """
-    return str(gesamt) if gesamt > len(roh) else f"at least {len(roh)}"
-
-
-def _ist_gekuerzt(roh: _Records, gesamt: int) -> bool:
-    """Whether this page is not all of them.
-
-    Not a guess any more. ``_seite`` asks for ``LIST_MAX + 1`` records, so
-    that many arriving means there are more than ``LIST_MAX`` children and
-    fewer arriving means this is all of them -- the question needs no total.
-    Measured against edu-sharing 11.0 on 2026-09-09, in a throwaway folder
-    with 205 children: ``maxItems=201`` answers with 201 records, so the
-    instance does not cap at 200.
-
-    The stated total is still read, because a repository that says 250 while
-    handing over 201 has answered the question itself. Neither half suffices
-    alone, and both blind spots were measured (review 2026-09-09): the total
-    alone believed a repository that states the **page size** as the total,
-    which made a cut page look complete; the record count alone would not
-    know that more exist beyond what it asked for. A full page used to be
-    treated as cut for want of the extra record, which refused ``LIST_MAX``
-    children wrongly -- that price is gone.
-    """
-    return len(roh) > LIST_MAX or gesamt > LIST_MAX
+    gesagt = page_total(response, default=-1)
+    return str(gesagt) if gesagt > len(roh) else f"at least {len(roh)}"
 
 
 def _order_key(data: dict[str, Any]) -> tuple[int, str]:

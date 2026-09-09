@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 from ..childobjects import ORDER_PROPERTY
-from ..dto import page_total, render_url
+from ..dto import page_cut, page_total, render_url
 from ..results import SearchHit
 from ..urls import path_segment
 from .serialize import hit_as_dict
@@ -146,7 +146,7 @@ async def collection_contents(
     # ``childobjects._ist_gekuerzt``.
     gesagt_material = page_total(nodes_response, default=-1)
     gesagt_unter = page_total(collections_response, default=-1)
-    gekuerzt = len(roh_unter) > limit or gesagt_unter > limit
+    gekuerzt = page_cut(roh_unter, collections_response, limit)
     gesamt_unter = gesagt_unter if gesagt_unter >= 0 else len(roh_unter)
     return {
         "id": collection_id,
