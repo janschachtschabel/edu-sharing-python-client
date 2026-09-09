@@ -778,7 +778,7 @@ stopped early is not "there is none".
 
 | Call | Returns |
 |---|---|
-| `repo.flows.page(collection_id)` | `{collection, folder_id, rendered, variants, swimlanes, node_ids, resolved, truncated, reason}` |
+| `repo.flows.page(collection_id)` | `{collection, folder_id, rendered, variants, variants_total, swimlanes, node_ids, resolved, truncated, truncated_by, reason}` — `truncated_by` holds `"widgets"` (raise `max_widgets`) or `"variants"` (the reader's own cap on the page folder's children; `rendered` may then be `None` although a default is recorded) |
 | `repo.flows.find_pages(text, limit=…)` | `{query, hits, checked, total, total_is_lower_bound, reason}` |
 
 ### Writing

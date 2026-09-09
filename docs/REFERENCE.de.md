@@ -793,7 +793,7 @@ Gang, der früh abgebrochen hat, heißt nicht „es gibt keins".
 
 | Aufruf | Liefert |
 |---|---|
-| `repo.flows.page(collection_id)` | `{collection, folder_id, rendered, variants, swimlanes, node_ids, resolved, truncated, reason}` |
+| `repo.flows.page(collection_id)` | `{collection, folder_id, rendered, variants, variants_total, swimlanes, node_ids, resolved, truncated, truncated_by, reason}` — `truncated_by` trägt `"widgets"` (dann `max_widgets` heben) oder `"variants"` (der eigene Deckel des Lesers auf die Kinder des Seitenordners; `rendered` kann dann `None` sein, obwohl eine Standardvariante festgelegt ist) |
 | `repo.flows.find_pages(text, limit=…)` | `{query, hits, checked, total, total_is_lower_bound, reason}` |
 
 ### Schreiben

@@ -86,10 +86,18 @@ async def page(
         NotFoundError: when no node carries ``collection_id``.
 
     Returns:
-        ``{collection, folder_id, rendered, variants, swimlanes, node_ids,
-        resolved, truncated, reason}``. ``variants`` lists every variant, not
-        only the rendered one -- otherwise a caller cannot tell what it could
-        switch to.
+        ``{collection, folder_id, rendered, variants, variants_total,
+        swimlanes, node_ids, resolved, truncated, truncated_by, reason}``.
+        ``variants`` lists every variant that was **read**, not only the
+        rendered one -- otherwise a caller cannot tell what it could switch
+        to -- and ``variants_total`` says how many the folder holds.
+
+        ``truncated_by`` names which cap bit: ``"widgets"`` for
+        ``max_widgets``, ``"variants"`` for the reader's own cap on how many
+        children of the page folder are read at once. The second one is not a
+        parameter of this call; when it appears, ``rendered`` may be ``None``
+        although a default is recorded, and ``reason`` says so instead of
+        claiming the folder is empty (R04, 2026-09-09).
     """
     if max_widgets < 1:
         raise ValueError(
@@ -107,7 +115,9 @@ async def page(
     chosen, reason = _choose(curated, variant)
     if chosen is None:
         return _empty(collection, folder_id=curated.folder_id,
-                      variants=curated.variants, reason=reason)
+                      variants=curated.variants, reason=reason,
+                      variants_total=curated.total_variants,
+                      variants_cut=curated.truncated)
 
     lanes = [
         {"heading": lane.heading, "type": lane.type,
@@ -115,9 +125,13 @@ async def page(
                    for item in lane.items]}
         for lane in chosen.swimlanes
     ]
-    truncated = False
-    if resolve_widgets:
-        truncated = await _resolve(repo, lanes, chosen.node_ids, max_widgets)
+    # Two caps, two names: raising ``max_widgets`` does nothing about a cut
+    # variant list, and the reader's variant cap is not a parameter of this
+    # call at all.
+    reasons = ["variants"] if curated.truncated else []
+    if resolve_widgets and await _resolve(
+            repo, lanes, chosen.node_ids, max_widgets):
+        reasons.append("widgets")
 
     return {
         "collection": collection,
@@ -125,10 +139,12 @@ async def page(
         "rendered": {"id": chosen.id, "title": chosen.title,
                      "by_position": curated.by_position},
         "variants": [_variant(v) for v in curated.variants],
+        "variants_total": curated.total_variants,
         "swimlanes": lanes,
         "node_ids": list(chosen.node_ids),
         "resolved": resolve_widgets,
-        "truncated": truncated,
+        "truncated": bool(reasons),
+        "truncated_by": reasons,
         "reason": reason,
     }
 
@@ -214,30 +230,52 @@ def _variant(variant: PageVariant) -> dict[str, Any]:
 
 def _choose(curated: CuratedPage,
             variant: str | None) -> tuple[PageVariant | None, str]:
-    """The variant to show, and why there is none."""
+    """The variant to show, and why there is none.
+
+    Three states, and until 2026-09-09 they all said "holds no variants": the
+    folder really has none, the recorded default was not read, and an
+    explicitly asked-for variant was not read. ``CuratedPage.rendered``
+    returns ``None`` for the second since F09 -- this flow kept the older
+    reading and answered a 51-variant page with "there is nothing to render"
+    (R04). A louder wrong answer than before, and still wrong.
+    """
     if variant is None:
-        if curated.rendered is None:
-            return None, ("this page's folder holds no variants -- there is "
-                          "nothing to render.")
-        return curated.rendered, ""
+        if curated.rendered is not None:
+            return curated.rendered, ""
+        if curated.truncated:
+            return None, (
+                f"this page's folder holds {curated.total_variants} variants "
+                f"and {len(curated.variants)} were read; the one it records as "
+                "the default is not among them, so which one renders cannot be "
+                "said from here.")
+        return None, ("this page's folder holds no variants -- there is "
+                      "nothing to render.")
     chosen = curated.variant(variant)
-    if chosen is None:
-        known = ", ".join(v.id for v in curated.variants) or "none"
-        return None, f"{variant!r} is not a variant of this page (known: {known})."
-    return chosen, ""
+    if chosen is not None:
+        return chosen, ""
+    if curated.truncated:
+        return None, (
+            f"{variant!r} is not among the {len(curated.variants)} variants "
+            f"read of the {curated.total_variants} this folder holds, so it "
+            "cannot be confirmed to be one.")
+    known = ", ".join(v.id for v in curated.variants) or "none"
+    return None, f"{variant!r} is not a variant of this page (known: {known})."
 
 
 def _empty(collection: dict[str, Any], *, folder_id: str = "",
-           variants: tuple[PageVariant, ...] = (), reason: str) -> dict[str, Any]:
+           variants: tuple[PageVariant, ...] = (), reason: str,
+           variants_total: int = 0, variants_cut: bool = False) -> dict[str, Any]:
     return {
         "collection": collection,
         "folder_id": folder_id,
         "rendered": None,
         "variants": [_variant(v) for v in variants],
+        "variants_total": variants_total or len(variants),
         "swimlanes": [],
         "node_ids": [],
         "resolved": False,
-        "truncated": False,
+        "truncated": variants_cut,
+        "truncated_by": ["variants"] if variants_cut else [],
         "reason": reason,
     }
 

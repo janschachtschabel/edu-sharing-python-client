@@ -1170,15 +1170,20 @@ repo.flows.page("abc-123", resolve_widgets=True) # + was jedes Widget hält
                 "node_ids": ["69756a85-…", "cffaadfb-…"]}]}
   ],
   "node_ids": ["4d39f9a1-…"],
-  "resolved": true, "truncated": false, "reason": ""
+  "variants_total": 1,
+  "resolved": true, "truncated": false, "truncated_by": [], "reason": ""
 }
 ```
 
 **`truncated` lesen.** Der Leser nimmt höchstens 50 Kinder auf einmal; ein
-Ordner mit mehr sagt es, statt zu raten, welche Variante rendert. Bis zum
-09.09.2026 meldete eine Seite mit 51 Varianten und `default` auf der 51.
-die **erste** als gerendert, mit `by_position` wahr — beides falsch: eine
-Standardvariante war festgelegt, sie war nur nicht gelesen.
+Ordner mit mehr sagt es, statt zu raten, welche Variante rendert — dafür
+`variants_total` gegen die Länge von `variants` halten. Bis zum 09.09.2026
+meldete eine Seite mit 51 Varianten und `default` auf der 51. die **erste**
+als gerendert, mit `by_position` wahr; danach meldete dieser Flow „der
+Ordner hat keine Varianten“. Beides war falsch, und `truncated_by`
+unterscheidet die zwei Deckel jetzt: `"widgets"` ist `max_widgets`,
+`"variants"` ist der eigene Deckel des Lesers und kein Parameter dieses
+Aufrufs.
 
 **`by_position` ist keine Zierde.** Ein Seitendokument ohne `default` rendert
 die *erste* Variante seiner Liste. „Nichts festgelegt“ und „die erste

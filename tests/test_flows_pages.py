@@ -350,3 +350,99 @@ async def test_unsinniges_limit_wird_abgelehnt(limit):
     async with Instanz().repo() as repo:
         with pytest.raises(ValueError):
             await repo.flows.find_pages("x", limit=limit)
+
+
+# --- R04 (Zweitpruefung 09.09.2026): die Abschneidung kommt nicht durch ----
+#
+# Seit F09 meldet ``NodePage`` eine gekuerzte Variantenliste korrekt:
+# ``truncated=True``, ``total_variants=51``, ``rendered=None``. Der Flow
+# darueber kennt aber nur die alte Bedeutung von ``rendered=None`` -- "der
+# Ordner hat keine Varianten" -- und meldet gemessen 50 Varianten,
+# ``truncated=False`` und genau diese falsche Begruendung. Aus einer stillen
+# Falschaussage wurde eine laute; richtig ist keine von beiden.
+#
+# ``truncated`` beschrieb bisher nur die Widget-Aufloesung. Mit zwei Ursachen
+# kommt der Grund dazu, wie bei ``search_in_collection``.
+
+
+class MitVielenVarianten(Instanz):
+    """51 Varianten, Standard auf der letzten, ``maxItems`` wird beachtet."""
+
+    def __init__(self, wieviele: int = 51) -> None:
+        super().__init__()
+        namen = [f"v{i}" for i in range(wieviele)]
+        self.varianten = [_variante(n, n, LANES_B) for n in namen]
+        self.page_config = json.dumps({
+            "variants": [_ref(n) for n in namen],
+            "default": _ref(namen[-1])})
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/children"):
+            wieviel = int(request.url.params.get("maxItems") or 20)
+            teil = self.varianten[:wieviel]
+            return httpx.Response(200, json={
+                "nodes": teil,
+                "pagination": {"total": len(self.varianten), "from": 0,
+                               "count": len(teil)}})
+        return super().handler(request)
+
+
+async def test_der_flow_meldet_die_gekuerzte_variantenliste():
+    instanz = MitVielenVarianten()
+    async with instanz.repo() as repo:
+        antwort = await repo.flows.page(SAMMLUNG)
+    assert antwort["truncated"] is True
+    assert antwort["truncated_by"] == ["variants"]
+    assert antwort["variants_total"] == 51
+    assert len(antwort["variants"]) == 50
+
+
+async def test_der_grund_verwechselt_nicht_geladen_nicht_mit_nicht_vorhanden():
+    """Der eigentliche Fehler: die Begruendung sagte, der Ordner habe keine
+    Varianten -- er hat 51."""
+    instanz = MitVielenVarianten()
+    async with instanz.repo() as repo:
+        antwort = await repo.flows.page(SAMMLUNG)
+    assert "holds no variants" not in antwort["reason"]
+    assert "51" in antwort["reason"] and "50" in antwort["reason"]
+
+
+async def test_eine_nicht_geladene_variante_gilt_nicht_als_unbekannt():
+    instanz = MitVielenVarianten()
+    async with instanz.repo() as repo:
+        antwort = await repo.flows.page(SAMMLUNG, variant="v50")
+    assert "is not a variant of this page" not in antwort["reason"]
+    assert antwort["truncated"] is True
+    assert antwort["truncated_by"] == ["variants"]
+
+
+async def test_eine_wirklich_unbekannte_variante_heisst_weiterhin_so():
+    """Die Gegenprobe: bei vollstaendiger Liste bleibt die alte, richtige
+    Begruendung."""
+    instanz = Instanz()
+    async with instanz.repo() as repo:
+        antwort = await repo.flows.page(SAMMLUNG, variant="gibtsnicht")
+    assert "is not a variant of this page" in antwort["reason"]
+    assert antwort["truncated"] is False
+
+
+async def test_eine_vollstaendige_seite_meldet_weiterhin_nichts():
+    """Die zweite Gegenprobe. Ohne sie waere die Wache gruen, wenn jede Seite
+    ``truncated`` meldet."""
+    instanz = Instanz()
+    async with instanz.repo() as repo:
+        antwort = await repo.flows.page(SAMMLUNG)
+    assert antwort["truncated"] is False
+    assert antwort["truncated_by"] == []
+    assert antwort["variants_total"] == 2
+
+
+async def test_der_widget_deckel_bleibt_unterscheidbar():
+    """Zwei Ursachen, zwei Namen -- sonst weiss der Aufrufer nicht, welchen
+    Deckel er heben muss."""
+    instanz = Instanz()
+    async with instanz.repo() as repo:
+        antwort = await repo.flows.page(
+            SAMMLUNG, resolve_widgets=True, max_widgets=1)
+    assert antwort["truncated"] is True
+    assert antwort["truncated_by"] == ["widgets"]

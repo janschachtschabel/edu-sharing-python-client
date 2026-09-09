@@ -1137,15 +1137,19 @@ repo.flows.page("abc-123", resolve_widgets=True) # + what each widget holds
                 "node_ids": ["69756a85-…", "cffaadfb-…"]}]}
   ],
   "node_ids": ["4d39f9a1-…"],
-  "resolved": true, "truncated": false, "reason": ""
+  "variants_total": 1,
+  "resolved": true, "truncated": false, "truncated_by": [], "reason": ""
 }
 ```
 
 **Read `truncated`.** The reader takes at most 50 children in one go; a
-folder with more says so rather than guessing which one renders. Until
-2026-09-09 a page with 51 variants and `default` on the 51st reported the
-**first** as rendered, with `by_position` true — both wrong: a default was
-recorded, it was simply not read.
+folder with more says so rather than guessing which one renders — compare
+`variants_total` against the length of `variants`. Until 2026-09-09 a page
+with 51 variants and `default` on the 51st reported the **first** as
+rendered, with `by_position` true; then this flow reported "the folder
+holds no variants" instead. Both were wrong, and `truncated_by` now tells
+the two caps apart: `"widgets"` is `max_widgets`, `"variants"` is the
+reader's own cap, which is not a parameter of this call.
 
 **`by_position` is not decoration.** A page document without a `default` renders
 the *first* variant of its list. “Nothing chosen” and “the first one chosen”
