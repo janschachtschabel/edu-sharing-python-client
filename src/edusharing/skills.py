@@ -36,7 +36,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from .content import MAX_TEXT_BYTES, decode_text, is_text_like
-from .dto import first, node_id_of, page_total, render_url, title_of
+from .dto import first, node_id_of, page_cut, render_url, title_of
 from .errors import ContentTooLargeError, NotFoundError, PermissionDeniedError
 from .fields import carries, resolve_vocabulary
 from .ranking import query_terms, term_matches
@@ -422,25 +422,29 @@ class Skills:
         """One page of a collection's files, and whether there were more."""
         listing = await self._repo.raw.json(
             "GET", f"/node/v1/nodes/-home-/{path_segment(collection_id)}/children",
-            params={"filter": "files", "maxItems": _PAGE, "skipCount": 0,
+            # ``_PAGE + 1``: der eine Datensatz ueber der Seite beantwortet
+            # die Frage, ob es mehr gibt -- die genannte Gesamtzahl allein
+            # sagte "nein" genau dort, wo der Endpunkt schwieg (Pruefung
+            # 09.09.2026). Siehe ``dto.page_cut``.
+            params={"filter": "files", "maxItems": _PAGE + 1, "skipCount": 0,
                     # Both, measured: the collection route returns the
                     # content type under -all-, the node route only
                     # when asked for it by name (MCP, 2026-08-08).
                     "propertyFilter": ["-all-", conventions.type_property]},
         )
-        nodes = list(listing.get("nodes") or [])
-        return nodes, page_total(listing) > _PAGE
+        roh = list(listing.get("nodes") or [])
+        return roh[:_PAGE], page_cut(roh, listing, _PAGE)
 
     async def _subs_of(self, collection_id: str) -> tuple[list[str], bool]:
         """The ids of a collection's sub-collections, and whether there were more."""
         subs = await self._repo.raw.json(
             "GET", f"/collection/v1/collections/-home-/{path_segment(collection_id)}"
                    "/children/collections",
-            params={"maxItems": _PAGE},
+            params={"maxItems": _PAGE + 1},
         )
-        ids = [sid for sub in subs.get("collections") or []
-               if (sid := node_id_of(sub))]
-        return ids, page_total(subs) > _PAGE
+        roh = list(subs.get("collections") or [])
+        ids = [sid for sub in roh[:_PAGE] if (sid := node_id_of(sub))]
+        return ids, page_cut(roh, subs, _PAGE)
 
 
 def _enqueue(subs: list[str], visited: set[str], next_level: list[str]) -> bool:

@@ -26,7 +26,7 @@ import pytest
 from edusharing import AsyncRepository
 from edusharing.content import MAX_TEXT_BYTES
 from edusharing.errors import PermissionDeniedError, ServerError
-from edusharing.skills import WLO_SKILLS, SkillConventions
+from edusharing.skills import _PAGE, WLO_SKILLS, SkillConventions
 
 REPO = "https://repo.test/edu-sharing"
 SKILL = WLO_SKILLS.skill_type
@@ -796,3 +796,91 @@ async def test_eine_gesperrte_sammlung_ist_ebenfalls_ein_grund():
     async with Instanz(coll_status=403).repo() as repo:
         reg = await repo.skills.registry(COLL)
     assert reg.reason == "unreadable" and reg.entries == []
+
+
+class OhneSeitenzahl(Instanz):
+    """Beachtet ``maxItems`` und nennt keine ``pagination`` -- wie ein Server,
+    der schweigt. ``dateien`` und ``sammlungen`` sagen, wie viele es gibt."""
+
+    def __init__(self, *, dateien: int = 0, sammlungen: int = 0, **kw) -> None:
+        super().__init__(**kw)
+        self.dateiliste = [
+            _skill(f"{i:08x}-0000-4000-8000-{i:012x}", f"Skill {i}")
+            for i in range(dateien)
+        ]
+        self.sammlungsliste = [
+            {"ref": {"id": f"u{i}"}, "title": f"Unter {i}"} for i in range(sammlungen)
+        ]
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        pfad = request.url.path
+        grenze = int(request.url.params.get("maxItems") or 0) or None
+        if self.dateiliste and pfad.endswith(f"/{COLL}/children"):
+            self.anfragen.append(request)
+            return httpx.Response(200, json={"nodes": self.dateiliste[:grenze]})
+        if self.sammlungsliste and pfad.endswith(f"/{COLL}/children/collections"):
+            self.anfragen.append(request)
+            return httpx.Response(200, json={"collections": self.sammlungsliste[:grenze]})
+        # Die eigenen Untersammlungen sind leer -- gefragt ist der Deckel der
+        # Wurzel, nicht was darunter haengt.
+        meine = {s["ref"]["id"] for s in self.sammlungsliste}
+        if any(pfad.endswith(f"/{sid}/children") for sid in meine):
+            self.anfragen.append(request)
+            return httpx.Response(200, json={"nodes": []})
+        if any(pfad.endswith(f"/{sid}/children/collections") for sid in meine):
+            self.anfragen.append(request)
+            return httpx.Response(200, json={"collections": []})
+        return super().handler(request)
+
+
+async def test_mehr_dateien_als_eine_seite_werden_auch_ohne_gesamtzahl_gesagt():
+    """Der blinde Fleck (Pruefung 09.09.2026).
+
+    ``_files_of`` verglich die **genannte** Gesamtzahl mit ``_PAGE``, und ohne
+    eine stand dort 0 -- also war ``more`` genau dann falsch, wenn der
+    Endpunkt schwieg. Eine Sammlung mit 51 Skills lieferte 50 und meldete
+    Vollstaendigkeit; wer den 51. sucht, findet ihn nicht und erfaehrt nicht,
+    warum.
+    """
+    instanz = OhneSeitenzahl(dateien=_PAGE + 1)
+    async with instanz.repo() as repo:
+        got = await repo.skills.search("", collection_id=COLL)
+    assert got.truncated is True
+
+
+async def test_genau_eine_seite_dateien_ohne_gesamtzahl_ist_vollstaendig():
+    """Gegenprobe: genau ``_PAGE`` Dateien sind alle -- der eine zusaetzlich
+    angefragte Datensatz kommt nicht."""
+    instanz = OhneSeitenzahl(dateien=_PAGE)
+    async with instanz.repo() as repo:
+        got = await repo.skills.search("", collection_id=COLL)
+    assert got.truncated is False
+
+
+async def test_subs_of_meldet_die_kappung_auch_ohne_gesamtzahl():
+    """Dieselbe Stelle ein zweites Mal, in ``_subs_of`` -- und hier direkt
+    gepinnt statt ueber ``search``.
+
+    Denn ueber die Suche ist sie nicht isoliert sichtbar: ``SKILL_VISIT_MAX``
+    ist ein Gesamtbudget von 30, und mehr als ``_PAGE`` Untersammlungen
+    reissen es immer -- ``_enqueue`` setzt ``truncated`` dann schon selbst.
+    Ein Test ueber ``search`` waere gruen, ohne diese Zeile zu pruefen;
+    nachgewiesen per Mutation am 09.09.2026, die er nicht rot machte.
+    """
+    instanz = OhneSeitenzahl(sammlungen=_PAGE + 1)
+    async with instanz.repo() as repo:
+        ids, mehr = await repo.skills._subs_of(COLL)
+    assert len(ids) == _PAGE, "ausgeliefert wird die Seite"
+    assert mehr is True
+
+
+async def test_die_skill_listen_fragen_einen_datensatz_mehr():
+    """Woran die drei Tests darueber haengen."""
+    instanz = OhneSeitenzahl(dateien=3, sammlungen=3)
+    async with instanz.repo() as repo:
+        await repo.skills.search("", collection_id=COLL, include_subcollections=True)
+    gefragt = {r.url.path.rsplit("/", 1)[-1]: r.url.params.get("maxItems")
+               for r in instanz.anfragen
+               if r.url.path.endswith(("/children", "/children/collections"))}
+    assert gefragt.get("children") == str(_PAGE + 1), gefragt
+    assert gefragt.get("collections") == str(_PAGE + 1), gefragt
