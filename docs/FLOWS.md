@@ -1141,6 +1141,12 @@ repo.flows.page("abc-123", resolve_widgets=True) # + what each widget holds
 }
 ```
 
+**Read `truncated`.** The reader takes at most 50 children in one go; a
+folder with more says so rather than guessing which one renders. Until
+2026-09-09 a page with 51 variants and `default` on the 51st reported the
+**first** as rendered, with `by_position` true — both wrong: a default was
+recorded, it was simply not read.
+
 **`by_position` is not decoration.** A page document without a `default` renders
 the *first* variant of its list. “Nothing chosen” and “the first one chosen”
 look identical to a visitor and are different states — and switching away from

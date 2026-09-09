@@ -603,12 +603,13 @@ Eine Sammlung kann eine Landeseite tragen, gebaut aus Bahnen und Widgets.
 | Aufruf | Ergebnis |
 |---|---|
 | `node.page.get()` | `CuratedPage \| None` |
-| `CuratedPage` | `by_position`, `collection_id`, `document`, `folder_id`, `rendered`, `rendered_id`, `variants` |
+| `CuratedPage` | `by_position`, `collection_id`, `document`, `folder_id`, `rendered`, `rendered_id`, `total_variants`, `truncated`, `variants` |
 | `node.page.render(variant_id)` | `CuratedPage` |
 | `page.rendered` | `PageVariant \| None` — die aktive |
 | `PageVariant` | `education_levels`, `educational_contexts`, `id`, `intention`, `is_template`, `node_ids`, `readable`, `swimlanes`, `target_group`, `title` |
 | `page.variant(variant_id)` | `PageVariant \| None` |
-| `page.by_position` | `bool` |
+| `page.by_position` | `bool` — falsch, solange `truncated`: „keine festgelegt" und „nicht gelesen" sind verschiedene Zustände |
+| `page.truncated` | `bool` — der Ordner hält mehr Varianten, als gelesen wurden (höchstens 50). `rendered` ist dann `None`, sofern die festgelegte nicht dabei ist |
 | `variant.node_ids` | `tuple[str, ...]` |
 | `variant_from_node(body)` | `PageVariant` |
 | `Swimlane` / `SwimlaneItem` | eine Bahn, und ein Widget darin |

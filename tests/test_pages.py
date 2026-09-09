@@ -134,6 +134,124 @@ class Instanz:
             client=httpx.AsyncClient(transport=httpx.MockTransport(self.handler)))
 
 
+
+# --- F09 (Fremdpruefung 09.09.2026): die Variante hinter dem Deckel --------
+#
+# ``_read`` las einmalig hoechstens 50 Kinder. Lag die konfigurierte
+# Standardvariante dahinter, wurde ``rendered_id`` geleert und auf die erste
+# geladene zurueckgefallen -- gemessen am 09.09.2026 mit 51 Varianten und
+# ``default="v50"``: gemeldet wurde ``v0``, ``rendered_id=""`` und
+# ``by_position=True``. Beide Auskuenfte waren falsch: eine Standardvariante
+# ist festgelegt, sie war nur nicht geladen.
+#
+# Gemessen sind reale Seiten klein (93 von 99 tragen genau eine Variante).
+# Darum wird nicht paginiert, sondern gesagt, dass nicht alles gelesen wurde.
+
+
+class MitSeitengrenze(Instanz):
+    """Eine Instanz, die ``maxItems`` fuer die Kinderliste beachtet."""
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/children"):
+            wieviel = int(request.url.params.get("maxItems") or 20)
+            gezeigt = self.varianten[:wieviel]
+            return httpx.Response(200, json={
+                "nodes": gezeigt,
+                "pagination": {"total": len(self.varianten), "from": 0,
+                               "count": len(gezeigt)}})
+        return super().handler(request)
+
+
+def _viele_varianten(wieviele: int) -> list[dict]:
+    return [_node(f"v{i}", titel=f"Variante {i}", props={
+        "ccm:page_variant_config": [_variant_config()],
+        "ccm:page_variant_is_template": ["false"]}) for i in range(wieviele)]
+
+
+async def test_eine_gekuerzte_variantenliste_sagt_es():
+    instanz = MitSeitengrenze(
+        page_config=json.dumps({"variants": [_ref(f"v{i}") for i in range(51)],
+                                "default": _ref("v50")}),
+        varianten=_viele_varianten(51))
+    seite = await _seite(instanz)
+    assert seite is not None
+    assert seite.truncated is True
+    assert len(seite.variants) == 50
+
+
+async def test_eine_gekuerzte_liste_erfindet_keine_ersatzvariante():
+    """Der eigentliche Fehler: ``v0`` wurde als gerenderte Variante gemeldet.
+
+    Der Seitenbauer rendert ``v50``. Ohne sie gelesen zu haben, ist jede
+    Antwort auf "was sieht ein Besucher" geraten -- also wird keine gegeben.
+    """
+    instanz = MitSeitengrenze(
+        page_config=json.dumps({"variants": [_ref(f"v{i}") for i in range(51)],
+                                "default": _ref("v50")}),
+        varianten=_viele_varianten(51))
+    seite = await _seite(instanz)
+    assert seite is not None
+    assert seite.rendered is None
+    assert seite.by_position is False, (
+        "'keine festgelegt' ist etwas anderes als 'nicht gelesen'")
+
+
+async def test_eine_vollstaendige_liste_meldet_weiterhin_ihre_variante():
+    """Die Gegenprobe. Ohne sie waere die Wache gruen, wenn jede Seite
+    ``truncated`` meldet und nie eine gerenderte Variante nennt."""
+    instanz = MitSeitengrenze(
+        page_config=json.dumps({"variants": [_ref(f"v{i}") for i in range(3)],
+                                "default": _ref("v1")}),
+        varianten=_viele_varianten(3))
+    seite = await _seite(instanz)
+    assert seite is not None
+    assert seite.truncated is False
+    assert seite.rendered_id == "v1"
+    assert seite.rendered is not None and seite.rendered.id == "v1"
+    assert seite.by_position is False
+
+
+async def test_ohne_festgelegte_variante_rendert_weiterhin_die_erste():
+    """Die zweite Gegenprobe: ``by_position`` bleibt fuer den Fall, fuer den
+    es gemacht ist -- ein Dokument ohne ``default``."""
+    instanz = MitSeitengrenze(
+        page_config=json.dumps({"variants": [_ref(f"v{i}") for i in range(3)]}),
+        varianten=_viele_varianten(3))
+    seite = await _seite(instanz)
+    assert seite is not None
+    assert seite.truncated is False
+    assert seite.by_position is True
+    assert seite.rendered is not None and seite.rendered.id == "v0"
+
+
+async def test_eine_nicht_geladene_variante_wird_nicht_als_unbekannt_abgewiesen():
+    """``choose()`` sagte "is not a variant of this page" -- ueber eine
+    Variante, die es gibt und die nur nicht gelesen wurde."""
+    instanz = MitSeitengrenze(
+        page_config=json.dumps({"variants": [_ref(f"v{i}") for i in range(51)],
+                                "default": _ref("v50")}),
+        varianten=_viele_varianten(51))
+    async with instanz.repo() as repo:
+        knoten = await repo.node(SAMMLUNG)
+        with pytest.raises(ValueError) as fehler:
+            await knoten.page.render("v50")
+    meldung = str(fehler.value)
+    assert "50" in meldung and "51" in meldung, meldung
+    assert "is not a variant" not in meldung
+
+
+async def test_eine_geladene_variante_laesst_sich_auch_bei_kuerzung_waehlen():
+    """Die Gegenprobe: der Deckel macht nicht die ganze Seite unbedienbar."""
+    instanz = MitSeitengrenze(
+        page_config=json.dumps({"variants": [_ref(f"v{i}") for i in range(51)],
+                                "default": _ref("v50")}),
+        varianten=_viele_varianten(51))
+    async with instanz.repo() as repo:
+        knoten = await repo.node(SAMMLUNG)
+        seite = await knoten.page.render("v3")
+    assert seite.rendered_id == "v3"
+
+
 async def _seite(instanz: Instanz) -> CuratedPage | None:
     async with instanz.repo() as repo:
         knoten = await repo.node(SAMMLUNG)

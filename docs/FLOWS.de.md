@@ -1174,6 +1174,12 @@ repo.flows.page("abc-123", resolve_widgets=True) # + was jedes Widget hält
 }
 ```
 
+**`truncated` lesen.** Der Leser nimmt höchstens 50 Kinder auf einmal; ein
+Ordner mit mehr sagt es, statt zu raten, welche Variante rendert. Bis zum
+09.09.2026 meldete eine Seite mit 51 Varianten und `default` auf der 51.
+die **erste** als gerendert, mit `by_position` wahr — beides falsch: eine
+Standardvariante war festgelegt, sie war nur nicht gelesen.
+
 **`by_position` ist keine Zierde.** Ein Seitendokument ohne `default` rendert
 die *erste* Variante seiner Liste. „Nichts festgelegt“ und „die erste
 festgelegt“ sehen für den Besucher gleich aus und sind verschiedene Zustände —

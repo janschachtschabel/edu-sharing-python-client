@@ -590,12 +590,13 @@ A collection may carry a landing page built from swimlanes and widgets.
 | Call | Result |
 |---|---|
 | `node.page.get()` | `CuratedPage \| None` |
-| `CuratedPage` | `by_position`, `collection_id`, `document`, `folder_id`, `rendered`, `rendered_id`, `variants` |
+| `CuratedPage` | `by_position`, `collection_id`, `document`, `folder_id`, `rendered`, `rendered_id`, `total_variants`, `truncated`, `variants` |
 | `node.page.render(variant_id)` | `CuratedPage` |
 | `page.rendered` | `PageVariant \| None` — the one that is live |
 | `PageVariant` | `education_levels`, `educational_contexts`, `id`, `intention`, `is_template`, `node_ids`, `readable`, `swimlanes`, `target_group`, `title` |
 | `page.variant(variant_id)` | `PageVariant \| None` |
-| `page.by_position` | `bool` |
+| `page.by_position` | `bool` — false while `truncated`: "none recorded" and "not read" are different states |
+| `page.truncated` | `bool` — the folder holds more variants than were read (at most 50). `rendered` is then `None` unless the recorded default is among them |
 | `variant.node_ids` | `tuple[str, ...]` |
 | `variant_from_node(body)` | `PageVariant` |
 | `Swimlane` / `SwimlaneItem` | one row, and one widget in it |

@@ -56,7 +56,7 @@ import json
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from .dto import bare_id
+from .dto import bare_id, page_cut
 from .errors import ConflictError, SilentDropError
 from .urls import path_segment
 
@@ -234,16 +234,47 @@ class CuratedPage:
     #: The rendered one first, then the document's order, then whatever the
     #: document never listed.
     variants: tuple[PageVariant, ...]
-    #: The recorded default, or ``""`` when the document names none.
+    #: The recorded default, or ``""`` when the document names none -- or
+    #: when it names one that is not among ``variants``. ``truncated`` tells
+    #: the two apart.
     rendered_id: str
+    #: How many variants the folder holds, against ``len(variants)`` read. A
+    #: lower bound where the endpoint states no total, and then still enough
+    #: to know that something was left out.
+    total_variants: int
     #: The page builder's raw document, exactly as stored. Kept because this
     #: library models only two of its keys and the rest are still someone's --
     #: and because a write has to carry them through untouched.
     document: str | None = field(default=None, repr=False)
 
     @property
+    def truncated(self) -> bool:
+        """Whether the folder holds variants this page did not read.
+
+        Measured 2026-09-09: the reader took at most 50 children in one go,
+        and a page with 51 variants and ``default`` on the 51st reported the
+        **first** one as rendered, with ``rendered_id`` empty and
+        ``by_position`` true (F09). Both answers were wrong -- a default is
+        recorded, it was simply not read.
+
+        Not paginated instead: measured, real pages carry one to three
+        variants (93 of 99 production pages carry exactly one). A cap nobody
+        reaches is worth saying out loud, not worth a second request on every
+        page.
+        """
+        return self.total_variants > len(self.variants)
+
+    @property
     def rendered(self) -> PageVariant | None:
-        """The variant a visitor sees, or ``None`` when there is none at all."""
+        """The variant a visitor sees.
+
+        ``None`` when there is none at all -- and also when the list was cut
+        and the recorded default is not in what was read: the page builder
+        renders that one, and answering with the first of a partial list would
+        be a guess dressed as a fact.
+        """
+        if self.truncated and not self.rendered_id:
+            return None
         return self.variants[0] if self.variants else None
 
     @property
@@ -260,7 +291,7 @@ class CuratedPage:
         at all, so this reports the two the same way -- ``document`` still holds
         the recorded value for anyone diagnosing the fault.
         """
-        return not self.rendered_id
+        return not self.rendered_id and not self.truncated
 
     def variant(self, variant_id: str) -> PageVariant | None:
         """One variant by id, or ``None``.
@@ -272,7 +303,10 @@ class CuratedPage:
         return next((v for v in self.variants if v.id == bare_id(variant_id)), None)
 
     def __repr__(self) -> str:
-        return (f"CuratedPage({self.collection_id!r}, {len(self.variants)} variants, "
+        gelesen = str(len(self.variants))
+        if self.truncated:
+            gelesen = f"{len(self.variants)} of {self.total_variants}"
+        return (f"CuratedPage({self.collection_id!r}, {gelesen} variants, "
                 f"rendered={self.rendered_id or '(by position)'})")
 
 
@@ -328,6 +362,17 @@ class NodePage:
             )
         wanted = bare_id(variant_id)
         if page.variant(wanted) is None:
+            if page.truncated:
+                # It may well be a variant -- it was simply not read. Saying
+                # "is not a variant" about one that exists sent the caller
+                # looking for a fault that is not there (F09).
+                raise ValueError(
+                    f"{variant_id!r} is not among the {len(page.variants)} "
+                    f"variants read of the {page.total_variants} this folder "
+                    f"holds, so it cannot be confirmed to be one. This reader "
+                    f"takes at most {_VARIANT_LIMIT}; measured, real pages "
+                    "carry one to three."
+                )
             known = ", ".join(v.id for v in page.variants) or "none"
             raise ValueError(
                 f"{variant_id!r} is not a variant of this page (known: {known}). "
@@ -341,10 +386,20 @@ class NodePage:
     async def _read(self, folder_id: str) -> CuratedPage:
         nodes = self._node._nodes
         folder = await nodes.get(folder_id)
-        children = await nodes.children(folder_id, limit=_VARIANT_LIMIT)
+        # One child over the cap, the same way every listing in this library
+        # asks: if it arrives, the folder holds more than was read, and that
+        # stands without the endpoint stating a total. ``ChildPage`` has
+        # already parsed the pagination, so ``page_cut`` gets the number back
+        # in the shape it reads -- its ``default=-1`` and a stated ``0`` come
+        # to the same answer for any page, which is why nothing is lost by
+        # ``ChildPage`` not telling the two apart.
+        children = await nodes.children(folder_id, limit=_VARIANT_LIMIT + 1)
+        roh = list(children.nodes)
+        gekuerzt = page_cut(roh, {"pagination": {"total": children.total}},
+                            _VARIANT_LIMIT)
         order, default_id = _parse_config(folder.get(PAGE_CONFIG))
         variants = _ordered(
-            [variant_from_node(child) for child in children.nodes],
+            [variant_from_node(child) for child in roh[:_VARIANT_LIMIT]],
             order, default_id,
         )
         return CuratedPage(
@@ -352,6 +407,8 @@ class NodePage:
             folder_id=folder_id,
             variants=variants,
             rendered_id=default_id if any(v.id == default_id for v in variants) else "",
+            total_variants=(max(children.total, len(roh)) if gekuerzt
+                            else len(variants)),
             document=folder.get(PAGE_CONFIG),
         )
 
