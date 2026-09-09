@@ -422,7 +422,7 @@ comment.text               # "Passt zu Klasse 6."
 | `node.permissions.grant(authority, "Read", authority_type=…)` | `bool` |
 | `node.permissions.revoke(authority, "Read")` | `bool` — `SilentDropError`, wenn die zurückgelesene ACL nicht die gesendete ist: das Recht noch da, ein unberührter Eintrag weg, oder die Vererbung gekippt |
 | `node.permissions.publish()` | `bool` — ohne Anmeldung lesbar |
-| `node.permissions.unpublish()` | `bool` — `ConflictError`, wenn der Knoten öffentlich bliebe, weil sein Elternteil es ist; dann wird nichts geschrieben |
+| `node.permissions.unpublish()` | `bool` — `ConflictError`, wenn der Knoten öffentlich bliebe, weil sein Elternteil es ist. Zweimal gefragt: vor dem Schreiben (dann wird nichts geschrieben) und an der danach zurückgelesenen ACL, weil ein Elternteil dazwischen veröffentlicht werden kann |
 | `perms.effective` | `tuple[Ace, ...]` |
 | `perms.allows(authority, "Write")` | `bool` |
 | `perms.is_public` | `bool` |

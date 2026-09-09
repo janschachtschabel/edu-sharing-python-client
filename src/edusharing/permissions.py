@@ -299,15 +299,29 @@ class NodePermissions:
                 that came back is not the one that was sent -- see
                 ``_not_stored``.
         """
+        return await self._revoke(authority, *permissions) is not None
+
+    async def _revoke(
+        self, authority: str, *permissions: str
+    ) -> Permissions | None:
+        """``revoke`` with the read-back ACL kept, or ``None`` when there was
+        nothing to take.
+
+        ``_write`` reads the ACL back anyway, and ``unpublish`` needs to see
+        it: its question is not only whether the local entry went, but whether
+        the node is still public afterwards. Handing the answer out here costs
+        nothing; asking again would cost a third request and would still
+        answer about a later moment (R02, 2026-09-09).
+        """
         current = await self.get()
         existing = current.find(authority)
         if existing is None:
-            return False
+            return None
 
         rest = tuple(p for p in existing.permissions if p not in permissions) \
             if permissions else ()
         if rest == existing.permissions:
-            return False
+            return None
 
         others = tuple(a for a in current.own if a.authority != authority)
         aces = others + ((Ace(authority, existing.authority_type, rest),) if rest else ())
@@ -325,7 +339,7 @@ class NodePermissions:
                 "permission as withdrawn that is still in force.",
                 dropped=[authority],
             )
-        return True
+        return after
 
     async def publish(self) -> bool:
         """Make the node readable by everyone.
@@ -382,7 +396,25 @@ class NodePermissions:
                 "not touch that. To make it private, cut the inheritance "
                 "(that drops every inherited grant), or unpublish the parent."
             )
-        return await self.revoke(EVERYONE, CONSUMER)
+        after = await self._revoke(EVERYONE, CONSUMER)
+        if after is None:
+            return False
+        # The same question again, of the ACL that came back. The check above
+        # is about the moment before the write; between the two lies a
+        # request, and a parent can be published in it. Measured 2026-09-09:
+        # the read-back already showed the inherited grant and this still
+        # answered ``True`` (R02). What happens after this read is a different
+        # question, and not one a client can answer on its own.
+        if after.is_public:
+            raise ConflictError(
+                f"The local entry for everyone on node {self._node.id!r} was "
+                "**removed** and the node is public all the same: the "
+                "permission now comes from its parent as well, which the read "
+                "after the write already shows. Nothing here can undo that -- "
+                "cut the inheritance (that drops every inherited grant) or "
+                "unpublish the parent."
+            )
+        return True
 
     # --- Internals --------------------------------------------------------
 

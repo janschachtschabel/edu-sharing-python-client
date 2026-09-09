@@ -412,7 +412,7 @@ comment.text               # "Passt zu Klasse 6."
 | `node.permissions.grant(authority, "Read", authority_type=…)` | `bool` |
 | `node.permissions.revoke(authority, "Read")` | `bool` — `SilentDropError` when the ACL that comes back is not the one that was sent: the permission still held, an untouched entry gone, or inheritance flipped |
 | `node.permissions.publish()` | `bool` — readable without login |
-| `node.permissions.unpublish()` | `bool` — `ConflictError` when the node would stay public because its parent is; nothing is written then |
+| `node.permissions.unpublish()` | `bool` — `ConflictError` when the node would stay public because its parent is. Asked twice: before the write (nothing is written then) and of the ACL read back after it, because a parent can be published in between |
 | `perms.effective` | `tuple[Ace, ...]` |
 | `perms.allows(authority, "Write")` | `bool` |
 | `perms.is_public` | `bool` |

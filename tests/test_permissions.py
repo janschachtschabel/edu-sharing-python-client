@@ -416,6 +416,58 @@ async def test_ein_gelungener_entzug_meldet_weiterhin_true():
     assert [a.authority for a in danach.own] == ["bob"]
 
 
+# --- R02/R03 (Zweitpruefung 09.09.2026) ------------------------------------
+
+class WaehrendDesSchreibens(Instanz):
+    """Ein Repositorium, dessen Elternteil waehrend des POST oeffentlich wird.
+
+    Der Fall ist nicht konstruiert: zwischen Vorpruefung und Schreiben liegt
+    eine Anfrage, und eine Redaktionsoberflaeche veroeffentlicht Ordner.
+    """
+
+    def __init__(self, *args, danach: list[dict] | None = None, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.danach = danach or []
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        antwort = super().handler(request)
+        if request.url.path.endswith("/permissions") and request.method == "POST":
+            self.inherited = self.danach
+        return antwort
+
+
+async def test_unpublish_meldet_auch_neu_hinzugekommene_vererbung():
+    """R02: die Pruefung lief nur **vor** dem Schreiben.
+
+    Gemessen: der Knoten traegt zunaechst nur das eigene Recht, der Elternteil
+    wird waehrend des POST oeffentlich, und die Rueckleseantwort zeigt das
+    bereits -- ``unpublish()`` lieferte trotzdem ``True``.
+    """
+    instanz = WaehrendDesSchreibens(
+        own=[_ace(EVERYONE, CONSUMER, typ="EVERYONE")],
+        danach=[_ace("ROLE_OWNER", "All", typ="OWNER"),
+                _ace(EVERYONE, CONSUMER, typ="EVERYONE")])
+    async with instanz.repo() as repo:
+        knoten = await repo.node("n1")
+        with pytest.raises(ConflictError) as fehler:
+            await knoten.permissions.unpublish()
+        assert (await knoten.permissions.get()).is_public is True
+    # Der lokale Eintrag ist weg -- das muss in der Meldung stehen, sonst
+    # weiss der Aufrufer den Zustand nicht.
+    assert instanz.geschrieben, "geschrieben wurde bereits"
+    assert "removed" in str(fehler.value) or "entfernt" in str(fehler.value)
+
+
+async def test_ein_gelungener_rueckzug_meldet_weiterhin_true():
+    """Die Gegenprobe. Ohne sie waere die Nachpruefung gruen, wenn sie jeden
+    Rueckzug ablehnt."""
+    instanz = Instanz(own=[_ace(EVERYONE, CONSUMER, typ="EVERYONE")])
+    async with instanz.repo() as repo:
+        knoten = await repo.node("n1")
+        assert await knoten.permissions.unpublish() is True
+        assert (await knoten.permissions.get()).is_public is False
+
+
 # --- Formen ---------------------------------------------------------------
 
 def test_ace_leitet_den_typ_aus_dem_namen_ab():
