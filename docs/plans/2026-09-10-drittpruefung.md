@@ -188,3 +188,59 @@ des Reviews war eine Erklärung ohne Beweis für den Randfall. Und dies war eine
 Ursachenaussage, die aus einer einzigen Art von Knoten verallgemeinert hat.
 Dreimal dasselbe Muster: nicht das Messen fehlte, sondern das Prüfen der
 Gegenhypothese.
+
+## Nachtrag 3 · Die Abnahmen, Kriterium für Kriterium
+
+Der Bericht nennt zu jedem Befund eine eigene Abnahme. Bisher hatte ich sie
+erfüllt, aber nirgends gegeneinander gestellt. Hier steht jedes Kriterium mit
+dem Test, der es hält — 19 offline, 3 live, alle grün.
+
+### A01 — „Ergänzung bei derselben Autorität mit Verlust eines alten Rechts muss `SilentDropError` erzeugen. Die Kontrollfälle … müssen ihre jeweiligen richtigen Ergebnisse behalten."
+
+| Kriterium | Test |
+|---|---|
+| Verlust eines alten Rechts → `SilentDropError` | `test_grant_bemerkt_den_verlust_alter_rechte_derselben_autoritaet` |
+| „alte und neue Rechte erhalten" | `test_ein_grant_der_alte_und_neue_rechte_behaelt_meldet_true` |
+| „fremder Eintrag verloren" | `test_grant_bemerkt_den_verlust_fremder_eintraege` |
+| „Vererbung verändert" | dasselbe, plus `test_revoke_meldet_wenn_die_vererbung_umgeworfen_wird` |
+| an der Instanz statt am Modell | `test_ein_zweiter_grant_behaelt_das_erste_recht` (live) |
+
+„Vererbung verändert" fällt im Grant-Test mit „fremder Eintrag verloren"
+zusammen — ob sie eigenständig bewacht ist, klärt nur die Mutation. Mit
+abgeschalteter Vererbungsprüfung fallen **drei** Tests, darunter ein eigener
+für `revoke`; und `_not_kept` ist für `grant` und `revoke` dieselbe Funktion.
+Belegt.
+
+### A02 — „Ein eindeutiger Dummy-Geheimniswert darf weder in `str(exception)` noch in den Warnungen beider Erstellungsmodi stehen. Derselbe Test soll gültige und nicht parsebare URLs mit Benutzerinformationen abdecken."
+
+| Kriterium | Test |
+|---|---|
+| nicht in `str(exception)` | `test_eine_unlesbare_eigene_adresse_zeigt_kein_passwort`, `…ohne_http_schema…` |
+| nicht in den Warnungen (`if_exists="return"`) | `test_die_uebersprungene_pruefung_warnt_ohne_passwort` |
+| nicht im `ConflictError` (`if_exists="raise"`) | `test_die_ausgefallene_pruefung_wirft_ohne_passwort`, `…gefundene_dublette…` |
+| **gültige** URL mit Benutzerinformationen | `test_die_gefundene_dublette_meldet_ohne_passwort` |
+| **nicht parsebare** URL mit Benutzerinformationen | `test_eine_unlesbare_eigene_adresse_zeigt_kein_passwort` |
+
+Zwei Datenpfade führen das Geheimnis weiter, und beide **bleiben so**: das Feld
+`existing["url"]` gibt die gespeicherte Adresse wörtlich zurück, und
+`add_material` schreibt die übergebene Adresse wörtlich als `ccm:wwwurl`. Der
+Bericht nimmt beides ausdrücklich aus („Der Vergleichsschlüssel und die
+eigentliche Metadaten-URL brauchen dafür nicht verändert zu werden"; „Ob URLs
+mit Zugangsdaten als Materialquelle grundsätzlich erlaubt sein sollen, ist eine
+eigene API-Entscheidung"). Maskieren würde das Vergleichsfeld unbrauchbar
+machen. Beides ist jetzt im Docstring gesagt, statt still zu sein.
+
+### D01, R10, Download
+
+| Kriterium | Beleg |
+|---|---|
+| Docstrings beschreiben den tatsächlichen Ablauf | Abgleich mit den vorhandenen Verhaltensprüfungen (`test_flows_tree.py`, beide `unpublish`-Konflikte) |
+| R10-Grenze bleibt eindeutig | vier Wachen in `test_generated_layer.py`, alle grün |
+| Rechtepfad hat einen Instanztest | `test_ein_zweiter_grant_behaelt_das_erste_recht` (live) |
+| Dateipfad hat einen Instanztest | `test_das_download_servlet_liefert_nur_oeffentliches` (live) |
+
+### Werkzeuge
+
+`pip-audit` gegen die Laufzeitabhängigkeiten (`httpx>=0.27`, `attrs>=23.2`) und
+gegen die ganze Umgebung: **No known vulnerabilities found**. Beim vollen Lauf
+wird nur das lokale Paket selbst übersprungen — es liegt nicht auf PyPI.
