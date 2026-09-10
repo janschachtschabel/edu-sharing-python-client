@@ -323,6 +323,59 @@ async def test_treffer_ohne_original_bleiben_brauchbar():
     assert [h["id"] for h in ergebnis["hits"]] == ["b"]
 
 
+async def test_eine_vom_filter_geleerte_antwort_sagt_warum():
+    """Der Bericht misst es unter U2 (10.09.2026): bei ``limit=2`` holt
+    ``related`` drei Kandidaten. Sind das das Original und zwei Referenzen
+    darauf, raeumt der R08-Ausschluss die Liste zu Recht leer -- und der
+    Aufrufer bekam ``hits: []`` mit ``reason: ""``.
+
+    Das ist genau der Fall, den dieses Paket sonst nicht durchgehen laesst:
+    "Truncating in silence reads like completeness, and a caller cannot tell
+    an empty result from an unfinished one" (``flows/tree.py``). "Nichts
+    Aehnliches vorhanden" und "alles Gefundene war dieses Material selbst"
+    sind verschiedene Antworten, und ein Widget entscheidet danach.
+
+    **Nicht** Teil davon: nachladen, bis genug fremde Originale da sind. Das
+    ist die andere Haelfte von U2, und die ist Bau.
+    """
+    instanz = Instanz(
+        knoten={"original": _knoten("original", "Zellteilung")},
+        treffer=[_knoten("original", "Zellteilung"),
+                 _referenz("ref1", "Zellteilung", "original"),
+                 _referenz("ref2", "Zellteilung", "original")])
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.related("original", limit=2)
+    assert ergebnis["hits"] == []
+    assert ergebnis["reason"], "eine leere Antwort ohne Grund"
+    assert "reference" in ergebnis["reason"].lower()
+
+
+async def test_eine_gefuellte_antwort_bekommt_keinen_grund():
+    """Die Gegenprobe. Ein ``reason`` an einer vollen Liste erklaerte etwas,
+    das nicht passiert ist."""
+    instanz = Instanz(
+        knoten={"original": _knoten("original", "Zellteilung")},
+        treffer=[_knoten("original", "Zellteilung"),
+                 _knoten("b", "Photosynthese")])
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.related("original")
+    assert [h["id"] for h in ergebnis["hits"]] == ["b"]
+    assert ergebnis["reason"] == ""
+
+
+async def test_eine_suche_ohne_treffer_bekommt_keinen_filtergrund():
+    """Die zweite Gegenprobe: leer, weil nichts passte, ist ein anderer Grund
+    als leer, weil alles herausfiel. Der Filtergrund darf nicht behaupten,
+    etwas herausgefiltert zu haben."""
+    instanz = Instanz(
+        knoten={"original": _knoten("original", "Zellteilung")},
+        treffer=[])
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.related("original")
+    assert ergebnis["hits"] == []
+    assert ergebnis["reason"] == ""
+
+
 async def test_ein_treffer_traegt_seine_original_id():
     """Ohne sie im serialisierten Treffer laesst sich die Identitaet eines
     Materials von aussen gar nicht bestimmen."""

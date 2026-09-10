@@ -680,7 +680,7 @@ argument. Depth and reasoning: [FLOWS.md](FLOWS.md).
 | `repo.flows.search(text, filters=…, facets=…, limit=…, rerank=…, exclude_ids=…, facet_limit=…, properties=…)` | `{query, total, total_is_lower_bound, returned, duplicates_removed, hits, facets, facet_meta, unresolved, ignored, warnings, suggestions}` — `facet_meta[name]` carries `other_count` and `truncated` for that facet; a value list the server cut short otherwise looks complete |
 | `repo.flows.search_all(text, limit=…, include_pages=…, properties=…)` | `{query, materials, collections}` — both buckets at once; `pages` as a third with `include_pages=True` |
 | `repo.flows.find_collections(text, limit=…, parent_id=…, properties=…, subject=…)` | same shape as `search` plus `unjudged`; filters applied locally; `total_is_lower_bound` is **always true** for a search |
-| `repo.flows.related(node_id, on=…, limit=…)` | `{seed, based_on, hits, unresolved, reason}` — a reference id works: the seed's own original, and any other reference to it, are left out |
+| `repo.flows.related(node_id, on=…, limit=…)` | `{seed, based_on, hits, unresolved, reason}` — a reference id works: the seed's own original, and any other reference to it, are left out. When that leaves nothing, `reason` says so -- an empty list on its own would read as "nothing resembles this" |
 | `repo.flows.vocabulary(field)` | `{field, property, values, count}` |
 
 ```python

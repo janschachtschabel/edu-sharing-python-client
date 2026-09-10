@@ -247,9 +247,13 @@ async def related(
         values the search was built from -- without it nobody can judge the
         resemblance. ``unresolved`` names the ones the instance could not
         resolve: those did **not** narrow the search, so the result is broader
-        than it looks. When the seed carries none of the fields, ``hits`` is
-        empty and ``reason`` says so -- an unfiltered search would answer
-        "more of this" with anything.
+        than it looks. ``reason`` explains an empty ``hits``, and it has two
+        things to say: the seed carries none of the fields, so no search was
+        made at all -- an unfiltered one would answer "more of this" with
+        anything -- or every record the search did find was this material
+        itself or a reference to it. The second is not "nothing resembles
+        this", and an application showing "more like this" decides
+        differently on each.
 
     Raises:
         ValidationError: for a short name the search does not know -- a typo
@@ -295,10 +299,30 @@ async def related(
         h for h in found["hits"]
         if h["id"] != node_id and (h.get("original_id") or h["id"]) != itself
     ][:limit]
+    # An empty list with nothing beside it reads as "nothing resembles this",
+    # and that is a different answer from "everything found was this material
+    # again". Measured 2026-09-10 (report U2): with ``limit=2`` the search
+    # fetches three, and where those are an original and two references to it
+    # the exclusion above rightly empties the list -- and said nothing. This
+    # package refuses that everywhere else ("truncating in silence reads like
+    # completeness", ``flows/tree.py``); it was refusing it everywhere but
+    # here.
+    #
+    # Saying it is the repair. Fetching further pages until enough foreign
+    # originals are found is the other half of U2 and a new promise -- that
+    # one is construction, and not this round's.
+    reason = ""
+    if not hits and found["hits"]:
+        reason = (
+            f"The search answered with {len(found['hits'])} record(s) and "
+            "every one of them was this material itself or a reference to it, "
+            "so nothing is left to recommend. Nothing further was fetched: "
+            "more matches may exist beyond the ones read."
+        )
     return {
         "seed": {"id": node_id, "title": seed.get("title")},
         "based_on": based_on,
         "hits": hits,
         "unresolved": found["unresolved"],
-        "reason": "",
+        "reason": reason,
     }

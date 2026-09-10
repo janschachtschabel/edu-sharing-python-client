@@ -693,7 +693,7 @@ Argument. Tiefe und Begründungen: [FLOWS.de.md](FLOWS.de.md).
 | `repo.flows.search(text, filters=…, facets=…, limit=…, rerank=…, exclude_ids=…, facet_limit=…, properties=…)` | `{query, total, total_is_lower_bound, returned, duplicates_removed, hits, facets, facet_meta, unresolved, ignored, warnings, suggestions}` — `facet_meta[name]` trägt `other_count` und `truncated` der Facette; eine vom Server gekürzte Werteliste sieht sonst vollständig aus |
 | `repo.flows.search_all(text, limit=…, include_pages=…, properties=…)` | `{query, materials, collections}` — beide Körbe auf einmal; `pages` als dritter mit `include_pages=True` |
 | `repo.flows.find_collections(text, limit=…, parent_id=…, properties=…, subject=…)` | dieselbe Form wie `search` plus `unjudged`; Filter wirken lokal; `total_is_lower_bound` ist bei einer Suche **immer** wahr |
-| `repo.flows.related(node_id, on=…, limit=…)` | `{seed, based_on, hits, unresolved, reason}` — eine Referenz-ID geht: das eigene Original und jede andere Referenz darauf fallen heraus |
+| `repo.flows.related(node_id, on=…, limit=…)` | `{seed, based_on, hits, unresolved, reason}` — eine Referenz-ID geht: das eigene Original und jede andere Referenz darauf fallen heraus. Bleibt dabei nichts übrig, sagt `reason` das -- eine leere Liste allein läse sich als „nichts Ähnliches vorhanden" |
 | `repo.flows.vocabulary(field)` | `{field, property, values, count}` |
 
 ```python

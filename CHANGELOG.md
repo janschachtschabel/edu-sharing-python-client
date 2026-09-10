@@ -325,6 +325,15 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Fixed
 
+- **`related()` says when its own exclusion emptied the answer** (report U2,
+  2026-09-10). With `limit=2` the search fetches three candidates; where those
+  are an original and two references to it, the R08 exclusion rightly removes
+  every one -- and the caller got `hits: []` with `reason: ""`. "Nothing
+  resembles this" and "everything found was this material again" are different
+  answers, and a "more like this" widget decides differently on each. `reason`
+  now carries the second, including that nothing further was fetched. Fetching
+  further pages until enough foreign originals are found is a new promise and
+  is **not** part of this: the answer is honest now, not fuller.
 - **`grant()` notices when the repository takes away a permission the
   authority already had** (Drittpruefung A01, 2026-09-10). The check after the
   write compared only the *newly requested* permissions, and the shared

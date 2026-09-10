@@ -56,6 +56,17 @@ Jeder Befund wurde nachgestellt. Nicht gelesen — ausgeführt.
 - **Abschnitt 5 (`U1`–`U8`) ist Bau, nicht Reparatur.** Der Bericht sagt es
   selbst, und er sagt auch, worauf sie aufsetzen sollen (`U1` und `U8` als
   gemeinsame Grundlage). Das ist eine Produktentscheidung, kein Prüfbefund.
+
+  **Eine Ausnahme, und sie ist scharf begrenzt.** In `U2` steckt neben dem
+  Vorschlag eine Tatsachenbehauptung, und die habe ich nachgemessen: bei
+  `limit=2` holt `related()` drei Kandidaten, und sind das das Original und
+  zwei Referenzen darauf, kommt `hits: []` mit `reason: ""` zurück. Das ist
+  genau das, was dieses Paket sonst nirgends durchgehen lässt — `flows/tree.py`
+  schreibt es als Prinzip auf: „a caller cannot tell an empty result from an
+  unfinished one". Das Feld `reason` gibt es bereits und der Nachbarzweig
+  benutzt es genau dafür. Also: **Grund nennen — ja**, das ist Reparatur eines
+  stummen Ergebnisses. **Nachladen, bis genug fremde Originale da sind — nein**,
+  das ist eine neue Zusage und damit Bau.
 - **Die Live-Abnahme** bleibt offen, aber ein Stück kleiner. Der
   A01-Kontrollfall ist jetzt an der Instanz belegt (siehe Ergebnis); die
   *Fehler*fälle R02, R03 und A01 bleiben am Modell, weil sie einen Server
@@ -84,6 +95,7 @@ vermutet.
 | D01 | Keine neuen Tests — das Verhalten ist gepinnt, veraltet war die Beschreibung. Belegt am Quelltext (`deque`/`popleft`; der zweite `ConflictError` nach `_revoke`). |
 | Suite | 2232 → 2239 bestanden, 9 übersprungen. Ruff und `mypy --strict` sauber. |
 | Live | Schreibsuite gegen Staging: 62 bestanden, 3 gescheitert — dieselben drei Download-403 wie vor der Runde, keine Regression. |
+| U2 (halb) | Test vor dem Fix rot („eine leere Antwort ohne Grund"), danach grün. Mutation `if False`: genau dieser Test fällt. Zwei Gegenproben — eine gefüllte Antwort bekommt keinen Grund, und eine Suche ohne Treffer bekommt nicht den *Filter*grund, weil sie aus einem anderen Grund leer ist. |
 | Live · A01 | Der Kontrollfall des Berichts an der Instanz statt am Modell: `grant("Consumer")`, dann `grant("Coordinator")` derselben Autorität → gespeichert ist `['Consumer', 'Coordinator']`, exakt beide Namen. Das war die **einzige** Art, wie diese Reparatur hätte schaden können — fasste die Instanz Rollen zusammen, würde ein berechtigter grant jetzt werfen. Tut sie nicht. Als Test drin, nicht als Notiz. |
 
 **Was der Bericht über diese Bibliothek hinaus sagt.** A01 war kein
