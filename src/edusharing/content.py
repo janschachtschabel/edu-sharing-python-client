@@ -4,7 +4,7 @@ Its own module and its own object (``node.content``), because files answer a
 different question than metadata -- and because ``Node`` would otherwise keep
 growing.
 
-Four quirks, measured against edu-sharing 11.0 (staging, 2026-08-27):
+Five quirks, measured against edu-sharing 11.0 (staging, 2026-08-27):
 
 * **There is no ``GET .../content``.** The path exists only as a ``POST`` for
   uploading; a GET on it answers ``405``. Downloading goes through the
