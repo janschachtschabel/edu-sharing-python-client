@@ -146,3 +146,45 @@ Befund 1 war eine Zusage, die ich in derselben Runde neu aufgestellt und selbst
 nicht durchgeprüft habe — der Grund war für den Normalfall richtig und für den
 Randfall erfunden. Wer eine Erklärung ausgibt, schuldet ihr denselben Beweis
 wie einer Wache.
+
+## Nachtrag 2 · Die Download-Abnahme, die noch fehlte
+
+Beim Durchgehen der offenen Punkte fiel auf, dass ich Abschnitt 2 des Berichts
+nur halb erfüllt hatte. Er verlangt für den Download **„ein bekanntes, lesbares
+Testdokument"** — ich hatte ausschließlich *selbst hochgeladene* Knoten
+gemessen und daraus geschlossen, das Servlet ehre Basic-Auth „for this account"
+nicht. Eine Verallgemeinerung aus einer Stichprobe, und sie war falsch.
+
+| Probe | Ergebnis |
+|---|---|
+| fremdes, öffentliches Dokument, anonym | Metadaten, `text()`, `download()` — alles ok, 5 867 B |
+| dasselbe mit unseren Zugangsdaten | identisch, 5 867 B |
+| eigener **privater** Upload, angemeldet | `403`, auch nach 69 s — keine Verzögerung |
+| `text()` auf demselben privaten Knoten | ok, 25 Zeichen |
+| derselbe Knoten nach `publish()` | `download()` liefert — **und anonym ebenso** |
+
+Das Servlet authentifiziert **gar nicht**. Es liefert öffentlich Lesbares und
+verweigert alles andere, egal wer fragt. Damit erklärt sich auch die ältere
+Messung, dass ein anonymer und ein Basic-authentifizierter Aufruf byteweise
+dieselbe 403-Antwort bekommen: für das Servlet sind sie derselbe Aufruf. Die
+Rechte des Kontos waren nie die Frage.
+
+**Und es war nicht immer so.** Die Zeile `assert await node.content.download()
+== inhalt` auf einem privaten Knoten stammt aus `0aef368` vom 27.08.2026, und
+Zusicherungen werden hier gemessen. Die Instanz hat sich in vierzehn Tagen
+geändert — das gehört an die, die sie betreiben, und ist eine andere Auskunft
+als „dem Konto fehlt ein Recht".
+
+Was daran Reparatur war: der **Aufrufer** erfuhr nichts. Wer eine Datei
+hochlädt und zurückliest, bekam `PermissionDeniedError` ohne Erklärung.
+Docstring und beide REFERENCE-Tabellen nennen die Grenze jetzt und verweisen
+auf `text()`. Die drei roten Live-Tests bleiben rot — sie prüfen richtiges,
+gewünschtes Verhalten, und grün zu machen hieße, die Instanzgrenze als
+Bibliothekszusage festzuschreiben. Dazu ein Charakterisierungstest, der die
+drei Messungen gegeneinander pinnt.
+
+**Dieselbe Lehre, zum dritten Mal.** A01 war eine Zusage ohne Test. Befund 1
+des Reviews war eine Erklärung ohne Beweis für den Randfall. Und dies war eine
+Ursachenaussage, die aus einer einzigen Art von Knoten verallgemeinert hat.
+Dreimal dasselbe Muster: nicht das Messen fehlte, sondern das Prüfen der
+Gegenhypothese.
