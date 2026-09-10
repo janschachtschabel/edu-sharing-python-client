@@ -545,6 +545,83 @@ async def test_ein_gelungener_grant_meldet_weiterhin_true():
     assert danach.inherits is True
 
 
+# --- A01 (Drittpruefung 10.09.2026) ----------------------------------------
+
+class NimmtNurDasNeueRecht(Instanz):
+    """Speichert fuer die bearbeitete Autoritaet **nur** das zuletzt genannte
+    Recht und wirft ihren Altbestand weg. Fremde Eintraege und die Vererbung
+    bleiben unangetastet.
+
+    Genau der Randfall, den ``skip=authority`` durchlaesst: die Pruefung fuer
+    fremde Eintraege sieht nichts, weil fremd nichts fehlt, und die Pruefung
+    fuer die eigene sah nur die **neu** angefragten Rechte.
+    """
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/permissions") and request.method == "POST":
+            koerper = json.loads(request.content)
+            self.geschrieben.append(koerper)
+            self.inherits = koerper["inherited"]
+            self.own = [
+                _ace("alice", "Write")
+                if e["authority"]["authorityName"] == "alice" else e
+                for e in koerper["permissions"]]
+            return httpx.Response(200, content=b"")
+        return super().handler(request)
+
+
+async def test_grant_bemerkt_den_verlust_alter_rechte_derselben_autoritaet():
+    """A01: ``grant`` sagt zu, vorhandene Rechte derselben Autoritaet zu
+    erhalten -- geprueft hat es das nie.
+
+    Gemessen am 10.09.2026: lokale ACL ``alice:[Read]``, ``bob:[Consumer]``,
+    Vererbung an. ``grant("alice", "Write")`` sendet ``['Read', 'Write']``,
+    der Server speichert ``['Write']`` -- und ``grant`` meldete ``True``.
+    """
+    instanz = NimmtNurDasNeueRecht(
+        own=[_ace("alice", "Read"), _ace("bob", "Consumer")])
+    async with instanz.repo() as repo:
+        knoten = await repo.node("n1")
+        with pytest.raises(SilentDropError) as fehler:
+            await knoten.permissions.grant("alice", "Write")
+    # Das verlorene Recht muss dastehen, sonst sucht der Aufrufer im Dunkeln.
+    assert "Read" in str(fehler.value)
+    assert "alice" in str(fehler.value)
+
+
+async def test_ein_grant_der_alte_und_neue_rechte_behaelt_meldet_true():
+    """Die Gegenprobe. Ohne sie waere die neue Wache gruen, indem sie jede
+    Ergaenzung ablehnt."""
+    instanz = Instanz(own=[_ace("alice", "Read"), _ace("bob", "Consumer")])
+    async with instanz.repo() as repo:
+        knoten = await repo.node("n1")
+        assert await knoten.permissions.grant("alice", "Write") is True
+        danach = await knoten.permissions.get()
+    assert sorted(danach.find("alice").permissions) == ["Read", "Write"]
+    assert list(danach.find("bob").permissions) == ["Consumer"]
+
+
+async def test_ein_grant_an_eine_neue_autoritaet_bleibt_unberuehrt():
+    """Die zweite Gegenprobe: ohne Alteintrag gibt es nichts zu verlieren --
+    der Fall darf nicht plotzlich am leeren Altbestand haengenbleiben."""
+    instanz = Instanz(own=[_ace("alice", "Read")])
+    async with instanz.repo() as repo:
+        knoten = await repo.node("n1")
+        assert await knoten.permissions.grant("bob", "Consumer") is True
+
+
+async def test_der_unbekannte_gruppenname_behaelt_seinen_eigenen_text():
+    """Die dritte: zwei Gruende, zwei Texte. Ein Gruppenname ohne Gruppe
+    dahinter soll weiter nach der Schreibweise fragen lassen -- nicht nach
+    einem verlorenen Altbestand, den es nicht gibt."""
+    instanz = Instanz(taub=True, own=[_ace("GROUP_x", "Read")])
+    async with instanz.repo() as repo:
+        knoten = await repo.node("n1")
+        with pytest.raises(SilentDropError) as fehler:
+            await knoten.permissions.grant("GROUP_x", "Consumer")
+    assert "spelling" in str(fehler.value).lower()
+
+
 # --- Formen ---------------------------------------------------------------
 
 def test_ace_leitet_den_typ_aus_dem_namen_ab():

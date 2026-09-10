@@ -243,11 +243,14 @@ class NodePermissions:
             were already held -- then nothing is sent at all.
 
         Raises:
-            SilentDropError: when the entry is absent after reading back.
-                Measured: a ``GROUP_`` name with no group behind it is dropped
-                this way, with a ``200`` in front of it. A user name is not
-                checked -- it is stored whether the account exists or not, so
-                this check cannot catch a mistyped one.
+            SilentDropError: when the ACL does not come back as it was sent --
+                the new permissions absent, the ones this authority already
+                held gone, another entry lost, or the inheritance changed.
+                Each says which of the four it is. Measured: a ``GROUP_`` name
+                with no group behind it is dropped with a ``200`` in front of
+                it. A user name is not checked -- it is stored whether the
+                account exists or not, so this check cannot catch a mistyped
+                one.
             ValueError: when no permission is named.
         """
         if not permissions:
@@ -277,6 +280,26 @@ class NodePermissions:
                 "Measured cause: a group name the repository does not know is "
                 "discarded without an error. Check the spelling and that the "
                 "group exists on this instance.",
+                dropped=[authority],
+            )
+        # Everything in ``wanted`` is known stored by now, so what can still be
+        # absent from ``merged`` is what this authority held **before**. That
+        # is the promise the docstring makes ("what it already had stays") and
+        # nothing checked it: the comparison above reads ``wanted`` alone, and
+        # ``_not_kept`` below is told to skip this authority -- between the two
+        # the old entry fell through. Measured 2026-09-10 (A01): a repository
+        # that stored only ``Write`` for an authority holding ``Read`` had
+        # ``grant`` report success, with the foreign entries and the
+        # inheritance intact, so no other check saw anything either.
+        gone = [p for p in merged if not (stored and stored.allows(p))]
+        if gone:
+            raise SilentDropError(
+                f"The repository reported 200 and stored "
+                f"{', '.join(wanted)} for {authority!r} on node "
+                f"{self._node.id!r}, but took away what it already had: "
+                f"{', '.join(gone)}. grant() adds to an entry and keeps the "
+                "rest of it -- the merged list was sent in full, and this much "
+                "of it did not come back.",
                 dropped=[authority],
             )
         lost = self._not_kept(after, current.inherits, aces, skip=authority)
