@@ -389,6 +389,15 @@ class NodePermissions:
         Returns:
             ``True`` when the node was published now, ``False`` when it already
             was.
+
+        Raises:
+            SilentDropError: from the ``grant`` underneath, when the ACL does
+                not come back as it was sent. Publishing is a grant to
+                ``GROUP_EVERYONE`` and inherits every way that can go wrong --
+                including one it did not surface before 2026-09-10: a node
+                whose entry for everyone carries more than ``Consumer`` sends
+                that along, and a repository that drops it now says so instead
+                of reporting a clean publish (A01).
         """
         if (await self.get()).is_public:
             return False
