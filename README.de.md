@@ -1015,7 +1015,7 @@ Arbeit — und wo ein Ablauf wirklich einen Umlauf spart.
 |---|---|
 | `edusharing.agent` | Bausteine für KI-Anwendungen: Formatierung, Token-Budget, Preview-then-confirm, Sanitisierung |
 | `edusharing.flows` | ein Anwendungsfall, ein Aufruf, ein `dict` zurück |
-| `edusharing` (Ressourcen) | `search()`, `node()`, `collection()` — Objekte zurück |
+| `edusharing` (Ressourcen) | `search()`, `node()`, `find_collections()` — Objekte zurück |
 | Profil & MDS | Vokabular-Auflösung, Property-Fähigkeiten, Wahl des Schreibwegs |
 | Transport | httpx, Auth, Retry, Concurrency, Rückleseprobe |
 | `_generated` | alle 389 Operationen, aus `openapi.json` erzeugt |

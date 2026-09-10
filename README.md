@@ -989,7 +989,7 @@ save a round trip.
 |---|---|
 | `edusharing.agent` | Building blocks for AI use: formatting, token budget, preview-then-confirm, sanitising |
 | `edusharing.flows` | One use case, one call, a `dict` back |
-| `edusharing` (resources) | `search()`, `node()`, `collection()` — objects back |
+| `edusharing` (resources) | `search()`, `node()`, `find_collections()` — objects back |
 | Profile & MDS | Vocabulary resolution, property capabilities, choosing the write route |
 | Transport | httpx, auth, retry, concurrency, read-back check |
 | `_generated` | All 389 operations, generated from `openapi.json` |

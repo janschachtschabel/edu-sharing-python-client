@@ -849,7 +849,7 @@ supplied. The library logs only what it built itself.
 | what does this call return, exactly | [`docs/REFERENCE.md`](../../../docs/REFERENCE.md) · [de](../../../docs/REFERENCE.de.md) |
 | why does this flow do what it does | [`docs/FLOWS.md`](../../../docs/FLOWS.md) · [de](../../../docs/FLOWS.de.md) |
 | how is the library built | [`docs/ARCHITECTURE.md`](../../../docs/ARCHITECTURE.md) · [de](../../../docs/ARCHITECTURE.de.md) |
-| a runnable example | `docs/examples/01…17` — see the README table |
+| a runnable example | `docs/examples/01…21` — see the README table |
 | what changed | `CHANGELOG.md` |
 
 Start with `docs/examples/10_two_levels.py` when deciding which level to write
