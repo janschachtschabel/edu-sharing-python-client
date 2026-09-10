@@ -419,7 +419,7 @@ comment.text               # "Passt zu Klasse 6."
 |---|---|
 | `node.permissions.get()` | `Permissions` |
 | `Permissions` | `effective`, `inherited`, `inherits`, `is_public`, `own` |
-| `node.permissions.grant(authority, "Read", authority_type=…)` | `bool` — `SilentDropError`, wenn die zurückgelesene ACL nicht die gesendete ist: das Recht nicht gespeichert, ein unberührter Eintrag weg, oder die Vererbung gekippt. Der POST ersetzt die ganze lokale Liste, ein Grant kann also verlieren, was er nicht angefasst hat |
+| `node.permissions.grant(authority, "Read", authority_type=…)` | `bool` — `SilentDropError`, wenn die zurückgelesene ACL nicht die gesendete ist: das neue Recht nicht gespeichert, ein Recht derselben Autorität weggenommen, ein unberührter Eintrag weg, oder die Vererbung gekippt. Der POST ersetzt die ganze lokale Liste, ein Grant kann also verlieren, was er nicht angefasst hat |
 | `node.permissions.revoke(authority, "Read")` | `bool` — `SilentDropError`, wenn die zurückgelesene ACL nicht die gesendete ist: das Recht noch da, ein unberührter Eintrag weg, oder die Vererbung gekippt |
 | `node.permissions.publish()` | `bool` — ohne Anmeldung lesbar |
 | `node.permissions.unpublish()` | `bool` — `ConflictError`, wenn der Knoten öffentlich bliebe, weil sein Elternteil es ist. Zweimal gefragt: vor dem Schreiben (dann wird nichts geschrieben) und an der danach zurückgelesenen ACL, weil ein Elternteil dazwischen veröffentlicht werden kann |

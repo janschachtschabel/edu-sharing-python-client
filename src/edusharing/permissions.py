@@ -409,9 +409,19 @@ class NodePermissions:
                 changes nothing in that case. Reporting success would claim a
                 privacy the node does not have; cutting the inheritance
                 instead would remove every grant from above, which is a
-                decision for the caller. Nothing is written when this is
-                raised -- a half-done withdrawal would leave the node without
-                its own entry and public all the same.
+                decision for the caller.
+
+                **Asked at two moments, and the message says which.** Before
+                the write, nothing has been sent and the node is as it was.
+                After it -- the parent was published while this call was in
+                flight, which the read-back already shows (R02) -- the local
+                entry is **removed** and the node is public through its parent
+                all the same. The difference decides what a caller does next:
+                a retry helps at the first moment and repeats a no-op at the
+                second, where the inheritance has to be cut or the parent
+                unpublished. Neither is something this call may decide on its
+                own. This said "nothing is written" for both until 2026-09-10
+                (D01).
         """
         current = await self.get()
         # Not "is there an entry of its own": a node can carry both, and that

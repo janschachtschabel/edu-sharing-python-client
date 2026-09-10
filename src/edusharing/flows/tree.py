@@ -64,8 +64,16 @@ async def browse_tree(
     request per node -- ``collection_stats`` counts it, ``collection_contents``
     lists it. Keeping them apart halves what a walk costs.
 
-    The walk is depth-first and **sequential**: one request at a time, up to
-    ``max_collections``. Fanning a level out would be faster, and the reason
+    The walk is breadth-first and **sequential**: one request at a time, up to
+    ``max_collections``. Breadth first since 2026-09-09: depth first, a
+    collection reachable from two parents was claimed by whichever branch the
+    walk entered first, so the server's order of answering decided where it
+    appeared and which entries the cap cut -- and both answers said
+    ``truncated=False`` (R05). Reaching every collection by its shortest path
+    first makes ``seen`` right again. This said "depth-first" until 2026-09-10
+    (D01).
+
+    Fanning a level out would be faster, and the reason
     it is not done is *not* a race on ``seen``: no ``await`` sits between the
     membership test and the ``add``, so no other coroutine can slip between
     them (this said otherwise until 2026-09-08, audit PRF-3). The real reason
