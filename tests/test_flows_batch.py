@@ -376,6 +376,41 @@ async def test_eine_suche_ohne_treffer_bekommt_keinen_filtergrund():
     assert ergebnis["reason"] == ""
 
 
+async def test_ein_limit_von_null_erfindet_keinen_filtergrund():
+    """Review-Befund vom 10.09.2026: ``hits`` wird erst gefiltert und **dann**
+    auf ``limit`` gekuerzt. Bei ``limit=0`` ist es leer, weil das Limit alles
+    abgeschnitten hat -- der Filter hat nichts genommen.
+
+    Gemessen: mit zwei voellig fremden Treffern und ``limit=0`` stand da "The
+    search answered with 1 record(s) and every one of them was this material
+    itself or a reference to it". Beide Haelften falsch -- die Zahl kommt von
+    ``limit + 1``, und gefiltert wurde nichts. Ein Grund, der sich irrt, ist
+    schlimmer als keiner: er beantwortet eine Frage, die der Aufrufer sonst
+    selbst gestellt haette.
+    """
+    instanz = Instanz(
+        knoten={"original": _knoten("original", "Zellteilung")},
+        treffer=[_knoten("b", "Photosynthese"), _knoten("c", "Atmung")])
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.related("original", limit=0)
+    assert ergebnis["hits"] == []
+    assert ergebnis["reason"] == "", (
+        "der Filter hat nichts genommen -- das Limit hat gekuerzt")
+
+
+async def test_ein_limit_von_null_verschweigt_einen_echten_filtergrund_nicht():
+    """Die Gegenprobe. Nahm der Filter wirklich alles, bleibt der Grund wahr
+    -- unabhaengig vom Limit. Ohne sie waere die Reparatur gruen, indem sie
+    den Grund bei kleinem Limit einfach nie mehr nennt."""
+    instanz = Instanz(
+        knoten={"original": _knoten("original", "Zellteilung")},
+        treffer=[_referenz("ref1", "Zellteilung", "original")])
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.related("original", limit=0)
+    assert ergebnis["hits"] == []
+    assert "reference" in ergebnis["reason"].lower()
+
+
 async def test_ein_treffer_traegt_seine_original_id():
     """Ohne sie im serialisierten Treffer laesst sich die Identitaet eines
     Materials von aussen gar nicht bestimmen."""

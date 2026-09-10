@@ -247,13 +247,14 @@ async def related(
         values the search was built from -- without it nobody can judge the
         resemblance. ``unresolved`` names the ones the instance could not
         resolve: those did **not** narrow the search, so the result is broader
-        than it looks. ``reason`` explains an empty ``hits``, and it has two
-        things to say: the seed carries none of the fields, so no search was
-        made at all -- an unfiltered one would answer "more of this" with
-        anything -- or every record the search did find was this material
-        itself or a reference to it. The second is not "nothing resembles
-        this", and an application showing "more like this" decides
-        differently on each.
+        than it looks. ``reason`` explains an empty ``hits`` **where the
+        caller cannot see the cause**, and it has two things to say: the seed
+        carries none of the fields, so no search was made at all -- an
+        unfiltered one would answer "more of this" with anything -- or every
+        record the search did find was this material itself or a reference to
+        it. The second is not "nothing resembles this", and an application
+        showing "more like this" decides differently on each. A ``limit`` of
+        zero is not explained: the caller set it.
 
     Raises:
         ValidationError: for a short name the search does not know -- a typo
@@ -295,10 +296,11 @@ async def related(
     # both sides are compared on, so asking with the original and asking with
     # one of its references answer with the same others.
     itself = seed.get("original_id") or node_id
-    hits = [
+    kept = [
         h for h in found["hits"]
         if h["id"] != node_id and (h.get("original_id") or h["id"]) != itself
-    ][:limit]
+    ]
+    hits = kept[:limit]
     # An empty list with nothing beside it reads as "nothing resembles this",
     # and that is a different answer from "everything found was this material
     # again". Measured 2026-09-10 (report U2): with ``limit=2`` the search
@@ -308,11 +310,18 @@ async def related(
     # completeness", ``flows/tree.py``); it was refusing it everywhere but
     # here.
     #
+    # Asked of ``kept``, not of ``hits``: the two are the same list except
+    # where ``limit`` cut it, and at ``limit=0`` they differ for a reason that
+    # has nothing to do with the exclusion. Measured 2026-09-10, reviewing this
+    # very change: with two foreign hits and ``limit=0`` it claimed every
+    # record found had been the material itself. A reason that is wrong is
+    # worse than none -- it answers a question the caller would otherwise ask.
+    #
     # Saying it is the repair. Fetching further pages until enough foreign
     # originals are found is the other half of U2 and a new promise -- that
     # one is construction, and not this round's.
     reason = ""
-    if not hits and found["hits"]:
+    if not kept and found["hits"]:
         reason = (
             f"The search answered with {len(found['hits'])} record(s) and "
             "every one of them was this material itself or a reference to it, "

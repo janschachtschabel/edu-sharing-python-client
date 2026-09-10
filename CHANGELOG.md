@@ -331,7 +331,10 @@ and in [`docs/audits/`](docs/audits/).
   every one -- and the caller got `hits: []` with `reason: ""`. "Nothing
   resembles this" and "everything found was this material again" are different
   answers, and a "more like this" widget decides differently on each. `reason`
-  now carries the second, including that nothing further was fetched. Fetching
+  now carries the second, including that nothing further was fetched. It stays
+  empty where the caller can see the cause themselves -- a `limit` of zero
+  empties the list without the exclusion having taken anything, and a reason
+  that is wrong is worse than none. Fetching
   further pages until enough foreign originals are found is a new promise and
   is **not** part of this: the answer is honest now, not fuller.
 - **`grant()` notices when the repository takes away a permission the
