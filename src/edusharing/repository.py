@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import os
 import weakref
-from dataclasses import replace
 from typing import Any, Self
 
 import httpx
@@ -484,14 +483,13 @@ class Repository:
         self._loop.run(self._async.remove_from_collection(collection_id, node_id))
 
     def children(self, node_id: str, **kwargs: Any) -> Any:
-        """Like ``Nodes.children``, blocking. One page of a node's children."""
-        seite = self._loop.run(self._async.nodes.children(node_id, **kwargs))
-        # The page keeps its shape and swaps every node for its blocking
-        # wrapper. ``Page`` is not generic over its node type, so the checker
-        # reads this as the wrong item type; the whole sync facade does it.
-        return replace(seite, nodes=tuple(
-            SyncNode(n, self._loop)  # type: ignore[misc]
-            for n in seite.nodes))
+        """Like ``Nodes.children``, blocking. One page of a node's children.
+
+        The shorter way to ``repo.nodes.children()``, and the same call: since
+        2026-09-10 the node layer blocks too, so the page-rebuilding that stood
+        here twice now stands there once.
+        """
+        return self.nodes.children(node_id, **kwargs)
 
     def update_collection(self, collection_id: str, **kwargs: Any) -> SyncNode:
         """Like ``Collections.update``, blocking."""
