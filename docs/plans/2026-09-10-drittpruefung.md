@@ -106,3 +106,43 @@ Finalisierungs-Audit gemessen hat — `mypy --strict`, `pip-audit`, Coverage,
 grüne Suite — können so etwas nicht finden. Nur der Abgleich *Zusage gegen
 Test* findet es. Für die nächste Runde ist das der Griff: jede Zusage einer
 öffentlichen Docstring gegen den Test suchen, der sie hält.
+
+## Nachtrag · Review der eigenen Runde
+
+`better-coding-review` über `4b6ec40..c388778`. Ein echter Fehler, und er saß
+ausgerechnet in der Reparatur, die diese Runde *freiwillig* mitgenommen hat.
+
+**Befund 1 · `related()` erfand einen Grund.** `hits` entsteht als
+`[gefiltert][:limit]`, und die neue Erklärung hing an `hits`. Bei `limit=0`
+schneidet das Limit alles ab, auch wenn der R08-Filter nichts genommen hat —
+und der Text behauptete trotzdem „every one of them was this material itself
+or a reference to it". Gemessen mit zwei völlig fremden Treffern: beide
+Hälften des Satzes falsch, die Zahl kam von `limit + 1`.
+
+Die Reparatur trennt die zwei Schritte (`kept` vor `hits`) und fragt den
+Grund von `kept`. Test vorher rot, Mutation zurück auf `hits` macht genau ihn
+rot. Dazu die Gegenprobe, dass ein *echter* Filtergrund auch bei `limit=0`
+noch genannt wird — sonst wäre die Reparatur grün, indem sie schweigt.
+
+Daran hing ein zweiter Fund, den erst der Fix sichtbar machte: die Docstring
+sagte, `reason` erkläre *jedes* leere `hits`. Nach der Reparatur stimmt das
+absichtlich nicht mehr. Sie sagt es jetzt genau: erklärt wird, was der
+Aufrufer nicht sehen kann; ein selbstgesetztes `limit` gehört nicht dazu.
+
+**Befund 2 · `publish()` hatte keinen `Raises:`-Abschnitt.** Es ist ein
+`grant` an `GROUP_EVERYONE` und erbt jeden Weg, auf dem der schiefgehen kann —
+seit A01 einen mehr. Vorbestehende Lücke, die diese Runde wahrscheinlicher
+gemacht hat.
+
+**Vier Kosmetika.** Verlorene Backticks in einem Kommentarblock (mein
+Patch-Skript hatte sie beim Shell-Escaping verschluckt), ein ungleichmäßiger
+Umbruch, ein Tippfehler — und ein Test-Double, dessen Docstring von „der
+bearbeiteten Autorität" sprach, während der Code hart `alice` umschrieb. Das
+Double ist jetzt generisch und modelliert, was es behauptet; die Beweiskraft
+des Tests wurde danach neu belegt.
+
+**Die Lehre dieser Runde, zum zweiten Mal.** A01 war eine Zusage ohne Test.
+Befund 1 war eine Zusage, die ich in derselben Runde neu aufgestellt und selbst
+nicht durchgeprüft habe — der Grund war für den Normalfall richtig und für den
+Randfall erfunden. Wer eine Erklärung ausgibt, schuldet ihr denselben Beweis
+wie einer Wache.
