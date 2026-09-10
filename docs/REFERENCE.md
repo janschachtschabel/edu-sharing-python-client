@@ -39,7 +39,7 @@ returns; the sync one runs a loop in a thread for you.
 | `Repository(url, auth=(user, password))` | the connection |
 | `Repository.from_env()` | reads `EDU_SHARING_URL`, `EDU_SHARING_USER`, `EDU_SHARING_PASSWORD`, optionally `EDU_SHARING_METADATASET` |
 | `Repository("https://user:password@host")` | refused — an address is logged; credentials go into `auth=` or the environment |
-| `AsyncRepository(url, ...)` | the same, `async` |
+| `AsyncRepository(url, ...)` | the same, `async` — every property of the blocking one blocks too, since 2026-09-10 |
 | `repo.url` | `str` — the instance, normalised |
 | `repo.credential` | `Credential` — what is being sent |
 | `repo.metadataset` | `str` — the metadata set in use, e.g. `"mds_oeh"` |

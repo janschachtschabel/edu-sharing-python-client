@@ -42,7 +42,7 @@ Ereignisschleife in einem Thread für Sie.
 | `Repository(url, auth=(user, password))` | die Verbindung |
 | `Repository.from_env()` | liest `EDU_SHARING_URL`, `EDU_SHARING_USER`, `EDU_SHARING_PASSWORD`, optional `EDU_SHARING_METADATASET` |
 | `Repository("https://benutzer:passwort@host")` | abgewiesen — eine Adresse steht im Log; Zugangsdaten gehören in `auth=` oder die Umgebung |
-| `AsyncRepository(url, ...)` | dasselbe, `async` |
+| `AsyncRepository(url, ...)` | dasselbe, `async` — jede Eigenschaft der blockierenden blockiert seit dem 10.09.2026 ebenfalls |
 | `repo.url` | `str` — die Instanz, normalisiert |
 | `repo.credential` | `Credential` — was gesendet wird |
 | `repo.metadataset` | `str` — der genutzte Metadatensatz, z. B. `"mds_oeh"` |

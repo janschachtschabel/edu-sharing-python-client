@@ -325,6 +325,17 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Fixed
 
+- **On the blocking `Repository`, everything blocks** (2026-09-10).
+  `repo.vocab`, `repo.searcher`, `repo.collections` and `repo.nodes` handed
+  out the asynchronous objects unchanged, so `repo.vocab.resolve(...)` and the
+  other twelve calls on them answered a synchronous caller with a coroutine:
+  no error, no effect. All four are documented in REFERENCE as public surface,
+  and `repo.vocab.suggest` had no blocking route at all. The state was known
+  and pinned, with a table of detours in the usage skill; the detours are now
+  shorter, not necessary. A new guard walks every public surface of the
+  asynchronous connection and refuses a coroutine on the blocking one --
+  the old check compared a hand-maintained list of pairs, which is where these
+  four slipped through.
 - **A blank `url` no longer becomes a source address** (2026-09-10).
   `add_material(title, url="")` wrote `ccm:wwwurl: ['']` -- a record whose
   source points at nothing, and one no duplicate check can ever match again,

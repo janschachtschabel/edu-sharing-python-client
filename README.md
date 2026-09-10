@@ -41,6 +41,33 @@ uv sync
 Measured on 2026-08-28 into two empty environments: `uv pip install -e .` on
 Python 3.13.5 and `pip install -e .` on 3.14.7. Both then answered
 `repo.about().repository_version` with `11.0` against the staging instance.
+Measured again on 2026-09-10, this time the git route into an empty 3.12
+environment: it pulls the current `main` and two dependencies, and a search
+answered straight away.
+
+> **Do not pin `@v0.1.0` yet.** The tag sits 203 commits behind `main` — it
+> predates three review rounds, so pinning it buys the defects they closed.
+> Until the next tag is cut, the plain address above is the one to use.
+
+## Quick start
+
+```python
+from edusharing import Repository
+
+with Repository("https://repository.staging.openeduhub.net",
+                metadataset="mds_oeh") as repo:
+    result = repo.search("Photosynthese", subject="Biologie", limit=5)
+    for hit in result.hits:
+        print(hit.title, hit.url)
+```
+
+That is the whole thing: no credentials for reading, and `subject="Biologie"`
+instead of a vocabulary URI. `metadataset="mds_oeh"` is what makes the filter
+possible — measured, the default metadata set answers `400` for it, because
+whether a property can be filtered on is a property of the metadata set and
+not of the property.
+
+`AsyncRepository` is the same surface with `await` in front of each call.
 
 ## Contents
 
@@ -49,6 +76,7 @@ every public name with what goes in and what comes out. This README explains
 why; the reference is the lookup table.
 
 - [Installing](#installing)
+- [Quick start](#quick-start)
 - [Why](#why)
 - [What works today](#what-works-today)
   - [Where a name comes from](#where-a-name-comes-from)
@@ -113,6 +141,11 @@ with Repository("https://repository.staging.openeduhub.net") as repo:
 `AsyncRepository` is the same surface for asynchronous code; the synchronous one
 also works inside a notebook, where an event loop is already running.
 
+"The same surface" is meant literally, and since 2026-09-10 it is: until then
+`repo.vocab`, `repo.searcher`, `repo.collections` and `repo.nodes` handed out
+the asynchronous objects, so a blocking caller got a coroutine that did
+nothing. A guard now walks every public surface and refuses one.
+
 Credentials come from the environment (`EDU_SHARING_URL`, `EDU_SHARING_USER`,
 `EDU_SHARING_PASSWORD`, optionally `EDU_SHARING_METADATASET`) or directly:
 
@@ -127,7 +160,7 @@ address is logged and repeated in error messages, so they would leak with it.
 Every one of the 389 operations is reachable, even without a method of its own:
 
 ```python
-values = await repo.raw.json("GET", "/config/v1/values")
+values = repo.raw.json("GET", "/config/v1/values")
 ```
 
 ### Where a name comes from
@@ -238,6 +271,7 @@ own and removes it afterwards.
 `edusharing.agent` is framework-neutral — no MCP, no LangChain import:
 
 ```python
+# async: as_result takes an awaitable, so this is the AsyncRepository
 from edusharing.agent import as_result, as_untrusted, format_results, is_safe_url
 
 result = await as_result(                        # errors as results, not exceptions
@@ -255,6 +289,7 @@ prompt = as_untrusted(hit.description,           # invisible control chars out,
 And before writing, show what would happen:
 
 ```python
+# async: plan_update and apply() are coroutines
 from edusharing.agent import plan_update
 
 plan = await plan_update(node, title="New title")
@@ -283,6 +318,7 @@ files that exist.
 ### The LLM gateway
 
 ```python
+# async: BildungsAPI has no blocking facade
 from edusharing.bapi import BildungsAPI
 
 async with BildungsAPI.from_env() as llm:        # B_API_KEY and B_API_BASE_URL
@@ -305,6 +341,7 @@ for Qwen3 — but not for Mistral) live in `bapi.body`; which model to use, in
 **The gateway forwards the OpenAI surface**, not only chat:
 
 ```python
+# async: the gateway has no blocking facade
 vectors = await llm.embeddings(["Photosynthese", "Zellatmung"],
                                model="text-embedding-3-small", provider="openai")
 verdict = await llm.moderate(text, model="omni-moderation-latest",
@@ -335,6 +372,7 @@ A repository stores the full text of the files it hosts. For material that only
 file. An edu-sharing installation normally runs a second service for that.
 
 ```python
+# async: TextExtraction has no blocking facade
 from edusharing.extraction import TextExtraction
 
 async with TextExtraction.from_env() as service:   # EDU_SHARING_TEXT_EXTRACTION_URL
@@ -345,6 +383,7 @@ async with TextExtraction.from_env() as service:   # EDU_SHARING_TEXT_EXTRACTION
 Full text of a node, from wherever it is available:
 
 ```python
+# async: the extraction service has no blocking facade
 node = await repo.node(node_id)
 text = await node.content.text()                  # what the repository stored
 if not text and node.get("ccm:wwwurl"):
@@ -385,6 +424,7 @@ set — the repository stores that text and validates nothing. Only this service
 knows, and only at runtime:
 
 ```python
+# async: the agent has no blocking facade
 from edusharing.metadata_agent import MetadataAgent   # METADATA_AGENT_URL
 
 async with MetadataAgent.from_env() as agent:
@@ -747,9 +787,9 @@ An answer sheet, a handout, a second file format: edu-sharing keeps those under
 the main node, not beside it.
 
 ```python
-node = await repo.node(node_id)
-await node.children.add(pdf, filename="loesung.pdf", mimetype="application/pdf")
-await repo.flows.child_objects(node_id)
+node = repo.node(node_id)
+node.children.add(pdf, filename="loesung.pdf", mimetype="application/pdf")
+repo.flows.child_objects(node_id)
 ```
 
 The three parameters that create one cannot be guessed —
@@ -764,8 +804,8 @@ keeps these as **relations** between nodes that stand side by side, separate
 from collections.
 
 ```python
-await repo.relations.create(part_id, "isPartOf", series_id)
-await repo.flows.relations(node_id=series_id)     # the series reports "hasPart"
+repo.relations.create(part_id, "isPartOf", series_id)
+repo.flows.relations(node_id=series_id)     # the series reports "hasPart"
 ```
 
 The opposite direction is kept automatically. The API also distinguishes
@@ -788,18 +828,18 @@ the properties belong to edu-sharing's content model, and any instance using
 the page builder stores them the same way.
 
 ```python
-node = await repo.node(node_id=collection_id)
-page = await node.page.get()              # None when this collection has none
+node = repo.node(node_id=collection_id)
+page = node.page.get()              # None when this collection has none
 if page:
     print(page.rendered.title, len(page.rendered.swimlanes))
-    await node.page.render(other_variant_id)   # immediately public
+    node.page.render(other_variant_id)   # immediately public
 ```
 
 Or as a flow, JSON-ready:
 
 ```python
-await repo.flows.find_pages("Deutsch")    # which collections carry one
-await repo.flows.page(collection_id, resolve_widgets=True)
+repo.flows.find_pages("Deutsch")    # which collections carry one
+repo.flows.page(collection_id, resolve_widgets=True)
 ```
 
 Three things worth knowing before you use it, all measured on 2026-08-28:
@@ -839,13 +879,13 @@ not restrict what a node may carry.
 **Any property, read and written:**
 
 ```python
-node = await repo.node(node_id)
+node = repo.node(node_id)
 node.get("ccm:oeh_collection_compendium_text")       # read one
 node.get_all("ccm:taxonid")                          # all values
 node.properties                                      # everything at once
 
-await node.update(properties={"ccm:custom": ["x"]})  # write, verified
-await node.set_property("ccm:custom", "x")           # write, bypassing the mds
+node.update(properties={"ccm:custom": ["x"]})  # write, verified
+node.set_property("ccm:custom", "x")           # write, bypassing the mds
 ```
 
 `update()` is checked against the metadata set and raises `SilentDropError` when
@@ -862,12 +902,12 @@ content type plus an open data area — WLO calls them `ccm:oeh_extendedType`
 and nothing needs to:
 
 ```python
-uri = await repo.vocab.resolve("ccm:oeh_extendedType", "KI-Prompt")  # this instance's URI
-await node.update(properties={
+uri = repo.vocab.resolve("ccm:oeh_extendedType", "KI-Prompt")  # this instance's URI
+node.update(properties={
     "ccm:oeh_extendedType": [uri],
     "ccm:oeh_extendedData": [json.dumps({"modell": "gpt-5", "temperatur": 0.2})],
 })
-await repo.search("", filters={"ccm:oeh_extendedType": "KI-Prompt"})  # filterable
+repo.search("", filters={"ccm:oeh_extendedType": "KI-Prompt"})  # filterable
 ```
 
 Measured 2026-08-28 against staging: the vocabulary resolves, the JSON comes
@@ -879,9 +919,9 @@ instance that models something else models it the same way.
 **Files on a node:**
 
 ```python
-node = await node.content.upload(data, filename="x.pdf", mimetype="application/pdf")
-raw = await node.content.download()          # the bytes, always
-text = await node.content.text()             # the extracted full text
+node = node.content.upload(data, filename="x.pdf", mimetype="application/pdf")
+raw = node.content.download()          # the bytes, always
+text = node.content.text()             # the extracted full text
 node.content.has_content                      # is there a file at all?
 ```
 
@@ -913,9 +953,9 @@ Such records are usually marked by a content type, and that *is* filterable:
 CONTENT_TYPE = "ccm:oeh_extendedType"
 WANTED = "http://w3id.org/openeduhub/vocabs/contentTypes/ai_skill"
 
-found = await repo.search(filters={CONTENT_TYPE: WANTED})   # anywhere
+found = repo.search(filters={CONTENT_TYPE: WANTED})   # anywhere
 
-page = await repo.nodes.children(collection_id, limit=100)  # in one collection
+page = repo.nodes.children(collection_id, limit=100)  # in one collection
 mine = [n for n in page.nodes if n.get(CONTENT_TYPE) == WANTED]
 ```
 

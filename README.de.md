@@ -44,11 +44,40 @@ uv sync
 
 Gemessen am 28.08.2026 in zwei leeren Umgebungen: `uv pip install -e .` unter
 Python 3.13.5 und `pip install -e .` unter 3.14.7. Beide beantworteten danach
-`repo.about().repository_version` mit `11.0` gegen die Staging-Instanz.
+`repo.about().repository_version` mit `11.0` gegen die Staging-Instanz. Am
+10.09.2026 noch einmal, diesmal der Git-Weg in eine leere 3.12-Umgebung: er
+zieht den aktuellen `main` und zwei Abhängigkeiten, und eine Suche antwortete
+sofort.
+
+> **`@v0.1.0` vorerst nicht pinnen.** Der Tag liegt 203 Commits hinter `main`
+> und stammt aus der Zeit vor drei Prüfrunden — wer ihn pinnt, kauft die Fehler
+> mit, die sie geschlossen haben. Bis der nächste Tag geschnitten ist, ist die
+> Adresse oben ohne Pin die richtige.
+
+## Schnellstart
+
+```python
+from edusharing import Repository
+
+with Repository("https://repository.staging.openeduhub.net",
+                metadataset="mds_oeh") as repo:
+    treffer = repo.search("Photosynthese", subject="Biologie", limit=5)
+    for hit in treffer.hits:
+        print(hit.title, hit.url)
+```
+
+Mehr ist es nicht: zum Lesen keine Zugangsdaten, und `subject="Biologie"`
+statt einer Vokabular-URI. `metadataset="mds_oeh"` ist das, was den Filter
+möglich macht — gemessen antwortet der Standard-Metadatensatz darauf mit
+`400`, denn ob eine Eigenschaft filterbar ist, ist eine Eigenschaft des
+Metadatensatzes und nicht der Eigenschaft selbst.
+
+`AsyncRepository` ist dieselbe Fläche mit `await` vor jedem Aufruf.
 
 ## Inhalt
 
 - [Installieren](#installieren)
+- [Schnellstart](#schnellstart)
 - [Warum](#warum)
 - [Was heute geht](#was-heute-geht)
   - [Woher ein Name kommt](#woher-ein-name-kommt)
@@ -110,6 +139,12 @@ with Repository("https://repository.staging.openeduhub.net") as repo:
     print(wer.authority)              # 'esguest' = anonym
 ```
 
+"Dieselbe Oberfläche" ist wörtlich gemeint, und seit dem 10.09.2026 stimmt
+das auch: bis dahin gaben `repo.vocab`, `repo.searcher`, `repo.collections`
+und `repo.nodes` die asynchronen Objekte heraus, ein blockierender Aufrufer
+bekam also eine Koroutine, die nichts tat. Eine Wache geht jetzt jede
+öffentliche Fläche durch und weist eine zurück.
+
 `AsyncRepository` ist dieselbe Oberfläche für asynchronen Code; der synchrone
 Zugang funktioniert auch im Notebook, wo bereits ein Event-Loop läuft.
 
@@ -127,7 +162,7 @@ mit. `auth=` und die Umgebung sind der Ort dafür.
 Jeder der 389 Endpunkte ist erreichbar, auch ohne eigene Methode:
 
 ```python
-werte = await repo.raw.json("GET", "/config/v1/values")
+werte = repo.raw.json("GET", "/config/v1/values")
 ```
 
 ### Woher ein Name kommt
@@ -240,6 +275,7 @@ Wegwerf-Ordner an und entfernt ihn wieder.
 `edusharing.agent` ist framework-neutral — kein MCP-, kein LangChain-Import:
 
 ```python
+# async: as_result nimmt ein Awaitable, also AsyncRepository
 from edusharing.agent import as_result, as_untrusted, format_results, is_safe_url
 
 ergebnis = await as_result(                      # Fehler als Ergebnis, nicht als Exception
@@ -257,6 +293,7 @@ prompt = as_untrusted(hit.description,           # unsichtbare Steuerzeichen rau
 Und vor dem Schreiben erst zeigen, was passieren würde:
 
 ```python
+# async: plan_update und apply() sind Koroutinen
 from edusharing.agent import plan_update
 
 plan = await plan_update(node, title="Neuer Titel")
@@ -285,6 +322,7 @@ liest, und nur auf Dateien verweisen, die es gibt.
 ### Das LLM-Gateway
 
 ```python
+# async: BildungsAPI hat keine blockierende Fassade
 from edusharing.bapi import BildungsAPI
 
 async with BildungsAPI.from_env() as llm:        # B_API_KEY und B_API_BASE_URL
@@ -308,6 +346,7 @@ in `bapi.body`; welches Modell zu nehmen ist, in `bapi.models`.
 **Das Gateway reicht die OpenAI-Oberfläche durch**, nicht nur Chat:
 
 ```python
+# async: das Gateway hat keine blockierende Fassade
 vektoren = await llm.embeddings(["Photosynthese", "Zellatmung"],
                                 model="text-embedding-3-small", provider="openai")
 urteil = await llm.moderate(text, model="omni-moderation-latest",
@@ -339,6 +378,7 @@ nicht seine Datei. Dafür betreibt eine edu-sharing-Installation üblicherweise
 einen zweiten Dienst.
 
 ```python
+# async: TextExtraction hat keine blockierende Fassade
 from edusharing.extraction import TextExtraction
 
 async with TextExtraction.from_env() as dienst:   # EDU_SHARING_TEXT_EXTRACTION_URL
@@ -349,6 +389,7 @@ async with TextExtraction.from_env() as dienst:   # EDU_SHARING_TEXT_EXTRACTION_
 Der Volltext eines Knotens, aus welcher Quelle auch immer:
 
 ```python
+# async: der Extraktionsdienst hat keine blockierende Fassade
 knoten = await repo.node(node_id)
 text = await knoten.content.text()                # was das Repositorium hat
 if not text and knoten.get("ccm:wwwurl"):
@@ -392,6 +433,7 @@ in keinem Metadatensatz — das Repositorium speichert den Text und prüft nicht
 Das weiß nur dieser Dienst, und nur zur Laufzeit:
 
 ```python
+# async: der Agent hat keine blockierende Fassade
 from edusharing.metadata_agent import MetadataAgent   # METADATA_AGENT_URL
 
 async with MetadataAgent.from_env() as agent:
@@ -767,9 +809,9 @@ Ein Lösungsblatt, ein Handout, ein zweites Dateiformat: edu-sharing führt die
 unter dem Hauptknoten, nicht daneben.
 
 ```python
-node = await repo.node(node_id)
-await node.children.add(pdf, filename="loesung.pdf", mimetype="application/pdf")
-await repo.flows.child_objects(node_id)
+node = repo.node(node_id)
+node.children.add(pdf, filename="loesung.pdf", mimetype="application/pdf")
+repo.flows.child_objects(node_id)
 ```
 
 Die drei Parameter, die eines anlegen, sind nicht zu erraten —
@@ -784,8 +826,8 @@ edu-sharing führt das als **Relationen** zwischen Knoten, die nebeneinander
 stehen — getrennt von Sammlungen.
 
 ```python
-await repo.relations.create(teil_id, "isPartOf", reihe_id)
-await repo.flows.relations(node_id=reihe_id)      # die Reihe meldet "hasPart"
+repo.relations.create(teil_id, "isPartOf", reihe_id)
+repo.flows.relations(node_id=reihe_id)      # die Reihe meldet "hasPart"
 ```
 
 Die Gegenrichtung wird automatisch geführt. Die API unterscheidet zudem
@@ -808,18 +850,18 @@ zeigend. WirLernenOnline nennt das „Themenseite“, aber daran ist nichts von 
 Instanz, die den Page Builder benutzt, speichert sie gleich.
 
 ```python
-node = await repo.node(node_id=collection_id)
-page = await node.page.get()              # None, wenn die Sammlung keine hat
+node = repo.node(node_id=collection_id)
+page = node.page.get()              # None, wenn die Sammlung keine hat
 if page:
     print(page.rendered.title, len(page.rendered.swimlanes))
-    await node.page.render(andere_variante)   # sofort öffentlich sichtbar
+    node.page.render(andere_variante)   # sofort öffentlich sichtbar
 ```
 
 Oder als Ablauf, JSON-fertig:
 
 ```python
-await repo.flows.find_pages("Deutsch")    # welche Sammlungen eine tragen
-await repo.flows.page(collection_id, resolve_widgets=True)
+repo.flows.find_pages("Deutsch")    # welche Sammlungen eine tragen
+repo.flows.page(collection_id, resolve_widgets=True)
 ```
 
 Drei Dinge, die man vorher wissen sollte, alle am 28.08.2026 gemessen:
@@ -863,13 +905,13 @@ die Bibliothek schränkt nicht ein, was ein Knoten tragen darf.
 **Beliebige Eigenschaften, lesend und schreibend:**
 
 ```python
-node = await repo.node(node_id)
+node = repo.node(node_id)
 node.get("ccm:oeh_collection_compendium_text")       # eine lesen
 node.get_all("ccm:taxonid")                          # alle Werte
 node.properties                                      # alles auf einmal
 
-await node.update(properties={"ccm:custom": ["x"]})  # schreiben, mit Prüfung
-await node.set_property("ccm:custom", "x")           # schreiben, am mds vorbei
+node.update(properties={"ccm:custom": ["x"]})  # schreiben, mit Prüfung
+node.set_property("ccm:custom", "x")           # schreiben, am mds vorbei
 ```
 
 `update()` wird gegen den Metadatensatz geprüft und wirft einen
@@ -886,12 +928,12 @@ Veranstaltung, …) und `ccm:oeh_extendedData` (Freitext). Nichts in dieser
 Bibliothek kennt sie, und nichts muss das:
 
 ```python
-uri = await repo.vocab.resolve("ccm:oeh_extendedType", "KI-Prompt")  # URI dieser Instanz
-await node.update(properties={
+uri = repo.vocab.resolve("ccm:oeh_extendedType", "KI-Prompt")  # URI dieser Instanz
+node.update(properties={
     "ccm:oeh_extendedType": [uri],
     "ccm:oeh_extendedData": [json.dumps({"modell": "gpt-5", "temperatur": 0.2})],
 })
-await repo.search("", filters={"ccm:oeh_extendedType": "KI-Prompt"})  # filterbar
+repo.search("", filters={"ccm:oeh_extendedType": "KI-Prompt"})  # filterbar
 ```
 
 Gemessen am 28.08.2026 gegen die Staging: das Vokabular löst auf, der JSON kommt
@@ -903,9 +945,9 @@ Instanz, die etwas anderes modelliert, modelliert es genauso.
 **Dateien an einem Knoten:**
 
 ```python
-node = await node.content.upload(daten, filename="x.pdf", mimetype="application/pdf")
-roh = await node.content.download()          # die Bytes, immer
-text = await node.content.text()             # der extrahierte Volltext
+node = node.content.upload(daten, filename="x.pdf", mimetype="application/pdf")
+roh = node.content.download()          # die Bytes, immer
+text = node.content.text()             # der extrahierte Volltext
 node.content.has_content                      # gibt es überhaupt eine Datei?
 ```
 
@@ -938,9 +980,9 @@ lässt sich sehr wohl filtern:
 INHALTSTYP = "ccm:oeh_extendedType"
 GESUCHT = "http://w3id.org/openeduhub/vocabs/contentTypes/ai_skill"
 
-treffer = await repo.search(filters={INHALTSTYP: GESUCHT})   # irgendwo
+treffer = repo.search(filters={INHALTSTYP: GESUCHT})   # irgendwo
 
-seite = await repo.nodes.children(collection_id, limit=100)  # in einer Sammlung
+seite = repo.nodes.children(collection_id, limit=100)  # in einer Sammlung
 eigene = [n for n in seite.nodes if n.get(INHALTSTYP) == GESUCHT]
 ```
 
