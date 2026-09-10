@@ -21,7 +21,7 @@ import pytest
 
 from edusharing import AsyncRepository
 from edusharing.errors import ConflictError, ValidationError
-from edusharing.flows.duplicates import find_by_url
+from edusharing.flows.duplicates import check_before_create, find_by_url
 
 REPO = "https://repo.test/edu-sharing"
 HOME = "home-folder-id"
@@ -321,3 +321,92 @@ async def test_add_material_bricht_an_einem_kaputten_nachbarn_nicht_ab():
     async with instanz.repo() as repo:
         got = await repo.flows.add_material("Neu", url=URL)
     assert got["created"] is True
+
+
+# --- A02 (Drittpruefung 10.09.2026) ----------------------------------------
+#
+# Der Fehlerpfad fuer die **eigene** Adresse interpolierte sie roh. Steht ein
+# Passwort darin, steht es in der Meldung -- und ueber ``check_before_create``
+# in den Warnungen und im ConflictError. Gemessen am 10.09.2026 an sechs
+# Stellen des Moduls; kein Netzwerkaufruf noetig, die Offenlegung passiert
+# beim Bauen des Textes.
+#
+# ``mask_userinfo`` liegt seit F06 in ``urls`` und wurde hier nicht benutzt.
+
+GEHEIM = "DUMMY_AUDIT_PASSWORD"
+MIT_GEHEIMNIS = f"https://alice:{GEHEIM}@example.org/Arbeitsblatt"
+KAPUTT_MIT_GEHEIMNIS = f"https://alice:{GEHEIM}@[broken"
+FTP_MIT_GEHEIMNIS = f"ftp://alice:{GEHEIM}@example.org/x"
+
+
+async def test_eine_unlesbare_eigene_adresse_zeigt_kein_passwort():
+    instanz = Instanz([])
+    async with instanz.repo() as repo:
+        with pytest.raises(ValidationError) as fehler:
+            await find_by_url(repo, KAPUTT_MIT_GEHEIMNIS)
+    assert GEHEIM not in str(fehler.value)
+    # Aber die Adresse bleibt erkennbar -- sonst weiss der Aufrufer nicht,
+    # welche gemeint ist.
+    assert "***@" in str(fehler.value)
+
+
+async def test_eine_adresse_ohne_http_schema_zeigt_kein_passwort():
+    """Der zweite Fehlerpfad. Der Bericht nennt ihn nicht eigens; gemessen
+    leckt er genauso."""
+    instanz = Instanz([])
+    async with instanz.repo() as repo:
+        with pytest.raises(ValidationError) as fehler:
+            await find_by_url(repo, FTP_MIT_GEHEIMNIS)
+    assert GEHEIM not in str(fehler.value)
+
+
+async def test_die_uebersprungene_pruefung_warnt_ohne_passwort():
+    """``if_exists='return'``: die Pruefung faellt aus, das wird gesagt --
+    und die Warnung landet oft in einem Protokoll."""
+    instanz = Instanz([])
+    async with instanz.repo() as repo:
+        _, warnungen = await check_before_create(
+            repo, KAPUTT_MIT_GEHEIMNIS, "return")
+    assert warnungen, "die ausgefallene Pruefung wird gesagt, nicht verschwiegen"
+    assert not any(GEHEIM in w for w in warnungen)
+
+
+async def test_die_ausgefallene_pruefung_wirft_ohne_passwort():
+    """``if_exists='raise'``: der aeussere ConflictError baut seinen eigenen
+    Text -- die Maskierung an der Quelle allein reicht dort nicht."""
+    instanz = Instanz([])
+    async with instanz.repo() as repo:
+        with pytest.raises(ConflictError) as fehler:
+            await check_before_create(repo, KAPUTT_MIT_GEHEIMNIS, "raise")
+    assert GEHEIM not in str(fehler.value)
+
+
+async def test_die_gefundene_dublette_meldet_ohne_passwort():
+    """Die sechste Stelle: eine gueltige Adresse **mit** Zugangsdaten findet
+    ihre Dublette -- und der ConflictError gab sie woertlich wieder."""
+    instanz = Instanz([_treffer("alt-1", MIT_GEHEIMNIS)])
+    async with instanz.repo() as repo:
+        with pytest.raises(ConflictError) as fehler:
+            await check_before_create(repo, MIT_GEHEIMNIS, "raise")
+    assert GEHEIM not in str(fehler.value)
+    assert "alt-1" in str(fehler.value)
+
+
+async def test_eine_gewoehnliche_adresse_steht_weiter_woertlich_da():
+    """Die Gegenprobe. Eine Maskierung, die jede Adresse unkenntlich macht,
+    waere gruen und nutzlos -- die Meldung soll sagen, um welche es geht."""
+    instanz = Instanz([])
+    async with instanz.repo() as repo:
+        with pytest.raises(ValidationError) as fehler:
+            await find_by_url(repo, KAPUTT)
+    assert KAPUTT in str(fehler.value)
+
+
+async def test_die_suche_bekommt_die_adresse_unveraendert():
+    """Die zweite Gegenprobe: maskiert wird die **Meldung**, nicht die
+    Abfrage. Sonst faende die Pruefung ihre Dublette nicht mehr."""
+    instanz = Instanz([_treffer("alt-1", MIT_GEHEIMNIS)])
+    async with instanz.repo() as repo:
+        gefunden = await find_by_url(repo, MIT_GEHEIMNIS)
+    assert gefunden is not None and gefunden["id"] == "alt-1"
+    assert instanz.kriterien()[0]["values"] == [MIT_GEHEIMNIS]

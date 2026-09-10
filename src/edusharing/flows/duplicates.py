@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit, urlunsplit
 
 from ..errors import ConflictError, ValidationError
+from ..urls import mask_userinfo
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..repository import AsyncRepository
@@ -43,6 +44,17 @@ _NOT_A_CRITERION = (
     "{url!r} could not be sent as a ccm:wwwurl criterion -- the search takes only "
     "http(s) addresses -- so the duplicate check did not run."
 )
+
+# Every message below repeats the caller's own address, and an address may
+# carry ``user:password@``. Measured 2026-09-10 (A02): a dummy password given
+# in the url came back in the ``ValidationError``, in the warning of
+# ``if_exists="return"`` and in the ``ConflictError`` of ``if_exists="raise"``
+# -- all three before any request went out, so nothing could be caught by
+# reading a log later. ``refuse_userinfo`` is the answer where an address is
+# *fetched* (SEC-1); here the address is only compared, and refusing it would
+# take away a legitimate check, so the message masks instead. What is sent to
+# the search and what is compared stay untouched -- masking the query would
+# make the check find nothing.
 
 
 def _comparable(url: str) -> str | None:
@@ -106,19 +118,19 @@ async def find_by_url(repo: AsyncRepository, url: str) -> dict[str, Any] | None:
     wanted = _comparable(url)
     if wanted is None:
         raise ValidationError(
-            f"{url!r} cannot be read as an address, so it cannot be compared "
-            "against anything -- the duplicate check did not run."
+            f"{mask_userinfo(url)!r} cannot be read as an address, so it cannot "
+            "be compared against anything -- the duplicate check did not run."
         )
     if not wanted.lower().startswith(("http://", "https://")):
         # The search takes only http(s) addresses as a criterion. Asking anyway
         # would cost a vocabulary lookup and an unfiltered search for the same
         # answer; the check below stays as the second line of defence.
-        raise ValidationError(_NOT_A_CRITERION.format(url=url))
+        raise ValidationError(_NOT_A_CRITERION.format(url=mask_userinfo(url)))
     result = await repo.search(filters={"ccm:wwwurl": url.strip()}, limit=DUPLICATE_SCAN_LIMIT)
     if result.unresolved:
         # Not sent means not filtered: the hits below would be neighbours of
         # nothing, and "no duplicate" a guess.
-        raise ValidationError(_NOT_A_CRITERION.format(url=url))
+        raise ValidationError(_NOT_A_CRITERION.format(url=mask_userinfo(url)))
     for hit in result.hits:
         stored = (hit.source_url or "").strip()
         if stored and _comparable(stored) == wanted:  # None never equals it
@@ -159,11 +171,12 @@ async def check_before_create(
     except ValidationError as exc:
         if if_exists == "raise":
             raise ConflictError(
-                f"Cannot tell whether {url!r} already exists: {exc}"
+                f"Cannot tell whether {mask_userinfo(url)!r} already exists: {exc}"
             ) from exc
         return None, [f"duplicate check skipped: {exc}"]
     if existing is not None and if_exists == "raise":
         raise ConflictError(
-            f"{url!r} already exists as {existing['id']} ({existing['title']!r})."
+            f"{mask_userinfo(url)!r} already exists as {existing['id']} "
+            f"({existing['title']!r})."
         )
     return existing, []
