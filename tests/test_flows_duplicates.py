@@ -246,6 +246,56 @@ async def test_ohne_adresse_gibt_es_nichts_zu_pruefen():
     assert not any("/search/v1" in r.url.path for r in instanz.anfragen)
 
 
+async def test_eine_leere_adresse_ist_keine_adresse():
+    """Gemessen am 10.09.2026: ``url=""`` schrieb ``ccm:wwwurl: ['']`` in den
+    Datensatz.
+
+    Ein leeres Formularfeld ist keine Quelladresse. Der Datensatz trug danach
+    eine Quelle, die auf nichts zeigt -- und weil ``find_by_url`` einen leeren
+    String vorne abweist, findet ihn auch keine Dublettenpruefung je wieder.
+    ``url=""`` verhaelt sich jetzt wie ``url=None``.
+    """
+    instanz = Instanz([])
+    async with instanz.repo() as repo:
+        got = await repo.flows.add_material("Neu", url="")
+    assert got["created"] is True
+    assert "ccm:wwwurl" not in instanz.angelegt[-1], (
+        "eine leere Adresse gehoert nicht in den Datensatz")
+    assert not any("/search/v1" in r.url.path for r in instanz.anfragen)
+    # Keine Warnung: es ist keine Pruefung ausgefallen, es gab nichts zu
+    # pruefen. Das unterscheidet diesen Fall von einer unbrauchbaren Adresse.
+    assert got["warnings"] == []
+
+
+async def test_eine_adresse_aus_leerzeichen_ebenso():
+    instanz = Instanz([])
+    async with instanz.repo() as repo:
+        got = await repo.flows.add_material("Neu", url="   ")
+    assert got["created"] is True
+    assert "ccm:wwwurl" not in instanz.angelegt[-1]
+
+
+async def test_eine_leere_adresse_laesst_auch_raise_durch():
+    """``if_exists="raise"`` hat ohne Adresse nichts, woran es sich stossen
+    koennte -- und darf deshalb nicht stolpern."""
+    instanz = Instanz([_treffer("alt-1", URL)])
+    async with instanz.repo() as repo:
+        got = await repo.flows.add_material("Neu", url="", if_exists="raise")
+    assert got["created"] is True
+
+
+async def test_eine_echte_adresse_wird_weiterhin_geschrieben():
+    """Die Gegenprobe. Ohne sie waere die Aenderung gruen, indem sie jede
+    Adresse verschluckt."""
+    instanz = Instanz([])
+    async with instanz.repo() as repo:
+        got = await repo.flows.add_material("Neu", url=URL)
+    assert got["created"] is True
+    assert instanz.angelegt[-1]["ccm:wwwurl"] == [URL]
+    assert any("/search/v1" in r.url.path for r in instanz.anfragen), (
+        "eine echte Adresse wird weiterhin auf Dubletten geprueft")
+
+
 async def test_eine_schemalose_adresse_kostet_keine_anfrage():
     """Die Suche nimmt nur http(s) -- das weiss die Pruefung selbst, statt erst
     Vokabular und eine ungefilterte Suche zu bezahlen."""

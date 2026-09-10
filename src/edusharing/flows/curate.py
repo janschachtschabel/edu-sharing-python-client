@@ -54,7 +54,13 @@ async def add_material(
         repo: the connection.
         title: the display title. Mandatory; ``cm:name`` is derived from it
             unless ``name`` says otherwise.
-        url: web address, for linked material.
+        url: web address, for linked material. Blank or whitespace counts
+            as none at all -- an empty form field is not a source address, and
+            storing one leaves a record pointing at nothing. It is written to
+            the repository **verbatim**, so credentials inside it
+            (``https://user:pw@host/x``) are stored and shown as the material's
+            source; whether such an address may be a source at all is the
+            caller's decision, not this function's.
         parent_id: where it goes. The user's home folder when omitted.
         name: ``cm:name``, the key inside the parent folder.
         description, keywords: the usual metadata.
@@ -95,6 +101,20 @@ async def add_material(
         raise ValidationError(
             "Material needs a title -- it is what a person sees in the search."
         )
+    # A blank address is no address. Measured 2026-09-10: an empty string
+    # passed both ``is not None`` gates below and was stored as
+    # ``ccm:wwwurl: ['']`` -- a source pointing at nothing, which no later
+    # duplicate check can match either, since ``find_by_url`` turns a blank
+    # address away before it searches. An empty form field is the ordinary way
+    # to arrive here, so it becomes ``None`` and the call behaves as if nothing
+    # had been passed -- no warning, because nothing failed to run; there was
+    # nothing to check, which is what separates this from an unusable address.
+    #
+    # ``update_material`` deliberately does not do this: there "only what is
+    # passed is written", and a blank ``url`` plausibly asks for the address to
+    # be cleared.
+    if url is not None and not url.strip():
+        url = None
     # Checked even without ``url``: a misspelled wish must not pass in silence.
     validate_if_exists(if_exists)
     existing: dict[str, Any] | None = None

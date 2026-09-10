@@ -325,6 +325,16 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Fixed
 
+- **A blank `url` no longer becomes a source address** (2026-09-10).
+  `add_material(title, url="")` wrote `ccm:wwwurl: ['']` -- a record whose
+  source points at nothing, and one no duplicate check can ever match again,
+  because `find_by_url` turns a blank address away before it searches. An
+  empty form field is the ordinary way to arrive here, so a blank or
+  whitespace `url` is now treated exactly as if none had been passed: nothing
+  stored, no check, and no warning either, because nothing failed to run --
+  there was nothing to check. `update_material` is deliberately unchanged:
+  there "only what is passed is written", and a blank `url` is a plausible way
+  to ask for the address to be cleared.
 - **`download()` says what it can actually reach** (2026-09-10). The bytes come
   from the `eduservlet/download` servlet, and measured against staging that
   servlet does not authenticate at all: the same node answers `403` while

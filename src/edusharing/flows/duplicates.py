@@ -106,6 +106,12 @@ async def find_by_url(repo: AsyncRepository, url: str) -> dict[str, Any] | None:
         input in the case of its scheme and host. Compared is ``_comparable``:
         those two are case-insensitive, path and query are not.
 
+        ``url`` is **data, not a message**, and comes back verbatim: an
+        address carrying ``user:password@`` keeps it. The messages in this
+        module mask (A02); this field cannot, or a caller could no longer tell
+        which record matched. An application that logs the whole result logs
+        that address with it.
+
     A stored address that cannot be read is **skipped**, not complained
     about: it is not the same address as a readable one, so it is not the
     duplicate being looked for. The address the *caller* passes is a different
