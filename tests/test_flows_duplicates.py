@@ -246,6 +246,17 @@ async def test_ohne_adresse_gibt_es_nichts_zu_pruefen():
     assert not any("/search/v1" in r.url.path for r in instanz.anfragen)
 
 
+async def test_find_by_url_weist_eine_leere_adresse_vorne_ab():
+    """Der Vertrag der oeffentlichen Funktion selbst -- ``add_material``
+    erreicht diese Zeile seit dem 10.09.2026 nicht mehr, ein direkter Aufrufer
+    schon. Ohne Adresse gibt es keine Dublette und keine Anfrage."""
+    instanz = Instanz([_treffer("alt-1", URL)])
+    async with instanz.repo() as repo:
+        assert await find_by_url(repo, "") is None
+        assert await find_by_url(repo, "   ") is None
+    assert instanz.anfragen == []
+
+
 async def test_eine_leere_adresse_ist_keine_adresse():
     """Gemessen am 10.09.2026: ``url=""`` schrieb ``ccm:wwwurl: ['']`` in den
     Datensatz.
