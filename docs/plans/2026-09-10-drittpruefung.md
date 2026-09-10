@@ -1,0 +1,69 @@
+# Drittprüfung vom 10.09.2026 — Plan
+
+Der Bericht prüft `4b6ec40` und bestätigt: **F01–F15 halten, R01–R09 sind
+behoben.** Er meldet vier offene Befundgruppen — `A01`, `A02`, `R10`, `D01` —
+und schlägt in Abschnitt 5 acht Funktionserweiterungen `U1`–`U8` vor, die er
+selbst als *nicht implementiert* kennzeichnet.
+
+## Was ich nachgemessen habe, bevor ich etwas anfasse
+
+Jeder Befund wurde nachgestellt. Nicht gelesen — ausgeführt.
+
+| Befund | Nachstellung | Ergebnis |
+|---|---|---|
+| A01 | Server speichert für Alice nur `Write`, wirft ihr `Read` weg; Bob und Vererbung unverändert | `grant()` → **`True`**. Gesendet `['Read', 'Write']`, zurückgelesen `['Write']`. **Reproduziert.** |
+| A02 | `https://alice:DUMMY_AUDIT_PASSWORD@[broken` durch `find_by_url` und `check_before_create` | Passwort im `ValidationError`, in `warnings` **und** im `ConflictError`. **Reproduziert — und breiter als gemeldet:** derselbe Klartext steht auch im Pfad „kein http(s)" (`ftp://alice:…@host/x`), also an sechs Stellen statt drei. |
+| R10 | `_get_kwargs(repository="-home-", node=".")`, nur Request gebaut | `.` → `/nodes/-home-`, `..` → `/nodes`. Komfortschicht lehnt beide mit `EduSharingError` ab, nimmt `id.mit.punkten`. **Reproduziert, Zustand unverändert.** |
+| D01a | `unpublish()`-Docstring gegen den Ablauf | „Nothing is written when this is raised" gilt nur für den Konflikt **vor** dem Schreiben. Der R02-Pfad wirft **nach** `_revoke`. **Belegt.** |
+| D01b | `browse_tree()`-Docstring gegen die Implementierung | Docstring sagt „depth-first", die Implementierung ist `deque` + `popleft()` = Breitensuche, und der innere Kommentar sagt das auch. **Belegt.** |
+
+## Reihe A · Was repariert wird
+
+- [ ] **A01 · `grant()` prüft den ganzen zusammengeführten Eintrag.**
+      Heute prüft der erste Vergleich nur `wanted`, und `_not_kept(…,
+      skip=authority)` lässt die bearbeitete Autorität aus — zwischen beiden
+      fällt ihr Altbestand durch. Die Korrektur braucht **keinen** zusätzlichen
+      HTTP-Aufruf: `after` ist bereits gelesen. Eigener Fehlertext, weil der
+      Grund ein anderer ist als beim unbekannten Gruppennamen.
+- [ ] **A02 · Jede diagnostische URL-Wiedergabe in `flows/duplicates.py`
+      maskiert.** `mask_userinfo()` existiert seit F06 in `urls.py` und wird
+      hier nicht benutzt. Betroffen: beide `raise`-Stellen in `find_by_url`,
+      die `ConflictError`-Meldung und die Warnung in `check_before_create`.
+      Vergleichsschlüssel und Such-URL bleiben unverändert — maskiert wird die
+      *Meldung*, nicht die Abfrage.
+- [ ] **D01a · `unpublish()`-Docstring.** Zwei Zeitpunkte, zwei Zusagen: vor
+      dem Schreiben ist nichts geschrieben, nach dem Schreiben ist der lokale
+      Eintrag weg. Der Aufrufer entscheidet danach anders.
+- [ ] **D01b · `browse_tree()`-Docstring.** „depth-first" → Breitensuche, mit
+      dem Grund, den R05 erzwungen hat: der kürzeste Weg zuerst macht `seen`
+      wieder richtig.
+
+## Reihe B · Was präzisiert wird
+
+- [ ] **Das Projekt-Audit sagt „15 + 10 findings" pauschal geschlossen.** R10
+      ist es nicht — bewusst nicht. Der Satz bekommt die Ausnahme.
+- [ ] **Changelog.** Die beiden Reparaturen sind nutzersichtbares Verhalten.
+
+## Was diese Runde nicht ist
+
+- **R10 bleibt eine Entscheidung, keine Reparatur.** Der Bericht lässt beides
+  zu: „ausdrücklich als Grenze behandeln **oder** im Generator beheben". Die
+  Grenze ist behandelt — vier Wachen halten sie fest, `path_segment` weist die
+  Werte ab, beide REFERENCE-Fassungen sagen es. Die Gegenrechnung steht in
+  `2026-09-09-zweitpruefung.md`: 160 Zeilen Jinja vendorn, um eine Zeile zu
+  ändern, für eine Schicht, die kein handgeschriebenes Modul importiert. Die
+  Entscheidung ändert sich, wenn diese letzte Wache fällt.
+- **Abschnitt 5 (`U1`–`U8`) ist Bau, nicht Reparatur.** Der Bericht sagt es
+  selbst, und er sagt auch, worauf sie aufsetzen sollen (`U1` und `U8` als
+  gemeinsame Grundlage). Das ist eine Produktentscheidung, kein Prüfbefund.
+- **Die Live-Abnahme** — ACL-Fälle am Server statt am Modell, und der
+  Download-403 — bleibt offen. Sie braucht Rechte auf der Instanz, keinen
+  Code. Der Bericht übernimmt den 403 ausdrücklich als *nicht selbst
+  verifizierte Betriebsfrage*, und das ist er.
+
+## Vorgehen
+
+Test zuerst, und jede Wache durch Mutation belegt: die neue Prüfung wird
+abgeschaltet, der Test muss rot werden. Daneben die Gegenproben, damit kein
+Fix grün wird, indem er alles ablehnt. Vor jedem Commit `ruff check .`,
+`mypy --strict` und die ganze Suite.
