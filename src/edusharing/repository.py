@@ -22,12 +22,16 @@ import httpx
 
 from ._sync import (
     LoopThread,
+    SyncCollections,
     SyncFlows,
     SyncNode,
+    SyncNodes,
     SyncPeople,
     SyncRelations,
+    SyncSearch,
     SyncSkills,
     SyncTransport,
+    SyncVocabulary,
 )
 from .auth import ANONYMOUS, BasicCredential, Credential, credential_from
 from .collections import Collections
@@ -394,15 +398,21 @@ class Repository:
         return self._async.metadataset
 
     @property
-    def vocab(self) -> Vocabulary:
-        """This instance's vocabulary values. Its methods are asynchronous --
-        for the synchronous route see ``resolve()``."""
-        return self._async.vocab
+    def vocab(self) -> SyncVocabulary:
+        """This instance's vocabulary values, blocking.
+
+        ``repo.vocab.resolve("ccm:taxonid", "Physik")``
+
+        Handed the asynchronous object straight out until 2026-09-10, so every
+        call here answered with a coroutine and did nothing.
+        """
+        return SyncVocabulary(self._async.vocab, self._loop)
 
     @property
-    def searcher(self) -> Search:
-        """The search layer, for access to its settings."""
-        return self._async.searcher
+    def searcher(self) -> SyncSearch:
+        """The search layer -- its settings, and ``search()`` beneath
+        ``repo.search``, blocking."""
+        return SyncSearch(self._async.searcher, self._loop)
 
     @property
     def relations(self) -> SyncRelations:
@@ -438,19 +448,26 @@ class Repository:
         return self._loop.run(self._async.search(text, **kwargs))
 
     @property
-    def collections(self) -> Collections:
-        """The collection search, for access to its settings."""
-        return self._async.collections
+    def collections(self) -> SyncCollections:
+        """Collections: find, create, change, and put material in, blocking.
+
+        ``repo.collections.add(collection_id, node_id)``
+        """
+        return SyncCollections(self._async.collections, self._loop)
 
     def find_collections(self, text: str, **kwargs: Any) -> SearchResult:
         """Search collections across both routes. ``total`` is a lower bound."""
         return self._loop.run(self._async.find_collections(text, **kwargs))
 
     @property
-    def nodes(self) -> Nodes:
-        """The node layer. Its methods are asynchronous -- for the synchronous
-        route see ``node()`` and ``create_node()``."""
-        return self._async.nodes
+    def nodes(self) -> SyncNodes:
+        """The node layer, blocking -- ``node()`` and ``create_node()`` are
+        the shorter way to the same two calls.
+
+        Handed the asynchronous object straight out until 2026-09-10.
+        ``children()`` answers with a page whose nodes are blocking too.
+        """
+        return SyncNodes(self._async.nodes, self._loop)
 
     def create_collection(self, title: str, **kwargs: Any) -> SyncNode:
         """Create a collection. See ``Collections.create``."""

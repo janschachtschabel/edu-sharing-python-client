@@ -16,6 +16,7 @@ import asyncio
 import logging
 import threading
 from collections.abc import Coroutine
+from dataclasses import replace
 from typing import TYPE_CHECKING, Any, TypeVar
 
 if TYPE_CHECKING:
@@ -611,3 +612,143 @@ class SyncChildObjects:
 
     def __repr__(self) -> str:
         return f"SyncChildObjects({self._children!r})"
+
+
+class SyncVocabulary:
+    """Synchronous pass-through to ``Vocabulary``.
+
+    The fourth of its kind, and the reason for the guard above it: measured
+    2026-09-10, ``repo.vocab`` handed the asynchronous object straight out, so
+    ``repo.vocab.resolve(...)`` gave a synchronous caller a coroutine. Reading
+    a label instead of a URI is what this library is for, and that road was
+    closed from blocking code.
+
+    ``__getattr__`` keeps the settings reachable -- ``cache_seconds`` and
+    ``clear_cache`` are not coroutines and pass straight through.
+    """
+
+    def __init__(self, vocab: Any, loop: LoopThread) -> None:
+        self._vocab = vocab
+        self._loop = loop
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._vocab, name)
+
+    def values(self, prop: str, **kwargs: Any) -> Any:
+        """Like ``Vocabulary.values``, blocking."""
+        return self._loop.run(self._vocab.values(prop, **kwargs))
+
+    def suggest(self, prop: str, text: str, **kwargs: Any) -> Any:
+        """Like ``Vocabulary.suggest``, blocking."""
+        return self._loop.run(self._vocab.suggest(prop, text, **kwargs))
+
+    def resolve(self, prop: str, label_or_uri: str, **kwargs: Any) -> Any:
+        """Like ``Vocabulary.resolve``, blocking."""
+        return self._loop.run(self._vocab.resolve(prop, label_or_uri, **kwargs))
+
+    def resolve_all(self, prop: str, label_or_uri: str, **kwargs: Any) -> Any:
+        """Like ``Vocabulary.resolve_all``, blocking."""
+        return self._loop.run(self._vocab.resolve_all(prop, label_or_uri, **kwargs))
+
+    def __repr__(self) -> str:
+        return f"SyncVocabulary({self._vocab!r})"
+
+
+class SyncSearch:
+    """Synchronous pass-through to ``Search``.
+
+    ``repo.search(...)`` was already blocking; the layer beneath it was not,
+    although REFERENCE lists ``repo.searcher.search(...)`` as a call. The
+    settings this object exists for -- ``field_aliases`` and the rest -- come
+    through ``__getattr__`` untouched.
+    """
+
+    def __init__(self, searcher: Any, loop: LoopThread) -> None:
+        self._searcher = searcher
+        self._loop = loop
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._searcher, name)
+
+    def search(self, text: str | None = None, **kwargs: Any) -> Any:
+        """Like ``Search.search``, blocking."""
+        return self._loop.run(self._searcher.search(text, **kwargs))
+
+    def __repr__(self) -> str:
+        return f"SyncSearch({self._searcher!r})"
+
+
+class SyncCollections:
+    """Synchronous pass-through to ``Collections``.
+
+    ``create`` and ``update`` answer with a node, so they answer with a
+    ``SyncNode`` here -- an unwrapped one would carry asynchronous methods and
+    put the same fault one level further down.
+    """
+
+    def __init__(self, collections: Any, loop: LoopThread) -> None:
+        self._collections = collections
+        self._loop = loop
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._collections, name)
+
+    def find(self, text: str, **kwargs: Any) -> Any:
+        """Like ``Collections.find``, blocking."""
+        return self._loop.run(self._collections.find(text, **kwargs))
+
+    def create(self, title: str, **kwargs: Any) -> Any:
+        """Like ``Collections.create``, blocking."""
+        return SyncNode(
+            self._loop.run(self._collections.create(title, **kwargs)), self._loop)
+
+    def update(self, collection_id: str, **kwargs: Any) -> Any:
+        """Like ``Collections.update``, blocking."""
+        return SyncNode(
+            self._loop.run(self._collections.update(collection_id, **kwargs)),
+            self._loop)
+
+    def add(self, collection_id: str, node_id: str) -> Any:
+        """Like ``Collections.add``, blocking."""
+        return self._loop.run(self._collections.add(collection_id, node_id))
+
+    def remove(self, collection_id: str, node_id: str) -> Any:
+        """Like ``Collections.remove``, blocking."""
+        return self._loop.run(self._collections.remove(collection_id, node_id))
+
+    def __repr__(self) -> str:
+        return f"SyncCollections({self._collections!r})"
+
+
+class SyncNodes:
+    """Synchronous pass-through to ``Nodes``.
+
+    ``children`` answers with a ``ChildPage`` whose ``nodes`` are nodes, so the
+    page is rebuilt with blocking ones. ``wrap`` and ``repository_url`` are not
+    coroutines and pass through.
+    """
+
+    def __init__(self, nodes: Any, loop: LoopThread) -> None:
+        self._nodes = nodes
+        self._loop = loop
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._nodes, name)
+
+    def get(self, node_id: str) -> Any:
+        """Like ``Nodes.get``, blocking."""
+        return SyncNode(self._loop.run(self._nodes.get(node_id)), self._loop)
+
+    def create(self, parent_id: str, **kwargs: Any) -> Any:
+        """Like ``Nodes.create``, blocking."""
+        return SyncNode(
+            self._loop.run(self._nodes.create(parent_id, **kwargs)), self._loop)
+
+    def children(self, node_id: str, **kwargs: Any) -> Any:
+        """Like ``Nodes.children``, blocking -- with blocking nodes in the page."""
+        seite = self._loop.run(self._nodes.children(node_id, **kwargs))
+        return replace(seite, nodes=tuple(
+            SyncNode(knoten, self._loop) for knoten in seite.nodes))
+
+    def __repr__(self) -> str:
+        return f"SyncNodes({self._nodes!r})"

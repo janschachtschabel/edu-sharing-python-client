@@ -700,31 +700,33 @@ means exactly one attempt each: the knob only lowers.
 A 429 is the case this cannot help — the AcademicCloud limits the key, not the
 model, so the next candidate fails just as fast.
 
-### 5.12 On the blocking `Repository`, four accessors are still asynchronous
+### 5.12 On the blocking `Repository`, everything blocks
 
-`Repository` wraps most of what it hands out so it blocks. Four properties do
-not: `repo.vocab`, `repo.searcher`, `repo.collections` and `repo.nodes` return
-the asynchronous objects unchanged. Calling a method on them from blocking code
-produces a coroutine that is never awaited — no error, no effect.
+Every property of `Repository` hands out something that blocks. This was not
+always so: until 2026-09-10, `repo.vocab`, `repo.searcher`, `repo.collections`
+and `repo.nodes` returned the asynchronous objects unchanged, and a call on
+them from blocking code produced a coroutine that was never awaited — no error,
+no effect. `repo.vocab.suggest` had no blocking route at all.
 
 ```python
 repo = Repository(url, auth=cred)
-repo.collections.find("Bruchrechnung")   # a coroutine object -- does nothing
-repo.find_collections("Bruchrechnung")   # the blocking route
+repo.collections.find("Bruchrechnung")   # blocks, answers a SearchResult
+repo.vocab.suggest("ccm:taxonid", "ysik")   # blocks too, since 2026-09-10
 ```
 
-Every one of them has a blocking counterpart on the repository itself:
+The shorter routes on the repository itself are still there, and still
+shorter — they take one call where the layer takes two:
 
-| Instead of | Use |
+| Layer | Shorter |
 |---|---|
 | `repo.nodes.get/create/children` | `repo.node()` / `repo.create_node()` / `repo.children()` |
 | `repo.collections.find/create/update/add/remove` | `repo.find_collections()` / `repo.create_collection()` / `repo.update_collection()` / `repo.add_to_collection()` / `repo.remove_from_collection()` |
 | `repo.searcher.search` | `repo.search()` |
 | `repo.vocab.resolve` / `.resolve_all` | `repo.resolve()` / `repo.resolve_all()` |
-| `repo.vocab.values` | `repo.flows.vocabulary(field)` |
 
-`repo.vocab.suggest` and `repo.vocab.clear_cache` have no blocking
-counterpart; everything a caller needs for filtering does.
+A guard keeps this true: `test_jede_oeffentliche_flaeche_hat_ein_blockierendes_spiegelbild`
+walks every public surface of the asynchronous connection and refuses a
+coroutine on the blocking one.
 
 ---
 

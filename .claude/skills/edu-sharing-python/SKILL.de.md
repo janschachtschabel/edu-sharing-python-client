@@ -736,32 +736,35 @@ Ein 429 ist der Fall, dem das nicht hilft — die AcademicCloud begrenzt den
 Schlüssel, nicht das Modell, der nächste Kandidat scheitert also genauso
 schnell.
 
-### 5.12 Am blockierenden `Repository` sind vier Zugänge weiterhin asynchron
+### 5.12 Am blockierenden `Repository` blockiert alles
 
-`Repository` hüllt das meiste, was es herausgibt, so ein, dass es blockiert.
-Vier Eigenschaften nicht: `repo.vocab`, `repo.searcher`, `repo.collections` und
-`repo.nodes` geben die asynchronen Objekte unverändert zurück. Ein Methoden-
-aufruf darauf erzeugt aus blockierendem Code eine Koroutine, die nie erwartet
-wird — kein Fehler, keine Wirkung.
+Jede Eigenschaft von `Repository` gibt etwas heraus, das blockiert. Das war
+nicht immer so: bis zum 10.09.2026 gaben `repo.vocab`, `repo.searcher`,
+`repo.collections` und `repo.nodes` die asynchronen Objekte unverändert
+zurück, und ein Methodenaufruf darauf erzeugte aus blockierendem Code eine
+Koroutine, die nie erwartet wurde — kein Fehler, keine Wirkung.
+`repo.vocab.suggest` hatte gar keinen blockierenden Weg.
 
 ```python
 repo = Repository(url, auth=cred)
-repo.collections.find("Bruchrechnung")   # ein Koroutinen-Objekt -- tut nichts
-repo.find_collections("Bruchrechnung")   # der blockierende Weg
+repo.collections.find("Bruchrechnung")      # blockiert, liefert ein SearchResult
+repo.vocab.suggest("ccm:taxonid", "ysik")   # seit dem 10.09.2026 ebenso
 ```
 
-Zu jedem gibt es ein blockierendes Gegenstück am Repositorium selbst:
+Die kürzeren Wege am Repositorium selbst gibt es weiterhin, und sie sind
+weiterhin kürzer — ein Aufruf statt zwei:
 
-| Statt | Nimm |
+| Schicht | Kürzer |
 |---|---|
 | `repo.nodes.get/create/children` | `repo.node()` / `repo.create_node()` / `repo.children()` |
 | `repo.collections.find/create/update/add/remove` | `repo.find_collections()` / `repo.create_collection()` / `repo.update_collection()` / `repo.add_to_collection()` / `repo.remove_from_collection()` |
 | `repo.searcher.search` | `repo.search()` |
 | `repo.vocab.resolve` / `.resolve_all` | `repo.resolve()` / `repo.resolve_all()` |
-| `repo.vocab.values` | `repo.flows.vocabulary(field)` |
 
-`repo.vocab.suggest` und `repo.vocab.clear_cache` haben kein blockierendes
-Gegenstück; alles, was ein Aufrufer zum Filtern braucht, schon.
+Eine Wache hält das fest:
+`test_jede_oeffentliche_flaeche_hat_ein_blockierendes_spiegelbild` geht jede
+öffentliche Fläche der asynchronen Verbindung durch und weist eine Koroutine
+auf der blockierenden zurück.
 
 ---
 

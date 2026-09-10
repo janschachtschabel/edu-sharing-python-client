@@ -114,7 +114,11 @@ def _handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json=_node_response())
     if url.endswith("/children/collections"):
         return httpx.Response(200, json={"collections": []})
-    if url.endswith("/children") and method == "GET":
+    # Auf den **Pfad**, nicht auf die ganze URL: die traegt maxItems und
+    # skipCount, endet also nie auf /children. Bis zum 10.09.2026 war dieser
+    # Zweig deshalb unerreichbar, und test_blaettern_synchron lief ueber eine
+    # leere Liste -- gruen, ohne etwas zu pruefen.
+    if request.url.path.endswith("/children") and method == "GET":
         return httpx.Response(200, json={
             "nodes": [_node_response()["node"]],
             "pagination": {"total": 1, "from": 0, "count": 1}})
@@ -436,19 +440,26 @@ def test_raw_synchron(repo):
 #: fuer den Zugriff auf ihre Einstellungen. Ein Aufruf darauf aus
 #: blockierendem Code liefert eine Coroutine: kein Fehler, keine Wirkung.
 #: Der Skill nennt sie in 5.12 und die blockierenden Gegenstuecke dazu.
-DURCHGEREICHT = {"collections", "nodes", "searcher", "vocab"}
+# Seit dem 10.09.2026 leer: die vier letzten Durchreichungen haben ihren
+# Wrapper bekommen. Die Menge bleibt stehen, weil sie die Frage stellt, nicht
+# die Antwort -- kommt eine neue asynchrone Flaeche dazu und wird der
+# Durchgriff vergessen, faellt sie hier auf.
+DURCHGEREICHT: set[str] = set()
 
 
 def test_genau_diese_schichten_werden_durchgereicht(repo):
-    """Dass es **genau** diese vier sind, stand bisher nur im Skill.
+    """Dass **keine** mehr durchgereicht wird -- und dass das so bleibt.
 
-    Der Test darunter prueft, dass sie erreichbar sind -- nicht, dass keine
-    fuenfte dazukommt. Eine neue waere eine stille Falle: der Aufruf gibt
-    eine Coroutine zurueck, tut nichts und meldet nichts. Eine
-    weggefallene liesse den Skill eine Falle nennen, die es nicht mehr gibt.
+    Am 09.09.2026 waren es vier: ``vocab``, ``searcher``, ``collections`` und
+    ``nodes`` gaben das asynchrone Objekt unveraendert heraus. Sie hatten je
+    einen blockierenden Ersatz auf dem Repositorium selbst, und der Skill hat
+    den Umweg beschrieben -- ausser fuer ``vocab.suggest``, das gar keinen
+    hatte. Am 10.09.2026 haben alle vier ihren Wrapper bekommen; der Umweg ist
+    kuerzer geworden, nicht noetig.
 
-    Gemessen am 09.09.2026: ``raw`` ist ``SyncTransport``, ``flows``,
-    ``skills``, ``people`` und ``relations`` sind umhuellt -- vier bleiben.
+    Der Test bleibt, denn seine Frage bleibt: kommt eine neue asynchrone
+    Flaeche dazu und wird der Durchgriff vergessen, ist das eine stille Falle
+    -- der Aufruf gibt eine Coroutine zurueck, tut nichts und meldet nichts.
     """
     asynchron = set()
     for name in dir(type(repo)):
@@ -737,9 +748,33 @@ def test_vorschaubild_synchron(repo):
 
 def test_blaettern_synchron(repo):
     seite = _kein_coroutine(repo.children(NID, limit=2))
-    assert seite.total >= 0
+    assert seite.nodes, "ohne Kinder prueft dieser Test nichts"
     for n in seite.nodes:
         assert not inspect.iscoroutinefunction(n.update)
+
+
+def test_die_knotenschicht_blaettert_mit_blockierenden_knoten(repo):
+    """repo.children() war schon blockierend; repo.nodes.children()
+    nicht -- und eine Seite mit asynchronen Knoten darin haette den Fehler nur
+    eine Ebene tiefer gesetzt (Einstieg 10.09.2026)."""
+    seite = _kein_coroutine(repo.nodes.children(NID, limit=2))
+    assert seite.nodes, "ohne Kinder prueft dieser Test nichts"
+    for n in seite.nodes:
+        assert type(n).__name__ == "SyncNode", type(n).__name__
+        assert not inspect.iscoroutinefunction(n.update)
+
+
+def test_die_knotenschicht_liefert_blockierende_knoten(repo):
+    """Dasselbe fuer get und create."""
+    knoten = _kein_coroutine(repo.nodes.get(NID))
+    assert type(knoten).__name__ == "SyncNode"
+    assert not inspect.iscoroutinefunction(knoten.update)
+
+
+def test_die_sammlungsschicht_liefert_blockierende_knoten(repo):
+    neu = _kein_coroutine(repo.collections.create("Titel"))
+    assert type(neu).__name__ == "SyncNode"
+    assert not inspect.iscoroutinefunction(neu.update)
 
 
 def test_sammlung_aendern_synchron(repo):
@@ -952,6 +987,51 @@ def test_jede_blockierende_methode_liefert_ein_ergebnis(repo, unversehrt):
         "Spiegelbild oder _ARGUMENT braucht einen Eintrag: "
         + ", ".join(unerreichbar))
     assert gerufen >= 60, f"nur {gerufen} Methoden gerufen -- die Wache greift ins Leere"
+
+
+def test_jede_oeffentliche_flaeche_hat_ein_blockierendes_spiegelbild(repo):
+    """Die Luecke eine Ebene ueber der Wache darunter.
+
+    ``_paare`` ist handgepflegt. Wer eine neue asynchrone Flaeche an
+    ``AsyncRepository` haengt und den Durchgriff vergisst, vergisst
+    typischerweise auch den Eintrag hier -- und dann prueft die gruendliche
+    Wache gruendlich das Falsche.
+
+    Diese Pruefung glaubt keiner Liste. Sie geht jedes oeffentliche Attribut
+    der asynchronen Verbindung durch, das Coroutine-Methoden hat, und verlangt
+    vom gleichnamigen Attribut der blockierenden, dass dort keine mehr steht.
+
+    Gemessen am 10.09.2026, und deshalb steht sie hier: **vier** dokumentierte
+    Unterobjekte hatten keinen Spiegel -- ``vocab`` (4 Methoden),
+    ``collections`` (5), ``nodes`` (3) und ``searcher`` (1). Alle vier stehen
+    in REFERENCE als oeffentliche Flaeche.
+    """
+    asynchron = repo._async
+    fehlend: list[str] = []
+    geprueft = 0
+    for name in sorted(n for n in dir(asynchron) if not n.startswith("_")):
+        objekt = getattr(asynchron, name, None)
+        if objekt is None or inspect.isroutine(objekt):
+            continue
+        methoden = [m for m, fn in inspect.getmembers(type(objekt), inspect.isfunction)
+                    if inspect.iscoroutinefunction(fn) and not m.startswith("_")]
+        if not methoden:
+            continue
+        geprueft += 1
+        spiegel = getattr(repo, name, None)
+        if spiegel is None:
+            fehlend.append(f"repo.{name}: gar kein Spiegelbild")
+            continue
+        offen = [m for m in methoden
+                 if inspect.iscoroutinefunction(getattr(spiegel, m, None))]
+        if offen:
+            fehlend.append(f"repo.{name}: {', '.join(offen)}")
+
+    assert not fehlend, (
+        "diese oeffentlichen Flaechen geben aus synchronem Code Coroutinen "
+        "zurueck: " + "; ".join(fehlend))
+    assert geprueft >= 8, (
+        f"nur {geprueft} Flaechen gefunden -- die Wache greift ins Leere")
 
 
 def test_der_waechter_faengt_einen_vergessenen_durchgriff(repo, unversehrt):
