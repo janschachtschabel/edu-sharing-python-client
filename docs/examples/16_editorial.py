@@ -14,7 +14,8 @@ with one endpoint family, while a flow earns its place by composing several.
 Four measured behaviours it demonstrates rather than describes:
 
 * a rating of `0` is a **vote**, not a reset — it lowers the average;
-* accepting a suggestion does **not** write the value onto the node;
+* `decide()` marks a suggestion accepted but does **not** write the value
+  -- the `accept_suggestion` flow is what applies it;
 * the workflow history is **newest first**;
 * a comment is stored byte for byte, so it is sent as raw UTF-8.
 """
@@ -105,6 +106,22 @@ def show_suggestions(repo: Repository, node: Node) -> None:
     print("  An application that expects otherwise loses the data silently.")
 
 
+def show_accept(repo: Repository, node: Node) -> None:
+    print("\n--- accept_suggestion " + "-" * 43)
+    # show_suggestions decided a proposal and the value did not land. This is
+    # the flow that lands it: it writes the proposed value, reads it back, and
+    # only then marks the proposal -- three steps, which is why it is a flow.
+    made = node.suggestions.propose(
+        "cclom:general_keyword", "Mitose",
+        "Ein zentraler Begriff des Textes.", confidence=0.8)
+    result = repo.flows.accept_suggestion(node.id, made.id)
+    print(f"  applied: {result['applied']}  status {result['status']}")
+    # Read the node fresh. "Mitose" is there now; "Zellbiologie" from
+    # show_suggestions is not -- that one was only marked, never written.
+    print(f"  keywords on the node: {repo.node(node.id).keywords}")
+    print("  accept_suggestion writes AND marks — decide() only marks.")
+
+
 def show_workflow(node: Node, receiver: str) -> None:
     print("\n--- workflow " + "-" * 52)
     try:
@@ -143,6 +160,7 @@ def main() -> int:
             show_comments(node)
             show_rating(node)
             show_suggestions(repo, node)
+            show_accept(repo, node)
             show_workflow(node, who.authority)
         finally:
             folder.delete()

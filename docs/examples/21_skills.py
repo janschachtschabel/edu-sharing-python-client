@@ -51,8 +51,45 @@ LOGIN = (USER, PASSWORD) if USER else None
 COLLECTION = "f35c17d1-a29e-4b26-9d22-802682fad43d"
 
 
+async def show_by_task(repo, task: str = "Fragen generieren") -> None:
+    """The other way to reach a skill: by task, searched repository-wide.
+
+    ``find_skills`` asks "which skill fits this job?" -- the path an agent takes
+    when it has a task, not a collection. It needs the metadata set that carries
+    the content type as a criterion (mds_oeh does, -default- does not, measured
+    2026-09-02), which is why this example sets it. ``pick_skill`` is the same
+    search plus one skill load: the best match with its instruction, and the
+    runners-up kept so a wrong pick stays visible.
+    """
+    # Few words on purpose: edu-sharing ANDs every query word, so a long
+    # phrase finds nothing (SKILL §5.8). Keep a task query close to the
+    # skill's own words, or pass rerank at the search level for free text.
+    found = await repo.flows.find_skills(task)
+    print(f"By task {task!r}: {len(found['hits'])} skill(s)"
+          + (f", {found['unreadable']} unreadable" if found["unreadable"] else ""))
+    for hit in found["hits"][:5]:
+        print(f"    - {hit['title']}")
+    if found["unresolved"]:
+        # A filter the instance did not know was not applied -- the search
+        # answered a wider question than the one asked.
+        print(f"  unresolved filters: {found['unresolved']}")
+
+    best = await repo.flows.pick_skill(task)
+    if best["best"]:
+        print(f"  best: {best['best']['title']!r}, "
+              f"{len(best['alternatives'])} runner(s)-up")
+    else:
+        print(f"  no clear pick: {best['reason']}")
+
+
 async def main(collection_id: str = COLLECTION) -> int:
     async with AsyncRepository(REPOSITORY, metadataset=METADATA_SET, auth=LOGIN) as repo:
+        # Two ways to reach a skill. First by task, repository-wide:
+        await show_by_task(repo)
+        print()
+
+        # Then by collection: which skills has this one approved, and what does
+        # one of them say?
         registry = await repo.flows.skill_registry(collection_id)
         if registry["reason"]:
             # No registry is a normal answer, not an error -- and a truncated
