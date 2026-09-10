@@ -263,6 +263,17 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Security
 
+- **The duplicate check no longer repeats credentials from an address it was
+  given** (Drittpruefung A02, 2026-09-10). `find_by_url()` and
+  `check_before_create()` interpolated the caller's own URL into their
+  messages unmasked, so a `user:password@` in it came back in the
+  `ValidationError`, in the warning of `if_exists="return"` and in the
+  `ConflictError` of `if_exists="raise"` -- before any request went out, so an
+  application could copy it into a log or an API error response without a
+  network call ever happening. All six diagnostic renderings now use
+  `mask_userinfo`, which the project has had since F06. What is sent to the
+  search and what is compared are unchanged: masking the query would make the
+  check find nothing.
 - **A client you bring along is refused for cookies or its own credentials
   too** (Zweitprüfung R01; Fremdprüfung F02, 2026-09-09). Switching the cookie
   jar off does not empty one that arrives full, and httpx copies it onto every
@@ -310,6 +321,26 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Fixed
 
+- **`grant()` notices when the repository takes away a permission the
+  authority already had** (Drittpruefung A01, 2026-09-10). The check after the
+  write compared only the *newly requested* permissions, and the shared
+  preservation check is told to skip the authority being edited -- so the
+  entry's existing permissions were verified by neither. Measured: an ACL with
+  `alice:[Read]` and `grant("alice", "Write")` against a repository that
+  stores only `Write` reported success, with the other entries and the
+  inheritance intact so nothing else noticed either. That contradicts what the
+  method promises: it merges, and what an authority already holds is kept. It
+  now raises `SilentDropError` with its own message, distinct from the one for
+  a permission that was never stored. No extra request -- the ACL had already
+  been read back.
+- **Two docstrings had stayed behind the repairs they describe**
+  (Drittpruefung D01, 2026-09-10). `unpublish()` promised that nothing is
+  written when it raises `ConflictError`; true before the write, false for the
+  conflict R02 added *after* it, where the local entry is already removed --
+  and the difference decides whether a retry helps or repeats a no-op.
+  `browse_tree()` still described a depth-first walk; it has been breadth-first
+  since R05, which decides what a capped or multiply-linked collection tree
+  shows first.
 - **Two documented things that were not true.** The Structure table in both
   READMEs listed `collection()` as a call of the resource layer; measured,
   neither `Repository` nor `AsyncRepository` has one -- a collection is read

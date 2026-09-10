@@ -19,30 +19,30 @@ Jeder Befund wurde nachgestellt. Nicht gelesen — ausgeführt.
 
 ## Reihe A · Was repariert wird
 
-- [ ] **A01 · `grant()` prüft den ganzen zusammengeführten Eintrag.**
+- [x] **A01 · `grant()` prüft den ganzen zusammengeführten Eintrag.**
       Heute prüft der erste Vergleich nur `wanted`, und `_not_kept(…,
       skip=authority)` lässt die bearbeitete Autorität aus — zwischen beiden
       fällt ihr Altbestand durch. Die Korrektur braucht **keinen** zusätzlichen
       HTTP-Aufruf: `after` ist bereits gelesen. Eigener Fehlertext, weil der
       Grund ein anderer ist als beim unbekannten Gruppennamen.
-- [ ] **A02 · Jede diagnostische URL-Wiedergabe in `flows/duplicates.py`
+- [x] **A02 · Jede diagnostische URL-Wiedergabe in `flows/duplicates.py`
       maskiert.** `mask_userinfo()` existiert seit F06 in `urls.py` und wird
       hier nicht benutzt. Betroffen: beide `raise`-Stellen in `find_by_url`,
       die `ConflictError`-Meldung und die Warnung in `check_before_create`.
       Vergleichsschlüssel und Such-URL bleiben unverändert — maskiert wird die
       *Meldung*, nicht die Abfrage.
-- [ ] **D01a · `unpublish()`-Docstring.** Zwei Zeitpunkte, zwei Zusagen: vor
+- [x] **D01a · `unpublish()`-Docstring.** Zwei Zeitpunkte, zwei Zusagen: vor
       dem Schreiben ist nichts geschrieben, nach dem Schreiben ist der lokale
       Eintrag weg. Der Aufrufer entscheidet danach anders.
-- [ ] **D01b · `browse_tree()`-Docstring.** „depth-first" → Breitensuche, mit
+- [x] **D01b · `browse_tree()`-Docstring.** „depth-first" → Breitensuche, mit
       dem Grund, den R05 erzwungen hat: der kürzeste Weg zuerst macht `seen`
       wieder richtig.
 
 ## Reihe B · Was präzisiert wird
 
-- [ ] **Das Projekt-Audit sagt „15 + 10 findings" pauschal geschlossen.** R10
+- [x] **Das Projekt-Audit sagt „15 + 10 findings" pauschal geschlossen.** R10
       ist es nicht — bewusst nicht. Der Satz bekommt die Ausnahme.
-- [ ] **Changelog.** Die beiden Reparaturen sind nutzersichtbares Verhalten.
+- [x] **Changelog.** Die beiden Reparaturen sind nutzersichtbares Verhalten.
 
 ## Was diese Runde nicht ist
 
@@ -67,3 +67,25 @@ Test zuerst, und jede Wache durch Mutation belegt: die neue Prüfung wird
 abgeschaltet, der Test muss rot werden. Daneben die Gegenproben, damit kein
 Fix grün wird, indem er alles ablehnt. Vor jedem Commit `ruff check .`,
 `mypy --strict` und die ganze Suite.
+
+## Ergebnis
+
+Vier Commits nach dem Plan, `e0a4dfa` bis `64caba4` und der Nachtrag. Vor jedem
+`ruff check .`, `mypy --strict` und die ganze Suite — Exit-Code gelesen, nicht
+vermutet.
+
+| Schritt | Beleg |
+|---|---|
+| A01 | Test vor der Reparatur rot („DID NOT RAISE"), danach grün. Mutation `gone = []`: **genau dieser** Test fällt, die 43 anderen bleiben grün. Drei Gegenproben. |
+| A02 | Fünf Tests vor der Reparatur rot, zwei Gegenproben vorher wie nachher grün. Mutation `mask_userinfo` als Identität: genau die fünf fallen. |
+| D01 | Keine neuen Tests — das Verhalten ist gepinnt, veraltet war die Beschreibung. Belegt am Quelltext (`deque`/`popleft`; der zweite `ConflictError` nach `_revoke`). |
+| Suite | 2232 → 2239 bestanden, 9 übersprungen. Ruff und `mypy --strict` sauber. |
+
+**Was der Bericht über diese Bibliothek hinaus sagt.** A01 war kein
+übersehener Randfall, sondern eine Zusage ohne Prüfung dahinter: „permissions
+this authority already holds are kept" stand seit jeher in der Docstring, und
+kein Test hat je danach gefragt. Die Werkzeuge, mit denen das
+Finalisierungs-Audit gemessen hat — `mypy --strict`, `pip-audit`, Coverage,
+grüne Suite — können so etwas nicht finden. Nur der Abgleich *Zusage gegen
+Test* findet es. Für die nächste Runde ist das der Griff: jede Zusage einer
+öffentlichen Docstring gegen den Test suchen, der sie hält.
