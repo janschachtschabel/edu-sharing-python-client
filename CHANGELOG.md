@@ -16,6 +16,15 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Added
 
+- **Every flow has a runnable example.** Of 26 flows, `find_skills`,
+  `pick_skill` and `accept_suggestion` were exercised nowhere; all 26 are now.
+  The by-task skill search went into `21_skills.py` -- with a deliberately
+  short query, because edu-sharing ANDs every word and a five-word phrase found
+  nothing where `"Fragen generieren"` found one. `accept_suggestion` went into
+  `16_editorial.py`, where it completes the lesson its neighbour teaches:
+  `decide()` marks a proposal and the keywords stay `[]`, while
+  `accept_suggestion` writes, reads back and marks, and they become
+  `['Mitose']`.
 - **`facet_meta` beside `facets`** (Zweitprüfung R06, 2026-09-09).
   `search` and `search_all` now carry `facet_meta[name]` with the facet's
   `other_count` and `truncated`, read from the server's `sumOtherDocCount`. A
@@ -301,6 +310,12 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Fixed
 
+- **Two documented things that were not true.** The Structure table in both
+  READMEs listed `collection()` as a call of the resource layer; measured,
+  neither `Repository` nor `AsyncRepository` has one -- a collection is read
+  with `find_collections()` or `node()`, because a collection is a `ccm:map`
+  node. And the usage skill pointed at `docs/examples/01…17` in both languages,
+  of which there are twenty-one.
 - **The curated `page` flow reports a shortened variant list** (Zweitprüfung
   R04, 2026-09-09). A page with more variants than the reader fetches in one
   go used to report the first variant as rendered, or -- after a later change
