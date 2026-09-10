@@ -55,6 +55,13 @@ _NOT_A_CRITERION = (
 # take away a legitimate check, so the message masks instead. What is sent to
 # the search and what is compared stay untouched -- masking the query would
 # make the check find nothing.
+#
+# mask_userinfo errs wide on purpose: it cannot parse an address it was
+# handed *because* it is malformed, so it takes every ...@ it finds. An
+# @ in a path is masked along with it -- measured,
+# ``https://example.org/a@b`` reads back as ``https://example.org/***@b``.
+# A message that shows one path segment less is the cheap side of that trade;
+# a message that shows a password is not.
 
 
 def _comparable(url: str) -> str | None:

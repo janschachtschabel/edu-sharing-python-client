@@ -402,6 +402,23 @@ async def test_eine_gewoehnliche_adresse_steht_weiter_woertlich_da():
     assert KAPUTT in str(fehler.value)
 
 
+async def test_ein_at_im_pfad_wird_mitmaskiert_und_das_ist_gewollt():
+    """Der gemessene Preis der Maskierung, hier festgehalten statt spaeter
+    entdeckt.
+
+    ``mask_userinfo`` kann eine Adresse nicht zergliedern, die **gerade
+    deshalb** in der Meldung steht, weil sie kaputt ist -- also nimmt es jedes
+    ``...@``. Ein ``@`` im Pfad faellt mit. Eine Meldung, die ein
+    Pfadstueck weniger zeigt, ist die billige Seite dieses Tauschs; eine, die
+    ein Passwort zeigt, nicht.
+    """
+    instanz = Instanz([])
+    async with instanz.repo() as repo:
+        with pytest.raises(ValidationError) as fehler:
+            await find_by_url(repo, "https://[a@b")
+    assert "***@b" in str(fehler.value)
+
+
 async def test_die_suche_bekommt_die_adresse_unveraendert():
     """Die zweite Gegenprobe: maskiert wird die **Meldung**, nicht die
     Abfrage. Sonst faende die Pruefung ihre Dublette nicht mehr."""

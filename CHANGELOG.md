@@ -273,7 +273,11 @@ and in [`docs/audits/`](docs/audits/).
   network call ever happening. All six diagnostic renderings now use
   `mask_userinfo`, which the project has had since F06. What is sent to the
   search and what is compared are unchanged: masking the query would make the
-  check find nothing.
+  check find nothing. The masking errs wide, on purpose: it cannot parse an
+  address that is in the message *because* it is malformed, so an `@` in a
+  path is masked along with a password -- `https://example.org/a@b` reads back
+  as `https://example.org/***@b`. A message showing one path segment less is
+  the cheap side of that trade.
 - **A client you bring along is refused for cookies or its own credentials
   too** (Zweitprüfung R01; Fremdprüfung F02, 2026-09-09). Switching the cookie
   jar off does not empty one that arrives full, and httpx copies it onto every
