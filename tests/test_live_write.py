@@ -420,6 +420,43 @@ async def test_recht_entziehen_laesst_die_uebrigen_stehen(repo, knoten):
     assert rechte.is_public, "das Veroeffentlichen ist mit weggeflogen"
 
 
+async def test_ein_zweiter_grant_behaelt_das_erste_recht(repo, knoten):
+    """A01 an einer echten Instanz (Drittpruefung 10.09.2026).
+
+    Die Wache, die diese Runde eingebaut hat, vergleicht die zurueckgelesenen
+    Rechte **namentlich**. Fasste die Instanz Rollen zusammen -- speicherte
+    etwa nur ``Coordinator`` und liesse das mitgesendete ``Consumer`` weg --,
+    wuerde ein voellig berechtigter grant() jetzt SilentDropError werfen. Am
+    Mock ist das nicht zu klaeren: dort speichert der Server, was der Test ihn
+    speichern laesst.
+
+    Gemessen am 10.09.2026 gegen Staging: nach dem ersten grant steht
+    ``['Consumer']`` da, nach dem zweiten ``['Consumer', 'Coordinator']`` --
+    exakt beide Namen, nichts zusammengefasst und nichts dazuerfunden.
+    """
+    wer = await repo.whoami()
+    assert await knoten.permissions.grant(wer.authority, "Consumer") is True
+    # Der zweite Aufruf sendet ``Consumer, Coordinator`` -- zusammengefuehrt,
+    # nicht ersetzt. Genau hier hat die Pruefung bisher weggeschaut.
+    assert await knoten.permissions.grant(wer.authority, "Coordinator") is True
+
+    rechte = await knoten.permissions.get()
+    eintrag = rechte.find(wer.authority)
+    assert eintrag is not None, "der eigene Eintrag ist ganz verschwunden"
+    # Namentlich und vollstaendig: faellt eine Instanz je darauf, Rollen
+    # zusammenzufassen, faellt dieser Test und nicht erst ein Anwender.
+    assert sorted(eintrag.permissions) == ["Consumer", "Coordinator"], (
+        "die Instanz gibt den Eintrag nicht so zurueck, wie er gesendet wurde")
+
+
+async def test_ein_grant_ohne_aenderung_schreibt_nicht(repo, knoten):
+    """Die Gegenprobe: was schon dasteht, wird nicht noch einmal geschrieben --
+    und die neue Wache aendert daran nichts."""
+    wer = await repo.whoami()
+    await knoten.permissions.grant(wer.authority, "Consumer")
+    assert await knoten.permissions.grant(wer.authority, "Consumer") is False
+
+
 async def test_unbekannte_gruppe_wird_still_verworfen(knoten):
     """Gemessen am 28.08.2026: HTTP 200, und danach steht nichts da. Dieselbe
     Klasse von Verlust wie bei den Properties, an einer anderen Stelle."""

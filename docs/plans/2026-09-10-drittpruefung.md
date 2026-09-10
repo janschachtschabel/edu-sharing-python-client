@@ -56,10 +56,13 @@ Jeder Befund wurde nachgestellt. Nicht gelesen — ausgeführt.
 - **Abschnitt 5 (`U1`–`U8`) ist Bau, nicht Reparatur.** Der Bericht sagt es
   selbst, und er sagt auch, worauf sie aufsetzen sollen (`U1` und `U8` als
   gemeinsame Grundlage). Das ist eine Produktentscheidung, kein Prüfbefund.
-- **Die Live-Abnahme** — ACL-Fälle am Server statt am Modell, und der
-  Download-403 — bleibt offen. Sie braucht Rechte auf der Instanz, keinen
-  Code. Der Bericht übernimmt den 403 ausdrücklich als *nicht selbst
-  verifizierte Betriebsfrage*, und das ist er.
+- **Die Live-Abnahme** bleibt offen, aber ein Stück kleiner. Der
+  A01-Kontrollfall ist jetzt an der Instanz belegt (siehe Ergebnis); die
+  *Fehler*fälle R02, R03 und A01 bleiben am Modell, weil sie einen Server
+  verlangen, der falsch antwortet — den kann man nicht bestellen. Der
+  Download-403 bleibt, wie der Bericht ihn einordnet: *nicht selbst
+  verifizierte Betriebsfrage*, und er braucht Rechte auf der Instanz, keinen
+  Code.
 
 ## Vorgehen
 
@@ -80,6 +83,8 @@ vermutet.
 | A02 | Fünf Tests vor der Reparatur rot, zwei Gegenproben vorher wie nachher grün. Mutation `mask_userinfo` als Identität: genau die fünf fallen. |
 | D01 | Keine neuen Tests — das Verhalten ist gepinnt, veraltet war die Beschreibung. Belegt am Quelltext (`deque`/`popleft`; der zweite `ConflictError` nach `_revoke`). |
 | Suite | 2232 → 2239 bestanden, 9 übersprungen. Ruff und `mypy --strict` sauber. |
+| Live | Schreibsuite gegen Staging: 62 bestanden, 3 gescheitert — dieselben drei Download-403 wie vor der Runde, keine Regression. |
+| Live · A01 | Der Kontrollfall des Berichts an der Instanz statt am Modell: `grant("Consumer")`, dann `grant("Coordinator")` derselben Autorität → gespeichert ist `['Consumer', 'Coordinator']`, exakt beide Namen. Das war die **einzige** Art, wie diese Reparatur hätte schaden können — fasste die Instanz Rollen zusammen, würde ein berechtigter grant jetzt werfen. Tut sie nicht. Als Test drin, nicht als Notiz. |
 
 **Was der Bericht über diese Bibliothek hinaus sagt.** A01 war kein
 übersehener Randfall, sondern eine Zusage ohne Prüfung dahinter: „permissions
