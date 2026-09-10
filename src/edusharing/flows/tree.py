@@ -77,9 +77,9 @@ async def browse_tree(
     the same collection can be reached from two parents, and which branch
     claims it -- and therefore where it appears in the nesting, and which
     entries the ``max_collections`` cap cuts -- would depend on which request
-    happened to return first. The cap already bounds the wait.
-    If that becomes the bottleneck, the place to fix it is here, and the
-    answer's order is what has to be decided first.
+    happened to return first. The cap already bounds the wait. If that becomes
+    the bottleneck, the place to fix it is here, and the answer's order is what
+    has to be decided first.
 
     Args:
         repo: the connection.

@@ -56,10 +56,10 @@ _NOT_A_CRITERION = (
 # the search and what is compared stay untouched -- masking the query would
 # make the check find nothing.
 #
-# mask_userinfo errs wide on purpose: it cannot parse an address it was
-# handed *because* it is malformed, so it takes every ...@ it finds. An
-# @ in a path is masked along with it -- measured,
-# ``https://example.org/a@b`` reads back as ``https://example.org/***@b``.
+# ``mask_userinfo`` errs wide on purpose: it cannot parse an address it was
+# handed *because* it is malformed, so it takes every ``...@`` it finds. An
+# ``@`` in a path is masked along with it -- measured, the "already exists"
+# message renders ``https://example.org/a@b`` as ``https://example.org/***@b``.
 # A message that shows one path segment less is the cheap side of that trade;
 # a message that shows a password is not.
 

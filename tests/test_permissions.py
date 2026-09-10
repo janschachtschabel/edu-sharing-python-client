@@ -562,10 +562,13 @@ class NimmtNurDasNeueRecht(Instanz):
             koerper = json.loads(request.content)
             self.geschrieben.append(koerper)
             self.inherits = koerper["inherited"]
-            self.own = [
-                _ace("alice", "Write")
-                if e["authority"]["authorityName"] == "alice" else e
-                for e in koerper["permissions"]]
+            # Der bearbeitete Eintrag steht immer zuletzt -- ``grant``
+            # haengt ihn hinten an --, und in ihm stehen die alten Rechte
+            # vor den neuen. Nur das letzte behalten heisst also: das neu
+            # Angefragte bleibt, der Altbestand faellt.
+            eintraege = [dict(e) for e in koerper["permissions"]]
+            eintraege[-1]["permissions"] = eintraege[-1]["permissions"][-1:]
+            self.own = eintraege
             return httpx.Response(200, content=b"")
         return super().handler(request)
 
@@ -603,7 +606,7 @@ async def test_ein_grant_der_alte_und_neue_rechte_behaelt_meldet_true():
 
 async def test_ein_grant_an_eine_neue_autoritaet_bleibt_unberuehrt():
     """Die zweite Gegenprobe: ohne Alteintrag gibt es nichts zu verlieren --
-    der Fall darf nicht plotzlich am leeren Altbestand haengenbleiben."""
+    der Fall darf nicht ploetzlich am leeren Altbestand haengenbleiben."""
     instanz = Instanz(own=[_ace("alice", "Read")])
     async with instanz.repo() as repo:
         knoten = await repo.node("n1")
