@@ -241,6 +241,23 @@ class NodeContent:
     async def download(self, *, max_bytes: int | None = None) -> bytes:
         """Fetch the binary content, in chunks.
 
+        **Public content only, on the instance this was measured against.**
+        The bytes come from ``downloadUrl``, which points at the
+        ``eduservlet/download`` servlet -- and that servlet does not
+        authenticate the caller at all. Measured 2026-09-10 against staging,
+        all on the same node with the same identity: private it answers
+        ``403``, published it answers with the bytes, and a guest carrying no
+        credentials gets those same bytes. Waiting does not help -- still
+        ``403`` after 69 seconds -- so it is not an indexing delay like the one
+        the duplicate check documents.
+
+        To read the content of a **private** node, use ``text()``: that route
+        is REST, it knows who is asking, and it answered on the very node whose
+        download was refused. There is no second route for the raw bytes -- the
+        specification carries no ``GET`` for binary content
+        (``/node/v1/nodes/{repository}/{node}/content`` is ``POST`` only), so
+        ``downloadUrl`` is the only one there is.
+
         Args:
             max_bytes: refuse a file larger than this -- before the request
                 when the repository reports the size (``size``), else while
@@ -250,6 +267,9 @@ class NodeContent:
             EduSharingError: when the node carries no file -- a link record, for
                 instance. Returning an empty bytestring would be
                 indistinguishable from an empty file.
+            PermissionDeniedError: from the servlet, for content that is not
+                publicly readable -- see above. The node's own ``access`` array
+                may well list ``DownloadContent``; the servlet does not read it.
             ContentTooLargeError: above ``max_bytes``.
         """
         url = self.download_url

@@ -23,7 +23,11 @@ import warnings
 import pytest
 
 from edusharing import AsyncRepository
-from edusharing.errors import EduSharingError, SilentDropError
+from edusharing.errors import (
+    EduSharingError,
+    PermissionDeniedError,
+    SilentDropError,
+)
 from edusharing.flows.duplicates import find_by_url
 from edusharing.nodes import Node
 
@@ -213,6 +217,47 @@ async def test_datei_hoch_und_wieder_herunterladen(repo, ordner):
     assert mit_datei.content.mimetype == "text/plain"
     assert mit_datei.content.size == len(INHALT)
     assert await mit_datei.content.download() == INHALT
+
+
+async def test_das_download_servlet_liefert_nur_oeffentliches(repo, ordner):
+    """Warum die drei Download-Tests hier rot sind -- gemessen, nicht vermutet.
+
+    Am 10.09.2026 gegen Staging, alles am **selben** Knoten mit **derselben**
+    Identitaet:
+
+    * privat hochgeladen -> ``download()`` gibt 403, auch nach 69 Sekunden;
+      es ist also keine Verzoegerung wie beim Suchindex
+    * ``text()`` auf demselben privaten Knoten -> geht, 25 Zeichen
+    * veroeffentlicht -> ``download()`` gibt die Bytes, angemeldet **und**
+      anonym
+
+    Daraus folgt: ``eduservlet/download`` authentifiziert gar nicht. Es
+    liefert, was oeffentlich lesbar ist, und verweigert alles andere -- egal
+    wer fragt. Das erklaert auch die aeltere Messung, dass ein anonymer und
+    ein Basic-authentifizierter Aufruf byteweise dieselbe 403-Antwort
+    bekommen: sie sind fuer das Servlet derselbe Aufruf.
+
+    Die Bibliothek kann daran nichts aendern. Die Spec kennt kein ``GET`` fuer
+    Binaerinhalt -- ``/node/v1/nodes/{repository}/{node}/content`` ist ``POST``
+    --, ``downloadUrl`` ist der einzige Weg. Wer den Inhalt eines privaten
+    Knotens braucht, nimmt ``text()``.
+
+    Dieser Test faellt, wenn die Instanz das aendert. Genau dafuer steht er
+    hier.
+    """
+    node = await repo.create_node(ordner.id, name="sichtbarkeit.txt")
+    mit_datei = await node.content.upload(
+        INHALT, filename="sichtbarkeit.txt", mimetype="text/plain")
+
+    with pytest.raises(PermissionDeniedError):
+        await mit_datei.content.download()
+    # Derselbe Inhalt, anderer Weg -- der REST-Pfad kennt die Anmeldung.
+    assert "Hallo aus der Bibliothek" in await mit_datei.content.text()
+
+    await mit_datei.permissions.publish()
+    veroeffentlicht = await repo.node(mit_datei.id)
+    assert await veroeffentlicht.content.download() == INHALT, (
+        "oeffentlich ist der einzige Zustand, in dem das Servlet liefert")
 
 
 async def test_volltext_wird_extrahiert(repo, ordner):

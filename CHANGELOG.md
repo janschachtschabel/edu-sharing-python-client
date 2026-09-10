@@ -325,6 +325,17 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Fixed
 
+- **`download()` says what it can actually reach** (2026-09-10). The bytes come
+  from the `eduservlet/download` servlet, and measured against staging that
+  servlet does not authenticate at all: the same node answers `403` while
+  private and hands over the bytes once published -- to a guest as readily as
+  to its owner, and no amount of waiting changes the first (still `403` after
+  69 seconds). Nothing said so, so an application that uploaded a file and read
+  it back got `PermissionDeniedError` with no explanation. The docstring and
+  both REFERENCE tables now name the limit and point at `text()`, which is
+  REST, knows who is asking, and answers on the very node whose download was
+  refused. No behaviour changed -- the library was always doing the only thing
+  the specification allows, which carries no `GET` for binary content.
 - **`related()` says when its own exclusion emptied the answer** (report U2,
   2026-09-10). With `limit=2` the search fetches three candidates; where those
   are an original and two references to it, the R08 exclusion rightly removes

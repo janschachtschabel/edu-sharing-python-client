@@ -281,7 +281,7 @@ turns the same information into a breadcrumb that reads top-down.
 | `node.content.mimetype` | `str \| None` |
 | `node.content.size` | `int \| None` |
 | `node.content.download_url` | `str \| None` |
-| `node.content.download()` | `bytes` — read in chunks |
+| `node.content.download()` | `bytes` — read in chunks. **Public content only** on the measured instance: the download servlet does not authenticate, so a private node answers `403` no matter who asks. Use `text()` for a private node |
 | `node.content.download(max_bytes=…)` | `bytes` — `ContentTooLargeError` above the limit, before the request when `size` is known; the text paths pass `MAX_TEXT_BYTES` (8 MiB) |
 | `node.content.text()` | `str` — the extracted text the repository holds |
 | `node.content.upload(data, filename=…, mimetype=…)` | `Node` |

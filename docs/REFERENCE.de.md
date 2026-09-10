@@ -289,7 +289,7 @@ macht daraus einen Pfad, der sich von oben nach unten liest.
 | `node.content.mimetype` | `str \| None` |
 | `node.content.size` | `int \| None` |
 | `node.content.download_url` | `str \| None` |
-| `node.content.download()` | `bytes` — stückweise gelesen |
+| `node.content.download()` | `bytes` — stückweise gelesen. **Nur öffentliche Inhalte** auf der gemessenen Instanz: das Download-Servlet authentifiziert nicht, ein privater Knoten antwortet `403`, egal wer fragt. Für einen privaten Knoten `text()` nehmen |
 | `node.content.download(max_bytes=…)` | `bytes` — `ContentTooLargeError` über der Grenze, vor dem Abruf, wenn `size` bekannt ist; die Textpfade übergeben `MAX_TEXT_BYTES` (8 MiB) |
 | `node.content.text()` | `str` — der Text, den das Repository extrahiert hat |
 | `node.content.upload(data, filename=…, mimetype=…)` | `Node` |
