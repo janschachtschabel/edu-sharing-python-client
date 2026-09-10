@@ -16,6 +16,21 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Added
 
+- **`facet_meta` beside `facets`** (Zweitprüfung R06, 2026-09-09).
+  `search` and `search_all` now carry `facet_meta[name]` with the facet's
+  `other_count` and `truncated`, read from the server's `sumOtherDocCount`. A
+  facet list the server had shortened looked complete before -- a filter bar
+  or a statistic read a sample as the whole set.
+- **CI builds the package, regenerates the layer, and tests the declared
+  floor** (Fremdprüfung 5.4; Zweitprüfung §7). A `package` job installs the
+  built wheel in a clean environment and imports every module, a `generate`
+  job rebuilds `_generated` and fails on any diff, and a `minimum` job installs
+  the lowest declared versions (`httpx>=0.27`, `attrs>=23.2`, Python 3.11) and
+  runs the suite -- the lock had only ever tested the upper edge, so the
+  promised floor ran nowhere. The pins are read from `pyproject.toml`, not
+  written into the workflow, so raising a `>=` cannot leave the job testing the
+  old version.
+
 - **Two guards over the surface itself** (`tests/test_docstrings.py`,
   `tests/test_flows_surface.py`, audit MNT-5/MNT-3). Every public class, method
   and property carries a docstring -- not every data field, because a `#: The
@@ -40,6 +55,12 @@ and in [`docs/audits/`](docs/audits/).
   Windows checkout turned LF into CRLF, so the same spec hashed differently
   there. `* text=auto eol=lf` — the index was already all LF, so nothing's
   content changed; only what a checkout writes.
+
+- **`RateLimitedError`** for HTTP 429 (audit API-2). It carries `retry_after`,
+  read from the header in either form RFC 9110 allows. Unlike a `5xx` a 429
+  says the request was refused rather than carried out, so even a write is
+  sent again; a short wait is sat out, a long one reaches the caller with the
+  number on it.
 
 ### Changed
 
@@ -160,92 +181,6 @@ and in [`docs/audits/`](docs/audits/).
   public. The tail of a failing pytest run now goes out as an error
   annotation.
 
-### Performance
-
-- **The vocabulary cache expires** (audit PRF-4). `ARCHITECTURE` claimed a TTL
-  and there was none: an entry lived as long as the object, so a service
-  running for days never saw an edited vocabulary. `DEFAULT_CACHE_SECONDS` is
-  one hour; `repo.vocab.cache_seconds` takes another span, `0` disables the
-  cache, `float("inf")` keeps an entry forever.
-- **Suggestions for unresolved filter values are capped** (audit PRF-4). Each
-  cost a request of its own, so fifty unknown labels cost fifty requests just
-  to build help text. `SUGGEST_LOOKUP_MAX` is 10; beyond it the value is still
-  reported, only without suggestions.
-- **`describe_many` has a ceiling** (audit PRF-2). It was the one uncapped
-  fan-out, and one node costs three requests. `DESCRIBE_MANY_MAX` is 50 and
-  the answer carries `truncated`.
-- **A level of the skills walk is fetched together** (audit PRF-3). Up to 30
-  collections meant up to 60 serial round-trips, although the collections of a
-  level are independent. The counting is unchanged: the two requests for one
-  collection stay in order, so a collection whose files are unreadable is
-  counted once and its subcollections are not asked for.
-- **The cold vocabulary loads run side by side** (audit PRF-3).
-  `resolve_vocabulary` resolves through the cache, so only the first value of
-  a property costs a request -- but those first ones ran one after the other.
-- **`whoami()` is asked once per credential** (audit PRF-5). `add_material`
-  finds the home folder through it, so a run without `parent_id` asked once
-  per piece of material.
-
-### Security
-
-- **Foreign text on the error path stays on one line** (audit SEC-5).
-  `as_result` passed `str(exc)` on as `text`, and that message carries the
-  server's response body: whoever could provoke an error whose text they choose
-  wrote their own lines into a model context. The same for the unresolved
-  filter in `format_results`, whose `__str__` joins three server-supplied
-  values -- the warnings next to it were flattened, this branch was not.
-- **A redirect names its target, not the whole address** (audit SEC-6). The
-  full `Location` stood in `str(exc)`, and so in the logs and, via
-  `as_result`, in a model context -- a presigned link carries its authority in
-  the query string, a login bounce its ticket in the path. The message names
-  the host, which answers the question it exists for; the whole value is on the
-  exception as `.location`.
-- **A `mimetype` must be a type, not a header** (audit SEC-7). It goes into the
-  `Content-Type` of a multipart section, and httpx percent-encodes the filename
-  there but not the content type -- measured with httpx 0.28.1, a `\r\n` in it
-  produces a second header line. Checked against `type/subtype` from RFC 9110
-  token characters now, at both places that upload -- with `fullmatch`, since
-  `$` also stands before a trailing `\n` and `re.match` stops there. The same
-  shape let `"embeddings\n"` through `bapi.passthrough`, the check that keeps a
-  route from leaving its path with the `X-API-KEY`.
-- **A client you bring along can no longer defeat two promises** (audit SEC-4,
-  SEC-8). `follow_redirects=True` is refused by all four clients: httpx keeps
-  custom headers across a cross-origin redirect, so a following client carries
-  an API key to wherever a gateway points -- verified, the second request to
-  another host still had it. And `timeout` beside a client is refused
-  everywhere, not just in the transport: the value belongs to the client, and
-  accepting both meant validating a parameter and then discarding it.
-- **An address two parsers read differently is not sent on** (audit SEC-3).
-  `extraction.text_of` judged a URL on `urlsplit().hostname` and then forwarded
-  it verbatim. Measured: `http://127.0.0.1\@example.com/` is host
-  `example.com` to `urlsplit` and `127.0.0.1` to a browser, so the check was
-  not checking the address that gets fetched; `http://user:pw@example.com/`
-  carried credentials to a third-party service. The spelling rules now live in
-  `urls.unsafe_url_syntax`, shared with the agent, and a backslash anywhere is
-  refused as well. New `reason` value: `unsafe_url`.
-
-### Fixed
-
-- **A 3xx and a body that is not JSON stay inside the error contract**
-  (audit API-1). `response.json()` raised `json.JSONDecodeError` -- a
-  standard-library exception `agent.result.as_result` does not catch, and a
-  reverse proxy answering a login page with HTTP 200 was enough to produce
-  one. It arrives as `ServerError` now, with the first 200 characters of the
-  body. The 3xx guard existed only in the transport: the metadata agent and
-  the b-api saw a redirect as an empty success, and the extraction service
-  turned one into `no_text` -- a statement about the page, although it is one
-  about the service.
-
-### Added
-
-- **`RateLimitedError`** for HTTP 429 (audit API-2). It carries `retry_after`,
-  read from the header in either form RFC 9110 allows. Unlike a `5xx` a 429
-  says the request was refused rather than carried out, so even a write is
-  sent again; a short wait is sat out, a long one reaches the caller with the
-  number on it.
-
-### Changed
-
 - **The layers point one way again** (audit ARC-1). `fields`, `ranking` and
   `language` moved out of `flows/` into the resource layer they belong to, and
   `cap_text` out of `agent/` into the new `edusharing.strings`; `repo.skills`
@@ -291,7 +226,136 @@ and in [`docs/audits/`](docs/audits/).
   `datetime.fromisoformat` and uses `typing.Self`. Two runtime dependencies
   remain, `httpx` and `attrs`, and a guard fails if a declared one is unused.
 
+### Performance
+
+- **The vocabulary cache expires** (audit PRF-4). `ARCHITECTURE` claimed a TTL
+  and there was none: an entry lived as long as the object, so a service
+  running for days never saw an edited vocabulary. `DEFAULT_CACHE_SECONDS` is
+  one hour; `repo.vocab.cache_seconds` takes another span, `0` disables the
+  cache, `float("inf")` keeps an entry forever.
+- **Suggestions for unresolved filter values are capped** (audit PRF-4). Each
+  cost a request of its own, so fifty unknown labels cost fifty requests just
+  to build help text. `SUGGEST_LOOKUP_MAX` is 10; beyond it the value is still
+  reported, only without suggestions.
+- **`describe_many` has a ceiling** (audit PRF-2). It was the one uncapped
+  fan-out, and one node costs three requests. `DESCRIBE_MANY_MAX` is 50 and
+  the answer carries `truncated`.
+- **A level of the skills walk is fetched together** (audit PRF-3). Up to 30
+  collections meant up to 60 serial round-trips, although the collections of a
+  level are independent. The counting is unchanged: the two requests for one
+  collection stay in order, so a collection whose files are unreadable is
+  counted once and its subcollections are not asked for.
+- **The cold vocabulary loads run side by side** (audit PRF-3).
+  `resolve_vocabulary` resolves through the cache, so only the first value of
+  a property costs a request -- but those first ones ran one after the other.
+- **`whoami()` is asked once per credential** (audit PRF-5). `add_material`
+  finds the home folder through it, so a run without `parent_id` asked once
+  per piece of material.
+
+### Security
+
+- **A client you bring along is refused for cookies or its own credentials
+  too** (Zweitprüfung R01; Fremdprüfung F02, 2026-09-09). Switching the cookie
+  jar off does not empty one that arrives full, and httpx copies it onto every
+  request; a client's own `auth=` or a default credential header travels to
+  every address, a download from a foreign `downloadUrl` included. Both are now
+  refused at construction, beside the existing `timeout` and `follow_redirects`
+  rules -- with the `credential=` parameter named as the way to carry a session
+  that should travel.
+
+- **Foreign text on the error path stays on one line** (audit SEC-5).
+  `as_result` passed `str(exc)` on as `text`, and that message carries the
+  server's response body: whoever could provoke an error whose text they choose
+  wrote their own lines into a model context. The same for the unresolved
+  filter in `format_results`, whose `__str__` joins three server-supplied
+  values -- the warnings next to it were flattened, this branch was not.
+- **A redirect names its target, not the whole address** (audit SEC-6). The
+  full `Location` stood in `str(exc)`, and so in the logs and, via
+  `as_result`, in a model context -- a presigned link carries its authority in
+  the query string, a login bounce its ticket in the path. The message names
+  the host, which answers the question it exists for; the whole value is on the
+  exception as `.location`.
+- **A `mimetype` must be a type, not a header** (audit SEC-7). It goes into the
+  `Content-Type` of a multipart section, and httpx percent-encodes the filename
+  there but not the content type -- measured with httpx 0.28.1, a `\r\n` in it
+  produces a second header line. Checked against `type/subtype` from RFC 9110
+  token characters now, at both places that upload -- with `fullmatch`, since
+  `$` also stands before a trailing `\n` and `re.match` stops there. The same
+  shape let `"embeddings\n"` through `bapi.passthrough`, the check that keeps a
+  route from leaving its path with the `X-API-KEY`.
+- **A client you bring along can no longer defeat two promises** (audit SEC-4,
+  SEC-8). `follow_redirects=True` is refused by all four clients: httpx keeps
+  custom headers across a cross-origin redirect, so a following client carries
+  an API key to wherever a gateway points -- verified, the second request to
+  another host still had it. And `timeout` beside a client is refused
+  everywhere, not just in the transport: the value belongs to the client, and
+  accepting both meant validating a parameter and then discarding it.
+- **An address two parsers read differently is not sent on** (audit SEC-3).
+  `extraction.text_of` judged a URL on `urlsplit().hostname` and then forwarded
+  it verbatim. Measured: `http://127.0.0.1\@example.com/` is host
+  `example.com` to `urlsplit` and `127.0.0.1` to a browser, so the check was
+  not checking the address that gets fetched; `http://user:pw@example.com/`
+  carried credentials to a third-party service. The spelling rules now live in
+  `urls.unsafe_url_syntax`, shared with the agent, and a backslash anywhere is
+  refused as well. New `reason` value: `unsafe_url`.
+
 ### Fixed
+
+- **The curated `page` flow reports a shortened variant list** (Zweitprüfung
+  R04, 2026-09-09). A page with more variants than the reader fetches in one
+  go used to report the first variant as rendered, or -- after a later change
+  -- claim the folder had none; both were wrong. It now carries `variants_total`
+  and `truncated_by`, and `rendered` is left open when the default sits beyond
+  what was read.
+- **The collection walk runs breadth first** (Zweitprüfung R05, 2026-09-09).
+  Collections form a graph, and `browse_tree`/`walk_collections` skips what it
+  has already opened. Depth first reached a collection by a long path, marked
+  it seen with no depth left, and lost everything behind it -- while reporting
+  `truncated=False`. Breadth first reaches every collection by its shortest
+  path first, so the skip is safe.
+- **Repository text carries its source URL** (Zweitprüfung R07, 2026-09-09).
+  `text` assigned `source_url` only after the early return for stored text and
+  file downloads, so it was absent in the most common case. The docstring
+  promised it "whenever there is one"; now it is there for every source.
+- **`related` excludes the seed's own original** (Zweitprüfung R08,
+  2026-09-09). Only the passed id was excluded. A collection holds references,
+  so starting from one, its original is a different record with a different id
+  -- and the search returned it, recommending the very material being viewed.
+- **The duplicate check survives an unreadable stored address** (Zweitprüfung
+  R09, 2026-09-09). A neighbour whose `ccm:wwwurl` `urlsplit` could not parse
+  (`https://[broken` → `Invalid IPv6 URL`) ended the whole check with a
+  standard-library exception. Such a candidate is skipped now; only an
+  unreadable address passed by the caller is a `ValidationError`.
+- **`path_segment` refuses `.` and `..`** (Zweitprüfung R10; Fremdprüfung F07,
+  2026-09-09). `quote` leaves them untouched because they are unreserved, and
+  the URL is normalised before it is sent -- measured, `.` dropped one path
+  segment and `..` two, so the request reached a different endpoint than the
+  one asked for. The comfort layer refuses them; the generated layer builds its
+  own paths and is documented as not having this check.
+- **A capped download decodes once** (Fremdprüfung F05, 2026-09-09).
+  `download(max_bytes=…)` reads the body in chunks and rebuilt the response
+  from the decoded bytes while keeping the `content-encoding` and
+  `content-length` headers, so httpx unpacked a gzip stream a second time and
+  raised `DecodingError` far below the limit. The two headers are dropped when
+  the decoded body is passed on, and the announced-length pre-check is skipped
+  under a content encoding, where it describes the packed size.
+- **`unpublish` and `grant` check the state they leave behind** (Zweitprüfung
+  R02/R03, 2026-09-09). `unpublish` verified public inheritance only before the
+  write, so inheritance added during the POST passed unnoticed; it now reads
+  back. And the repository's ACL POST replaces the whole local list, so `grant`
+  checks the same three things `revoke` already did -- a silent loss of another
+  entry or of inheritance now raises `SilentDropError` rather than returning
+  success.
+
+- **A 3xx and a body that is not JSON stay inside the error contract**
+  (audit API-1). `response.json()` raised `json.JSONDecodeError` -- a
+  standard-library exception `agent.result.as_result` does not catch, and a
+  reverse proxy answering a login page with HTTP 200 was enough to produce
+  one. It arrives as `ServerError` now, with the first 200 characters of the
+  body. The 3xx guard existed only in the transport: the metadata agent and
+  the b-api saw a redirect as an empty success, and the extraction service
+  turned one into `no_text` -- a statement about the page, although it is one
+  about the service.
 
 - **Empty and padded keywords stay out of the list** (audit COR-8).
   `add_keywords("", "   ", " Optik ")` sent `['Physik', '', ' Optik ']`:
