@@ -84,6 +84,16 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Fixed
 
+- **Two holes left in the blocking surface.** `repo.nodes.wrap(data)` handed
+  a blocking caller the asynchronous `Node`: `SyncNodes` passed `wrap` through
+  because it is no coroutine itself, so an `update()` on the node it returned
+  was a coroutine that never ran — no write, no error. It now answers with a
+  `SyncNode`. And `repo.raw.is_repository_url(url)`, listed in REFERENCE and
+  the skill, was an `AttributeError` there; it passes through now. The guard
+  in `tests/test_sync_surface.py` calls the plain methods as well and refuses
+  a result that carries asynchronous methods, and it covers `repo.nodes`,
+  `collections`, `searcher` and `vocab`, which it had never called. Found by
+  the skill review of 2026-09-11.
 - **What the spec can say about the gateway's routes.** The docs claimed
   `/v3/api-docs` knew neither `/models` nor `/chat/completions`. It comes in
   twelve groups, and `/v3/api-docs/openai` and `/v3/api-docs/academiccloud`

@@ -17,6 +17,7 @@ Ergebnis liefert und keine Coroutine. Der Nachweis ist billig und faengt genau
 die Sorte Fehler, die zweimal durchgerutscht ist.
 """
 
+import dataclasses
 import gc
 import inspect
 import json
@@ -432,6 +433,25 @@ def test_raw_synchron(repo):
     """Der erste gefundene Fehler: raw fehlte am synchronen Zugang ganz."""
     assert _kein_coroutine(repo.raw.json("GET", "/_about")) is not None
     assert _kein_coroutine(repo.raw.request("GET", "/_about")).status_code == 200
+
+
+def test_raw_prueft_die_adresse_auch_blockierend(repo):
+    """REFERENCE nennt ``repo.raw.is_repository_url``, der Skill auch -- am
+    blockierenden ``Repository`` war es bis zum 11.09.2026 ein
+    ``AttributeError``."""
+    assert repo.raw.is_repository_url(f"{repo.url}/rest/node/v1") is True
+    assert repo.raw.is_repository_url("https://anderswo.test/rest") is False
+
+
+def test_wrap_gibt_einen_blockierenden_knoten(repo):
+    """``repo.nodes.wrap`` gab bis zum 11.09.2026 den **asynchronen** ``Node``
+    heraus: ``update()`` darauf lieferte eine Coroutine, schrieb nichts und
+    meldete nichts -- gefunden im Review des Skills, der den Aufruf als
+    blockierend nutzbar beschrieb."""
+    knoten = repo.nodes.wrap(_node_response()["node"])
+    assert knoten.id == NID
+    geaendert = _kein_coroutine(knoten.update(title="Neu"))
+    assert geaendert.title == "Neu"
 
 
 # --- Durchgereichte Schichten ---------------------------------------------
@@ -892,7 +912,7 @@ _ARGUMENT = {
     "keywords": ["Probe"], "relation": "isPartOf", "other_id": NID,
     "field": "subject", "role": "Consumer", "permission": "Consumer",
     "filename": "probe.txt", "from_node": NID, "to_node": "reihe-1",
-    "relation_type": "isPartOf", "reason": "Weil",
+    "relation_type": "isPartOf", "reason": "Weil", "label_or_uri": "Biologie",
 }
 
 #: Was der Waechter nicht ruft, und warum. ``aclose`` ist der asynchrone
@@ -934,19 +954,48 @@ def _paare(repo):
         ("Suggestions", knoten._node.suggestions, knoten.suggestions),
         ("NodePage", knoten._node.page, knoten.page),
         ("NodePermissions", knoten._node.permissions, knoten.permissions),
+        # Seit dem 10.09.2026 mit eigenem Wrapper, aber erst seit dem
+        # 11.09.2026 hier: bis dahin rief der Waechter keine ihrer Methoden.
+        ("Nodes", repo._async.nodes, repo.nodes),
+        ("Collections", repo._async.collections, repo.collections),
+        ("Search", repo._async.searcher, repo.searcher),
+        ("Vocabulary", repo._async.vocab, repo.vocab),
     ]
+
+
+def _traegt_asynchrones(wert):
+    """Ob ein Ergebnis Methoden traegt, die aus blockierendem Code ins Leere
+    laufen: ein Objekt dieser Bibliothek mit Coroutine-Methoden -- auch eine
+    Ebene tiefer, in einer Liste oder einem Datensatz (``ChildPage.nodes``)."""
+    kandidaten = [wert]
+    if isinstance(wert, (list, tuple)):
+        kandidaten += list(wert)
+    elif dataclasses.is_dataclass(wert) and not isinstance(wert, type):
+        for feld in dataclasses.fields(wert):
+            inhalt = getattr(wert, feld.name)
+            kandidaten += list(inhalt) if isinstance(inhalt, (list, tuple)) else [inhalt]
+    return any(
+        type(k).__module__.startswith("edusharing")
+        and any(inspect.iscoroutinefunction(fn)
+                for n, fn in inspect.getmembers(type(k), inspect.isfunction)
+                if not n.startswith("_"))
+        for k in kandidaten)
 
 
 def _pruefe(paare):
     """Ruft jedes Spiegelbild und meldet, was zurueckkam.
 
-    Dass ein Aufruf scheitert, ist erlaubt: gefragt ist allein, ob eine
-    Coroutine zurueckkommt -- eine Coroutine wirft nicht, sie kommt zurueck.
+    Dass ein Aufruf scheitert, ist erlaubt: gefragt ist allein, ob etwas
+    Asynchrones zurueckkommt -- eine Coroutine wirft nicht, sie kommt zurueck.
+    Und nicht nur eine Coroutine: auch eine gewoehnliche Methode kann ein
+    Objekt herausgeben, dessen Methoden welche sind. ``repo.nodes.wrap`` tat
+    das bis zum 11.09.2026 -- der Waechter rief damals nur Coroutine-Methoden
+    und sah es nicht.
     """
     coroutinen, unerreichbar, gerufen = [], [], 0
     for klasse, asynchron, spiegel in paare:
         for name, fn in inspect.getmembers(type(asynchron), inspect.isfunction):
-            if name.startswith("_") or not inspect.iscoroutinefunction(fn):
+            if name.startswith("_"):
                 continue
             if f"{klasse}.{name}" in _OHNE_SPIEGEL:
                 continue
@@ -967,6 +1016,9 @@ def _pruefe(paare):
             if inspect.iscoroutine(ergebnis):
                 ergebnis.close()
                 coroutinen.append(f"{klasse}.{name}")
+            elif _traegt_asynchrones(ergebnis):
+                coroutinen.append(f"{klasse}.{name}: gibt ein asynchrones "
+                                  f"{type(ergebnis).__name__} heraus")
     return coroutinen, unerreichbar, gerufen
 
 
@@ -980,7 +1032,7 @@ def test_jede_blockierende_methode_liefert_ein_ergebnis(repo, unversehrt):
     """
     coroutinen, unerreichbar, gerufen = _pruefe(_paare(repo))
     assert not coroutinen, (
-        "diese blockierenden Methoden geben eine Coroutine zurueck -- der "
+        "diese blockierenden Methoden geben etwas Asynchrones zurueck -- der "
         "Durchgriff fehlt: " + ", ".join(coroutinen))
     assert not unerreichbar, (
         "der Waechter kommt an diese Methoden nicht heran; entweder fehlt das "
@@ -1072,3 +1124,22 @@ def test_der_waechter_faengt_einen_vergessenen_durchgriff(repo, unversehrt):
     echte = repo.node(NID)._node.comments
     coroutinen, _, _ = _pruefe([("Comments", echte, Vergesslich(echte))])
     assert coroutinen == ["Comments.list"]
+
+
+def test_der_waechter_faengt_ein_asynchrones_ergebnis(repo, unversehrt):
+    """Die zweite Art, ins Leere zu rufen: keine Coroutine, sondern ein Objekt,
+    dessen Methoden welche sind. Genau so reichte ``SyncNodes`` bis zum
+    11.09.2026 ``wrap`` durch -- ``__getattr__`` gab den asynchronen ``Node``
+    heraus, und dessen ``update()`` lief nie."""
+    class Durchreicher:
+        """Ein Spiegelbild, das alles unbesehen weitergibt."""
+
+        def __init__(self, echt):
+            self._echt = echt
+
+        def __getattr__(self, name):
+            return getattr(self._echt, name)
+
+    echte = repo._async.nodes
+    coroutinen, _, _ = _pruefe([("Nodes", echte, Durchreicher(echte))])
+    assert "Nodes.wrap: gibt ein asynchrones Node heraus" in coroutinen

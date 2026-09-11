@@ -84,13 +84,22 @@ class SyncTransport:
     the synchronous surface too -- otherwise it becomes a dead end the moment
     something is needed that the library does not cover yet.
 
-    Deliberately narrow: only ``request``, ``json`` and ``download``.
-    Everything else belongs on the asynchronous transport, not duplicated here.
+    Deliberately narrow: ``request``, ``json`` and ``download``, and the check
+    ``is_repository_url`` that REFERENCE lists beside them -- it answers without
+    I/O, so it passes straight through. Missing until 2026-09-11, when the
+    blocking surface was documented as the same calls without ``await`` and
+    this one was an ``AttributeError``. Everything else belongs on the
+    asynchronous transport, not duplicated here.
     """
 
     def __init__(self, transport: Any, loop: LoopThread) -> None:
         self._transport = transport
         self._loop = loop
+
+    def is_repository_url(self, url: str) -> bool:
+        """Like ``Transport.is_repository_url`` -- whether credentials would go
+        along to ``url``."""
+        return bool(self._transport.is_repository_url(url))
 
     def request(self, method: str, path: str, **kwargs: Any) -> Any:
         """Like ``Transport.request``, blocking."""
@@ -748,8 +757,10 @@ class SyncNodes:
     """Synchronous pass-through to ``Nodes``.
 
     ``children`` answers with a ``ChildPage`` whose ``nodes`` are nodes, so the
-    page is rebuilt with blocking ones. ``wrap`` and ``repository_url`` are not
-    coroutines and pass through.
+    page is rebuilt with blocking ones. ``wrap`` answers with a node, so it
+    answers with a ``SyncNode`` -- until 2026-09-11 it passed through, since it
+    is no coroutine itself, and handed out the asynchronous ``Node``, whose
+    ``update()`` then went nowhere. ``repository_url`` passes through.
     """
 
     def __init__(self, nodes: Any, loop: LoopThread) -> None:
@@ -781,6 +792,10 @@ class SyncNodes:
         seite = self._loop.run(self._nodes.children(node_id, **kwargs))
         return replace(seite, nodes=tuple(
             SyncNode(knoten, self._loop) for knoten in seite.nodes))
+
+    def wrap(self, data: dict[str, Any]) -> SyncNode:
+        """Like ``Nodes.wrap`` -- a record as a node, without a request."""
+        return SyncNode(self._nodes.wrap(data), self._loop)
 
     def __repr__(self) -> str:
         return f"SyncNodes({self._nodes!r})"
