@@ -202,8 +202,12 @@ async def test_ein_privater_knoten_ist_fuer_das_gateway_zu(
 
 @pytest.mark.write
 @_angemeldet
-async def test_suggest_legt_an_was_node_suggestions_liest(
+async def test_suggest_legt_an_was_accept_suggestion_uebernimmt(
         repo, vorlagen, konfigurationen, ordner):
+    """Die ganze Kette, die README, REFERENCE und SKILL versprechen: die b-api
+    schlaegt vor, ``node.suggestions`` liest es, ``flows.accept_suggestion``
+    uebernimmt es. Gemessen am 11.09.2026: das Schlagwort landet am Knoten,
+    die uebrigen Vorschlaege bleiben offen."""
     _braucht(konfigurationen, ["suggestion_ai"])
     knoten = await repo.create_node(ordner.id, name="photosynthese.txt",
                                     title="Photosynthese bei Pflanzen")
@@ -220,6 +224,15 @@ async def test_suggest_legt_an_was_node_suggestions_liest(
     assert {v.property for v in vorschlaege} == {"cclom:general_keyword"}
     gelesen = await (await repo.node(knoten.id)).suggestions.list()
     assert {v.id for v in vorschlaege} <= {g.id for g in gelesen}
+
+    bester = max(vorschlaege, key=lambda v: v.confidence or 0)
+    angenommen = await repo.flows.accept_suggestion(knoten.id, bester.id)
+    assert angenommen["applied"] is True, angenommen
+    assert angenommen["status"] == "ACCEPTED", angenommen
+    frisch = await repo.node(knoten.id)
+    assert bester.value in frisch.keywords
+    assert {s.status for s in await frisch.suggestions.list()
+            if s.id != bester.id} <= {"PENDING"}
 
 
 @pytest.mark.write
