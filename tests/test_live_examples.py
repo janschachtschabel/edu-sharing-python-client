@@ -59,6 +59,7 @@ SCHREIBEND = frozenset({
     "11_publish.py",
     "16_editorial.py",
     "17_flow_belonging.py",
+    "23_ai_suggestions.py",
 })
 
 #: Grosszuegig, damit ein langsames Netz kein Fehlschlag ist -- ein Zuschlagen

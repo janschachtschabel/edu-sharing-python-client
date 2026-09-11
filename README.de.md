@@ -417,7 +417,9 @@ Der Rest — die Fehlertabelle, `respond`, `qas`, was eine limited-Wahl nicht
 füllt — steht in [docs/REFERENCE.de.md](docs/REFERENCE.de.md) unter *Der
 Template-Modus*.
 
-Zum Ausprobieren: `python docs/examples/22_bapi_templates.py`
+Zum Ausprobieren: `python docs/examples/22_bapi_templates.py`, und
+`23_ai_suggestions.py` fürs Vorschlagen und Übernehmen — es schreibt, in einem
+eigenen Wegwerf-Ordner.
 
 ### Der Extraktionsdienst — Text, den das Repositorium nicht hat
 
@@ -1089,6 +1091,7 @@ wird:
 | [`20_provider_load.py`](docs/examples/20_provider_load.py) | welches Modell antworten soll, und woran man das misst - Auslastung, Verbünde, Verweigerung |
 | [`21_skills.py`](docs/examples/21_skills.py) | welche Skills eine Sammlung freigibt, und was einer davon sagt |
 | [`22_bapi_templates.py`](docs/examples/22_bapi_templates.py) | ein Prompt, der auf dem Server liegt, gefüllt aus einer Sammlung — und was freier Text mit ihm macht |
+| [`23_ai_suggestions.py`](docs/examples/23_ai_suggestions.py) | das Modell schlägt Schlagworte vor, ein Programm übernimmt das beste — und liest es zurück |
 
 **Beide Ebenen nebeneinander:**
 

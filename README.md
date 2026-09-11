@@ -409,7 +409,9 @@ account — review them with `node.suggestions`, take one over with
 The rest — the error table, `respond`, `qas`, what a limited choice does not
 fill — is in [docs/REFERENCE.md](docs/REFERENCE.md), under *The template mode*.
 
-Try it: `python docs/examples/22_bapi_templates.py`
+Try it: `python docs/examples/22_bapi_templates.py`, and
+`23_ai_suggestions.py` for proposing and taking over — it writes, in a
+throwaway folder of its own.
 
 ### The extraction service — text the repository does not have
 
@@ -1058,6 +1060,7 @@ them:
 | [`20_provider_load.py`](docs/examples/20_provider_load.py) | which model should answer, and on what basis - load, groups, and a refusal |
 | [`21_skills.py`](docs/examples/21_skills.py) | which skills a collection approves, and what one of them says |
 | [`22_bapi_templates.py`](docs/examples/22_bapi_templates.py) | a prompt kept on the server, filled from a collection — and what free text does to it |
+| [`23_ai_suggestions.py`](docs/examples/23_ai_suggestions.py) | the model proposes keywords, a program takes the best one over — and reads it back |
 
 **Both levels side by side:**
 

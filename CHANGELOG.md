@@ -34,9 +34,10 @@ and in [`docs/audits/`](docs/audits/).
   `var(X_DISPLAYNAME)`; `respond` needs a configuration for the Responses API;
   the gateway reads the context node with its own account, so a private node
   answers 403 even for its owner, and `qas` needs Write for that account.
-- `docs/examples/22_bapi_templates.py`, the "template mode" sections in both
-  READMEs and REFERENCEs, trap 5.16 in the skill, and
-  `tests/test_live_bapi_templates.py` (7 reading, 3 writing).
+- `docs/examples/22_bapi_templates.py` (reading) and `23_ai_suggestions.py`
+  (the model proposes keywords, `accept_suggestion` takes the best one over),
+  the "template mode" sections in both READMEs and REFERENCEs, trap 5.16 in
+  the skill, and `tests/test_live_bapi_templates.py` (7 reading, 3 writing).
 
 ### Changed
 
