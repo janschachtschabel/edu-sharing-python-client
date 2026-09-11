@@ -315,6 +315,33 @@ async def test_eine_403_sagt_wessen_rechte_fehlen():
     assert len(aufrufe) == 1
 
 
+async def test_der_hinweis_gilt_auch_fuer_das_fehlende_schreibrecht():
+    """Die zweite gemessene Ablehnung des Repositoriums: ``qas`` ohne Write."""
+    from edusharing.errors import PermissionDeniedError
+    handler = _antwortet(_spring_fehler(
+        403, "org.edu_sharing.service.InsufficientPermissionException: nodeId with "
+             "id n-1 requires permission(s): Write", "Forbidden"), 403)
+    async with _vorlagen(handler) as vorlagen:
+        with pytest.raises(PermissionDeniedError) as fehler:
+            await vorlagen.qas(["n-1"])
+    assert "own account" in str(fehler.value)
+
+
+async def test_eine_403_ohne_ablehnung_des_repositoriums_bekommt_keinen_hinweis():
+    """Review 11.09.2026: das Gateway antwortet auch selbst mit 403 -- gemessen
+    fuer Routen, die es nicht durchreicht. Dort waere "pruef die Rechte am
+    Knoten" die falsche Spur."""
+    from edusharing.errors import PermissionDeniedError
+    handler = _antwortet({"timestamp": "2026-09-11T10:42:40.977Z", "status": 403,
+                          "error": "Forbidden", "message": "Access Denied",
+                          "path": f"{PFAD}/chat/completion"}, 403)
+    async with _vorlagen(handler) as vorlagen:
+        with pytest.raises(PermissionDeniedError) as fehler:
+            await vorlagen.chat(["a"], context_node_id=KNOTEN)
+    assert "Access Denied" in str(fehler.value)
+    assert "own account" not in str(fehler.value)
+
+
 async def test_die_ablehnung_des_anbieters_liest_sich_als_satz():
     """Gemessen am 11.09.2026: lehnt der Anbieter ab, reicht die b-api seinen
     Fehler durch -- ``{"error": {"message": ..., "type": ...}}``, ohne

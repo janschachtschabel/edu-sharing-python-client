@@ -1209,7 +1209,7 @@ in the year 58665, so keep that one as a string.
 | Situation | Behaviour |
 |---|---|
 | 400 | `ValidationError` with the server's message |
-| 403 | `PermissionDeniedError` — and the message says whose permission is missing: the gateway's |
+| 403 | `PermissionDeniedError` — when the repository refused, the message says whose permission is missing: the gateway's |
 | 500 *Missing MDS AI configuration for id X* | `ValidationError` naming the id and the metadata set — not retried |
 | any other 500 | an error, not retried — here a 500 has meant a wrong configuration |
 | 429, 502, 503, 504 on `chat`, `respond`, `images` and their `_limited` forms | retried |

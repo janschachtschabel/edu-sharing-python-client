@@ -93,6 +93,11 @@ _RETRY_WRITING = frozenset({429, 503})
 #: Measured 2026-09-11: an unknown id answers 500 with exactly this text.
 _MISSING_CONFIG = "Missing MDS AI configuration for id"
 
+#: How the repository refuses the gateway's account -- measured 2026-09-11 for
+#: a private context node and for ``qas`` without Write. The gateway answers
+#: 403 on its own too; that one gets no hint about node permissions.
+_REPOSITORY_REFUSALS = ("AccessDeniedException", "InsufficientPermissionException")
+
 
 class BapiTemplates:
     """Client for the template mode of the b-api.
@@ -492,7 +497,7 @@ class BapiTemplates:
                 "the request that is wrong: check the id and the metadata set.",
                 status=status, url=url)
         text = f"b-api HTTP {status}: {message[:300]}"
-        if status == 403:
+        if status == 403 and any(r in message for r in _REPOSITORY_REFUSALS):
             # Measured 2026-09-11: a private node answered 403 for its own
             # owner as ``user`` too. The server's text says "you lack the
             # permissions" -- and whoever reads it checks the wrong ones.

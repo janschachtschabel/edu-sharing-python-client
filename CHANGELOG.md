@@ -49,8 +49,8 @@ and in [`docs/audits/`](docs/audits/).
 - **Error messages of the template mode say what went wrong, in one line.**
   They come from the answer's `message`, never from the 18 kB Java stack trace
   beside it; a provider's refusal reads as its sentence rather than as the
-  object around it; a 403 says that it is the gateway's permission that is
-  missing. An answer of the wrong shape — no object where a route reads one,
+  object around it; a 403 from the repository says that it is the gateway's
+  permission that is missing. An answer of the wrong shape — no object where a route reads one,
   no list where it stores — is an `EduSharingError` too, not an
   `AttributeError` (review 2026-09-11).
 

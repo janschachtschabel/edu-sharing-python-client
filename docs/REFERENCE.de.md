@@ -1233,7 +1233,7 @@ String behält.
 | Lage | Verhalten |
 |---|---|
 | 400 | `ValidationError` mit der Meldung des Servers |
-| 403 | `PermissionDeniedError` — und die Meldung sagt, wessen Recht fehlt: das des Gateways |
+| 403 | `PermissionDeniedError` — hat das Repositorium abgelehnt, sagt die Meldung, wessen Recht fehlt: das des Gateways |
 | 500 *Missing MDS AI configuration for id X* | `ValidationError`, der die ID und das Metadatenset nennt — nicht wiederholt |
 | jede andere 500 | ein Fehler, nicht wiederholt — hier hieß 500 bisher: falsche Konfiguration |
 | 429, 502, 503, 504 bei `chat`, `respond`, `images` und ihren `_limited`-Formen | wiederholt |
