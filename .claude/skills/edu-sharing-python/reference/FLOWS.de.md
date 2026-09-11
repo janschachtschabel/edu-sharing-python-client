@@ -30,6 +30,42 @@ blockierend `repo.flows.…` auf `Repository`.
 
 ---
 
+## Inhalt
+
+- [Was jeder Ablauf kostet, auf einen Blick](#was-jeder-ablauf-kostet-auf-einen-blick)
+- [Zwei Regeln, die durch jeden Ablauf gehen](#zwei-regeln-die-durch-jeden-ablauf-gehen)
+- [`search` — Material finden](#search--material-finden)
+  - [Doppelte Treffer werden zusammengefasst](#doppelte-treffer-werden-zusammengefasst)
+  - [`rerank=True` — die natuerlich formulierte Anfrage retten](#reranktrue--die-natuerlich-formulierte-anfrage-retten)
+- [`search_all` — Material *und* Sammlungen auf einmal](#search_all--material-und-sammlungen-auf-einmal)
+- [`vocabulary` — welche Werte ein Feld annimmt](#vocabulary--welche-werte-ein-feld-annimmt)
+- [`describe` — alles über einen Knoten](#describe--alles-über-einen-knoten)
+- [`text` — der Volltext eines Materials, und warum es keinen gibt](#text--der-volltext-eines-materials-und-warum-es-keinen-gibt)
+- [`child_objects` — weitere Dokumente eines Knotens](#child_objects--weitere-dokumente-eines-knotens)
+  - [Serienobjekte schreiben](#serienobjekte-schreiben)
+- [`relations` — womit ein Knoten verknüpft ist](#relations--womit-ein-knoten-verknüpft-ist)
+  - [Relationen schreiben](#relationen-schreiben)
+- [`placement` — wo ein Knoten liegt, und wer ihn kuratiert hat](#placement--wo-ein-knoten-liegt-und-wer-ihn-kuratiert-hat)
+- [`find_collections` — Sammlungen suchen](#find_collections--sammlungen-suchen)
+- [`collection_contents` — eine Sammlung öffnen](#collection_contents--eine-sammlung-öffnen)
+- [`describe_many` — mehrere Knoten auf einmal](#describe_many--mehrere-knoten-auf-einmal)
+- [`related` — mehr Material wie dieses](#related--mehr-material-wie-dieses)
+- [`browse_tree` — die Sammlungen unter einer Sammlung](#browse_tree--die-sammlungen-unter-einer-sammlung)
+- [`search_in_collection` — etwas in einer Sammlung finden](#search_in_collection--etwas-in-einer-sammlung-finden)
+- [`collection_stats` — wie viel darin liegt, und wovon](#collection_stats--wie-viel-darin-liegt-und-wovon)
+- [`page` — die kuratierte Seite, die eine Sammlung rendert](#page--die-kuratierte-seite-die-eine-sammlung-rendert)
+- [`find_pages` — welche Sammlungen eine tragen](#find_pages--welche-sammlungen-eine-tragen)
+- [`find_skills` — welche Skills zu einer Aufgabe passen](#find_skills--welche-skills-zu-einer-aufgabe-passen)
+- [`skill` — die Anleitung eines Skills, und was dazugehört](#skill--die-anleitung-eines-skills-und-was-dazugehört)
+- [`skill_registry` — welche Skills eine Sammlung freigegeben hat](#skill_registry--welche-skills-eine-sammlung-freigegeben-hat)
+- [`pick_skill` — suchen, reihen, laden](#pick_skill--suchen-reihen-laden)
+- [`update_material` — ändern, was schon da ist](#update_material--ändern-was-schon-da-ist)
+- [`accept_suggestion` — einen Vorschlag anwenden, zurücklesen, dann markieren](#accept_suggestion--einen-vorschlag-anwenden-zurücklesen-dann-markieren)
+- [`add_material` — anlegen, mit sauberen Metadaten](#add_material--anlegen-mit-sauberen-metadaten)
+- [`build_collection` — Sammlung anlegen und füllen](#build_collection--sammlung-anlegen-und-füllen)
+- [`delete` — löschen und benennen, was verschwand](#delete--löschen-und-benennen-was-verschwand)
+- [Wann welche Ebene](#wann-welche-ebene)
+
 ## Was jeder Ablauf kostet, auf einen Blick
 
 Gemessen mit einem protokollierenden Transport am 27.08.2026. „Anfragen" ist

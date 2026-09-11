@@ -271,16 +271,29 @@ def test_die_kennzeichenwache_sieht_ueberhaupt_etwas():
             "complete", "scan_truncated", "contexts_truncated"} <= gefunden, gefunden
 
 
-# --- Das Inhaltsverzeichnis der README -------------------------------------
+# --- Die Inhaltsverzeichnisse ----------------------------------------------
 #
 # Ein Verzeichnis altert leise: es bleibt lesbar, plausibel und vollstaendig
 # **aussehend**, waehrend ein Kapitel dazukommt, das niemand mehr findet.
 # Gemessen am 09.09.2026 fehlten ``Releasing`` und ``Security`` -- beide kamen
 # mit Audit OPS-3 dazu, in beiden Sprachfassungen.
+#
+# REFERENCE und FLOWS seit dem 11.09.2026: sie liegen auch im Skill-Ordner,
+# und ein Modell liest eine lange Datei oft nur an. Ein Verzeichnis oben zeigt
+# ihm den ganzen Umfang schon im ersten Stueck (Anthropic, "Skill authoring
+# best practices": ab 100 Zeilen).
 
 README = {
     "README.md": WURZEL / "README.md",
     "README.de.md": WURZEL / "README.de.md",
+}
+
+VERZEICHNISSE = {
+    **README,
+    "REFERENCE.md": WURZEL / "docs" / "REFERENCE.md",
+    "REFERENCE.de.md": WURZEL / "docs" / "REFERENCE.de.md",
+    "FLOWS.md": WURZEL / "docs" / "FLOWS.md",
+    "FLOWS.de.md": WURZEL / "docs" / "FLOWS.de.md",
 }
 
 #: Die Ankerregel von GitHub: klein, Satzzeichen und Backticks fallen weg,
@@ -290,6 +303,20 @@ README = {
 def anker(titel: str) -> str:
     ohne = re.sub(r"[^\w\s-]", "", titel.strip().lower(), flags=re.UNICODE)
     return ohne.replace(" ", "-")
+
+
+def anker_der_ueberschriften(ueber: list[str]) -> list[str]:
+    """Die Anker in Reihenfolge -- eine wiederholte Ueberschrift bekommt, wie
+    bei GitHub, ``-1``, ``-2``. REFERENCE hat ``Curated pages`` zweimal: als
+    Kapitel und als Abschnitt unter den Flows."""
+    gesehen: dict[str, int] = {}
+    gefunden = []
+    for titel in ueber:
+        basis = anker(titel)
+        n = gesehen.get(basis, 0)
+        gesehen[basis] = n + 1
+        gefunden.append(basis if n == 0 else f"{basis}-{n}")
+    return gefunden
 
 
 def _gliederung(text: str) -> tuple[list[str], list[tuple[str, str]]]:
@@ -305,22 +332,22 @@ def _gliederung(text: str) -> tuple[list[str], list[tuple[str, str]]]:
     return ueber, verweise
 
 
-@pytest.mark.parametrize("name", sorted(README))
+@pytest.mark.parametrize("name", sorted(VERZEICHNISSE))
 def test_das_inhaltsverzeichnis_fuehrt_jedes_kapitel(name):
     """Ein Kapitel, das nicht im Verzeichnis steht, findet nur, wer scrollt."""
-    ueber, verweise = _gliederung(README[name].read_text(encoding="utf-8"))
+    ueber, verweise = _gliederung(VERZEICHNISSE[name].read_text(encoding="utf-8"))
     genannt = {a for _, a in verweise}
     # Das Verzeichnis selbst fuehrt sich nicht auf.
-    fehlend = [t for t in ueber
-               if anker(t) not in genannt and t not in ("Contents", "Inhalt")]
+    fehlend = [t for t, a in zip(ueber, anker_der_ueberschriften(ueber), strict=True)
+               if a not in genannt and t not in ("Contents", "Inhalt")]
     assert not fehlend, f"{name}: nicht im Verzeichnis: {fehlend}"
 
 
-@pytest.mark.parametrize("name", sorted(README))
+@pytest.mark.parametrize("name", sorted(VERZEICHNISSE))
 def test_kein_eintrag_des_verzeichnisses_zeigt_ins_leere(name):
     """Und die Gegenrichtung: ein Verweis auf ein Kapitel, das es nicht gibt."""
-    ueber, verweise = _gliederung(README[name].read_text(encoding="utf-8"))
-    vorhanden = {anker(t) for t in ueber}
+    ueber, verweise = _gliederung(VERZEICHNISSE[name].read_text(encoding="utf-8"))
+    vorhanden = set(anker_der_ueberschriften(ueber))
     tot = [f"{t} -> #{a}" for t, a in verweise if a not in vorhanden]
     assert not tot, f"{name}: Verweis ins Leere: {tot}"
 
@@ -331,6 +358,13 @@ def test_die_ankerregel_ist_die_von_github():
     assert anker("Writing \u2014 with a read-back check") == "writing--with-a-read-back-check"
     assert anker("`cm:name` is a key") == "cmname-is-a-key"
     assert anker("Rebuilding the generated layer") == "rebuilding-the-generated-layer"
+
+
+def test_eine_wiederholte_ueberschrift_bekommt_ihren_zaehler():
+    """Ohne den Zaehler zeigte der zweite Eintrag auf das erste Kapitel -- und
+    die Wache hielte ``#curated-pages-1`` fuer einen toten Verweis."""
+    assert anker_der_ueberschriften(["Curated pages", "Flows", "Curated pages"]) == [
+        "curated-pages", "flows", "curated-pages-1"]
 
 
 # --- Beide Sprachfassungen, dasselbe Geruest -------------------------------

@@ -29,6 +29,42 @@ blocking `repo.flows.…` on `Repository`.
 
 ---
 
+## Contents
+
+- [What each flow costs, at a glance](#what-each-flow-costs-at-a-glance)
+- [Two rules that run through every flow](#two-rules-that-run-through-every-flow)
+- [`search` — find material](#search--find-material)
+  - [Duplicate hits are folded together](#duplicate-hits-are-folded-together)
+  - [`rerank=True` — rescue a naturally phrased query](#reranktrue--rescue-a-naturally-phrased-query)
+- [`search_all` — material *and* collections at once](#search_all--material-and-collections-at-once)
+- [`vocabulary` — what values a field accepts](#vocabulary--what-values-a-field-accepts)
+- [`describe` — everything about one node](#describe--everything-about-one-node)
+- [`text` — the full text of one material, and why there is none](#text--the-full-text-of-one-material-and-why-there-is-none)
+- [`child_objects` — further documents of one node](#child_objects--further-documents-of-one-node)
+  - [Writing child objects](#writing-child-objects)
+- [`relations` — what a node is linked to](#relations--what-a-node-is-linked-to)
+  - [Writing relations](#writing-relations)
+- [`placement` — where a node sits, and who curated it](#placement--where-a-node-sits-and-who-curated-it)
+- [`find_collections` — search collections](#find_collections--search-collections)
+- [`collection_contents` — open a collection](#collection_contents--open-a-collection)
+- [`describe_many` — several nodes at once](#describe_many--several-nodes-at-once)
+- [`related` — more material like this one](#related--more-material-like-this-one)
+- [`browse_tree` — the collections under one collection](#browse_tree--the-collections-under-one-collection)
+- [`search_in_collection` — find something inside one collection](#search_in_collection--find-something-inside-one-collection)
+- [`collection_stats` — how much is in there, and what of](#collection_stats--how-much-is-in-there-and-what-of)
+- [`page` — the curated page a collection renders](#page--the-curated-page-a-collection-renders)
+- [`find_pages` — which collections carry one](#find_pages--which-collections-carry-one)
+- [`find_skills` — which skills fit a task](#find_skills--which-skills-fit-a-task)
+- [`skill` — one skill's instruction, and what belongs to it](#skill--one-skills-instruction-and-what-belongs-to-it)
+- [`skill_registry` — which skills one collection approved](#skill_registry--which-skills-one-collection-approved)
+- [`pick_skill` — search, rank, load](#pick_skill--search-rank-load)
+- [`update_material` — change what is already there](#update_material--change-what-is-already-there)
+- [`accept_suggestion` — apply a proposal, read it back, then mark it](#accept_suggestion--apply-a-proposal-read-it-back-then-mark-it)
+- [`add_material` — create with proper metadata](#add_material--create-with-proper-metadata)
+- [`build_collection` — create a collection and fill it](#build_collection--create-a-collection-and-fill-it)
+- [`delete` — remove and say what went](#delete--remove-and-say-what-went)
+- [When to use which level](#when-to-use-which-level)
+
 ## What each flow costs, at a glance
 
 Measured with a request-logging transport on 2026-08-27. "Requests" is what the
