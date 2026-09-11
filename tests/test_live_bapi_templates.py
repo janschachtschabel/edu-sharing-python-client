@@ -17,6 +17,8 @@ Home-Verzeichnis gearbeitet, der am Ende endgueltig geloescht wird. Zwei Tests
 muessen ihren Knoten dafuer oeffnen, weil das Gateway mit seinem **eigenen**
 Konto liest (gemessen: privat -> 403): ``suggest`` veroeffentlicht ihn, ``qas``
 gibt dem Konto des Gateways zusaetzlich Write. Beides nur am Wegwerf-Knoten.
+Welches Konto das ist, sagt das Gateway selbst -- als ``createdBy`` eines
+Vorschlags, den es gerade angelegt hat --, statt dass es hier geraten wird.
 """
 
 import os
@@ -39,10 +41,6 @@ MODELL = "topic_page_ai_chat_completion"
 TEXT = [ANBIETER, MODELL, "topic_page_ai_text_widget"]
 #: Liest ``var(ccm:taxonid_DISPLAYNAME)`` -- das, was eine limited-Wahl nicht fuellt.
 BESCHREIBUNG = [ANBIETER, MODELL, "topic_page_ai_topic_header_description"]
-
-#: Das Konto, unter dem das Gateway schreibt -- ``createdBy`` der Vorschlaege,
-#: gemessen auf Staging am 11.09.2026.
-GATEWAY_KONTO = "admin@B-API"
 
 pytestmark = pytest.mark.skipif(
     not (os.environ.get("B_API_KEY") and os.environ.get("B_API_BASE_URL")
@@ -226,9 +224,16 @@ async def test_suggest_legt_an_was_node_suggestions_liest(
 
 @pytest.mark.write
 @_angemeldet
-async def test_qas_braucht_write_und_liefert_fragen_mit_antworten(repo, vorlagen, ordner):
+async def test_qas_braucht_write_und_liefert_fragen_mit_antworten(
+        repo, vorlagen, konfigurationen, ordner):
     """Veroeffentlicht genuegte nicht (403 *requires permission(s): Write*);
-    mit Write fuer das Konto des Gateways kamen die Paare -- nach rund 50 s."""
+    mit Write fuer das Konto des Gateways kamen die Paare -- nach rund 50 s.
+
+    Das Konto steht nicht hier im Test (Review 11.09.2026): ein fest
+    eingetragenes ``admin@B-API`` bekaeme an einem anderen Gateway ein Recht,
+    das dort niemandem gehoert -- ``grant`` legt auch einen unbekannten Namen
+    ohne Widerspruch an --, und der Test schluege fehl, statt es zu sagen."""
+    _braucht(konfigurationen, ["suggestion_ai"])
     knoten = await repo.create_node(ordner.id, name="photosynthese.txt",
                                     title="Photosynthese")
     await knoten.content.upload(
@@ -239,7 +244,11 @@ async def test_qas_braucht_write_und_liefert_fragen_mit_antworten(repo, vorlagen
     with pytest.raises(PermissionDeniedError, match="Write"):
         await vorlagen.qas([knoten.id])
 
-    await knoten.permissions.grant(GATEWAY_KONTO, "Write")
+    [vorschlag, *_] = await vorlagen.suggest(
+        ["suggestion_ai"], {"cclom:general_keyword": "default"},
+        context_node_id=knoten.id, variables={"cclom:title": "Photosynthese"})
+    assert vorschlag.author, "das Gateway nennt sein Konto nicht"
+    await knoten.permissions.grant(vorschlag.author, "Write")
     paare = await vorlagen.qas([knoten.id])
     assert paare, "keine Frage-Antwort-Paare"
     assert all(p.get("question") and p.get("answer") for p in paare)
