@@ -4,12 +4,14 @@
 per-family quirks, a measured fallback. These do not: they hand a body to
 ``/api/v1/llm/{provider}/{route}`` and shape what comes back.
 
-**The specification does not describe this surface.** ``/v3/api-docs`` covers
-the hand-written controllers only; it knows neither ``/embeddings`` nor
-``/chat/completions``, which this client has called successfully since the
-start. The list below was measured on 2026-08-28 instead, by posting a
-deliberately empty body to each candidate -- every route rejects that before
-doing any work, and the status code says which layer answered:
+**The specification cannot say what is forwarded.** ``/v3/api-docs`` itself
+covers only the gateway's own controllers. The OpenAI routes are described per
+provider, in the groups ``/v3/api-docs/openai`` and
+``/v3/api-docs/academiccloud`` -- but as the OpenAI surface, not as a list of
+what works: the AcademicCloud's group lists ``/embeddings``, which answers 404
+there (measured 2026-09-11). The list below was measured on 2026-08-28 instead,
+by posting a deliberately empty body to each candidate -- every route rejects
+that before doing any work, and the status code says which layer answered:
 
 ===================================  ==========================================
 403 (Spring Security)                the route is **not** on the gateway's list

@@ -365,10 +365,13 @@ dahintersteht, und für diese gibt es keine. **Der Anbieter entscheidet, was
 möglich ist:** gemessen am 28.08.2026 führt `academiccloud` 16 Modelle, keines
 davon für Einbettung oder Moderation, `openai` dagegen 132 einschließlich beider.
 
-Die Endpunktliste ist gemessen, nicht gelesen: `/v3/api-docs` beschreibt nur die
-handgeschriebenen Controller und kennt weder `/embeddings` noch
-`/chat/completions`. Ein leerer Rumpf an jede Kandidatenroute trennt sie — `403`
-heißt, das Gateway reicht die Route gar nicht durch, alles andere heißt doch.
+Die Endpunktliste ist gemessen, nicht gelesen. `/v3/api-docs` selbst beschreibt
+nur die eigenen Controller des Gateways; die OpenAI-Routen stehen in Gruppen je
+Anbieter (`/v3/api-docs/openai`, `/v3/api-docs/academiccloud`), und die
+beschreiben die OpenAI-Oberfläche statt dessen, was geht — die der AcademicCloud
+nennt `/embeddings`, das dort 404 antwortet. Ein leerer Rumpf an jede
+Kandidatenroute trennt sie — `403` heißt, das Gateway reicht die Route gar nicht
+durch, alles andere heißt doch.
 Auf der Liste: `chat/completions`, `completions`, `embeddings`, `moderations`,
 `responses`, `images/generations`, `images/edits`, `audio/*`, `files`,
 `batches`, `fine_tuning/jobs`, `vector_stores`. **Nicht** darauf: `rerank`.

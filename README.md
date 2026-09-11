@@ -360,13 +360,16 @@ it, and there is none for these. **The provider decides what is possible:**
 measured 2026-08-28, `academiccloud` lists 16 models and none of them embed or
 moderate, while `openai` lists 132 including both.
 
-The endpoint list was measured, not read: `/v3/api-docs` describes only the
-hand-written controllers and knows neither `/embeddings` nor `/chat/completions`.
-Posting an empty body to each candidate separates them — `403` means the gateway
-does not forward the route at all, anything else means it does. On that list:
-`chat/completions`, `completions`, `embeddings`, `moderations`, `responses`,
-`images/generations`, `images/edits`, `audio/*`, `files`, `batches`,
-`fine_tuning/jobs`, `vector_stores`. **Not** on it: `rerank`.
+The endpoint list was measured, not read. `/v3/api-docs` itself describes only
+the gateway's own controllers; the OpenAI routes are in per-provider groups
+(`/v3/api-docs/openai`, `/v3/api-docs/academiccloud`), which describe the OpenAI
+surface rather than what works — the AcademicCloud's lists `/embeddings`, which
+answers 404 there. Posting an empty body to each candidate separates them —
+`403` means the gateway does not forward the route at all, anything else means
+it does. On that list: `chat/completions`, `completions`, `embeddings`,
+`moderations`, `responses`, `images/generations`, `images/edits`, `audio/*`,
+`files`, `batches`, `fine_tuning/jobs`, `vector_stores`. **Not** on it:
+`rerank`.
 
 Try it: `python docs/examples/04_agent_blocks.py`
 

@@ -1,11 +1,12 @@
 """Die OpenAI-vertraeglichen Routen, die das Gateway durchreicht.
 
 Gemessen am 28.08.2026 gegen b-api.staging.openeduhub.net. Die Spezifikation
-unter ``/v3/api-docs`` taugt dafuer **nicht**: sie beschreibt nur die
-handgeschriebenen Controller und kennt weder ``/embeddings`` noch
-``/moderations`` -- auch nicht ``/chat/completions``, das dieser Client seit
-jeher erfolgreich ruft. Ermittelt wurde die Liste stattdessen mit absichtlich
-leeren Rumpfen, an denen jede Route vor der Arbeit scheitert:
+taugt dafuer **nicht**: ``/v3/api-docs`` selbst beschreibt nur die eigenen
+Controller des Gateways, und die Gruppen je Anbieter (``/v3/api-docs/openai``,
+``.../academiccloud``) beschreiben die OpenAI-Oberflaeche, nicht was
+durchgereicht wird -- die der AcademicCloud nennt ``/embeddings``, das dort 404
+antwortet (gemessen 11.09.2026). Ermittelt wurde die Liste stattdessen mit
+absichtlich leeren Rumpfen, an denen jede Route vor der Arbeit scheitert:
 
     403  Spring Security -- die Route steht NICHT auf der Positivliste
     400  die Route greift und bemaengelt die Anfrage

@@ -9,12 +9,16 @@ Measured against staging:
 * **No quota headers and no ``retry-after``.** A client cannot see its
   remaining allowance and notices a limit only when it fails; exponential
   backoff is all that is possible.
-* **The OpenAPI document is at ``/v3/api-docs``, and it is incomplete.**
-  ``/openapi.json``, ``/docs`` and ``/health`` serve the Angular frontend;
-  ``/v3/api-docs`` answers with 68 kB of Springdoc output. It describes the
-  hand-written controllers only and knows neither ``/api/v1/llm/{provider}/models``
-  nor ``/chat/completions`` -- the two routes this client has always used.
-  Measured 2026-08-28; see ``passthrough`` for how the real list was found.
+* **The OpenAPI document comes in groups.** ``/openapi.json``, ``/docs`` and
+  ``/health`` serve the Angular frontend. ``/v3/api-docs`` itself describes
+  only the gateway's own controllers -- administration, ``/api/v1/llm/provider``
+  and the template mode (``templates``) -- and not the routes this client uses.
+  Those are in the provider groups that ``/v3/api-docs/swagger-config`` lists:
+  ``/v3/api-docs/openai`` and ``/v3/api-docs/academiccloud``, 182 paths each,
+  ``/models`` and ``/chat/completions`` among them. A group describes the
+  OpenAI surface, not what a provider serves -- the AcademicCloud's lists
+  ``/embeddings``, which answers 404 there. Measured 2026-09-11; see
+  ``passthrough`` for how the forwarded routes were found.
 
 A separate HTTP path rather than the edu-sharing ``Transport``: that one's
 credential boundary and error mapping are cut for a repository (basic auth,
