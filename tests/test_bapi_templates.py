@@ -123,8 +123,8 @@ async def test_ohne_variablen_geht_ein_leeres_objekt_mit():
 
 
 async def test_ohne_angabe_ist_der_nutzer_guest():
-    """Der Server verlangt das Feld fuer ``user(...)``-Platzhalter; gemessen
-    nutzt keine der 22 Konfigurationen einen, und ``guest`` hat funktioniert."""
+    """Der Server verlangt das Feld fuer Nutzer-Platzhalter; gemessen nutzt
+    keine der 22 Konfigurationen einen, und ``guest`` hat funktioniert."""
     aufrufe = []
     async with _vorlagen(_antwortet(COMPLETION), aufrufe) as vorlagen:
         await vorlagen.chat(["a"], context_node_id=KNOTEN)

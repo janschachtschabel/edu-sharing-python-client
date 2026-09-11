@@ -19,6 +19,16 @@ cannot answer that question.
 
     vectors = await llm.embeddings(["a", "b"], model="text-embedding-3-small",
                                    provider="openai")
+
+That is the gateway's proxy mode: the caller sends the prompt. The same
+gateway also keeps prompts on the server, in the metadata set -- the template
+mode, ``BapiTemplates`` in ``templates``. It needs no ``BildungsAPI`` and
+changes nothing about it; same key, same address:
+
+    async with BapiTemplates.from_env() as templates:   # + EDU_SHARING_METADATASET
+        text = await templates.chat(
+            ["topic_page_ai_default", "topic_page_ai_chat_completion",
+             "topic_page_ai_text_widget"], context_node_id=collection_id)
 """
 
 from .body import build_body, read_answer

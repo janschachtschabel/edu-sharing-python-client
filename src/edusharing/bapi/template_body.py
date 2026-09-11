@@ -17,9 +17,9 @@ from ..errors import EduSharingError, ValidationError
 
 __all__ = ["DEFAULT_USER", "Config", "NodeConfig", "Values"]
 
-#: The placeholders ``user(...)`` read this account. The server insists on the
-#: field; measured, none of the 22 configurations uses it, and ``guest``
-#: carries no personal data.
+#: The account user placeholders would read -- the spec spells them
+#: ``{{user.<property>}}``, and none of the 22 measured configurations has one.
+#: The server insists on the field anyway; ``guest`` carries no personal data.
 DEFAULT_USER = "guest"
 
 

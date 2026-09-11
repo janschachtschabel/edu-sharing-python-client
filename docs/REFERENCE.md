@@ -1166,10 +1166,11 @@ Measured against staging on 2026-09-11:
 five, and checks them first: an empty list of configurations or a missing
 `context_node_id` is a `ValidationError` before anything is sent.
 
-**A placeholder takes your value first.** The configurations read
+**A placeholder takes your value first.** The topic-page configurations read
 `{{var(X)|node(X)|-}}`: the value you pass, else the context node's property,
 else nothing — decided per placeholder. That is the second call above: the same
-node, another topic.
+node, another topic. Others read only one of the two, `{{var(X)|-}}` or
+`{{node(X)|-}}`.
 
 **A list composes.** Each later configuration overrides the earlier. The chain
 above takes the provider from the first, the model from the second and the

@@ -1189,10 +1189,11 @@ Gemessen gegen Staging am 11.09.2026:
 und prüft sie vorher: eine leere Liste von Konfigurationen oder eine fehlende
 `context_node_id` ist ein `ValidationError`, bevor irgendetwas gesendet wird.
 
-**Ein Platzhalter nimmt zuerst Ihren Wert.** Die Konfigurationen lesen
-`{{var(X)|node(X)|-}}`: den übergebenen Wert, sonst die Eigenschaft des
-Kontext-Knotens, sonst nichts — entschieden je Platzhalter. Das ist der zweite
-Aufruf oben: derselbe Knoten, ein anderes Thema.
+**Ein Platzhalter nimmt zuerst Ihren Wert.** Die Konfigurationen der
+Themenseiten lesen `{{var(X)|node(X)|-}}`: den übergebenen Wert, sonst die
+Eigenschaft des Kontext-Knotens, sonst nichts — entschieden je Platzhalter. Das
+ist der zweite Aufruf oben: derselbe Knoten, ein anderes Thema. Andere lesen nur
+eines von beiden, `{{var(X)|-}}` oder `{{node(X)|-}}`.
 
 **Eine Liste setzt sich zusammen.** Jede spätere Konfiguration überschreibt die
 frühere. Die Kette oben nimmt den Anbieter aus der ersten, das Modell aus der

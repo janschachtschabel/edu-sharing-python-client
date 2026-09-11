@@ -218,8 +218,9 @@ class BapiTemplates:
             context_node_id: the node ``node(...)`` placeholders read. The
                 gateway reads it with its own account, so it must be readable
                 by that account -- measured, a private node answers 403.
-            user: the account ``user(...)`` placeholders read. It opens
-                nothing: the private node answered 403 with its owner here too.
+            user: the account user placeholders read -- none of the measured
+                configurations has one. It opens nothing: the private node
+                answered 403 with its owner here too.
             variables: values for ``var(...)`` placeholders. **Free text goes
                 into the prompt as it stands** -- for input you do not trust,
                 use ``chat_limited``.
