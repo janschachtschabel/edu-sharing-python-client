@@ -126,7 +126,18 @@ Nebenbei gemessen: `text/markdown` kommt als `text/x-web-markdown` zurück.
 `test_docs_code.py` (Existenz, 426) und `test_docs_signatures.py` (Bindung,
 292) zerlegt — wortgleich verschoben, 2463 Tests grün wie vorher.
 
+**Weitergereichtes `**kwargs`** (aus dem Plan zum Skill-Umbau offen geblieben):
+Die Signaturwache löst die Weitergabe jetzt eine Ebene tief aus dem Quelltext
+auf und prüft die Schlüsselwörter gegen das Ziel — sieben Abläufe sind so
+beurteilbar, die übrigen schreiben ihre Parameter selbst aus. Wo das Ziel
+selbst weiterreicht, schweigt sie, statt zu raten: gemessen hätte sie sonst
+`find_skills(subject=…)` fälschlich gemeldet.
+
 ### Offen
 
 - Befund 23 (siehe oben).
 - Der Upload der ZIP zu claude.ai bleibt ungeprüft — Sache des Nutzers.
+- Blockierende Fassaden, die zwei Ebenen tief weiterreichen
+  (`Repository.children` → `SyncNodes.children` → `Nodes.children`), löst die
+  Wache nicht auf; ihre Parameter stehen aber in der Referenz und `bind` prüft
+  die asynchrone Seite.

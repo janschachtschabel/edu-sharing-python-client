@@ -18,7 +18,9 @@ Die Wurzeln, die Blockzerlegung und die Frage nach der Existenz stehen in
 """
 
 import ast
+import functools
 import inspect
+import textwrap
 
 import httpx
 import pytest
@@ -126,14 +128,79 @@ def _kurznamen(anzeige: str, klasse: type | None, name: str, sig: inspect.Signat
             for kw in k.keywords if kw.arg is not None and kw.arg not in erlaubt]
 
 
+@functools.cache
+def _weitergereicht(funktion: object) -> object | None:
+    """Die Funktion, an die eine Fassade ihr ``**kwargs`` weitergibt.
+
+    Eine Ebene tief und aus dem Quelltext gelesen, statt gepflegt:
+    ``return await modul.name(self._repo, …, **kwargs)`` -- so sind alle
+    Ablaeufe gebaut. Der Modulname ist der **Alias** im Importblock
+    (``collection_search``), deshalb wird er im Modul der Fassade
+    nachgeschlagen und nicht als Pfad geraten.
+
+    ``None``, wo nichts weitergereicht wird oder das Ziel nicht so steht --
+    etwa ``self.nodes.children(...)`` in einer blockierenden Fassade, die zwei
+    Ebenen tief zeigt. Dort bleibt die Luecke.
+    """
+    try:
+        quelle = textwrap.dedent(inspect.getsource(funktion))
+    except (OSError, TypeError):
+        return None
+    modul = inspect.getmodule(funktion)
+    for knoten in ast.walk(ast.parse(quelle)):
+        if not isinstance(knoten, ast.Return) or knoten.value is None:
+            continue
+        aufruf = knoten.value.value if isinstance(knoten.value, ast.Await) else knoten.value
+        if not isinstance(aufruf, ast.Call):
+            continue
+        if not any(kw.arg is None for kw in aufruf.keywords):
+            continue             # ohne ``**kwargs`` ist es keine Weitergabe
+        teile = _kette(aufruf.func)
+        if not teile or len(teile) != 2:
+            continue
+        ziel = getattr(getattr(modul, teile[0], None), teile[1], None)
+        if callable(ziel):
+            return ziel
+    return None
+
+
+def _weitergereichte_namen(anzeige: str, klasse: type | None, name: str,
+                           sig: inspect.Signature, funktion: object,
+                           k: ast.Call) -> list[str]:
+    """Ein Schluesselwort, das die Fassade nur durchreicht und das Ziel nicht kennt.
+
+    ``bind`` nimmt es an, weil ``**kwargs`` alles nimmt. Wo eine
+    Kurznamen-Tabelle gilt, prueft ``_kurznamen`` schon gegen sie **und** gegen
+    das Ziel; hier geht es um die uebrigen Ablaeufe.
+    """
+    if (klasse, name) in _KURZNAMEN or name in _FREIE:
+        return []
+    if not any(p.kind is p.VAR_KEYWORD for p in sig.parameters.values()):
+        return []
+    ziel = _weitergereicht(funktion)
+    if ziel is None:
+        return []
+    ziel_sig = inspect.signature(ziel)
+    if any(p.kind is p.VAR_KEYWORD for p in ziel_sig.parameters.values()):
+        # Das Ziel reicht selbst weiter -- eine Ebene tiefer waere die Antwort,
+        # und hier zu urteilen hiesse raten: ``find_skills`` nimmt so die
+        # Kurznamen der Suche entgegen (gemessen 12.09.2026, sonst faelschlich
+        # ``subject=`` gemeldet).
+        return []
+    erlaubt = _benannte(sig) | _benannte(ziel_sig)
+    return [f"{anzeige}(...): {kw.arg}= kennt weder der Aufruf noch "
+            f"{ziel.__name__}, an das er weiterreicht"
+            for kw in k.keywords if kw.arg is not None and kw.arg not in erlaubt]
+
+
 def _falsch_gebundene_aufrufe(quelle: str, baum: ast.AST) -> list[str]:
     """Jeder ``wurzel.a.b(...)``, dessen Argumente die echte Signatur nicht nimmt.
 
     ``Signature.bind`` mit Platzhaltern: zu viele Positionen, ein Name, den es
     nicht gibt, ein fehlender Pflichtparameter. Was ``**aliases`` schluckt,
     bindet immer -- dort prueft ``_kurznamen`` gegen die Tabelle; was
-    ``*keywords`` schluckt, ``_einzelwerte``. Anderes ``**kwargs``, das
-    weitergereicht wird, prueft das nicht. ``f(...)`` ist in einem Dokument ein
+    ``*keywords`` schluckt, ``_einzelwerte``; was eine Fassade nur
+    weiterreicht, ``_weitergereichte_namen`` gegen das Ziel. ``f(...)`` ist in einem Dokument ein
     Platzhalter fuer ausgelassene Argumente, kein Aufruf mit ``Ellipsis``; er
     bleibt aussen vor, ebenso ``*args`` und ``**kw``, deren Inhalt der Block
     nicht zeigt (dort nur ``bind_partial``).
@@ -169,6 +236,7 @@ def _falsch_gebundene_aufrufe(quelle: str, baum: ast.AST) -> list[str]:
             continue
         falsch.extend(_einzelwerte(anzeige, sig, k))
         falsch.extend(_kurznamen(anzeige, klasse, name, sig, k))
+        falsch.extend(_weitergereichte_namen(anzeige, klasse, name, sig, funktion, k))
     return falsch
 
 
@@ -212,6 +280,48 @@ def test_die_signaturwache_kennt_kurznamen_und_einzelwerte():
     assert len(befunde) == len(erwartet), befunde
     for befund, stueck in zip(befunde, erwartet, strict=True):
         assert stueck in befund, (stueck, befund)
+
+
+def test_die_wache_folgt_weitergereichtem_kwargs():
+    """Ein Ablauf nimmt ``**kwargs`` und reicht alles weiter -- ``bind`` sagt
+    dazu nichts.
+
+    ``Flows.page(self, collection_id, **kwargs)`` schluckt jeden Namen;
+    ``pages.page`` dahinter kennt ihn nicht. Gemessen am 12.09.2026 band
+    ``repo.flows.page("c", widgets_aufloesen=True)`` klaglos durch -- genau
+    die Luecke, die der Docstring von ``_falsch_gebundene_aufrufe`` als offen
+    nannte.
+    """
+    gut = ('repo.flows.page("c", resolve_widgets=True, max_widgets=8)\n'
+           'repo.flows.text("n", extraction=service, max_chars=20000)\n'
+           'repo.flows.browse_tree("c", depth=2, max_collections=30)\n'
+           'repo.flows.delete("n", recycle=False)\n'
+           # Das Ziel reicht selbst weiter: dort schweigt die Wache, statt zu raten.
+           'repo.flows.find_skills("x", subject="Physik")\n')
+    schlecht = ('repo.flows.page("c", widgets_aufloesen=True)\n'
+                'repo.flows.text("n", extraktion=service)\n'
+                'repo.flows.browse_tree("c", tiefe=2)\n')
+    assert _falsch_gebundene_aufrufe(gut, ast.parse(gut)) == []
+    befunde = _falsch_gebundene_aufrufe(schlecht, ast.parse(schlecht))
+    erwartet = ["widgets_aufloesen", "extraktion", "tiefe"]
+    assert len(befunde) == len(erwartet), befunde
+    for befund, stueck in zip(befunde, erwartet, strict=True):
+        assert stueck in befund, (stueck, befund)
+
+    # Und sie greift nicht ins Leere. Gemessen am 12.09.2026 sind es sieben
+    # Ablaeufe, deren Ziel aufgeloest ist und abschliesst: browse_tree,
+    # collection_stats, find_pages, page, related, search_in_collection, text.
+    # Die uebrigen schreiben ihre Parameter selbst aus -- die prueft ``bind``
+    # ohnehin. Aendert sich die Bauform der Weitergabe, faellt es hier auf und
+    # nicht erst, wenn ein falscher Name durchrutscht.
+    urteilsfaehig = [
+        name for name, fn in vars(Flows).items()
+        if not name.startswith("_") and inspect.isfunction(fn)
+        and (ziel := _weitergereicht(fn)) is not None
+        and not any(p.kind is p.VAR_KEYWORD
+                    for p in inspect.signature(ziel).parameters.values())
+    ]
+    assert len(urteilsfaehig) >= 7, urteilsfaehig
 
 
 def test_die_wache_liest_ablaeufe_auch_am_blockierenden_repository():

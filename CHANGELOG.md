@@ -94,6 +94,15 @@ and in [`docs/audits/`](docs/audits/).
   a result that carries asynchronous methods, and it covers `repo.nodes`,
   `collections`, `searcher` and `vocab`, which it had never called. Found by
   the skill review of 2026-09-11.
+- **The signature guard follows `**kwargs` one level on.** A flow that takes
+  `**kwargs` and passes everything on used to bind anything:
+  `repo.flows.page("c", widgets_aufloesen=True)` was accepted although
+  `pages.page` has no such parameter (measured 2026-09-12). The guard now
+  reads the forwarding out of the source — `return await module.name(…,
+  **kwargs)` — and checks the keywords against the target. Where the target
+  itself forwards, it stays silent instead of guessing: that is how
+  `find_skills` takes the search's short names. Seven flows are judged this
+  way; the rest spell their parameters out and `bind` covers them.
 - **What the live run of the writing tasks found.** `repo.nodes.wrap(data)` was
   described as "a record from any response" — handed the whole response body it
   builds a node with an empty `id`, and only the *next* call says so
