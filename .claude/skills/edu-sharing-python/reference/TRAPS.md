@@ -368,9 +368,11 @@ shorter — they take one call where the layer takes two:
 | `repo.searcher.search` | `repo.search()` |
 | `repo.vocab.resolve` / `.resolve_all` | `repo.resolve()` / `repo.resolve_all()` |
 
-A guard keeps this true: `test_jede_oeffentliche_flaeche_hat_ein_blockierendes_spiegelbild`
-walks every public surface of the asynchronous connection and refuses a
-coroutine on the blocking one.
+Two guards keep this true. One walks every public surface of the asynchronous
+connection and refuses a coroutine on the blocking one. The other calls every
+method of those surfaces and refuses an answer that carries asynchronous methods
+— `repo.nodes.wrap(data)` handed out the asynchronous `Node` until 2026-09-11,
+and an `update()` on it was a coroutine that never ran.
 
 ---
 

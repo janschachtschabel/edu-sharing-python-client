@@ -56,7 +56,10 @@ Or explicitly: `Repository(url, auth=(user, password), metadataset="mds_oeh")`.
 Every `from_env()` raises `EduSharingError` naming the variable that is missing —
 nothing falls back to a guessed address. Without credentials you are the guest
 and see public material only. The metadata set (`mds_oeh` on WLO) decides which
-fields and filters exist.
+fields and filters exist. **Set it.** Without `EDU_SHARING_METADATASET` and
+without `metadataset=`, `-default-` applies, and on WLO that is a different
+repository: 2826 hits for "Physik" against 18006 with `mds_oeh`, measured
+2026-09-11 — and some criteria it refuses outright.
 
 ## 2. How the library is built
 
@@ -156,7 +159,12 @@ info["text"] or info["reason"]                   # no text? reason says why
 ```
 
 `node.content.download(max_bytes=…)` returns bytes for **public** nodes only (a
-private one answers 403 — use `text()`). A link-only record has no file:
+private one answers 403 — use `text()`). **`text()` is empty for Markdown and
+JSON**, measured again 2026-09-11: the file is not empty, the repository just
+extracts nothing from those two. Their bytes come from `download()`, so a
+**private** `.md` or `.json` cannot be read at all — publish it first;
+`repo.flows.text` says `source: "none"`, `reason: "repository_failed"` for it
+and `source: "download"` once it is public. A link-only record has no file:
 `repo.flows.text` then tries the linked page through `TextExtraction` if you
 pass `extraction=`. An attachment: `node.children.add(data, filename=…, mimetype=…)`.
 

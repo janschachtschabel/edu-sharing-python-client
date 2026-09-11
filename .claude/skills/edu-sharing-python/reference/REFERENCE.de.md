@@ -101,7 +101,7 @@ Ereignisschleife in einem Thread für Sie.
 |---|---|
 | `edusharing.__version__` | `str` — `"0.2.0"`, aus den Paketdaten gelesen |
 | `Repository(url, auth=(user, password))` | die Verbindung |
-| `Repository.from_env()` | liest `EDU_SHARING_URL`, `EDU_SHARING_USER`, `EDU_SHARING_PASSWORD`, optional `EDU_SHARING_METADATASET` |
+| `Repository.from_env()` | liest `EDU_SHARING_URL`, `EDU_SHARING_USER`, `EDU_SHARING_PASSWORD`, optional `EDU_SHARING_METADATASET` — ohne diese gilt `-default-`, auf WLO ein anderes Repositorium: 2826 Treffer für „Physik" gegen 18006 mit `mds_oeh` (gemessen 11.09.2026), und manche Kriterien lehnt es rundheraus ab |
 | `Repository("https://benutzer:passwort@host")` | abgewiesen — eine Adresse steht im Log; Zugangsdaten gehören in `auth=` oder die Umgebung |
 | `AsyncRepository(url, ...)` | dasselbe, `async` — jede Eigenschaft der blockierenden blockiert seit dem 10.09.2026 ebenfalls |
 | `repo.url` | `str` — die Instanz, normalisiert |
@@ -364,7 +364,7 @@ macht daraus einen Pfad, der sich von oben nach unten liest.
 | `node.content.download_url` | `str \| None` |
 | `node.content.download()` | `bytes` — stückweise gelesen. **Nur öffentliche Inhalte** auf der gemessenen Instanz: das Download-Servlet authentifiziert nicht, ein privater Knoten antwortet `403`, egal wer fragt. Für einen privaten Knoten `text()` nehmen |
 | `node.content.download(max_bytes=…)` | `bytes` — `ContentTooLargeError` über der Grenze, vor dem Abruf, wenn `size` bekannt ist; die Textpfade übergeben `MAX_TEXT_BYTES` (8 MiB) |
-| `node.content.text()` | `str` — der Text, den das Repository extrahiert hat |
+| `node.content.text()` | `str` — der Text, den das Repository extrahiert hat. **Leer für Markdown und JSON** (gemessen 11.09.2026): die Datei ist nicht leer, das Repository zieht aus diesen beiden nur nichts heraus |
 | `node.content.upload(data, filename=…, mimetype=…)` | `Node` |
 | `node.content.set_preview(data, mimetype="image/png")` | `Node` |
 | `node.content.delete_preview()` | `Node` |
@@ -381,6 +381,12 @@ len(await node.content.download())          # 184320
 
 `text()` gibt zurück, was das *Repository* extrahiert hat. Ein Knoten, der nur
 einen Link trägt, hat keinen — dafür gibt es `TextExtraction`, weiter unten.
+
+**Ein privater Markdown- oder JSON-Datensatz ist gar nicht lesbar.** `text()`
+ist für diese beiden leer, und `download()` verweigert einen privaten Knoten —
+gemessen am 11.09.2026 am selben Datensatz: privat `403`, veröffentlicht die
+Bytes. Also veröffentlichen, oder den Inhalt dort halten, wo er zurückzulesen
+ist.
 
 ---
 
@@ -886,7 +892,7 @@ Gang, der früh abgebrochen hat, heißt nicht „es gibt keins".
 | `find_by_url(repo, url)` | `{id, title, url} \| None` — der Datensatz, der diese Adresse schon trägt; `ValidationError`, wenn der Metadatensatz nicht nach `ccm:wwwurl` filtern kann Verglichen wird komponentenweise: Schema und Host schreibungsblind, **Pfad und Query nicht** (geändert am 09.09.2026 — bisher wurde die ganze Adresse kleingeschrieben, `/A` traf also `/a`). Eine gespeicherte Adresse, die sich nicht lesen lässt, wird übersprungen; ein unlesbares `url`-Argument ist ein `ValidationError` |
 | `check_before_create(repo, url, if_exists)` | `(existing, warnings)` — wendet `if_exists` an; wirft `ConflictError` bei `"raise"` |
 | `DUPLICATE_SCAN_LIMIT` | `20` — verglichene Treffer je Prüfung |
-| `repo.flows.update_material(node_id, …)` | `{id, title, url, name, unresolved}` |
+| `repo.flows.update_material(node_id, …)` | `{id, title, url, name, unresolved, redirected_from}` — `keywords=` **ersetzt** die gemeinsame Liste; `node.add_keywords(…)` auf API-Ebene führt zusammen |
 | `repo.flows.build_collection(title, node_ids=[…], …)` | `{id, title, url, added, failed, public, warnings}` |
 | `repo.flows.accept_suggestion(node_id, suggestion_id)` | `{id, suggestion_id, property, value, applied, status, failed}` — schreiben, zurücklesen, dann markieren |
 | `repo.flows.find_skills(text, collection_id=…, subject=…)` | `{query, hits, unresolved, truncated}` |
@@ -1621,8 +1627,9 @@ nicht.
 `Repository` spiegelt `AsyncRepository` Name für Name; dasselbe gilt für
 `SyncNode`, `SyncFlows`, `SyncRelations`, `SyncPeople`, `SyncComments`,
 `SyncSuggestions`, `SyncWorkflow`, `SyncNodePage`, `SyncNodePermissions`,
-`SyncNodeContent` und `SyncChildObjects`. Jeder Eintrag oben liest sich deshalb
-zweimal — mit `await` und ohne.
+`SyncNodeContent`, `SyncChildObjects`, `SyncNodes`, `SyncCollections`,
+`SyncSearch`, `SyncVocabulary` und `SyncTransport`. Jeder Eintrag oben liest
+sich deshalb zweimal — mit `await` und ohne.
 
 ```python
 repo = Repository(URL)                      # blockierend
@@ -1667,8 +1674,12 @@ sind die Typen hinter diesen Attributen, für einen Typhinweis oder ein
 ```python
 from edusharing.collections import Collections
 
-isinstance(repo.collections, Collections)     # True
+isinstance(repo.collections, Collections)     # True am AsyncRepository
 ```
+
+Am blockierenden `Repository` ist jede dieser Flächen der `Sync…`-Wrapper
+gleichen Namens — dieselben Aufrufe ohne `await`, und `isinstance` gegen die
+Klasse oben ist dort `False`.
 
 Direkt aus `edusharing` importierbar sind nur `Repository`, `AsyncRepository`,
 `Node`, die Ergebnistypen, die Zugangsdaten und die Fehler. Die Zugriffsklassen

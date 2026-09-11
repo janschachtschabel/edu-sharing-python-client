@@ -386,10 +386,12 @@ weiterhin kürzer — ein Aufruf statt zwei:
 | `repo.searcher.search` | `repo.search()` |
 | `repo.vocab.resolve` / `.resolve_all` | `repo.resolve()` / `repo.resolve_all()` |
 
-Eine Wache hält das fest:
-`test_jede_oeffentliche_flaeche_hat_ein_blockierendes_spiegelbild` geht jede
-öffentliche Fläche der asynchronen Verbindung durch und weist eine Koroutine
-auf der blockierenden zurück.
+Zwei Wachen halten das fest. Die eine geht jede öffentliche Fläche der
+asynchronen Verbindung durch und weist eine Koroutine auf der blockierenden
+zurück. Die andere ruft jede Methode dieser Flächen und weist eine Antwort
+zurück, die asynchrone Methoden trägt — `repo.nodes.wrap(data)` gab bis zum
+11.09.2026 den asynchronen `Node` heraus, und ein `update()` darauf war eine
+Koroutine, die nie lief.
 
 ---
 

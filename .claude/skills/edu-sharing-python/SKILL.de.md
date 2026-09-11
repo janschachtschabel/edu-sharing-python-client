@@ -63,7 +63,10 @@ Oder ausdrücklich: `Repository(url, auth=(user, password), metadataset="mds_oeh
 Jedes `from_env()` wirft `EduSharingError` und nennt die fehlende Variable —
 nichts weicht auf eine geratene Adresse aus. Ohne Zugangsdaten ist man Gast und
 sieht nur öffentliches Material. Das Metadatenset (`mds_oeh` bei WLO)
-entscheidet, welche Felder und Filter es gibt.
+entscheidet, welche Felder und Filter es gibt. **Setzen.** Ohne
+`EDU_SHARING_METADATASET` und ohne `metadataset=` gilt `-default-`, und das ist
+bei WLO ein anderes Repositorium: 2826 Treffer für „Physik" gegen 18006 mit
+`mds_oeh`, gemessen am 11.09.2026 — und manche Kriterien lehnt es rundheraus ab.
 
 ## 2. Wie die Bibliothek gebaut ist
 
@@ -166,8 +169,13 @@ info["text"] or info["reason"]                   # kein Text? reason sagt, warum
 ```
 
 `node.content.download(max_bytes=…)` liefert Bytes nur für **öffentliche**
-Knoten (ein privater antwortet 403 — dann `text()`). Ein reiner Verweis hat keine
-Datei: `repo.flows.text` versucht dann die verlinkte Seite über
+Knoten (ein privater antwortet 403 — dann `text()`). **`text()` ist für Markdown
+und JSON leer**, erneut gemessen am 11.09.2026: die Datei ist nicht leer, das
+Repositorium zieht aus diesen beiden nur nichts heraus. Ihre Bytes kommen aus
+`download()`, eine **private** `.md` oder `.json` ist deshalb gar nicht lesbar —
+erst veröffentlichen; `repo.flows.text` meldet dafür `source: "none"`,
+`reason: "repository_failed"` und danach `source: "download"`. Ein reiner
+Verweis hat keine Datei: `repo.flows.text` versucht dann die verlinkte Seite über
 `TextExtraction`, wenn man `extraction=` übergibt. Eine Beilage:
 `node.children.add(data, filename=…, mimetype=…)`.
 

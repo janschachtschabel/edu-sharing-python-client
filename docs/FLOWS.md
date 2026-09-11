@@ -523,6 +523,13 @@ and a model told so can say so instead of inventing one. `source_url` names
 the linked page whenever there is one, so a caller without a service can still
 decide to fetch it. Example 15 did all of this by hand in 215 lines.
 
+**Measured 2026-09-11, and a case `repository_failed` also covers:** a
+**private** Markdown or JSON record answers `source: "none"`,
+`reason: "repository_failed"` — `/textContent` is empty for those two types,
+and the file itself is refused while the node is private (403). Published, the
+same record answers `source: "download"` with its bytes. A retry does not help
+there; publishing does.
+
 ---
 
 ## `child_objects` — further documents of one node
@@ -1435,6 +1442,12 @@ never reaches the record — and `id` is then the original's. `null` otherwise.
 Only what you pass is written; everything else stays. The write is verified by
 reading it back, so a value edu-sharing silently drops raises `SilentDropError`
 rather than passing as success.
+
+> **`keywords=` replaces the whole list**, like `node.update(keywords=…)` behind
+> it — and that list is maintained jointly, by editors, crawlers and other
+> applications. To add without taking anyone else's away, read them first
+> (`repo.flows.describe(node_id)["keywords"]`) and pass the union, or use
+> `node.add_keywords("a", "b")` on the API level, which merges. No flow merges.
 
 > **A change where *nothing* could be resolved raises** instead of returning
 > `unresolved`. Nothing happened, and a result that looks like a partial success

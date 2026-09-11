@@ -94,6 +94,19 @@ and in [`docs/audits/`](docs/audits/).
   a result that carries asynchronous methods, and it covers `repo.nodes`,
   `collections`, `searcher` and `vocab`, which it had never called. Found by
   the skill review of 2026-09-11.
+- **Four things the docs left out about reading and writing**, measured against
+  staging on 2026-09-11 in a throwaway folder. `content.text()` is empty for
+  Markdown and JSON — the file is not empty, and `download()` refuses a private
+  node (403), so a **private** `.md` or `.json` cannot be read at all;
+  `repo.flows.text` answers `source: "none"`, `reason: "repository_failed"` for
+  it, and `source: "download"` once it is public. Without
+  `EDU_SHARING_METADATASET` and without `metadataset=`, `-default-` applies —
+  on WLO 2826 hits for "Physik" against 18006 with `mds_oeh`.
+  `repo.flows.update_material(keywords=…)` **replaces** the jointly maintained
+  keyword list, like the `node.update` behind it; no flow merges, and the entry
+  now says where to. And `isinstance(repo.collections, Collections)` is `True`
+  on `AsyncRepository`, not on the blocking `Repository`, whose surfaces are the
+  `Sync…` wrappers.
 - **Short names where a property belongs, and a guessed workflow status.**
   The skill and REFERENCE showed `facets=["subject"]` on `repo.search` and
   `repo.searcher.search`, and TRAPS `repo.vocab.resolve_all("subject", …)` —

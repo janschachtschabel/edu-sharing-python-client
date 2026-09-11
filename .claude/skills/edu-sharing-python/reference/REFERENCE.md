@@ -97,7 +97,7 @@ returns; the sync one runs a loop in a thread for you.
 |---|---|
 | `edusharing.__version__` | `str` — `"0.2.0"`, read from the package metadata |
 | `Repository(url, auth=(user, password))` | the connection |
-| `Repository.from_env()` | reads `EDU_SHARING_URL`, `EDU_SHARING_USER`, `EDU_SHARING_PASSWORD`, optionally `EDU_SHARING_METADATASET` |
+| `Repository.from_env()` | reads `EDU_SHARING_URL`, `EDU_SHARING_USER`, `EDU_SHARING_PASSWORD`, optionally `EDU_SHARING_METADATASET` — without that one, `-default-` applies, which on WLO is a different repository: 2826 hits for "Physik" against 18006 with `mds_oeh` (measured 2026-09-11), and some criteria it refuses outright |
 | `Repository("https://user:password@host")` | refused — an address is logged; credentials go into `auth=` or the environment |
 | `AsyncRepository(url, ...)` | the same, `async` — every property of the blocking one blocks too, since 2026-09-10 |
 | `repo.url` | `str` — the instance, normalised |
@@ -355,7 +355,7 @@ turns the same information into a breadcrumb that reads top-down.
 | `node.content.download_url` | `str \| None` |
 | `node.content.download()` | `bytes` — read in chunks. **Public content only** on the measured instance: the download servlet does not authenticate, so a private node answers `403` no matter who asks. Use `text()` for a private node |
 | `node.content.download(max_bytes=…)` | `bytes` — `ContentTooLargeError` above the limit, before the request when `size` is known; the text paths pass `MAX_TEXT_BYTES` (8 MiB) |
-| `node.content.text()` | `str` — the extracted text the repository holds |
+| `node.content.text()` | `str` — the extracted text the repository holds. **Empty for Markdown and JSON** (measured 2026-09-11): the file is not empty, the repository extracts nothing from those two |
 | `node.content.upload(data, filename=…, mimetype=…)` | `Node` |
 | `node.content.set_preview(data, mimetype="image/png")` | `Node` |
 | `node.content.delete_preview()` | `Node` |
@@ -372,6 +372,11 @@ len(await node.content.download())          # 184320
 
 `text()` returns what the *repository* extracted. A node that carries only a
 link has none — that is what `TextExtraction` is for, further down.
+
+**A private Markdown or JSON record cannot be read at all.** `text()` is empty
+for those two and `download()` refuses a private node — measured 2026-09-11 on
+the same record: private `403`, published the bytes. Publish it, or keep the
+content where you can read it back.
 
 ---
 
@@ -871,7 +876,7 @@ stopped early is not "there is none".
 | `find_by_url(repo, url)` | `{id, title, url} \| None` — the record already carrying this address; `ValidationError` when the metadata set cannot filter on `ccm:wwwurl`. Compared by component: scheme and host case-insensitive, **path and query not** (changed 2026-09-09 — the whole address used to be lowered, so `/A` matched `/a`). A stored address that cannot be read is skipped; an unreadable `url` argument is a `ValidationError` |
 | `check_before_create(repo, url, if_exists)` | `(existing, warnings)` — applies `if_exists`; raises `ConflictError` for `"raise"` |
 | `DUPLICATE_SCAN_LIMIT` | `20` — hits compared per check |
-| `repo.flows.update_material(node_id, …)` | `{id, title, url, name, unresolved}` |
+| `repo.flows.update_material(node_id, …)` | `{id, title, url, name, unresolved, redirected_from}` — `keywords=` **replaces** the shared list; `node.add_keywords(…)` on the API level merges |
 | `repo.flows.build_collection(title, node_ids=[…], …)` | `{id, title, url, added, failed, public, warnings}` |
 | `repo.flows.accept_suggestion(node_id, suggestion_id)` | `{id, suggestion_id, property, value, applied, status, failed}` — write, read back, then mark |
 | `repo.flows.find_skills(text, collection_id=…, subject=…)` | `{query, hits, unresolved, truncated}` |
@@ -1590,8 +1595,9 @@ The generated layer builds its own paths and does not have this check.
 `Repository` mirrors `AsyncRepository` name for name; the same holds for
 `SyncNode`, `SyncFlows`, `SyncRelations`, `SyncPeople`, `SyncComments`,
 `SyncSuggestions`, `SyncWorkflow`, `SyncNodePage`, `SyncNodePermissions`,
-`SyncNodeContent`, `SyncChildObjects` and `SyncNodePage`. Every entry above
-therefore reads twice — with `await`, and without.
+`SyncNodeContent`, `SyncChildObjects`, `SyncNodes`, `SyncCollections`,
+`SyncSearch`, `SyncVocabulary` and `SyncTransport`. Every entry above therefore
+reads twice — with `await`, and without.
 
 ```python
 repo = Repository(URL)                      # blocking
@@ -1635,8 +1641,12 @@ are the types behind those attributes, for a type hint or an `isinstance`.
 ```python
 from edusharing.collections import Collections
 
-isinstance(repo.collections, Collections)     # True
+isinstance(repo.collections, Collections)     # True on AsyncRepository
 ```
+
+On the blocking `Repository` each of these is the `Sync…` wrapper of the same
+name — same calls, without `await`, and `isinstance` against the class above is
+`False` there.
 
 Only `Repository`, `AsyncRepository`, `Node`, the result types, the credentials
 and the errors are importable straight from `edusharing`. The accessors live in

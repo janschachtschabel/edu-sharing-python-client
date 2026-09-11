@@ -535,6 +535,13 @@ erfinden. `source_url` nennt die verlinkte Seite, wann immer es eine gibt,
 damit ein Aufrufer ohne Dienst selbst entscheiden kann. Beispiel 15 hat das
 von Hand in 215 Zeilen gemacht.
 
+**Gemessen am 11.09.2026, ein Fall, den `repository_failed` ebenfalls meint:**
+ein **privater** Markdown- oder JSON-Datensatz antwortet `source: "none"`,
+`reason: "repository_failed"` — `/textContent` ist für diese beiden Typen leer,
+und die Datei selbst wird verweigert, solange der Knoten privat ist (403).
+Veröffentlicht antwortet derselbe Datensatz `source: "download"` mit seinen
+Bytes. Ein zweiter Versuch hilft dort nicht, Veröffentlichen schon.
+
 ---
 
 ## `child_objects` — weitere Dokumente eines Knotens
@@ -1474,6 +1481,13 @@ Originals. Sonst `null`.
 Geschrieben wird nur, was übergeben wurde; alles andere bleibt. Der Schreibvorgang
 wird durch erneutes Lesen geprüft, sodass ein Wert, den edu-sharing stillschweigend
 verwirft, einen `SilentDropError` auslöst statt als Erfolg durchzugehen.
+
+> **`keywords=` ersetzt die ganze Liste**, wie das `node.update(keywords=…)`
+> dahinter — und diese Liste pflegen mehrere: Redaktionen, Crawler, andere
+> Anwendungen. Wer ergänzen will, ohne anderen etwas zu nehmen, liest sie erst
+> (`repo.flows.describe(node_id)["keywords"]`) und übergibt die Vereinigung,
+> oder nimmt auf API-Ebene `node.add_keywords("a", "b")`, das zusammenführt.
+> Kein Ablauf führt zusammen.
 
 > **Eine Änderung, bei der sich *nichts* auflösen ließ, wirft** statt
 > `unresolved` zurückzugeben. Es ist nichts passiert, und ein Ergebnis, das wie
