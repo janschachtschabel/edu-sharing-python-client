@@ -294,6 +294,9 @@ VERZEICHNISSE = {
     "REFERENCE.de.md": WURZEL / "docs" / "REFERENCE.de.md",
     "FLOWS.md": WURZEL / "docs" / "FLOWS.md",
     "FLOWS.de.md": WURZEL / "docs" / "FLOWS.de.md",
+    "TRAPS.md": WURZEL / ".claude" / "skills" / "edu-sharing-python" / "reference" / "TRAPS.md",
+    "TRAPS.de.md": (WURZEL / ".claude" / "skills" / "edu-sharing-python" / "reference"
+                    / "TRAPS.de.md"),
 }
 
 #: Die Ankerregel von GitHub: klein, Satzzeichen und Backticks fallen weg,
@@ -377,6 +380,8 @@ SPRACHPAARE = {
     "ARCHITECTURE": ("docs/ARCHITECTURE.md", "docs/ARCHITECTURE.de.md"),
     "SKILL": (".claude/skills/edu-sharing-python/SKILL.md",
               ".claude/skills/edu-sharing-python/SKILL.de.md"),
+    "TRAPS": (".claude/skills/edu-sharing-python/reference/TRAPS.md",
+              ".claude/skills/edu-sharing-python/reference/TRAPS.de.md"),
 }
 
 

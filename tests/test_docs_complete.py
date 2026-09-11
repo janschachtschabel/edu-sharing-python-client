@@ -264,6 +264,8 @@ BEHAUPTEND = [
     "docs/ARCHITECTURE.md", "docs/ARCHITECTURE.de.md",
     ".claude/skills/edu-sharing-python/SKILL.md",
     ".claude/skills/edu-sharing-python/SKILL.de.md",
+    ".claude/skills/edu-sharing-python/reference/TRAPS.md",
+    ".claude/skills/edu-sharing-python/reference/TRAPS.de.md",
 ]
 
 

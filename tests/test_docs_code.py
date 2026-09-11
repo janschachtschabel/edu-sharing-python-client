@@ -56,6 +56,8 @@ DOKUMENTE = [
     "docs/ARCHITECTURE.md", "docs/ARCHITECTURE.de.md",
     ".claude/skills/edu-sharing-python/SKILL.md",
     ".claude/skills/edu-sharing-python/SKILL.de.md",
+    ".claude/skills/edu-sharing-python/reference/TRAPS.md",
+    ".claude/skills/edu-sharing-python/reference/TRAPS.de.md",
 ]
 
 #: Was hier steht, ist eine bewusste Ausnahme mit Begruendung, kein Rueckstand.
@@ -423,6 +425,8 @@ def _ist_nur_asynchron(name: str) -> bool:
 @pytest.mark.parametrize("rel", [
     ".claude/skills/edu-sharing-python/SKILL.md",
     ".claude/skills/edu-sharing-python/SKILL.de.md",
+    ".claude/skills/edu-sharing-python/reference/TRAPS.md",
+    ".claude/skills/edu-sharing-python/reference/TRAPS.de.md",
     "docs/REFERENCE.md", "docs/REFERENCE.de.md",
     "docs/FLOWS.md", "docs/FLOWS.de.md",
     "README.md", "README.de.md",
