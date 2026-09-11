@@ -90,6 +90,7 @@ Metadatensatzes und nicht der Eigenschaft selbst.
   - [Sammlungen](#sammlungen)
   - [Schreiben — mit Rückleseprobe](#schreiben--mit-rückleseprobe)
   - [Für KI-Anwendungen](#für-ki-anwendungen)
+  - [Den Skill im eigenen Werkzeug nutzen](#den-skill-im-eigenen-werkzeug-nutzen)
   - [Das LLM-Gateway](#das-llm-gateway)
   - [Der Template-Modus — Prompts, die auf dem Server liegen](#der-template-modus--prompts-die-auf-dem-server-liegen)
   - [Der Extraktionsdienst — Text, den das Repositorium nicht hat](#der-extraktionsdienst--text-den-das-repositorium-nicht-hat)
@@ -308,22 +309,50 @@ if plan.has_changes:
     node = await plan.apply()
 ```
 
+### Den Skill im eigenen Werkzeug nutzen
+
 **Ein Skill für Coding-Agenten liegt der Bibliothek bei.**
 [`.claude/skills/edu-sharing-python/`](.claude/skills/edu-sharing-python/SKILL.de.md)
-ist eine Wegweisertabelle — *diese Aufgabe, dieser Aufruf* — über jeden
-Ablauf, die API-Ebene, die Nachbardienste und die gemessenen Fallen. Er ist
-für jeden Agenten aktiv, der in diesem Repositorium arbeitet, und liegt auf
+bringt einem Modell bei, jeden Teil der Bibliothek ohne Vorkenntnisse zu
+benutzen: Installieren und Verbinden, Rezepte mit lauffähigem Code und der Form
+dessen, was zurückkommt, jeden Aufruf mit seinen Parametern, die Fehler und die
+gemessenen Fallen. Sein Ordner `reference/` trägt die Referenz, den
+Ablauf-Leitfaden, die Fallen und alle Beispiele dieses Repositoriums mit, damit
+er auch außerhalb davon trägt. Er liegt auf
 [deutsch](.claude/skills/edu-sharing-python/SKILL.de.md) und
-[englisch](.claude/skills/edu-sharing-python/SKILL.md) vor. Damit er überall
-verfügbar ist:
+[englisch](.claude/skills/edu-sharing-python/SKILL.md) vor.
+
+In diesem Repositorium ist er für jeden Agenten schon aktiv. Für überall sonst
+den Ordner kopieren — das Paket installiert ihn nicht:
+
+| Werkzeug | Wohin der Ordner kommt |
+|---|---|
+| Claude Code, für einen selbst | `~/.claude/skills/edu-sharing-python/` |
+| Claude Code, für ein Projekt | `<projekt>/.claude/skills/edu-sharing-python/` |
+| OpenAI Codex, für einen selbst | `~/.agents/skills/edu-sharing-python/` |
+| OpenAI Codex, für ein Repositorium | `<repo>/.agents/skills/edu-sharing-python/` |
+| claude.ai | `dist/edu-sharing-python.zip` als Skill hochladen |
 
 ```bash
-cp -r .claude/skills/edu-sharing-python ~/.claude/skills/
+cp -r .claude/skills/edu-sharing-python ~/.claude/skills/    # Claude Code
+cp -r .claude/skills/edu-sharing-python ~/.agents/skills/    # OpenAI Codex
+python scripts/build_skill_zip.py                             # claude.ai
 ```
 
-Dieselben Tests halten **beide** Fassungen: jede muss jeden Ablauf nennen,
-keinen Aufruf erfinden, keine Umgebungsvariable verwenden, die der Code nicht
-liest, und nur auf Dateien verweisen, die es gibt.
+Beide Werkzeuge finden den Skill über seine Beschreibung; beim Namen rufen ihn
+Claude Code mit `/edu-sharing-python`, Codex mit `$edu-sharing-python`. Eine
+Kopie folgt dem Repositorium nicht — nach einer Aktualisierung neu kopieren. Die
+ZIP hat den Skill-Ordner als Wurzel und nur den ersten Satz der Beschreibung,
+weil claude.ai höchstens 200 Zeichen nimmt; der Upload selbst ist hier nicht
+geprüft. In claude.ai hilft der Skill beim Schreiben des Codes — ausgeführt wird
+er dort, wo das Repositorium erreichbar ist, meist nicht in der Sandbox von
+claude.ai.
+
+Tests halten **beide** Sprachfassungen an der Bibliothek: jeder Ablauf genannt,
+jeder Aufruf mit seinen Parametern gezeigt, kein Aufruf erfunden, keine
+Umgebungsvariable, die der Code nicht liest, kein Verweis aus dem Ordner
+hinaus. Die Kopien in `reference/` hält `scripts/sync_skill.py` gleich mit
+`docs/`.
 
 ### Das LLM-Gateway
 

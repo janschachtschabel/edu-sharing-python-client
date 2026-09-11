@@ -89,6 +89,7 @@ why; the reference is the lookup table.
   - [Collections](#collections)
   - [Writing — with a read-back check](#writing--with-a-read-back-check)
   - [For AI applications](#for-ai-applications)
+  - [Using the skill in your own tool](#using-the-skill-in-your-own-tool)
   - [The LLM gateway](#the-llm-gateway)
   - [The template mode — prompts kept on the server](#the-template-mode--prompts-kept-on-the-server)
   - [The extraction service — text the repository does not have](#the-extraction-service--text-the-repository-does-not-have)
@@ -304,22 +305,47 @@ if plan.has_changes:
     node = await plan.apply()
 ```
 
+### Using the skill in your own tool
+
 **A skill for coding agents ships with the library.**
 [`.claude/skills/edu-sharing-python/`](.claude/skills/edu-sharing-python/SKILL.md)
-is a routing table — *this task, that call* — covering every flow, the API
-level, the neighbouring services and the measured traps. It is active for any
-agent working in this repository, and comes in
+teaches a model to use every part of the library without prior knowledge:
+installing and connecting, recipes with runnable code and the shape of what
+comes back, every call with its parameters, the errors and the measured traps.
+Its `reference/` folder carries this repository's reference, the flows guide,
+the traps and all examples, so it works outside the repository too. It comes in
 [English](.claude/skills/edu-sharing-python/SKILL.md) and
-[German](.claude/skills/edu-sharing-python/SKILL.de.md). To make it available
-everywhere:
+[German](.claude/skills/edu-sharing-python/SKILL.de.md).
+
+Inside this repository it is active for any agent already. For anywhere else,
+copy the folder — the package does not install it:
+
+| Tool | Where the folder goes |
+|---|---|
+| Claude Code, for you | `~/.claude/skills/edu-sharing-python/` |
+| Claude Code, for one project | `<project>/.claude/skills/edu-sharing-python/` |
+| OpenAI Codex, for you | `~/.agents/skills/edu-sharing-python/` |
+| OpenAI Codex, for one repository | `<repo>/.agents/skills/edu-sharing-python/` |
+| claude.ai | upload `dist/edu-sharing-python.zip` as a skill |
 
 ```bash
-cp -r .claude/skills/edu-sharing-python ~/.claude/skills/
+cp -r .claude/skills/edu-sharing-python ~/.claude/skills/    # Claude Code
+cp -r .claude/skills/edu-sharing-python ~/.agents/skills/    # OpenAI Codex
+python scripts/build_skill_zip.py                             # claude.ai
 ```
 
-The same tests hold **both** versions: each must name every flow, invent no
-call, use no environment variable the code does not read, and link only to
-files that exist.
+Both tools pick the skill up from its description; to ask for it by name,
+Claude Code takes `/edu-sharing-python`, Codex `$edu-sharing-python`. A copy
+does not follow the repository — copy again after an update. The ZIP carries
+the skill folder as its root and only the first sentence of the description,
+because claude.ai takes at most 200 characters; the upload itself is not tested
+here. In claude.ai the skill helps write the code — it runs where the
+repository is reachable, usually not in claude.ai's sandbox.
+
+Tests hold **both** language versions to the library: every flow named, every
+call shown with its parameters, no call invented, no environment variable the
+code does not read, no link out of the folder. The copies in `reference/` are
+kept equal to `docs/` by `scripts/sync_skill.py`.
 
 ### The LLM gateway
 

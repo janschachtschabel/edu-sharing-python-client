@@ -8,7 +8,10 @@ Bibliothek herausgibt, der Aufruf dazu und die Form, die zurückkommt. Die als
 Kommentar gezeigten Ausgaben sind echte Formen, keine Skizzen.
 
 Ein Test hält die Datei vollständig: `tests/test_docs_complete.py` schlägt fehl,
-sobald ein öffentlicher Name hier oder in der englischen Fassung fehlt.
+sobald ein öffentlicher Name hier oder in der englischen Fassung fehlt. Eine
+Kopie reist mit dem Skill für Coding-Agenten, in
+`.claude/skills/edu-sharing-python/reference/` — der README-Abschnitt *Den Skill
+im eigenen Werkzeug nutzen* sagt, wohin damit.
 
 **Die Beispiele sind für `AsyncRepository` geschrieben.** Mit dem
 blockierenden `Repository` das `await` weglassen — jeder Aufruf auf `repo.…`

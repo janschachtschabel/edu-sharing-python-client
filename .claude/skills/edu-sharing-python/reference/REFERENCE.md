@@ -8,7 +8,9 @@ uses it, and the shape that comes back. Outputs shown as comments are real
 shapes, not sketches.
 
 A test keeps this file complete: `tests/test_docs_complete.py` fails when a
-public name is missing here or in the German version.
+public name is missing here or in the German version. A copy travels with the
+skill for coding agents, in `.claude/skills/edu-sharing-python/reference/` —
+the README section *Using the skill in your own tool* says where to put it.
 
 **The examples are written for `AsyncRepository`.** With the blocking
 `Repository`, leave out the `await` — every call on `repo.…` has a blocking
