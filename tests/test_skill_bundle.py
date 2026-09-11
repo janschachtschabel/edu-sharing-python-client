@@ -211,8 +211,6 @@ def _zeigt(text: str, name: str, positional: tuple[str, ...], benannt: tuple[str
     return False
 
 
-@pytest.mark.xfail(strict=True, reason="gruen erst mit dem neuen Skill (Plan "
-                   "2026-09-11-skill-umbau, T5/T6) -- dann faellt diese Markierung weg")
 @pytest.mark.parametrize("datei", EINSTIEGE)
 def test_der_einstieg_zeigt_jede_aufrufform_mit_ihren_pflichtparametern(datei: str):
     """Der Einstieg selbst, nicht die Referenz: das Modell liest ihn zuerst,
@@ -310,19 +308,12 @@ def _verweise(datei: Path) -> list[Path]:
             if not ziel.startswith(("http://", "https://", "mailto:"))]
 
 
-_NEUER_EINSTIEG = pytest.mark.xfail(
-    strict=True, reason="gruen erst mit dem neuen Einstieg (Plan 2026-09-11-skill-umbau, "
-    "T5/T6) -- dann faellt diese Markierung weg")
-
-
-@_NEUER_EINSTIEG
 @pytest.mark.parametrize("datei", EINSTIEGE)
 def test_der_einstieg_bleibt_unter_500_zeilen(datei: str):
     zeilen = len((SKILL / datei).read_text(encoding="utf-8").splitlines())
     assert zeilen < 500, f"{datei}: {zeilen} Zeilen -- Einzelheiten gehoeren nach reference/"
 
 
-@_NEUER_EINSTIEG
 @pytest.mark.parametrize("datei", EINSTIEGE)
 def test_kein_verweis_des_einstiegs_fuehrt_aus_dem_skill_ordner(datei: str):
     """Ausserhalb des Repositoriums gibt es ``../../../docs`` nicht."""
@@ -332,7 +323,6 @@ def test_kein_verweis_des_einstiegs_fuehrt_aus_dem_skill_ordner(datei: str):
         "\n  ".join(draussen))
 
 
-@_NEUER_EINSTIEG
 @pytest.mark.parametrize("datei", EINSTIEGE)
 def test_der_einstieg_verlinkt_jede_nachschlagedatei_direkt(datei: str):
     """Eine Ebene tief: jede Nachschlagedatei seiner Sprache und jedes Beispiel."""

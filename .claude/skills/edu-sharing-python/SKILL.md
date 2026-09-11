@@ -1,526 +1,404 @@
 ---
 name: edu-sharing-python
-description: Using the edu-sharing-python-client library (import `edusharing`) — both levels (API objects and flow dicts), every flow, the whole public surface, how edu-sharing stores metadata (list values, the cm:/cclom:/ccm:/virtual: namespaces, cm:name vs cclom:title, vocabulary URIs, metadata sets), the neighbouring services (b-api LLM gateway as proxy and with prompt templates; text extraction; metadata agent), the measured traps, and putting it behind a model. Use when writing Python against edu-sharing, building an MCP server or agent tool over WLO/OpenEduHub content, or when a call returned HTTP 200 and stored nothing. Trigger u.a. "edu-sharing Python", "edusharing library", "repo.flows", "SilentDropError", "Bibliothek nutzen", "Material anlegen Python", "MCP-Werkzeug edu-sharing", "b-api Python", "BapiTemplates", "KI-Vorschläge", "Textextraktion", "metadata agent schema", "welcher Aufruf für", "unresolved", "total_is_lower_bound", "propertyFilter", "Metadatensatz", "properties leer", "Eigenschaft schreiben".
+description: Write correct Python against edu-sharing repositories (WLO, OpenEduHub) with the edu-sharing-python-client library, import `edusharing`. Covers connecting, searching, reading, creating and changing materials, files and full text, collections, publishing and permissions, comments, ratings, suggestions and workflow, relations, vocabularies, people, curated pages and skills, the raw transport, the b-api LLM gateway (proxy and prompt templates), text extraction, the metadata agent, and MCP or agent tools — every call with its parameters and result, plus the measured traps (HTTP 200 that stored nothing, filters that were not applied, truncated results). Trigger u.a. "edu-sharing Python", "edusharing library", "repo.flows", "SilentDropError", "Bibliothek nutzen", "Material anlegen Python", "MCP-Werkzeug edu-sharing", "b-api Python", "BapiTemplates", "KI-Vorschläge", "Textextraktion", "metadata agent schema", "welcher Aufruf für", "unresolved", "total_is_lower_bound", "Metadatensatz", "Eigenschaft schreiben".
 ---
 
 # edu-sharing for Python — how to use it
 
 *Deutsche Fassung: [SKILL.de.md](SKILL.de.md)*
 
-The library at `github.com/janschachtschabel/edu-sharing-python-client` (package
-`edu-sharing-python-client`, import `edusharing`). It wraps edu-sharing's REST
-API and three neighbouring services, and its central promise is that **a write
-that did not happen is reported as a failure, not a success**.
+The library `edu-sharing-python-client` (import `edusharing`) wraps edu-sharing's
+REST API and three neighbouring services. Its promise: **a write that did not
+happen is reported as a failure, not a success.** This file shows how to use
+every part of it; the details live beside it in `reference/` — see section 7.
+Every call below was checked against the code by tests, every output shape
+measured against a real instance.
 
-**This skill covers the library.** For the raw REST API, WLO's own data model
-(Quelldatensatz, Spider, replicationsource), licence keys or NGSearch body
-fields, use `wlo-edu-sharing-api`. For instance addresses and environment
-variable names, use `wlo-environments`. Those are the source of truth for
-*deployment*; this one is the source of truth for *the Python surface*.
-
-Written in English because the library's code and identifiers are English --
-this is the version a model loads. [`SKILL.de.md`](SKILL.de.md) is the same
-routing table for people who would rather read German; both are held to the
-same tests, so neither can quietly omit a flow or invent a call.
-
----
-
-## 1. Orientation in sixty seconds
+## 1. Install and connect
 
 ```bash
-uv pip install -e .        # not on PyPI yet
+uv pip install git+https://github.com/janschachtschabel/edu-sharing-python-client
 ```
+
+Python 3.11 or newer; `pip install git+…` works the same. Nothing has a
+default address — every entry point takes one, or reads it from the environment:
+
+| Service | Class, import | Variables for `from_env()` |
+|---|---|---|
+| repository | `Repository`, `AsyncRepository` — `from edusharing import …` | `EDU_SHARING_URL`, `EDU_SHARING_USER`, `EDU_SHARING_PASSWORD`, optional `EDU_SHARING_METADATASET` |
+| LLM gateway, proxy | `BildungsAPI` — `from edusharing.bapi import …` | `B_API_BASE_URL`, `B_API_KEY` |
+| LLM gateway, templates | `BapiTemplates` — `from edusharing.bapi import …` | the two above plus `EDU_SHARING_METADATASET` |
+| text extraction | `TextExtraction` — `from edusharing.extraction import …` | `EDU_SHARING_TEXT_EXTRACTION_URL` |
+| metadata agent | `MetadataAgent` — `from edusharing.metadata_agent import …` | `METADATA_AGENT_URL` |
 
 ```python
 from edusharing import Repository
 
-with Repository("https://repository.staging.openeduhub.net") as repo:
-    result = repo.search("Bruchrechnung", limit=5)
-    for hit in result.hits:
-        print(hit.title, hit.url)
+with Repository.from_env(metadataset="mds_oeh") as repo:     # blocking
+    me = repo.whoami()                   # Identity: .authority .is_anonymous .home_folder
+    print(repo.about().repository_version, me.is_anonymous, repo.metadataset)
 ```
-
-Two levels, both permanent:
-
-| | API level | Flow level |
-|---|---|---|
-| Reached as | `repo.search(...)`, `repo.node(...)` | `repo.flows.search(...)` |
-| Returns | objects — `SearchResult`, `Node` | plain `dict`, ready for `json.dumps` |
-| Good for | writing Python against edu-sharing | handing the answer on |
-| Requests | one endpoint per call | one call, several endpoints |
-
-**Rule of thumb:** if the result goes to a model, an MCP tool or an HTTP
-response, use `repo.flows`. If you are writing the calling code yourself, use
-the API level.
-
-`Repository` is blocking. `AsyncRepository` is the same surface with `await`.
-Use the async one inside an event loop, the blocking one everywhere else.
-
----
-
-## 2. The instance is always a parameter
-
-**Never hardwire an address.** The library has no default instance; every entry
-point takes one, and no call below it takes an address of its own.
 
 ```python
-repo = Repository(os.environ["EDU_SHARING_URL"], auth=(user, password))
-repo = Repository.from_env()      # EDU_SHARING_URL / _USER / _PASSWORD
-# user:password@ inside the URL is refused -- auth= or the environment carry them
+import asyncio
+
+from edusharing import AsyncRepository
+
+
+async def main() -> None:
+    async with AsyncRepository.from_env() as repo:            # the same names, awaited
+        print((await repo.whoami()).authority)
+
+asyncio.run(main())
 ```
 
-The three neighbouring services each take **their own** address and also have
-no default — `from_env()` refuses without the variable rather than sending data
-to a host nobody chose:
+Or explicitly: `Repository(url, auth=(user, password), metadataset="mds_oeh")`.
+Without credentials you are the guest and see public material only. The metadata
+set (`mds_oeh` on WLO) decides which fields and filters exist.
 
-| Service | Class | Variable |
-|---|---|---|
-| LLM gateway (b-api) | `BildungsAPI` | `B_API_BASE_URL` + `B_API_KEY` |
-| the same gateway, template mode | `BapiTemplates` | `B_API_BASE_URL` + `B_API_KEY` + `EDU_SHARING_METADATASET` |
-| Text extraction | `TextExtraction` | `EDU_SHARING_TEXT_EXTRACTION_URL` |
-| Metadata agent | `MetadataAgent` | `METADATA_AGENT_URL` |
+## 2. How the library is built
 
-Which concrete addresses belong to staging and production is **not** in this
-skill and not in the library — see `wlo-environments`.
+**Two levels.** The API level returns objects (`SearchResult`, `Node`) — for code
+you write. The flow level, `repo.flows.*`, answers one use case per call with a
+plain `dict`, ready for `json.dumps` — for tools, MCP servers and models.
 
----
+**Blocking and async.** `Repository` blocks, `AsyncRepository` is awaited; the
+names are the same, and `close()` is `aclose()` there. The four services are
+async only: use them inside `async def`, with `async with`.
 
-## 3. Which call answers which question
+**Where you get in.** From `repo`: `repo.flows`, `repo.nodes`, `repo.collections`,
+`repo.vocab`, `repo.searcher`, `repo.people`, `repo.relations`, `repo.skills`,
+`repo.raw`. From a node: `node.content`, `node.children`, `node.permissions`,
+`node.comments`, `node.suggestions`, `node.workflow`, `node.page`.
 
-The complete list with input and output shapes is
-[`docs/REFERENCE.md`](../../../docs/REFERENCE.md) /
-[`docs/REFERENCE.de.md`](../../../docs/REFERENCE.de.md). This is the routing
-table.
+**Errors.** Everything raises a subclass of `EduSharingError` — section 5.
 
-*(File links here are relative to the library's checkout. Copied into
-`~/.claude/skills/` they name paths in that repository, not on disk.)*
+## 3. Recipes
 
-### Finding things
+Blocking unless the service is async only. With `AsyncRepository`, put `await`
+before each repository call.
 
-| The task | The call |
-|---|---|
-| search material | `repo.flows.search(text, subject=…, limit=…, exclude_ids=…, properties=…)` |
-| search material *and* collections at once | `repo.flows.search_all(text)` |
-| find collections only — by subject, or below one collection | `repo.flows.find_collections(text, subject=…, parent_id=…)` → read `unjudged` |
-| which **skills** fit a task, or are filed in a collection | `repo.flows.find_skills(text, subject=…, collection_id=…)` — needs the metadata set that knows the content type |
-| the best skill, loaded, with the runners-up | `repo.flows.pick_skill(text)` → read `reason` |
-| more like this node | `repo.flows.related(node_id, on=["subject", "level"])` |
-| which values does a field allow | `repo.flows.vocabulary("subject")` |
-| every value of a field, or a substring of one | `repo.vocab.values(prop)` / `repo.vocab.suggest(prop, "ysik")` — `values` is cached for `DEFAULT_CACHE_SECONDS` (1 h) |
-| ask again for unknown filter labels | at most `SUGGEST_LOOKUP_MAX` (10) of them get suggestions; the rest are reported without |
-| a label's filter value — **all** of them | `repo.vocab.resolve_all(prop, "Biologie")` |
-| a poorly phrased query ("something about fractions") | `repo.flows.search(text, rerank=True)` |
-| search *inside* one collection | `repo.flows.search_in_collection(collection_id, query)` |
-| find collections that render a curated page | `repo.flows.find_pages(text)` |
-
-### Reading one thing
-
-| The task | The call |
-|---|---|
-| everything about a node, as JSON | `repo.flows.describe(node_id)` |
-| several nodes at once | `repo.flows.describe_many(node_ids)` |
-| where does it sit (breadcrumb) | `repo.flows.placement(node_id)` |
-| what is in this collection | `repo.flows.collection_contents(collection_id)` |
-| what hangs *under* this material | `repo.flows.child_objects(node_id)` |
-| what stands *beside* it | `repo.flows.relations(node_id)` |
-| what is underneath, recursively | `repo.flows.browse_tree(collection_id, depth=2)` |
-| how much is in there | `repo.flows.collection_stats(collection_id)` |
-| the curated landing page | `repo.flows.page(collection_id)` |
-| the text of a material, wherever it is — and *why* there is none | `repo.flows.text(node_id, extraction=…)` → read `source`, `reason` |
-| a skill's instruction, its references and companion files | `repo.flows.skill(node_id)` → read `files_reason` |
-| which skills a collection has approved, by working context | `repo.flows.skill_registry(collection_id, context=…)` → read `reason`, `context_match` |
-| the file itself | `node.content.download()` / `node.content.text()` |
-| the curated page as objects | `node.page.get()` / `node.page.render(variant)` |
-| one page of a node's children | `repo.nodes.children(node_id, limit=…)` |
-| who am I, what does this instance offer | `repo.whoami()` / `repo.about()` / `repo.metadatasets()` |
-| text of a page the repository does *not* hold | `TextExtraction.text_of(url)` |
-
-### Changing things
-
-| The task | The call |
-|---|---|
-| create material with vocabulary | `repo.flows.add_material(title, url=…, subject=…)` · `if_exists=\"return\"` names an existing record for `url` instead of creating a second (`created`, `existing`) |
-| change material | `repo.flows.update_material(node_id, title=…)` |
-| build a collection and fill it | `repo.flows.build_collection(title, node_ids=[…])` |
-| put existing material into a collection | `repo.add_to_collection(collection_id, node_id)` |
-| the collection accessor behind those shortcuts | `repo.collections.find/create/update/add/remove` |
-| take it out again (material stays) | `repo.remove_from_collection(collection_id, node_id)` |
-| delete | `repo.flows.delete(node_id)` |
-| upload a file | `node.content.upload(data, filename=…, mimetype=…)` |
-| attach an answer sheet | `node.children.add(data, filename=…, mimetype=…)` |
-| link two materials | `repo.relations.create(a, "isPartOf", b)` |
-| make it publicly readable | `node.permissions.publish()` |
-| keywords | `node.add_keywords("Bruch", "Kürzen")` / `node.remove_keywords("alt")` — one argument per keyword, not a list |
-
-### Editorial surfaces (API level, except accepting a proposal)
-
-| The task | The call |
-|---|---|
-| comment | `node.comments.add(text)` / `.list()` / `.edit()` / `.delete()` |
-| rate | `node.rate(4)` / `node.unrate()` |
-| **propose** a value instead of writing it | `node.suggestions.propose(prop, value, reason)` |
-| accept or reject a proposal | `node.suggestions.decide(ids, accept=True)` |
-| **accept** a proposal so that it takes effect — write, read back, then mark | `repo.flows.accept_suggestion(node_id, suggestion_id)` → read `applied` |
-| hand on for review | `node.workflow.submit("GROUP_redaktion", "TO_BE_CHECKED")` |
-| grant or revoke rights | `node.permissions.grant(who, "Read")` / `.revoke(...)` |
-| groups and members | `repo.people.memberships()` / `.group(name)` / `.members(name, limit=…)` / `.create_group(name)` / `.add_member(group, who)` |
-
-### The neighbouring services
-
-| The task | The call |
-|---|---|
-| ask a model | `BildungsAPI.chat(prompt)` |
-| ask through the responses route | `.respond(prompt, model=…)` → check `.truncated` |
-| the least loaded of several models | `.chat(prompt, model=["a", "b", "c"])` |
-| what the models look like right now | `.load()` → `.summary()` |
-| which models are there | `.models()` |
-| cheaper thinking (default) | nothing — `reasoning_effort` is already `low` |
-| more thinking | `.chat(prompt, reasoning_effort="high")` |
-| embeddings *(OpenAI only)* | `.embeddings(texts)` |
-| moderation *(OpenAI only)* | `.moderate(texts)` |
-| image generation *(OpenAI only)* | `.images(prompt)` |
-| any other forwarded OpenAI route | `.call("batches", body)` |
-| a prompt kept on the server, filled from a node | `BapiTemplates.chat(configs, context_node_id=…)` |
-| … with input you do not trust | `.chat_limited(configs, context_node_id=…, choices=…)` |
-| have the model propose metadata, stored as suggestions | `.suggest(configs, widgets, context_node_id=…)` → take one over with `repo.flows.accept_suggestion` |
-| question–answer pairs for a node *(experimental, stored)* | `.qas(node_ids)` — needs Write for the gateway's own account |
-| text behind a URL | `TextExtraction.text_of(url, method="simple")` |
-| what belongs in a content type's JSON | `MetadataAgent.content_types()` / `.schema(file)` |
-
-### Building blocks for AI use
-
-| The task | The call |
-|---|---|
-| one shape for success and failure | `as_result(awaitable, format=format_results)` → `ToolResult`: `.ok` `.text` `.data` `.error` `.error_type` `.metadata` |
-| a hit as compact text | `format_hit(hit)` / `format_results(result)` |
-| mark foreign text as data | `as_untrusted(text, label="description")` |
-| clean control characters out | `sanitize_text(text)` / `one_line(text)` |
-| refuse an internal address | `check_url(url)` / `is_safe_url(url)` |
-| plan a change, let a person confirm | `plan_update(node, title=…)` → `ChangePlan`: `.node` `.changes` `.unchanged` `.has_changes` `.can_write` `.describe()` `.apply()` |
-
-### The whole surface, object by object
-
-The tables above route the common jobs. Everything else is reached
-through an object you already hold. This names every public member, so nothing
-has to be guessed — argument and return shapes are in `docs/REFERENCE.md`.
-
-**Getting in**
-
-| You hold | From | On it |
-|---|---|---|
-| `Repository` | `Repository(url, auth=…)` or `.from_env()` | `.search()` `.node()` `.create_node()` `.children()` `.create_collection()` `.update_collection()` `.add_to_collection()` `.remove_from_collection()` `.find_collections()` `.resolve()` `.resolve_all()` `.about()` `.whoami()` `.metadatasets()` `.close()`; `.url` `.credential` `.metadataset` `.raw` `.flows` `.people` `.relations` `.nodes` `.collections` `.vocab` `.searcher` |
-| `AsyncRepository` | the same, inside an event loop | the same names awaited, `.aclose()` for `.close()` |
-| `Credential` | `BasicCredential(user, pw)`, `BasicCredential.from_env()`, `AnonymousCredential()`, `credential_from(…)` | `.headers()` `.is_anonymous` `.username` |
-
-**One node and everything hanging off it**
-
-| You hold | From | On it |
-|---|---|---|
-| `Node` | `repo.node(node_id)`, `repo.create_node(…)` | read `.id` `.name` `.title` `.type` `.aspects` `.original_id` `.is_reference` `.redirected_from` `.url` `.access` `.can_write` `.is_public` `.preview_url` `.properties` `.keywords` `.raw` `.get()` `.get_all()` `.labels()` `.parents()` `.collections()`; write `.update()` `.set_property()` `.add_keywords()` `.remove_keywords()` `.rate()` `.unrate()` `.delete()`; doors `.content` `.children` `.permissions` `.workflow` `.comments` `.suggestions` `.page` `.rating` |
-| `NodeContent` | `node.content` | `.download()` `.text()` `.upload()` `.set_preview()` `.delete_preview()`; `.has_content` `.mimetype` `.size` `.download_url` |
-| `NodePermissions` | `node.permissions` | `.get()` `.grant()` `.revoke()` `.publish()` `.unpublish()` |
-| `Permissions` | `node.permissions.get()` | `.own` `.inherited` `.effective` `.inherits` `.is_public` `.allows()` `.find()` |
-| `Ace` | `permissions.find(…)` | `.authority` `.authority_type` `.permissions` `.allows()` `.for_authority()` `.as_body()` |
-| `Workflow` | `node.workflow` | `.history()` `.submit()`; `WorkflowStep`: `.status` `.receivers` `.comment` `.editor` `.at` |
-| `Comments` | `node.comments` | `.list()` `.add()` `.edit()` `.delete()`; `Comment`: `.id` `.text` `.author` `.created` `.reply_to` |
-| `Suggestions` | `node.suggestions` | `.list()` `.propose()` `.decide()`; `Suggestion`: `.id` `.property` `.value` `.status` `.why` `.confidence` `.author` |
-| `ChildObjects` | `node.children` | `.list()` `.add()` |
-| `Rating` | `node.rating` | `.average` `.count` `.own` |
-| `NodePage` | `node.page` | `.get()` `.render()` |
-
-**Collections, people, relations, vocabulary**
-
-| You hold | From | On it |
-|---|---|---|
-| `Collections` | `repo.collections` — blocking on `Repository` too, since 2026-09-10 | `.find()` `.create()` `.update()` `.add()` `.remove()` |
-| `Nodes` | `repo.nodes` — blocking on `Repository` too, since 2026-09-10 | `.get()` `.create()` `.children()` `.repository_url` `.wrap(data)`; `ChildPage`: `.nodes` `.total` `.offset` |
-| `Search` | `repo.searcher` — blocking on `Repository` too, since 2026-09-10 | `.search()` |
-| `Vocabulary` | `repo.vocab` — blocking on `Repository` too, since 2026-09-10 | `.values()` `.suggest()` `.resolve()` `.resolve_all()` `.clear_cache()`; `VocabularyValue`: `.uri` `.label` |
-| `People` | `repo.people` | `.memberships()` `.group()` `.members()` `.create_group()` `.delete_group()` `.add_member()` `.remove_member()`; `Group`: `.name` `.short_name` `.display_name` `.type` `.signup`; `Member`: `.name` `.is_group` |
-| `Skills` | `repo.skills` | `.search()` `.get()` `.registry()` `.pick()`; `SkillConventions`: `.type_property` `.skill_type` `.registry_type` `.registry_mark` `.markdown_mimetypes` `.block_kinds`; `WLO_SKILLS` |
-| `SkillSummary` / `SkillDocument` | `.search().hits` / `.get()` | `.id` `.original_id` `.title` `.description` `.keywords` `.url` `.download_url`; the document adds `.content` `.references` `.files` `.files_reason` `.folder_file_count`; `SkillFile`: `.id` `.title` `.mimetype` `.size` `.download_url`; `SkillSearch`: `.hits` `.unresolved` `.truncated` |
-| `SkillRegistry` | `repo.skills.registry(collection_id)` | `.collection_id` `.registry_id` `.registry_title` `.markdown` `.entries` `.unresolved` `.contexts` `.general` `.ambiguous` `.truncated` `.contexts_truncated` `.reason` `.context_match` `.scan_truncated`; `RegistryEntry`: `.node_id` `.title` `.description` `.keywords` `.context` |
-| `SkillReference` / `MarkdownSection` / `RegistryContext` / `RegistryGeneral` / `ContextLayout` | `parse_blocks(text)` / `parse_sections(text)` / `layout_contexts(text, blocks)` | `.kind` `.title` `.url` `.node_id` `.offset` / `.level` `.title` `.heading_start` `.body_start` `.end` / `.title` `.level` `.path` `.instruction` `.skills` `.range` / `.instruction` `.skills` / `.contexts` `.general` `.paths` `.truncated` |
-| `Relations` | `repo.relations` | `.of()` `.create()` `.delete()` `.approve()`; `Relation`: `.type` `.from_id` `.to_id` `.from_title` `.to_title` `.ai_generated` `.approved` `.created_by` `.created_at` `.opposite_of()`; `RELATION_TYPES` lists the accepted kinds |
-
-**What comes back from a search**
-
-| You hold | From | On it |
-|---|---|---|
-| `SearchResult` | `repo.search(…)` (the flow returns the same as a `dict`) | `.hits` `.total` `.total_is_lower_bound` `.facets` `.suggestions` `.unresolved` `.ignored` `.warnings` `.raw` |
-| `SearchHit` | `result.hits[i]` | `.id` `.title` `.url` `.description` `.source_url` `.mimetype` `.mediatype` `.preview_url` `.download_url` `.license` `.size` `.original_id` `.properties()` `.labels()` |
-| `Facet` | `result.facets` | `.property` `.values` `.other_count` `.truncated`; `FacetValue`: `.value` `.count` |
-| `UnresolvedFilter` | `result.unresolved` | `.field` `.value` `.suggestions` |
-
-**The instance, and curated pages**
-
-| You hold | From | On it |
-|---|---|---|
-| `Identity` | `repo.whoami()` | `.authority` `.username` `.display_name` `.is_anonymous` `.home_folder` `.raw` |
-| `About` | `repo.about()` | `.repository_version` `.renderservice_version` `.api_version` `.services` `.plugins` `.features` `.themes_url` `.raw` |
-| `MetadataSet` | `repo.metadatasets()` | `.id` `.name` |
-| `CuratedPage` | `node.page.get()` | `.collection_id` `.folder_id` `.variants` `.rendered_id` `.total_variants` `.truncated` `.document` `.rendered` `.by_position` `.variant()` |
-| `PageVariant` | `page.variant(…)`, `variant_from_node(…)` | `.id` `.title` `.is_template` `.target_group` `.educational_contexts` `.intention` `.education_levels` `.swimlanes` `.readable` `.node_ids` |
-| `Swimlane` / `SwimlaneItem` | `variant.swimlanes` | `.heading` `.type` `.items` / `.widget` `.node_id` |
-| `Ancestry` | `ancestry_of(…)`, `collections_of(…)` | `.node` `.parents` `.scope` |
-
-**The neighbouring services, as objects**
-
-| You hold | From | On it |
-|---|---|---|
-| `BildungsAPI` | `BildungsAPI(key, base_url=url)` or `.from_env()` | `.chat()` `.respond()` `.models()` `.load()` `.embeddings()` `.moderate()` `.images()` `.call()` `.aclose()` |
-| `Answer` | `.chat()` / `.respond()` | `.text` `.status` `.reason` `.model` `.truncated` `.raw` |
-| `Model` | `.models()` | `.id` `.name` `.demand` `.status` `.input` `.output` `.owned_by` `.shutdown_date` `.is_ready` `.can_chat` `.is_retired_on()` |
-| `LoadReport` | `.load()` | `.provider` `.models` `.reports_load` `.retired` `.total` `.least_loaded` `.summary()`; free functions `load_report()` `rank_models()` `rank_among()` `pick_model()` `is_rankable()` |
-| `Moderation` / `GeneratedImage` | `.moderate()` / `.images()` | `.flagged` `.categories` `.scores` / `.url` `.b64` `.revised_prompt` |
-| `BapiTemplates` | `BapiTemplates(key, base_url=url, metadataset=…)` or `.from_env()` — needs no `BildungsAPI` | `.chat()` `.chat_limited()` `.respond()` `.respond_limited()` `.images()` `.images_limited()` `.suggest()` `.qas()` `.aclose()`; `NodeConfig`: `.node_id` `.config_name`; the types `Config` and `Values`; `DEFAULT_USER` |
-| `TextExtraction` | `TextExtraction(url)` or `.from_env()` | `.text_of()` `.ping()` `.aclose()`; `ExtractedText`: `.url` `.text` `.lang` `.status` `.char_count` `.truncated` `.reason` `.detail` |
-| `MetadataAgent` | `MetadataAgent(url)` or `.from_env()` | `.schemas()` `.schema()` `.content_types()` `.content_type_for()` `.clear_cache()` `.aclose()`; `SchemaInfo`: `.file` `.profile_id` `.groups` `.field_count`; `ContentType`: `.uri` `.schema_file` `.label` `.icon` |
-| `Transport` | `repo.raw` | `.request()` `.json()` `.is_repository_url()` `.aclose()` — for routes this library does not wrap |
-
-**Free functions worth knowing**
-
-| The job | The call |
-|---|---|
-| turn a title into a legal `cm:name` | `name_from_title(title)` |
-| turn short names into properties, labels resolved | `resolve_vocabulary(repo, aliases, every_value=…)` → `(properties, unresolved)`; `every_value=True` for a read filter |
-| judge a filter on a record locally | `carries(props, prop, values)` |
-| walk a collection tree with the records | `walk_collections(repo, collection_id, depth=…, max_collections=…)` → `(entries, opened, truncated)` |
-| pages among collection hits already fetched | `pages_among(found, text)` |
-| read a skill document without I/O | `parse_blocks(text)` / `parse_sections(text)` / `layout_contexts(text, blocks)` |
-| a collection's registry, outside the accessor | `load_registry(repo, collection_id)` |
-| widen a weak query | `expand_query(query)` → `QueryVariant`: `.label` `.weight` `.text` |
-| score a hit against a query yourself | `score_hit(hit, query, aliases)` / `query_terms(query)` / `term_matches(…)` |
-| fold duplicates | `deduplicate(hits)` |
-| a result as plain JSON | `result_as_dict(result)` / `hit_as_dict(hit)` |
-| the stopword and synonym lists | `LanguageProfile`: `.stopwords` `.framing` `.synonyms`; `GERMAN_SYNONYMS` |
-| normalise an instance URL | `normalize_repository_url(raw)` / `rest_base(repository_url)` / `path_segment(value)` / `is_unroutable_host(host)` |
-| judge whether an address may be fetched | `unsafe_url_reason(url)` — `None` means it may; anything else is the refusal, ready to log |
-| judge only its spelling (you resolve the host yourself) | `unsafe_url_syntax(url)` — backslash or embedded credentials, the two ways parsers disagree |
-| a search that reranks and reports both halves | `search_reranked(repo, text)` |
-| every sub-collection of one collection | `sub_collections(repo, id)` |
-| a node's rating, from a node you hold | `rating_of(node)` / `rate(…)` / `unrate(…)` |
-| cap text before it reaches a model | `cap_text(text, max_chars)` |
-
-**Errors** — all inherit `EduSharingError`, so a single `except EduSharingError`
-catches everything this library raises:
-
-`TransportError` · `AuthenticationError` · `PermissionDeniedError` ·
-`NotFoundError` · `ValidationError` · `ConflictError` · `SilentDropError` ·
-`ServerError` · `UnsafeUrlError` · `ContentTooLargeError` (a download above
-`max_bytes`; the text paths stop at `MAX_TEXT_BYTES`, 8 MiB, before downloading) ·
-`RateLimitedError` (429 — `retry_after` carries the seconds the server named;
-short waits are sat out for you, a long one reaches you with the number)
-
-**Retries** are one rule for all three clients: `RetryPolicy(max_retries=…,
-backoff_base=…, max_retry_after=…)`, whose `delay(attempt, retry_after=…)`
-returns the seconds to wait — jittered, so a fan-out does not come back in
-lockstep — or `None` when the server asked for longer than this client waits.
-`RETRYABLE_STATUS` is the status set the two sibling services retry,
-`DEFAULT_MAX_RETRY_AFTER` (60 s) is that ceiling, and
-`parse_retry_after(value)` reads the header in either form RFC 9110 allows.
-A refused 3xx names only the target host -- a presigned address carries its
-authority in the query string -- and puts the whole `Location` on the
-exception as `.location`.
-
-`edusharing.dto` is the one reading of a raw node record — `first(value)`
-(the first value of a property, `None` for an empty list), `title_of(raw)`
-(`title`, then `cclom:title`, `cm:title`, `cm:name`) and `stored_title_of(raw)`
-(the same without the name fallback — what a write preserves), `node_id_of(raw)`,
-`bare_id(ref)`, `render_url(repository_url, node_id)` and
-`page_total(response, default=…)`. Every object of this library is built
-through them, so the same record always reads the same way.
-
-`page_cut(records, response, limit)` is the one reading of *"is this page all
-of them?"*. Ask the endpoint for `limit + 1` and the page answers for itself;
-reading the stated total alone said "complete" exactly where the repository
-stated nothing, which is where the question mattered most.
-
-`at_least(name, value, limit)` is the bounds check for the clients' **continuous**
-settings and `whole_number(name, value, limit)` the one for those that **count**
-(`max_concurrency`, `max_retries`, `retries_before_switching`) -- a fraction is
-refused there, because a semaphore counting 1.5 never reaches the zero at which
-it would block;
-`check_client(client, timeout=…)` holds the three rules for a client the caller brings
-along -- no `timeout` beside it, no `follow_redirects=True`, because httpx keeps
-custom headers across a cross-origin redirect and an API key would travel with them,
-no credentials of the client's own (`auth=` or a default header beyond httpx's
-four), because those go to every address including one outside the repository,
-and no cookies already in its jar, because switching the jar off does not empty
-it and httpx copies what is in there onto every request;
-`redirect_error(…)` and `non_json_error(…)` are the two answers all four clients
-give to a 3xx and to a body that is not JSON -- both inside `EduSharingError`, so
-nothing from the standard library escapes the contract;
-`details_withheld(…)` names what an error deliberately does not reveal.
-
-**The rest of `__all__`** is machinery you only touch when extending the
-library rather than using it: `Flows` (the type behind `repo.flows`), `__version__`,
-the constructors `from_response` / `from_node` / `from_raw_header` / `error_from_response`
-(and `error_class_for`, which answers only which type a status stands for), the b-api body helpers `build_body` / `read_answer` /
-`reasoning_for_responses`, and `field_property`, which maps a short field name to
-its property. Nothing above depends on calling them.
-
-**Named constants — the defaults, and the magic strings**
-
-Every default below is a keyword argument you can override; the constant exists
-so the value has a name instead of being buried in a signature.
-
-| Constant | Value | What it governs |
-|---|---|---|
-| `DEFAULT_EFFORT` / `DEFAULT_VERBOSITY` | `"low"` | reasoning and verbosity on models that support them |
-| `DEFAULT_MAX_TOKENS` / `DEFAULT_MAX_OUTPUT_TOKENS` | `1000` | the cap on a chat answer / on a responses answer |
-| `DEFAULT_HIT_CHARS` / `DEFAULT_RESULT_CHARS` | `400` / `4000` | how much `format_hit` / `format_results` hands a model |
-| `DEFAULT_MAX_CHARS` | `200000` | where `flows.text` cuts, at a word boundary |
-| `SKILL_SEARCH_PAGE` / `SKILL_BUNDLE_MAX` / `SKILL_VISIT_MAX` / `SKILL_DEPTH_MAX` | `50` / `50` / `30` / `2` | skill hits pooled · companion files listed before a folder counts as an inbox · collections a scoped walk may read · levels the walk descends |
-| `REGISTRY_SCAN_MAX` / `REGISTRY_MAX` / `REGISTRY_POOL` / `REGISTRY_CONTEXT_MAX` | `50` / `100` / `10` / `50` | files scanned for a registry · entries per answer · heads resolved at once · contexts per answer |
-| `DUPLICATE_SCAN_LIMIT` | `20` | hits `find_by_url` compares before `add_material` creates; `check_before_create` applies `if_exists`, `validate_if_exists` refuses a misspelled one |
-| `EXCLUSION_MAX` | `200` | the largest refill after `exclude_ids` — `limit` itself is never capped |
-| `DEFAULT_POOL` | `25` | how many hits `search(rerank=True)` fetches before reranking |
-| `MAX_VARIANTS` | `5` | how many rewrites `expand_query` produces |
-| `DEFAULT_MAX_COLLECTIONS` / `DEFAULT_MAX_WIDGETS` / `DESCRIBE_MANY_MAX` | `50` / `24` / `50` | ceilings on `browse_tree`, on a rendered page, and on the distinct ids one `describe_many` looks at (it answers `truncated`) |
-| `RELATED_ON` | `("subject", "level")` | the fields `related()` compares on by default |
-| `METHODS` | `("simple", "browser")` | the extraction methods `text_of` accepts |
-| `PROPOSAL_BATCH` | `"edusharing-python"` | the batch name proposals are filed under |
-| `GERMAN` | a `LanguageProfile` | the German stopword, framing and synonym lists |
-
-| Constant | Value | Why it has a name |
-|---|---|---|
-| `KEYWORD_PROPERTY` | `cclom:general_keyword` | the shared keyword list (see [TRAPS.md 1.6](reference/TRAPS.md#16-some-lists-are-shared-property)) |
-| `CHILD_ASPECT` / `ORDER_PROPERTY` / `LIST_MAX` | `ccm:io_childobject` / `ccm:childobject_order` / `200` | what marks and orders a child object, and how many one listing reads before it raises |
-| `PAGE_REF` / `PAGE_CONFIG` / `VARIANT_CONFIG` | `ccm:page_config_ref` / `ccm:page_config` / `ccm:page_variant_config` | the three properties a curated page hangs on |
-| `EVERYONE` / `CONSUMER` | `GROUP_EVERYONE` / `Consumer` | the authority and right that make a node public |
-| `GUEST_AUTHORITY` | `esguest` | who you are when nobody signed in |
-| `UNTRUSTED_MARKER` | the fence `as_untrusted` wraps text in | so a model can see where foreign text begins |
-
-`UNSET` is the sentinel behind the rule **a default may be dropped, an explicit
-wish may not**: passing nothing lets the library omit a parameter a model does
-not support; passing a value explicitly makes an unsupported parameter an
-error rather than a silent omission. `ReasoningParam` is its type.
-
----
-
-## 4. How edu-sharing stores metadata
-
-Moved to [reference/TRAPS.md, part 1](reference/TRAPS.md#1-how-edu-sharing-stores-metadata):
-every value is a list, four namespaces, `cm:name` is a key, vocabulary fields
-hold URIs, the metadata set decides what exists, shared lists, aspects, and
-properties that arrive empty.
-
----
-
-## 5. The traps — what to watch for
-
-Moved to [reference/TRAPS.md, part 2](reference/TRAPS.md#2-the-traps--what-to-watch-for):
-sixteen traps, each measured against a real instance — from "HTTP 200 does
-not mean it was stored" to the template mode. The one to know before reading
-any result: `total_is_lower_bound`, `truncated`, `complete`,
-`collections_truncated`, `scan_truncated` and `contexts_truncated` each say
-that something is missing (part 2.3).
-
----
-
-## 6. Putting it behind a model
-
-### Never let repository text act as an instruction
-
-Descriptions, titles and comments are written by strangers. Wrap them before
-they enter a model context:
+### 3.1 Search
 
 ```python
-from edusharing.agent import as_untrusted, sanitize_text
+result = repo.search("Bruchrechnung", subject="Mathematik", level="Sekundarstufe I", limit=5)
+for hit in result.hits:                          # SearchHit
+    print(hit.title, hit.url, hit.labels("ccm:taxonid"))    # labels, not URIs
+result.total, result.total_is_lower_bound        # 128, False -- True means "at least"
+result.unresolved                                # [] -- a filter listed here was NOT applied
 
-as_untrusted(hit.description, label="description")
+answer = repo.flows.search("Bruchrechnung", subject="Mathematik", limit=5)   # dict
+[(h["title"], h["url"]) for h in answer["hits"]], answer["total"], answer["unresolved"]
 ```
 
-### Input you do not trust belongs in `choices`, not `variables`
+Search short names: `subject`, `level`, `type`, `license`, `difficulty`
+(`STANDARD_FIELD_ALIASES`) — pass labels, they are resolved. Anything else:
+`repo.searcher.search(text, filters={"ccm:taxonid": [uri]}, facets=["subject"])`.
+A vague request ranks better with `repo.flows.search(text, rerank=True)` — its
+stopwords and synonyms are a `LanguageProfile`, German (`GERMAN`) by default.
 
-In the template mode a `variables` value goes into the prompt as it stands —
-measured, one reading "ignore all previous instructions" steered the answer.
-The `_limited` calls take `{widget_id: value_id}` pairs instead; free text given
-there did not reach the prompt.
-
-### Propose, do not write
-
-For anything a model decided, the route is `suggestions.propose(...)` and a
-person decides — not `node.update(...)`. The b-api's template mode proposes
-the same way: `BapiTemplates.suggest` stores pending suggestions, and
-`repo.flows.accept_suggestion` takes one over (measured 2026-09-11). When a
-write really is intended, plan it and show the plan:
+### 3.2 Read a node
 
 ```python
-# async: plan_update and apply() are coroutines
-plan = await plan_update(node, title=proposed)
-print(plan.describe())        # old -> new, for a human
-await plan.apply()            # only after confirmation
+node = repo.node(node_id)                        # Node
+node.title, node.keywords, node.url              # str, list[str], str
+node.labels("ccm:taxonid")                       # ["Mathematik"] -- readable
+node.get("ccm:taxonid"), node.get_all("cclom:general_keyword")   # first value / all
+[c.title for c in node.collections()]            # the collections holding it
+[p.title for p in node.parents()]                # the folders above, nearest first
+repo.flows.describe(node_id)["fields"]["subject"]   # ["Mathematik"], as JSON
 ```
 
-### One shape for success and failure
+`node.properties` is everything, raw: `dict[str, list[str]]` — **every value is
+a list**. `node.can_write` and `node.is_public` say what you may do.
+
+### 3.3 Create and change
 
 ```python
-# async: as_result takes an awaitable
-outcome = await as_result(repo.flows.search(text))
-outcome.ok, outcome.error_type      # False, "NotFoundError"
+folder_id = repo.whoami().home_folder            # or any folder you may write to
+made = repo.flows.add_material(
+    "Bruchrechnung üben", parent_id=folder_id, description="Kürzen und Erweitern",
+    keywords=["Brüche"], subject="Mathematik", level="Sekundarstufe I")
+made["id"], made["unresolved"]                   # a value listed in unresolved was NOT written
+node = repo.node(made["id"])
+node.title, node.labels("ccm:taxonid"), node.labels("ccm:educationalcontext")   # read back
+node = node.update(title="Bruchrechnung üben, Teil 2")   # returns the node as stored
+node = node.add_keywords("Kürzen", "Erweitern")  # one argument per keyword; keeps the others
 ```
 
-`error_type` lets a tool distinguish "rephrasing might help" from "credentials
-are missing" without parsing the message. Errors carry no Java stack trace.
+`add_material` resolves labels for the search short names. `node.update` takes
+only the write short names — `title`, `description`, `keywords`, `name`, `url`,
+`author` (`WRITE_FIELD_ALIASES`); anything else by full name:
+`node.update(properties={"ccm:taxonid": [repo.resolve("ccm:taxonid", "Physik")]})`
+or `node.set_property("ccm:taxonid", uri)`. An unknown short name raises
+`ValidationError` before anything is sent. Every write reads back: a value the
+repository dropped (HTTP 200, not stored) raises `SilentDropError`, whose
+`dropped` lists the properties. `update(keywords=[…])` **replaces** a shared
+list — use `add_keywords`/`remove_keywords`. A bare record without flow:
+`repo.create_node(parent_id, name="notiz.txt", title="Notiz")` — `name` is
+required and is a key (`cm:name`), not the title.
 
-### Addresses from a model are untrusted
+### 3.4 Files and full text
 
-`check_url` refuses loopback, link-local and private ranges. `BildungsAPI.call`
-validates its route segment by segment — `"../../administration/account"` is
-refused rather than sent with the API key.
+```python
+node = repo.create_node(parent_id=folder_id, name="notiz.txt", title="Notiz")
+node = node.content.upload(b"Hallo edu-sharing", filename="notiz.txt", mimetype="text/plain")
+node.content.text()                              # "Hallo edu-sharing" -- works on private nodes
+node.content.has_content, node.content.mimetype, node.content.size
+info = repo.flows.text(node.id)                  # {text, source, reason, truncated, …}
+info["text"] or info["reason"]                   # no text? reason says why
+```
 
-### What never reaches a log
+`node.content.download(max_bytes=…)` returns bytes for **public** nodes only (a
+private one answers 403 — use `text()`). A link-only record has no file:
+`repo.flows.text` then tries the linked page through `TextExtraction` if you
+pass `extraction=`. An attachment: `node.children.add(data, filename=…, mimetype=…)`.
 
-Headers, credentials, query strings, and the path of any address the caller
-supplied. The library logs only what it built itself.
+### 3.5 Collections
 
----
+```python
+found = repo.flows.find_collections("Physik", limit=5)      # {hits, unjudged, …}
+first = found["hits"][0]
+inside = repo.flows.collection_contents(first["id"], limit=50)
+[m["title"] for m in inside["materials"]], inside["total_materials"]
+inside["collections"], inside["collections_truncated"]      # sub-collections, easily missed
+col = repo.create_collection("Mappe", description="Probelauf")   # Node
+repo.add_to_collection(col.id, node_id)          # True; False when already in
+repo.remove_from_collection(col.id, node_id)     # the material itself stays
+```
 
-## 7. Where to look things up
+A collection holds references; a listing hands out **reference ids**
+(`node.original_id` is the record). Walk a tree with
+`repo.flows.browse_tree(collection_id, depth=2)`, count with
+`repo.flows.collection_stats(collection_id)`, search inside with
+`repo.flows.search_in_collection(collection_id, query)`; build and fill one
+with `repo.flows.build_collection(title, node_ids=[…])`.
+
+### 3.6 Publish and permissions
+
+```python
+node.permissions.publish()                       # True -- readable without login
+perms = node.permissions.get()                   # Permissions
+perms.is_public, perms.allows("GROUP_lehrer", "Read")
+node.permissions.grant("GROUP_lehrer", "Write")  # merges -- keeps the other entries
+node.permissions.revoke("GROUP_lehrer", "Write")
+```
+
+`unpublish()` raises `ConflictError` when the parent keeps the node public.
+
+### 3.7 Editorial: comments, ratings, suggestions, workflow
+
+```python
+note = node.comments.add("Passt zu Klasse 6.")   # Comment: .id .text .author
+node.comments.edit(note.id, "Passt zu Klasse 6 und 7.")
+node.rate(4)                                     # Rating: .average .count .own
+proposal = node.suggestions.propose("ccm:taxonid", uri, "model, confidence 0.9")
+done = repo.flows.accept_suggestion(node.id, proposal.id)
+done["applied"], done["status"]                  # True -- written, read back, marked
+node.workflow.submit("GROUP_redaktion", "TO_BE_CHECKED", comment="Bitte prüfen")
+```
+
+**Propose, do not write**, for anything a model decided: `propose` stores a
+pending suggestion; `accept_suggestion` writes it and reads it back, while
+`node.suggestions.decide(ids, accept=True)` only marks it.
+
+### 3.8 Relations, child objects, vocabulary, people
+
+```python
+repo.relations.create(part_id, "isPartOf", series_id)   # the other side is kept automatically
+[(r.type, r.to_title) for r in repo.relations.of(series_id)]
+[c.name for c in node.children.list()]           # attachments: display name, not title
+repo.vocab.resolve("ccm:taxonid", "Biologie")    # "http://w3id.org/…/080" -- first URI
+repo.vocab.resolve_all("ccm:taxonid", "Biologie")   # every URI with that label
+[v.label for v in repo.vocab.suggest("ccm:taxonid", "ysik")]   # substring match
+repo.flows.vocabulary("subject")                 # {field, property, values, count}
+[g.name for g in repo.people.memberships()]
+```
+
+Groups: `repo.people.members(group, limit=100)` — pass `limit`, the endpoint
+cuts at 10 unasked.
+
+### 3.9 Curated pages, skills, raw transport
+
+```python
+page = repo.flows.page(collection_id)            # {rendered, swimlanes, node_ids, …}
+best = repo.flows.pick_skill("Fragen zu einem Text generieren")   # {best, alternatives, reason}
+status = repo.raw.json("GET", "/_about/status/ALFRESCO")   # any REST route, credentials attached
+```
+
+`repo.raw` reaches routes the library does not wrap — its path is yours to escape.
+
+### 3.10 LLM gateway — proxy (`BildungsAPI`)
+
+```python
+from edusharing.bapi import BildungsAPI
+
+
+async def summarise(text: str) -> str:
+    async with BildungsAPI.from_env() as api:    # provider academiccloud by default
+        answer = await api.chat(f"Fasse in einem Satz zusammen: {text}")   # str
+        print(api.last_model)                    # the model that answered
+        return answer
+```
+
+Without `model=`, the least loaded ready text model answers; `model="id"` is
+exactly that model, `model=["a", "b"]` the least loaded of these. `api.chat`
+returns a **str**. `await api.load("academiccloud")` → `LoadReport`
+(`.least_loaded`, `.summary()`); `await api.respond(prompt, model=…)` → `Answer`
+(`.text`, `.model`, `.truncated` — read that first). Embeddings, moderation and
+images exist at `provider="openai"` only.
+
+### 3.11 LLM gateway — templates (`BapiTemplates`)
+
+```python
+from edusharing.bapi import BapiTemplates
+
+chain = ["topic_page_ai_default", "topic_page_ai_chat_completion", "topic_page_ai_text_widget"]
+
+
+async def describe(collection_id: str) -> str:
+    async with BapiTemplates.from_env() as templates:    # needs EDU_SHARING_METADATASET
+        return await templates.chat(chain, context_node_id=collection_id)   # str
+
+
+async def propose_keywords(node_id: str) -> list:
+    async with BapiTemplates.from_env() as templates:
+        return await templates.suggest(["suggestion_ai"], {"cclom:general_keyword": "default"},
+                                       context_node_id=node_id)   # stored as pending suggestions
+```
+
+The prompt lives in the metadata set; you name configurations (ids from
+`repo.raw.json("GET", "/mds/v1/metadatasets/-home-/mds_oeh")["aiConfigs"]`),
+a context node and values. **Free text in `variables` reaches the prompt as it
+stands** — untrusted input goes through
+`templates.chat_limited(chain, context_node_id=…, choices={widget_id: value_id})`,
+which accepts values from a value space only. The gateway reads with its own
+account: a private context node answers 403, so publish it first. Take a
+suggestion over with `repo.flows.accept_suggestion(node_id, suggestion.id)`.
+
+### 3.12 Text extraction and the metadata agent
+
+```python
+from edusharing.extraction import TextExtraction
+
+
+async def page_text(url: str) -> str:
+    async with TextExtraction.from_env() as service:
+        got = await service.text_of(url, method="simple")    # ExtractedText
+        return got.text if got.text else got.reason          # "browser" if "simple" fails
+```
+
+`MetadataAgent.from_env()`: `await agent.content_types()`, then
+`await agent.schema(file)` — which fields belong in a content type's JSON.
+
+### 3.13 An MCP or agent tool
+
+```python
+import json
+
+from edusharing import AsyncRepository
+from edusharing.agent import as_result, as_untrusted
+
+
+async def search_tool(text: str) -> str:
+    """Success and failure in one shape; repository text marked as data."""
+    async with AsyncRepository.from_env() as repo:
+        outcome = await as_result(repo.flows.search(text, limit=5))   # ToolResult
+    hits = outcome.data["hits"] if outcome.ok else []
+    for hit in hits:
+        hit["title"] = as_untrusted(hit["title"], label="title")
+        hit["description"] = as_untrusted(hit.get("description"), label="description")
+    return json.dumps({"ok": outcome.ok, "hits": hits, "error": outcome.error,
+                       "error_type": outcome.error_type}, ensure_ascii=False)
+```
+
+`as_result(awaitable, format=…)` never raises: `ok`, `text`, `data`, `error`,
+`error_type` (`"NotFoundError"` …), `metadata`. Pass a flow — its `data` is a
+dict; `format_results` expects a `SearchResult` from `repo.search`. Before a
+model's URL is fetched: `check_url(url)`. Before a model's change is written:
+`plan = await plan_update(node, title=…)`, show `plan.describe()`, then
+`await plan.apply()`.
+
+## 4. The surface — every call
+
+`→` is what comes back; `…` stands for optional parameters, all in
+[REFERENCE.md](reference/REFERENCE.md). Blocking: the same calls without `await`.
+
+| On | Call → result |
+|---|---|
+| `Repository` / `AsyncRepository` | `Repository(url, auth=(user, pw), metadataset=…)` · `.from_env(**kwargs)` · `search(text=None, **filters)` → `SearchResult` · `node(node_id)` → `Node` · `create_node(parent_id, name=…, **fields)` → `Node` · `create_collection(title, parent=…, scope=…, description=…)` → `Node` · `update_collection(collection_id, title=…)` (blocking) · `add_to_collection(collection_id, node_id)` → `bool` · `remove_from_collection(collection_id, node_id)` · `find_collections(text, limit=…)` → `SearchResult` · `children(node_id, limit=…)` (blocking) → `ChildPage` · `resolve(prop, label)` / `resolve_all(prop, label)` (blocking) · `about()` → `About` · `whoami()` → `Identity` · `metadatasets()` → `list[MetadataSet]` · `close()` / `aclose()` |
+| `repo.nodes` | `get(node_id)` → `Node` · `create(parent_id, name=…, type=…, properties=…, **fields)` → `Node` · `children(node_id, limit=…, offset=…)` → `ChildPage` (`.nodes` `.total` `.offset`) · `wrap(data)` → `Node` |
+| `Node` | `labels(prop)` → `list[str]` · `get(prop)` → `str \| None` · `get_all(prop)` → `list[str]` · `parents()` / `collections()` → `list[Node]` · `update(properties=…, verify=True, **fields)` → `Node` · `set_property(prop, value, verify=True)` → `Node` · `add_keywords(*keywords)` / `remove_keywords(*keywords)` → `Node` · `rate(value, text="")` / `unrate()` → `Rating \| None` · `delete(recycle=True)` · fields `id` `name` `title` `type` `url` `keywords` `properties` `access` `can_write` `is_public` `original_id` `is_reference` `rating` |
+| `node.content` | `upload(data, filename=…, mimetype=…)` → `Node` · `text()` → `str` · `download(max_bytes=…)` → `bytes` · `set_preview(data, mimetype="image/png")` / `delete_preview()` → `Node` · `has_content` `mimetype` `size` `download_url` |
+| `node.children` | `list()` → `list[Node]` · `add(data, filename=…, mimetype=…, order=…)` → `Node` |
+| `node.permissions` | `get()` → `Permissions` (`.is_public` `.allows(authority, permission)` `.find(authority)` → `Ace \| None`) · `grant(authority, *permissions)` / `revoke(authority, *permissions)` → `bool` · `publish()` / `unpublish()` → `bool` · `Ace.for_authority(authority, *permissions)` · `ace.allows(permission)` |
+| `node.comments` · `node.suggestions` · `node.workflow` | `list()` · `add(text, reply_to=…)` → `Comment` · `edit(comment_id, text)` · `delete(comment_id)` · `propose(property, value, reason, confidence=…)` → `Suggestion` · `decide(ids, accept=True)` · `history()` → `list[WorkflowStep]` · `submit(receiver, status, comment="")` → `WorkflowStep` |
+| `node.page` | `get()` → `CuratedPage \| None` (`.rendered` `.by_position` `.truncated`) · `render(variant_id)` → `CuratedPage` · `page.variant(variant_id)` → `PageVariant \| None` (`.node_ids`) |
+| `repo.collections` | `find(text, limit=…)` → `SearchResult` · `create(title, …)` → `Node` · `update(collection_id, title=…, description=…)` → `Node` · `add(collection_id, node_id)` → `bool` · `remove(collection_id, node_id)` |
+| `repo.searcher` | `search(text, filters=…, facets=…, limit=…, offset=…, **filters)` → `SearchResult` |
+| `repo.vocab` | `values(prop)` / `suggest(prop, text)` → `list[VocabularyValue]` (`.uri` `.label`) · `resolve(prop, label_or_uri)` → `str \| None` · `resolve_all(prop, label_or_uri)` → `list[str]` · `clear_cache()` |
+| `repo.people` | `memberships()` → `list[Group]` · `group(name)` → `Group` · `members(group, limit=…)` → `list[Member]` · `create_group(name, display_name=…)` · `delete_group(name)` · `add_member(group, authority)` · `remove_member(group, authority)` |
+| `repo.relations` | `of(node_id)` → `list[Relation]` · `create(from_node, relation_type, to_node, ai_generated=…)` · `delete(from_node, relation_type, to_node)` · `approve(from_node, relation_type, to_node)` · `Relation.opposite_of(relation_type)` |
+| `repo.skills` | `search(text, collection_id=…, **filters)` → `SkillSearch` · `get(node_id)` → `SkillDocument` · `registry(collection_id, context=…)` → `SkillRegistry` · `pick(text)` → `(SkillDocument, list[SkillSummary]) \| None` |
+| `repo.raw` | `json(method, path, json=…)` → parsed body · `request(method, path, …)` → `httpx.Response` · `download(path, max_bytes=…)` → `bytes` · `is_repository_url(url)` → `bool` |
+| `repo.flows` — all → `dict` | `repo.flows.search(text, filters=…, limit=…, rerank=…, exclude_ids=…, **filters)` · `repo.flows.search_all(text)` → `{materials, collections}` · `repo.flows.find_collections(text, parent_id=…)` · `repo.flows.related(node_id, on=…)` · `repo.flows.vocabulary(field)` · `repo.flows.describe(node_id)` · `repo.flows.describe_many(node_ids)` · `repo.flows.placement(node_id)` → `{path, …}` · `repo.flows.text(node_id, extraction=…)` · `repo.flows.collection_contents(collection_id)` · `repo.flows.child_objects(node_id)` · `repo.flows.relations(node_id)` · `repo.flows.browse_tree(collection_id, depth=…)` · `repo.flows.search_in_collection(collection_id, query)` · `repo.flows.collection_stats(collection_id)` · `repo.flows.page(collection_id)` · `repo.flows.find_pages(text)` · `repo.flows.add_material(title, url=…, parent_id=…, **filters)` · `repo.flows.update_material(node_id, title=…)` · `repo.flows.build_collection(title, node_ids=…)` · `repo.flows.accept_suggestion(node_id, suggestion_id)` · `repo.flows.find_skills(text)` · `repo.flows.skill(node_id)` · `repo.flows.skill_registry(collection_id, context=…)` · `repo.flows.pick_skill(text)` · `repo.flows.delete(node_id, recycle=True)` → `{recycled, …}` |
+| `BildungsAPI` | `BildungsAPI(api_key, base_url=…)` · `chat(prompt, model=…, system=…, max_tokens=…)` → `str` · `last_model` · `respond(prompt, model=…)` → `Answer` · `models(provider=…)` → `list[Model]` · `load(provider=…)` → `LoadReport` · `embeddings(texts, model=…)` → `list[list[float]]` · `moderate(text, model=…)` → `Moderation` · `images(prompt, model=…)` → `list[GeneratedImage]` · `call(route, body)` → `dict` · `model.is_retired_on(day)` |
+| `BapiTemplates` | `BapiTemplates(api_key, base_url=…, metadataset=…)` · `chat(configs, context_node_id=…, variables=…)` / `chat_limited(configs, context_node_id=…, choices=…)` → `str` · `respond(configs, context_node_id=…)` / `respond_limited(configs, context_node_id=…)` → `Answer` · `images(configs, context_node_id=…)` / `images_limited(configs, context_node_id=…)` → `list[GeneratedImage]` · `suggest(configs, widgets, context_node_id=…)` → `list[Suggestion]` · `qas(node_ids)` → `list[dict]` · `NodeConfig(node_id, config_name)` |
+| `TextExtraction` · `MetadataAgent` | `text_of(url, method="simple", max_chars=…)` → `ExtractedText` (`.text` `.reason` `.truncated`) · `ping()` · `schemas()` · `schema(file)` → `dict` · `content_types()` · `content_type_for(uri)` → `ContentType \| None` |
+| `edusharing.agent` | `as_result(awaitable, format=…)` → `ToolResult` · `as_untrusted(text, label=…)` · `sanitize_text(text)` · `one_line(text)` · `format_results(result)` · `format_hit(hit)` · `check_url(url)` / `is_safe_url(url)` · `plan_update(node, title=…)` → `ChangePlan` (`.describe()` `.apply()`) |
+| records | `SearchResult` `.hits` `.total` `.total_is_lower_bound` `.facets` `.unresolved` · `SearchHit` `.id` `.title` `.url` `.description` `.labels(prop)` `.properties()` · `SearchHit.from_node(node, repository_url)` · `X.from_response(data)` builds `Comment`, `Group`, `Ace`, … from raw JSON · `BasicCredential.from_raw_header(header)` · `RetryPolicy().delay(attempt)` · helpers in `edusharing.dto` (`first(value)` …) and `edusharing.errors` (`at_least(name, value, limit)` …) |
+
+## 5. Errors
+
+All eleven inherit from `EduSharingError` directly — one `except` catches
+everything the library raises, and no message carries a Java stack trace.
+
+| Class | When |
+|---|---|
+| `SilentDropError` | a write answered 200 and did not store — `.dropped` names the properties |
+| `ValidationError` | the request is wrong before it is sent: unknown short name, unknown template id |
+| `NotFoundError` · `PermissionDeniedError` · `AuthenticationError` | 404 · 403 · 401 |
+| `ConflictError` · `RateLimitedError` · `ServerError` | 409 · 429 (`.retry_after`) · 5xx |
+| `TransportError` · `ContentTooLargeError` · `UnsafeUrlError` | network · above `max_bytes` · refused address |
+
+Every error has `.status` and `.url`. In a tool, `as_result` turns it into
+`error_type` — "rephrase" (`ValidationError`) versus "log in" (`AuthenticationError`).
+
+## 6. Ten traps that break code
+
+1. **HTTP 200 is no proof** — rely on `SilentDropError`, never swallow it ([TRAPS 2.1](reference/TRAPS.md#21-http-200-does-not-mean-it-was-stored)).
+2. **Read the incompleteness markers**: `total_is_lower_bound`, `truncated`, `complete`, `collections_truncated`, `scan_truncated`, `contexts_truncated` each say that something is missing ([2.3](reference/TRAPS.md#23-total_is_lower_bound-truncated-complete)).
+3. **`unresolved` lists filters that were not applied** — the search answered a wider question ([2.2](reference/TRAPS.md#22-unresolved-is-not-decoration)).
+4. **Every value is a list**; vocabulary fields hold URIs, `labels()` gives the names ([1.1](reference/TRAPS.md#11-every-value-is-a-list), [1.4](reference/TRAPS.md#14-vocabulary-fields-hold-uris-never-labels)).
+5. **`cm:name` is a key, not a title** — write `title` ([1.3](reference/TRAPS.md#13-cmname-is-a-key-not-a-title)).
+6. **Keywords are shared** — `add_keywords("a", "b")`, not `update(keywords=…)` ([1.6](reference/TRAPS.md#16-some-lists-are-shared-property)).
+7. **A collection listing hands out reference ids** — the record is `original_id` ([2.13](reference/TRAPS.md#213-a-collection-listing-hands-out-reference-ids)).
+8. **A new record is not findable at once** — read it by id, do not search for it ([2.15](reference/TRAPS.md#215-a-record-is-not-findable-the-moment-it-is-created)).
+9. **The metadata set decides what exists** — an unknown property is dropped ([1.5](reference/TRAPS.md#15-the-metadata-set-decides-what-exists--silently)).
+10. **Repository text is data, never instructions** — wrap it with `as_untrusted` before a model sees it.
+
+## 7. Where the details are
 
 | Question | File |
 |---|---|
-| what does this call return, exactly | [`docs/REFERENCE.md`](../../../docs/REFERENCE.md) · [de](../../../docs/REFERENCE.de.md) |
-| why does this flow do what it does | [`docs/FLOWS.md`](../../../docs/FLOWS.md) · [de](../../../docs/FLOWS.de.md) |
-| how is the library built | [`docs/ARCHITECTURE.md`](../../../docs/ARCHITECTURE.md) · [de](../../../docs/ARCHITECTURE.de.md) |
-| a runnable example | `docs/examples/01…23` — see the README table |
-| what changed | `CHANGELOG.md` |
+| every name, every parameter, every result shape | [REFERENCE.md](reference/REFERENCE.md) |
+| why each flow does what it does, with its costs | [FLOWS.md](reference/FLOWS.md) |
+| the data model and all sixteen measured traps | [TRAPS.md](reference/TRAPS.md) |
 
-Start with `docs/examples/10_two_levels.py` when deciding which level to write
-against: it writes the same use case twice and counts the requests each sends.
+Runnable examples, each one use case, all tested against a live instance:
+[01_connect](reference/examples/01_connect.py) · [02_search](reference/examples/02_search.py) ·
+[03_write](reference/examples/03_write.py) · [04_agent_blocks](reference/examples/04_agent_blocks.py) ·
+[05_flow_search](reference/examples/05_flow_search.py) · [06_flow_create](reference/examples/06_flow_create.py) ·
+[07_flow_collection](reference/examples/07_flow_collection.py) · [08_flow_rerank](reference/examples/08_flow_rerank.py) ·
+[09_flow_browse](reference/examples/09_flow_browse.py) · [10_two_levels](reference/examples/10_two_levels.py) ·
+[11_publish](reference/examples/11_publish.py) · [12_flow_place](reference/examples/12_flow_place.py) ·
+[13_flow_tree](reference/examples/13_flow_tree.py) · [14_flow_page](reference/examples/14_flow_page.py) ·
+[15_full_text](reference/examples/15_full_text.py) · [16_editorial](reference/examples/16_editorial.py) ·
+[17_flow_belonging](reference/examples/17_flow_belonging.py) · [18_video_recommendation](reference/examples/18_video_recommendation.py) ·
+[19_collection_audit](reference/examples/19_collection_audit.py) · [20_provider_load](reference/examples/20_provider_load.py) ·
+[21_skills](reference/examples/21_skills.py) · [22_bapi_templates](reference/examples/22_bapi_templates.py) ·
+[23_ai_suggestions](reference/examples/23_ai_suggestions.py).
 
----
-
-## 8. Checklist before shipping a tool built on this
-
-```
-[ ] Instance comes from configuration, not from a literal in the code
-[ ] Credentials from env or a vault, never in source, never logged
-[ ] Every search result: `unresolved` checked and surfaced
-[ ] Every count reported: `total_is_lower_bound` respected
-[ ] Every walk: `truncated` / `complete` surfaced
-[ ] Every write: SilentDropError handled, not swallowed
-[ ] Repository text wrapped with `as_untrusted` before a model sees it
-[ ] URLs from a model passed through `check_url`
-[ ] Model-decided changes go through `suggestions.propose`, not `update`
-[ ] Errors caught as `EduSharingError`, reported with `error_type`
-```
-
----
-
-## 9. Related skills
-
-| Skill | For |
-|---|---|
-| `wlo-edu-sharing-api` | the raw REST API, WLO's data model, licence keys, NGSearch |
-| `wlo-environments` | which address is staging, which is production; variable names |
-| `wlo-metadata-agent-api` | the metadata agent's own endpoints |
-| `wlo-bapi-llm` / `wlo-b-api-llm` | the gateway's model list and provider behaviour |
-| `wlo-suggestions-curation` | the editorial workflow this library's `suggestions` feeds |
-| `wlo-mcp-search` / `wlo-mcp-python-client` | building an MCP server over this |
-
-When those skills and this one disagree about a *Python* call, this one and
-`docs/REFERENCE.md` win. When they disagree about an *address*, a *raw
-endpoint* or WLO's data model, they win.
+If they are installed, the skills `wlo-edu-sharing-api` (raw REST, WLO's data
+model) and `wlo-environments` (which address is staging) complement this one;
+for a *Python* call, this skill and REFERENCE win.
