@@ -678,6 +678,7 @@ it degenerates into a fallback chain in the order you wrote.
 that to how long your process lives:
 
 ```python
+# async: BildungsAPI has no blocking facade
 # A script that runs for a minute: ask once.
 api = BildungsAPI.from_env(models_cache_seconds=CACHE_FOREVER)
 print((await api.load()).summary())      # into the start-up log
@@ -816,6 +817,7 @@ person decides — not `node.update(...)`. When a write really is intended, plan
 it and show the plan:
 
 ```python
+# async: plan_update and apply() are coroutines
 plan = await plan_update(node, title=proposed)
 print(plan.describe())        # old -> new, for a human
 await plan.apply()            # only after confirmation
@@ -824,6 +826,7 @@ await plan.apply()            # only after confirmation
 ### One shape for success and failure
 
 ```python
+# async: as_result takes an awaitable
 outcome = await as_result(repo.flows.search(text))
 outcome.ok, outcome.error_type      # False, "NotFoundError"
 ```

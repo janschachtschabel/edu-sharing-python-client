@@ -10,6 +10,12 @@ shapes, not sketches.
 A test keeps this file complete: `tests/test_docs_complete.py` fails when a
 public name is missing here or in the German version.
 
+**The examples are written for `AsyncRepository`.** With the blocking
+`Repository`, leave out the `await` — every call on `repo.…` has a blocking
+twin under the same name, since 2026-09-10. One exception: `aclose()` is
+`close()` there. The few blocks that exist only asynchronously say so in
+their first line.
+
 ## The two levels
 
 ```python
@@ -884,6 +890,7 @@ sending your data to a host nobody chose.
 | `api.aclose()` | give the connection back |
 
 ```python
+# async: BildungsAPI has no blocking facade
 api = BildungsAPI.from_env()
 
 [m.id for m in await api.models()][:2]    # ["qwen3-235b", "llama-3.3-70b"]
@@ -985,6 +992,7 @@ how long your process lives.
 | `BildungsAPI(retries_before_switching=1)` | retries per candidate before moving on |
 
 ```python
+# async: BildungsAPI has no blocking facade
 api = BildungsAPI.from_env(models_cache_seconds=CACHE_FOREVER)
 print((await api.load()).summary())
 # academiccloud: 15 of 15 usable, load reported
@@ -1029,6 +1037,7 @@ three models that would all do, and the least loaded one answers.
 | `is_rankable(models)` | `bool` — whether anything was reported to rank on |
 
 ```python
+# async: BildungsAPI has no blocking facade
 api = BildungsAPI.from_env(virtual_models={
     "schnell": ["qwen3.6-35b-a3b", "gemma-4-31b-it", "glm-4.7"],
 })
@@ -1117,6 +1126,7 @@ Model choice, when you do not pass one:
 | `METHODS` | `("simple", "browser")` |
 
 ```python
+# async: TextExtraction has no blocking facade
 service = TextExtraction(base_url="https://text-extraction.staging.openeduhub.net")
 
 await service.ping()                       # {"status": "ok"}
@@ -1152,6 +1162,7 @@ runtime.
 | `TYPE_FIELD` `CORE_SCHEMA` `DEFAULT_CONTEXT` `DEFAULT_VERSION` | the names behind it |
 
 ```python
+# async: the metadata agent has no blocking facade
 agent = MetadataAgent(base_url="https://metadata-agent-canvas.staging.openeduhub.net")
 
 types = await agent.content_types()
@@ -1190,6 +1201,7 @@ to a network by itself.
 | `plan.apply(verify=True)` | `Node` |
 
 ```python
+# async: plan_update and apply() are coroutines
 plan = await plan_update(node, title="Bruchrechnen Klasse 6", subject="Mathematik")
 
 plan.has_changes      # True
@@ -1229,6 +1241,7 @@ went unresolved — all of which change how far an answer can be trusted.
 | `ToolResult` | `ok`, `text`, `data`, `error`, `error_type`, `metadata`; truthy when `ok` |
 
 ```python
+# async: as_result takes an awaitable
 outcome = await as_result(repo.search("Bruchrechnung"), format=format_results)
 
 outcome.ok            # True

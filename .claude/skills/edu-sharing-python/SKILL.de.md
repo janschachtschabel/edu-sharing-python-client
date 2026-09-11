@@ -712,6 +712,7 @@ AcademicCloud; bei OpenAI wird daraus eine Ausweichkette in Ihrer Reihenfolge.
 gemerkt. Stellen Sie das darauf ein, wie lange Ihr Prozess lebt:
 
 ```python
+# async: BildungsAPI hat keine blockierende Fassade
 # Ein Skript, das eine Minute läuft: einmal fragen.
 api = BildungsAPI.from_env(models_cache_seconds=CACHE_FOREVER)
 print((await api.load()).summary())      # ins Startprotokoll
@@ -858,6 +859,7 @@ Für alles, was ein Modell entschieden hat, führt der Weg über
 Wo wirklich geschrieben werden soll: planen und den Plan zeigen.
 
 ```python
+# async: plan_update und apply() sind Koroutinen
 plan = await plan_update(node, title=proposed)
 print(plan.describe())        # alt -> neu, für einen Menschen
 await plan.apply()            # erst nach der Bestätigung
@@ -866,6 +868,7 @@ await plan.apply()            # erst nach der Bestätigung
 ### Eine Form für Erfolg und Fehlschlag
 
 ```python
+# async: as_result nimmt ein Awaitable
 outcome = await as_result(repo.flows.search(text))
 outcome.ok, outcome.error_type      # False, "NotFoundError"
 ```

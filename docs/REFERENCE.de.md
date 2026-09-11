@@ -10,6 +10,12 @@ Kommentar gezeigten Ausgaben sind echte Formen, keine Skizzen.
 Ein Test hält die Datei vollständig: `tests/test_docs_complete.py` schlägt fehl,
 sobald ein öffentlicher Name hier oder in der englischen Fassung fehlt.
 
+**Die Beispiele sind für `AsyncRepository` geschrieben.** Mit dem
+blockierenden `Repository` das `await` weglassen — jeder Aufruf auf `repo.…`
+hat seit dem 10.09.2026 einen blockierenden Zwilling gleichen Namens. Eine
+Ausnahme: `aclose()` heißt dort `close()`. Die wenigen Blöcke, die es nur
+asynchron gibt, sagen das in ihrer ersten Zeile.
+
 ## Die zwei Ebenen
 
 ```python
@@ -900,6 +906,7 @@ Daten an einen Host zu schicken, den niemand gewählt hat.
 | `api.aclose()` | die Verbindung zurückgeben |
 
 ```python
+# async: BildungsAPI hat keine blockierende Fassade
 api = BildungsAPI.from_env()
 
 [m.id for m in await api.models()][:2]    # ["qwen3-235b", "llama-3.3-70b"]
@@ -1003,6 +1010,7 @@ Einstellung hängt daran, wie lange Ihr Prozess lebt.
 | `BildungsAPI(retries_before_switching=1)` | Wiederholungen je Kandidat vor dem Wechsel |
 
 ```python
+# async: BildungsAPI hat keine blockierende Fassade
 api = BildungsAPI.from_env(models_cache_seconds=CACHE_FOREVER)
 print((await api.load()).summary())
 # academiccloud: 15 of 15 usable, load reported
@@ -1049,6 +1057,7 @@ wenigsten ausgelastete antwortet.
 | `is_rankable(models)` | `bool` — ob überhaupt etwas gemeldet wurde, worauf man ranken kann |
 
 ```python
+# async: BildungsAPI hat keine blockierende Fassade
 api = BildungsAPI.from_env(virtual_models={
     "schnell": ["qwen3.6-35b-a3b", "gemma-4-31b-it", "glm-4.7"],
 })
@@ -1139,6 +1148,7 @@ Modellwahl, wenn Sie keines übergeben:
 | `METHODS` | `("simple", "browser")` |
 
 ```python
+# async: TextExtraction hat keine blockierende Fassade
 service = TextExtraction(base_url="https://text-extraction.staging.openeduhub.net")
 
 await service.ping()                       # {"status": "ok"}
@@ -1175,6 +1185,7 @@ Dienst, und nur zur Laufzeit.
 | `TYPE_FIELD` `CORE_SCHEMA` `DEFAULT_CONTEXT` `DEFAULT_VERSION` | die Namen dahinter |
 
 ```python
+# async: der Metadaten-Agent hat keine blockierende Fassade
 agent = MetadataAgent(base_url="https://metadata-agent-canvas.staging.openeduhub.net")
 
 types = await agent.content_types()
@@ -1213,6 +1224,7 @@ Nichts davon spricht von sich aus mit einem Netz.
 | `plan.apply(verify=True)` | `Node` |
 
 ```python
+# async: plan_update und apply() sind Koroutinen
 plan = await plan_update(node, title="Bruchrechnen Klasse 6", subject="Mathematik")
 
 plan.has_changes      # True
@@ -1253,6 +1265,7 @@ einer Antwort trauen darf.
 | `ToolResult` | `ok`, `text`, `data`, `error`, `error_type`, `metadata`; wahr, wenn `ok` |
 
 ```python
+# async: as_result nimmt ein Awaitable
 outcome = await as_result(repo.search("Bruchrechnung"), format=format_results)
 
 outcome.ok            # True
