@@ -156,7 +156,7 @@ back and raises `SilentDropError` instead of reporting success.
 try:
     await node.update(title="Neu")
 except SilentDropError as exc:
-    exc.dropped        # {"cclom:title": ["Neu"]}
+    exc.dropped        # ["cclom:title"] -- the names, not the values
 ```
 
 **If you write through `repo.raw`, you lose this.** Read back yourself.
@@ -233,8 +233,10 @@ values that were **not** written. The material exists without them.
 | Child object | a document *under* one material, no life of its own | `child_objects` |
 | Relation | two materials standing *side by side* | `relations` |
 
-A child object carries its filename in `name` and an **empty** `title`. Every
-other flow displays `title`, so reaching for it here shows nothing.
+A child object carries its filename in `name` and **no title of its own** —
+`title` falls back to `cm:name` and reads the same, so `name` is the field that
+means it. For a write that must preserve a title, `stored_title_of` is the
+chain without that fallback.
 
 Relations keep the opposite direction automatically: create `isPartOf` from the
 episode and the series reports `hasPart`. A fresh relation is
@@ -269,8 +271,9 @@ halves apart.
 
 ### 2.7 Paging, limits and defaults that truncate
 
-- `repo.people.members(group)` defaults to 10 and truncates silently. Pass
-  `limit`.
+- `repo.people.members(group)` asks for 100 (the endpoint's own default is 10)
+  and a larger group is cut without a word — no total comes back. Raise `limit`
+  or read on with `offset` until a page is short.
 - `collection_contents` needs `propertyFilter=-all-` to get properties at all;
   the library sets it. Through `repo.raw` you must set it yourself.
 - The extraction service's two methods are **not** ranked: measured, `simple`
@@ -280,7 +283,9 @@ halves apart.
 ### 2.8 A framing word ruins a query
 
 Measured over a 60-node pool: `"Bruchrechnung"` matched 0 nodes and
-`"die Bruchrechnung"` matched 43. `rerank=True` expands and re-scores the
+`"die Bruchrechnung"` matched 43 — and those 43 are wrong. In German the
+article sits inside ordinary words, so one of them turned a correct rejection
+into a 72 % pass rate. `rerank=True` expands and re-scores the
 query; it costs several requests, so use it when the query comes from a human
 or a model, not for a machine-built filter query.
 

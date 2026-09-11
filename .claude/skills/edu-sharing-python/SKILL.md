@@ -11,8 +11,10 @@ The library `edu-sharing-python-client` (import `edusharing`) wraps edu-sharing'
 REST API and three neighbouring services. Its promise: **a write that did not
 happen is reported as a failure, not a success.** This file shows how to use
 every part of it; the details live beside it in `reference/` — see section 7.
-Every call below was checked against the code by tests, every output shape
-measured against a real instance.
+Every code block below is checked against the real signatures by tests, and the
+output shapes are measured against a live instance — except the four
+group-writing calls (`create_group`, `delete_group`, `add_member`,
+`remove_member`), which no account here may run.
 
 ## 1. Install and connect
 
@@ -233,8 +235,10 @@ repo.flows.vocabulary("subject")                 # {field, property, values, cou
 [g.name for g in repo.people.memberships()]
 ```
 
-Groups: `repo.people.members(group, limit=100)` — pass `limit`, the endpoint
-cuts at 10 unasked.
+Groups: `repo.people.members(group, limit=100, offset=0)` — 100 is what the
+library asks for, and a larger group is cut without a word, so page with
+`offset`. Listing members needs the right to **manage** the group; being in it
+is not enough.
 
 ### 3.9 Curated pages, skills, raw transport
 
@@ -354,7 +358,7 @@ model's URL is fetched: `check_url(url)`. Before a model's change is written:
 | `node.comments` · `node.suggestions` · `node.workflow` | `list()` · `add(text, reply_to=…)` → `Comment` · `edit(comment_id, text)` · `delete(comment_id)` · `propose(property, value, reason, confidence=…)` → `Suggestion` · `decide(ids, accept=True)` · `history()` → `list[WorkflowStep]` · `submit(receiver, status, comment="")` → `WorkflowStep` |
 | `node.page` | `get()` → `CuratedPage \| None` (`.rendered` `.by_position` `.truncated`) · `render(variant_id)` → `CuratedPage` · `page.variant(variant_id)` → `PageVariant \| None` (`.node_ids`) |
 | `repo.collections` | `find(text, limit=…)` → `SearchResult` · `create(title, …)` → `Node` · `update(collection_id, title=…, description=…)` → `Node` · `add(collection_id, node_id)` → `bool` · `remove(collection_id, node_id)` |
-| `repo.searcher` | `search(text, filters=…, facets=…, limit=…, offset=…, **filters)` → `SearchResult` |
+| `repo.searcher` | `search(text, filters=…, facets=…, facet_limit=…, limit=…, offset=…, content_type=…, **aliases)` → `SearchResult` — `filters` and `facets` take properties, `**aliases` the short names |
 | `repo.vocab` | `values(prop)` / `suggest(prop, text)` → `list[VocabularyValue]` (`.uri` `.label`) · `resolve(prop, label_or_uri)` → `str \| None` · `resolve_all(prop, label_or_uri)` → `list[str]` · `clear_cache()` |
 | `repo.people` | `memberships()` → `list[Group]` · `group(name)` → `Group` · `members(group, limit=…)` → `list[Member]` · `create_group(name, display_name=…)` · `delete_group(name)` · `add_member(group, authority)` · `remove_member(group, authority)` |
 | `repo.relations` | `of(node_id)` → `list[Relation]` · `create(from_node, relation_type, to_node, ai_generated=…)` · `delete(from_node, relation_type, to_node)` · `approve(from_node, relation_type, to_node)` · `Relation.opposite_of(relation_type)` |
@@ -375,7 +379,7 @@ everything the library raises, and no message carries a Java stack trace.
 | Class | When |
 |---|---|
 | `SilentDropError` | a write answered 200 and did not store — `.dropped` names the properties |
-| `ValidationError` | the request is wrong before it is sent: unknown short name, unknown template id |
+| `ValidationError` | the request is wrong — caught before sending (unknown short name) or refused with 400 (a criterion this metadata set does not know, an unknown template id) |
 | `NotFoundError` · `PermissionDeniedError` · `AuthenticationError` | 404 · 403 · 401 |
 | `ConflictError` · `RateLimitedError` · `ServerError` | 409 · 429 (`.retry_after`) · 5xx |
 | `TransportError` · `ContentTooLargeError` · `UnsafeUrlError` | network · above `max_bytes` · refused address |
@@ -387,7 +391,7 @@ Every error has `.status` and `.url`. In a tool, `as_result` turns it into
 
 1. **HTTP 200 is no proof** — rely on `SilentDropError`, never swallow it ([TRAPS 2.1](reference/TRAPS.md#21-http-200-does-not-mean-it-was-stored)).
 2. **Read the incompleteness markers**: `total_is_lower_bound`, `truncated`, `complete`, `collections_truncated`, `scan_truncated`, `contexts_truncated` each say that something is missing ([2.3](reference/TRAPS.md#23-total_is_lower_bound-truncated-complete)).
-3. **`unresolved` lists filters that were not applied** — the search answered a wider question ([2.2](reference/TRAPS.md#22-unresolved-is-not-decoration)).
+3. **`unresolved` lists filters that were not applied**, `ignored` those the repository itself discarded — either way the search answered a wider question ([2.2](reference/TRAPS.md#22-unresolved-is-not-decoration)).
 4. **Every value is a list**; vocabulary fields hold URIs, `labels()` gives the names ([1.1](reference/TRAPS.md#11-every-value-is-a-list), [1.4](reference/TRAPS.md#14-vocabulary-fields-hold-uris-never-labels)).
 5. **`cm:name` is a key, not a title** — write `title` ([1.3](reference/TRAPS.md#13-cmname-is-a-key-not-a-title)).
 6. **Keywords are shared** — `add_keywords("a", "b")`, not `update(keywords=…)` ([1.6](reference/TRAPS.md#16-some-lists-are-shared-property)).

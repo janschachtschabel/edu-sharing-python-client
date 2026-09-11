@@ -18,8 +18,11 @@ Die Bibliothek `edu-sharing-python-client` (Import `edusharing`) kapselt die
 REST-API von edu-sharing und drei Nachbardienste. Ihr Versprechen: **ein
 Schreibvorgang, der nicht stattfand, wird als Fehler gemeldet, nicht als
 Erfolg.** Diese Datei zeigt, wie man jeden Teil davon benutzt; die Einzelheiten
-liegen daneben in `reference/` — siehe Abschnitt 7. Jeder Aufruf unten ist per
-Test gegen den Code geprüft, jede Ausgabeform an einer echten Instanz gemessen.
+liegen daneben in `reference/` — siehe Abschnitt 7. Jeder Codeblock unten ist
+per Test gegen die echten Signaturen geprüft, jede Ausgabeform an einer
+laufenden Instanz gemessen — außer den vier schreibenden Gruppenaufrufen
+(`create_group`, `delete_group`, `add_member`, `remove_member`), die hier kein
+Konto ausführen darf.
 
 ## 1. Installieren und verbinden
 
@@ -245,8 +248,10 @@ repo.flows.vocabulary("subject")                 # {field, property, values, cou
 [g.name for g in repo.people.memberships()]
 ```
 
-Gruppen: `repo.people.members(group, limit=100)` — `limit` übergeben, der
-Endpunkt schneidet ungefragt bei 10 ab.
+Gruppen: `repo.people.members(group, limit=100, offset=0)` — 100 fragt die
+Bibliothek an, und eine größere Gruppe wird ohne ein Wort gekürzt, also mit
+`offset` blättern. Mitglieder auflisten darf, wer die Gruppe **verwalten**
+darf; darin zu sein genügt nicht.
 
 ### 3.9 Kuratierte Seiten, Skills, roher Transport
 
@@ -368,7 +373,7 @@ Bevor die Änderung eines Modells geschrieben wird:
 | `node.comments` · `node.suggestions` · `node.workflow` | `list()` · `add(text, reply_to=…)` → `Comment` · `edit(comment_id, text)` · `delete(comment_id)` · `propose(property, value, reason, confidence=…)` → `Suggestion` · `decide(ids, accept=True)` · `history()` → `list[WorkflowStep]` · `submit(receiver, status, comment="")` → `WorkflowStep` |
 | `node.page` | `get()` → `CuratedPage \| None` (`.rendered` `.by_position` `.truncated`) · `render(variant_id)` → `CuratedPage` · `page.variant(variant_id)` → `PageVariant \| None` (`.node_ids`) |
 | `repo.collections` | `find(text, limit=…)` → `SearchResult` · `create(title, …)` → `Node` · `update(collection_id, title=…, description=…)` → `Node` · `add(collection_id, node_id)` → `bool` · `remove(collection_id, node_id)` |
-| `repo.searcher` | `search(text, filters=…, facets=…, limit=…, offset=…, **filters)` → `SearchResult` |
+| `repo.searcher` | `search(text, filters=…, facets=…, facet_limit=…, limit=…, offset=…, content_type=…, **aliases)` → `SearchResult` — `filters` und `facets` nehmen Eigenschaften, `**aliases` die Kurznamen |
 | `repo.vocab` | `values(prop)` / `suggest(prop, text)` → `list[VocabularyValue]` (`.uri` `.label`) · `resolve(prop, label_or_uri)` → `str \| None` · `resolve_all(prop, label_or_uri)` → `list[str]` · `clear_cache()` |
 | `repo.people` | `memberships()` → `list[Group]` · `group(name)` → `Group` · `members(group, limit=…)` → `list[Member]` · `create_group(name, display_name=…)` · `delete_group(name)` · `add_member(group, authority)` · `remove_member(group, authority)` |
 | `repo.relations` | `of(node_id)` → `list[Relation]` · `create(from_node, relation_type, to_node, ai_generated=…)` · `delete(from_node, relation_type, to_node)` · `approve(from_node, relation_type, to_node)` · `Relation.opposite_of(relation_type)` |
@@ -389,7 +394,7 @@ Bibliothek wirft, und keine Meldung trägt einen Java-Stacktrace.
 | Klasse | Wann |
 |---|---|
 | `SilentDropError` | ein Schreibvorgang antwortete 200 und speicherte nicht — `.dropped` nennt die Eigenschaften |
-| `ValidationError` | die Anfrage ist falsch, bevor sie gesendet wird: unbekannter Kurzname, unbekannte Vorlagen-ID |
+| `ValidationError` | die Anfrage ist falsch — vor dem Senden erkannt (unbekannter Kurzname) oder mit 400 abgelehnt (ein Kriterium, das dieser Metadatensatz nicht kennt, eine unbekannte Vorlagen-ID) |
 | `NotFoundError` · `PermissionDeniedError` · `AuthenticationError` | 404 · 403 · 401 |
 | `ConflictError` · `RateLimitedError` · `ServerError` | 409 · 429 (`.retry_after`) · 5xx |
 | `TransportError` · `ContentTooLargeError` · `UnsafeUrlError` | Netz · über `max_bytes` · verweigerte Adresse |
@@ -401,7 +406,7 @@ Jeder Fehler hat `.status` und `.url`. In einem Werkzeug macht `as_result` darau
 
 1. **HTTP 200 ist kein Beweis** — auf `SilentDropError` bauen, ihn nie verschlucken ([TRAPS 2.1](reference/TRAPS.de.md#21-http-200-heißt-nicht-dass-etwas-gespeichert-wurde)).
 2. **Die Kennzeichen der Unvollständigkeit lesen**: `total_is_lower_bound`, `truncated`, `complete`, `collections_truncated`, `scan_truncated` und `contexts_truncated` sagen jeweils, dass etwas fehlt ([2.3](reference/TRAPS.de.md#23-total_is_lower_bound-truncated-complete)).
-3. **`unresolved` nennt Filter, die nicht angewandt wurden** — die Suche beantwortete eine weitere Frage ([2.2](reference/TRAPS.de.md#22-unresolved-ist-keine-zierde)).
+3. **`unresolved` nennt Filter, die nicht angewandt wurden**, `ignored` die, die das Repositorium selbst verworfen hat — so oder so beantwortete die Suche eine weitere Frage ([2.2](reference/TRAPS.de.md#22-unresolved-ist-keine-zierde)).
 4. **Jeder Wert ist eine Liste**; Vokabularfelder tragen URIs, `labels()` liefert die Namen ([1.1](reference/TRAPS.de.md#11-jeder-wert-ist-eine-liste), [1.4](reference/TRAPS.de.md#14-vokabularfelder-tragen-uris-nie-labels)).
 5. **`cm:name` ist ein Schlüssel, kein Titel** — `title` schreiben ([1.3](reference/TRAPS.de.md#13-cmname-ist-ein-schlüssel-kein-titel)).
 6. **Schlagworte sind gemeinsam** — `add_keywords("a", "b")`, nicht `update(keywords=…)` ([1.6](reference/TRAPS.de.md#16-manche-listen-sind-gemeinsames-eigentum)).

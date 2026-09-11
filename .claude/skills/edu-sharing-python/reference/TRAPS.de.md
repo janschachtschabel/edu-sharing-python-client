@@ -161,7 +161,7 @@ statt Erfolg zu melden.
 try:
     await node.update(title="Neu")
 except SilentDropError as exc:
-    exc.dropped        # {"cclom:title": ["Neu"]}
+    exc.dropped        # ["cclom:title"] -- die Namen, nicht die Werte
 ```
 
 **Wer über `repo.raw` schreibt, verliert das.** Dann selbst zurücklesen.
@@ -245,8 +245,10 @@ zusammen.
 | Serienobjekt | ein Dokument *unter* einem Material, ohne eigenes Leben | `child_objects` |
 | Beziehung | zwei Materialien, die *nebeneinander* stehen | `relations` |
 
-Ein Serienobjekt trägt seinen Dateinamen in `name` und ein **leeres** `title`.
-Jeder andere Ablauf zeigt `title` an, wer hier danach greift, sieht nichts.
+Ein Serienobjekt trägt seinen Dateinamen in `name` und **keinen eigenen
+Titel** — `title` fällt auf `cm:name` zurück und liest sich gleich, `name` ist
+also das Feld, das es meint. Für einen Schreibvorgang, der einen Titel erhalten
+muss, gibt es `stored_title_of`: dieselbe Kette ohne diesen Rückfall.
 
 Beziehungen pflegen die Gegenrichtung automatisch: `isPartOf` von der Folge
 angelegt, und die Reihe meldet `hasPart`. Eine frische Beziehung ist
@@ -281,8 +283,10 @@ Hälften trennen will, filtert zusätzlich nach `level`.
 
 ### 2.7 Blättern, Grenzen und Vorgaben, die stillschweigend kürzen
 
-- `repo.people.members(group)` hat die Vorgabe 10 und kürzt, ohne es zu sagen.
-  `limit` mitgeben.
+- `repo.people.members(group)` fragt 100 an (der Endpunkt selbst hat die Vorgabe
+  10), und eine größere Gruppe wird ohne ein Wort gekürzt — es kommt keine
+  Gesamtzahl zurück. `limit` erhöhen oder mit `offset` weiterlesen, bis eine
+  Seite kurz ist.
 - `collection_contents` braucht `propertyFilter=-all-`, um überhaupt
   Eigenschaften zu bekommen; die Bibliothek setzt es. Über `repo.raw` müssen
   Sie es selbst setzen.
@@ -293,7 +297,9 @@ Hälften trennen will, filtert zusätzlich nach `level`.
 ### 2.8 Ein Rahmenwort ruiniert eine Anfrage
 
 Über einen Pool von 60 Knoten gemessen: `"Bruchrechnung"` traf 0 Knoten,
-`"die Bruchrechnung"` traf 43. `rerank=True` weitet die Anfrage auf und bewertet
+`"die Bruchrechnung"` traf 43 — und diese 43 sind falsch. Im Deutschen steckt
+der Artikel in gewöhnlichen Wörtern, einer machte aus einer richtigen Ablehnung
+eine Trefferquote von 72 %. `rerank=True` weitet die Anfrage auf und bewertet
 neu; das kostet mehrere Anfragen, also dafür, wenn die Anfrage von einem
 Menschen oder einem Modell kommt, nicht für eine maschinell gebaute
 Filteranfrage.

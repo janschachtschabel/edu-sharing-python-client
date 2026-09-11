@@ -94,6 +94,23 @@ and in [`docs/audits/`](docs/audits/).
   a result that carries asynchronous methods, and it covers `repo.nodes`,
   `collections`, `searcher` and `vocab`, which it had never called. Found by
   the skill review of 2026-09-11.
+- **Ten smaller claims that were wrong or missing.** `SearchResult.ignored`
+  and `.suggestions` were not listed at all — `ignored` is `unresolved`'s
+  counterpart and says the repository itself dropped a criterion. The example
+  output of `as_untrusted` ended with a marker the function never writes (it
+  closes with the one it opens with). `exc.dropped` was shown as a dict; it is
+  a list of property names. `ValidationError` was described as "before it is
+  sent", although a server 400 raises it too. A child object was said to carry
+  an empty `title`; it falls back to `cm:name`. `members` was said to default
+  to 10 (the library asks for 100, and cuts a larger group without a word —
+  and needs the right to *manage* the group). The rank measurement ("0 against
+  43") lost the half-sentence that makes it readable: those 43 are false
+  matches. The flows section claimed every flow takes the connection first,
+  which is true of the module functions, not of `repo.flows`. The two
+  references into the README — *Logging* and *Publishing* — are gone: both are
+  written out where they are used, along with the three measured causes of a
+  half-successful write. And the entry no longer promises more than the tests
+  check.
 - **Every option with its method, and the relation types at all.** 66 of the
   library's 144 optional parameters stood nowhere near the call they belong to
   — `rename_if_exists` and `sort`/`ascending`/`only` on `nodes.children`,
