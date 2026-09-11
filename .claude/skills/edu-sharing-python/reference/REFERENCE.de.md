@@ -953,8 +953,8 @@ Template-Modus* weiter unten — eine eigene Klasse, von der diese nicht abhäng
 | `Model` | `can_chat`, `demand`, `id`, `input`, `is_ready`, `name`, `output`, `owned_by`, `shutdown_date`, `status` |
 | `api.chat(prompt, model=…, system=…, max_tokens=…, thinking=…)` | `str` |
 | `api.chat(…, reasoning_effort="high", verbosity="low")` | `str` — siehe unten |
-| `api.embeddings(texts, model=…)` | `list[list[float]]`, nach `index` sortiert |
-| `api.moderate(texts, model=…)` | `list[Moderation]` |
+| `api.embeddings(texts, model=…, provider="openai")` | `list[list[float]]`, nach `index` sortiert |
+| `api.moderate(text, model=…, provider="openai")` | eine `Moderation` |
 | `Moderation` | `categories`, `flagged`, `raw`, `scores` |
 | `api.images(prompt, model=…, n=…, size=…)` | `list[GeneratedImage]` |
 | `GeneratedImage` | `b64`, `revised_prompt`, `url` |
@@ -968,12 +968,16 @@ api = BildungsAPI.from_env()
 [m.id for m in await api.models()][:2]    # ["qwen3-235b", "llama-3.3-70b"]
 await api.chat("Fasse zusammen: …", max_tokens=200)    # "Der Text erklärt…"
 
-vectors = await api.embeddings(["Bruchrechnung", "Zinsrechnung"])
-len(vectors), len(vectors[0])             # (2, 1024)
+# Einbettungen und Moderation gibt es nur bei OpenAI -- siehe die Tabelle unten.
+vectors = await api.embeddings(["Bruchrechnung", "Zinsrechnung"],
+                               model="text-embedding-3-small", provider="openai")
+len(vectors), len(vectors[0])             # (2, 1536) -- gemessen am 11.09.2026
 
-verdict = (await api.moderate(["harmloser Satz"]))[0]
+verdict = await api.moderate("harmloser Satz", model="omni-moderation-latest",
+                             provider="openai")
 verdict.flagged                           # False
-verdict.categories                        # {"hate": False, …}
+verdict.categories                        # () -- nur die Kategorien, die anschlugen
+verdict.scores                            # {"hate": …, …} -- alle 13 Kategorien
 
 await api.call("responses", {"model": "…", "input": "…"})
 ```

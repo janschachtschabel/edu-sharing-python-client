@@ -937,8 +937,8 @@ its own, which this one does not depend on.
 | `Model` | `can_chat`, `demand`, `id`, `input`, `is_ready`, `name`, `output`, `owned_by`, `shutdown_date`, `status` |
 | `api.chat(prompt, model=…, system=…, max_tokens=…, thinking=…)` | `str` |
 | `api.chat(…, reasoning_effort="high", verbosity="low")` | `str` — see below |
-| `api.embeddings(texts, model=…)` | `list[list[float]]`, ordered by `index` |
-| `api.moderate(texts, model=…)` | `list[Moderation]` |
+| `api.embeddings(texts, model=…, provider="openai")` | `list[list[float]]`, ordered by `index` |
+| `api.moderate(text, model=…, provider="openai")` | one `Moderation` |
 | `Moderation` | `categories`, `flagged`, `raw`, `scores` |
 | `api.images(prompt, model=…, n=…, size=…)` | `list[GeneratedImage]` |
 | `GeneratedImage` | `b64`, `revised_prompt`, `url` |
@@ -952,12 +952,16 @@ api = BildungsAPI.from_env()
 [m.id for m in await api.models()][:2]    # ["qwen3-235b", "llama-3.3-70b"]
 await api.chat("Fasse zusammen: …", max_tokens=200)    # "Der Text erklärt…"
 
-vectors = await api.embeddings(["Bruchrechnung", "Zinsrechnung"])
-len(vectors), len(vectors[0])             # (2, 1024)
+# Embeddings and moderation exist at OpenAI only -- see the table below.
+vectors = await api.embeddings(["Bruchrechnung", "Zinsrechnung"],
+                               model="text-embedding-3-small", provider="openai")
+len(vectors), len(vectors[0])             # (2, 1536) -- measured 2026-09-11
 
-verdict = (await api.moderate(["harmloser Satz"]))[0]
+verdict = await api.moderate("harmloser Satz", model="omni-moderation-latest",
+                             provider="openai")
 verdict.flagged                           # False
-verdict.categories                        # {"hate": False, …}
+verdict.categories                        # () -- only the categories that tripped
+verdict.scores                            # {"hate": …, …} -- all 13 categories
 
 await api.call("responses", {"model": "…", "input": "…"})
 ```
