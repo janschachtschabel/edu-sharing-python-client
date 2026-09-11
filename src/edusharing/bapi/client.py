@@ -603,6 +603,11 @@ class BildungsAPI:
             data = None
         if isinstance(data, dict):
             message = data.get("message") or data.get("error") or response.text
+            # A provider's refusal comes through as the provider sent it,
+            # ``{"error": {"message": ...}}`` -- measured 2026-09-11 at both
+            # providers.
+            if isinstance(message, dict):
+                message = message.get("message") or message
         else:
             message = response.text
         failure = error_class_for(response.status_code)

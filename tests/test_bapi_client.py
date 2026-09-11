@@ -874,6 +874,33 @@ async def test_auch_ueber_chat_entkommt_keine_implementierungsausnahme():
             await client.chat("hallo")
 
 
+# --- Die Ablehnung des Anbieters (11.09.2026) ------------------------------
+
+
+async def test_die_ablehnung_des_anbieters_liest_sich_als_satz():
+    """Gemessen am 11.09.2026 gegen Staging: lehnt der Anbieter ab, reicht die
+    b-api seinen Fehler unveraendert durch -- ``{"error": {"message": ...,
+    "type": ...}}``, ohne ``message`` obenauf. So kam es bei ``responses`` mit
+    ``messages`` statt ``input`` (openai und academiccloud) und bei
+    ``chat/completions`` ohne ``messages``. In der Meldung soll der Satz
+    stehen, nicht die Python-Darstellung des Objekts drumherum -- so, wie der
+    Template-Modus ihn schon ausliest."""
+    satz = ("Unsupported parameter: 'messages'. In the Responses API, this "
+            "parameter has moved to 'input'.")
+
+    def handler(request):
+        return httpx.Response(400, json={"error": {
+            "message": satz, "type": "invalid_request_error", "param": None,
+            "code": "unsupported_parameter"}})
+
+    koerper = {"model": "gpt-5.6-luna", "messages": [{"role": "user", "content": "hi"}]}
+    async with _client(handler, max_retries=0) as api:
+        with pytest.raises(ValidationError) as fehler:
+            await api.call("responses", koerper, provider="openai")
+    assert satz in str(fehler.value)
+    assert "invalid_request_error" not in str(fehler.value)
+
+
 # --- Der Proxy bleibt, wie er ist (Template-Modus, 11.09.2026) -----------
 
 #: Gemessen am 11.09.2026, bevor der Template-Modus dazukam.

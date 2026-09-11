@@ -39,12 +39,12 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Changed
 
-- **Nothing for the proxy.** `BildungsAPI`'s public names are pinned by a test
-  and unchanged; `client.py`, `body.py` and `models.py` are untouched in code,
-  and `passthrough.py` only had its two answer parsers moved into functions of
-  their own. Importing `edusharing.bapi` costs about 1.4 ms more — the two
-  template modules themselves (median of twelve runs); they load nothing the
-  proxy did not load already.
+- **The template mode changes nothing for the proxy.** `BildungsAPI`'s public
+  names are pinned by a test and unchanged; `client.py`, `body.py` and
+  `models.py` are untouched in code, and `passthrough.py` only had its two
+  answer parsers moved into functions of their own. Importing `edusharing.bapi`
+  costs about 1.4 ms more — the two template modules themselves (median of
+  twelve runs); they load nothing the proxy did not load already.
 - **Error messages of the template mode say what went wrong, in one line.**
   They come from the answer's `message`, never from the 18 kB Java stack trace
   beside it; a provider's refusal reads as its sentence rather than as the
@@ -58,6 +58,11 @@ and in [`docs/audits/`](docs/audits/).
   twelve groups, and `/v3/api-docs/openai` and `/v3/api-docs/academiccloud`
   describe both — as the OpenAI surface, not as what a provider serves, so the
   measured list of forwarded routes stays the source of truth.
+- **`BildungsAPI` error messages show a provider's refusal as its sentence.**
+  The gateway passes the provider's error through as it came,
+  `{"error": {"message": ...}}` with no `message` on top, and the message
+  showed the Python repr of that object instead — measured against staging on
+  2026-09-11 on `responses` at both providers and on `chat/completions`.
 
 ## [0.2.0] — 2026-09-11
 
