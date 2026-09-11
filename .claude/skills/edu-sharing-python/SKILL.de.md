@@ -60,8 +60,10 @@ asyncio.run(main())
 ```
 
 Oder ausdrücklich: `Repository(url, auth=(user, password), metadataset="mds_oeh")`.
-Ohne Zugangsdaten ist man Gast und sieht nur öffentliches Material. Das
-Metadatenset (`mds_oeh` bei WLO) entscheidet, welche Felder und Filter es gibt.
+Jedes `from_env()` wirft `EduSharingError` und nennt die fehlende Variable —
+nichts weicht auf eine geratene Adresse aus. Ohne Zugangsdaten ist man Gast und
+sieht nur öffentliches Material. Das Metadatenset (`mds_oeh` bei WLO)
+entscheidet, welche Felder und Filter es gibt.
 
 ## 2. Wie die Bibliothek gebaut ist
 
@@ -203,6 +205,7 @@ node.permissions.revoke("GROUP_lehrer", "Write")
 note = node.comments.add("Passt zu Klasse 6.")   # Comment: .id .text .author
 node.comments.edit(note.id, "Passt zu Klasse 6 und 7.")
 node.rate(4)                                     # Rating: .average .count .own
+uri = repo.resolve("ccm:taxonid", "Mathematik")  # ein Vokabularwert ist eine URI, nicht das Label
 proposal = node.suggestions.propose("ccm:taxonid", uri, "Modell, Konfidenz 0.9")
 done = repo.flows.accept_suggestion(node.id, proposal.id)
 done["applied"], done["status"]                  # True -- geschrieben, zurückgelesen, markiert
@@ -211,7 +214,9 @@ node.workflow.submit("GROUP_redaktion", "TO_BE_CHECKED", comment="Bitte prüfen"
 
 **Vorschlagen, nicht schreiben**, für alles, was ein Modell entschieden hat:
 `propose` legt einen offenen Vorschlag an; `accept_suggestion` schreibt ihn und
-liest zurück, `node.suggestions.decide(ids, accept=True)` markiert ihn nur.
+liest zurück, `node.suggestions.decide(ids, accept=True)` markiert ihn nur. Der
+Wert wird geschrieben, wie er ist — dort löst nichts ein Label auf, ein
+Vokabularfeld bekommt also seine URI.
 
 ### 3.8 Beziehungen, Kindobjekte, Vokabular, Personen
 
@@ -284,7 +289,8 @@ Der Prompt liegt im Metadatenset; man nennt Konfigurationen (IDs aus
 einen Kontextknoten und Werte. **Freier Text in `variables` gelangt, wie er
 ist, in den Prompt** — nicht vertrauenswürdige Eingaben gehen durch
 `templates.chat_limited(chain, context_node_id=…, choices={widget_id: value_id})`,
-das nur Werte aus einem Wertraum annimmt. Das Gateway liest mit eigenem Konto:
+das nur Werte aus einem Wertraum annimmt — freier Text dort erreichte den Prompt
+nicht (gemessen). Das Gateway liest mit eigenem Konto:
 ein privater Kontextknoten antwortet 403, also vorher veröffentlichen. Einen
 Vorschlag übernimmt `repo.flows.accept_suggestion(node_id, suggestion.id)`.
 

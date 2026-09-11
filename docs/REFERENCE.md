@@ -580,8 +580,9 @@ itself is made.
 | `node.workflow.submit(receiver, status, comment="")` | `WorkflowStep` |
 
 ```python
+uri = await repo.vocab.resolve("ccm:taxonid", "Mathematik")   # the value, not the label
 proposal = await node.suggestions.propose(
-    "ccm:taxonid", "Mathematik", reason="model, confidence 0.91", confidence=0.91)
+    "ccm:taxonid", uri, reason="model, confidence 0.91", confidence=0.91)
 proposal.id             # "s-4410…"
 proposal.status         # "PENDING"
 
@@ -593,7 +594,10 @@ step.status             # "TO_BE_CHECKED"
 [s.status for s in await node.workflow.history()]   # ["TO_BE_CHECKED"]
 ```
 
-This is the route for a model: propose, and let a person decide.
+This is the route for a model: propose, and let a person decide. `decide` only
+marks the proposal; `repo.flows.accept_suggestion` writes its value and marks it
+— as it stands, with no label resolved, so a vocabulary field is proposed as a
+URI.
 
 ---
 

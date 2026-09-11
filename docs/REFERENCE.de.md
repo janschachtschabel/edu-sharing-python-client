@@ -592,8 +592,9 @@ Verknüpfung selbst entsteht.
 | `node.workflow.submit(receiver, status, comment="")` | `WorkflowStep` |
 
 ```python
+uri = await repo.vocab.resolve("ccm:taxonid", "Mathematik")   # der Wert, nicht das Label
 proposal = await node.suggestions.propose(
-    "ccm:taxonid", "Mathematik", reason="Modell, Konfidenz 0.91", confidence=0.91)
+    "ccm:taxonid", uri, reason="Modell, Konfidenz 0.91", confidence=0.91)
 proposal.id             # "s-4410…"
 proposal.status         # "PENDING"
 
@@ -606,7 +607,9 @@ step.status             # "TO_BE_CHECKED"
 ```
 
 Das ist der Weg für ein Modell: vorschlagen, und einen Menschen entscheiden
-lassen.
+lassen. `decide` markiert den Vorschlag nur; `repo.flows.accept_suggestion`
+schreibt seinen Wert und markiert ihn — so, wie er ist, ohne ein Label
+aufzulösen; ein Vokabularfeld wird deshalb als URI vorgeschlagen.
 
 ---
 

@@ -53,8 +53,10 @@ asyncio.run(main())
 ```
 
 Or explicitly: `Repository(url, auth=(user, password), metadataset="mds_oeh")`.
-Without credentials you are the guest and see public material only. The metadata
-set (`mds_oeh` on WLO) decides which fields and filters exist.
+Every `from_env()` raises `EduSharingError` naming the variable that is missing —
+nothing falls back to a guessed address. Without credentials you are the guest
+and see public material only. The metadata set (`mds_oeh` on WLO) decides which
+fields and filters exist.
 
 ## 2. How the library is built
 
@@ -192,6 +194,7 @@ node.permissions.revoke("GROUP_lehrer", "Write")
 note = node.comments.add("Passt zu Klasse 6.")   # Comment: .id .text .author
 node.comments.edit(note.id, "Passt zu Klasse 6 und 7.")
 node.rate(4)                                     # Rating: .average .count .own
+uri = repo.resolve("ccm:taxonid", "Mathematik")  # a vocabulary value is a URI, not the label
 proposal = node.suggestions.propose("ccm:taxonid", uri, "model, confidence 0.9")
 done = repo.flows.accept_suggestion(node.id, proposal.id)
 done["applied"], done["status"]                  # True -- written, read back, marked
@@ -200,7 +203,8 @@ node.workflow.submit("GROUP_redaktion", "TO_BE_CHECKED", comment="Bitte prüfen"
 
 **Propose, do not write**, for anything a model decided: `propose` stores a
 pending suggestion; `accept_suggestion` writes it and reads it back, while
-`node.suggestions.decide(ids, accept=True)` only marks it.
+`node.suggestions.decide(ids, accept=True)` only marks it. The value is written
+as it stands — nothing resolves a label there, so a vocabulary field gets its URI.
 
 ### 3.8 Relations, child objects, vocabulary, people
 
@@ -272,7 +276,8 @@ The prompt lives in the metadata set; you name configurations (ids from
 a context node and values. **Free text in `variables` reaches the prompt as it
 stands** — untrusted input goes through
 `templates.chat_limited(chain, context_node_id=…, choices={widget_id: value_id})`,
-which accepts values from a value space only. The gateway reads with its own
+which accepts values from a value space only — free text given there did not
+reach the prompt (measured). The gateway reads with its own
 account: a private context node answers 403, so publish it first. Take a
 suggestion over with `repo.flows.accept_suggestion(node_id, suggestion.id)`.
 
