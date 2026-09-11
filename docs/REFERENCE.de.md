@@ -302,7 +302,7 @@ festgelegt.
 | `repo.nodes.get(node_id)` | dasselbe |
 | `repo.nodes.children(node_id, limit=…, offset=…, sort=…, ascending=…, only=…)` | `ChildPage` — `sort` ordnet die Seite (`cm:name` als Vorgabe, denn Blättern über eine ungeordnete Liste wiederholt manche Einträge und lässt andere aus); `only="files"` oder `"folders"` grenzt ein |
 | `repo.nodes.repository_url` | `str` |
-| `repo.nodes.wrap(data)` | `Node` — ein Datensatz aus irgendeiner Antwort, ohne Anfrage |
+| `repo.nodes.wrap(data)` | `Node` — der **Knoten-Datensatz** aus irgendeiner Antwort, ohne Anfrage: `body["node"]` von `/metadata`, ein Eintrag aus `body["nodes"]` einer Liste. Er prüft nichts, der ganze Umschlag ergibt also einen Knoten mit leerer `id` und leerem `title`, und erst der nächste Aufruf sagt es: *An empty identifier cannot be part of a URL path* (gemessen 11.09.2026). Wer die Zusicherung braucht, liest `node.id` |
 | `repo.create_node(parent_id, name=…, type=…, properties=…, rename_if_exists=…, verify=…)` | `Node` — `type="cm:folder"` legt einen Ordner an, `ccm:io` ist Material; `rename_if_exists=` (als Vorgabe an) hängt bei einer Namenskollision einen Zähler an, statt 409 zu antworten, `node.name` ist also der Schlüssel, den das Repositorium gewählt hat (gemessen 11.09.2026: `probe - 2.md`, und `409`, wenn es aus ist); `verify=False` schaltet das Zurücklesen ab, für ein Feld, von dem man weiß, dass es abgeleitet ist |
 
 **Ein neuer `cm:folder` verwirft `cm:title`.** Gemessen am 11.09.2026:
@@ -419,7 +419,7 @@ macht daraus einen Pfad, der sich von oben nach unten liest.
 | `node.content.download()` | `bytes` — stückweise gelesen. **Nur öffentliche Inhalte** auf der gemessenen Instanz: das Download-Servlet authentifiziert nicht, ein privater Knoten antwortet `403`, egal wer fragt. Für einen privaten Knoten `text()` nehmen |
 | `node.content.download(max_bytes=…)` | `bytes` — `ContentTooLargeError` über der Grenze, vor dem Abruf, wenn `size` bekannt ist; die Textpfade übergeben `MAX_TEXT_BYTES` (8 MiB) |
 | `node.content.text(force_update=…)` | `str` — der Text, den das Repository extrahiert hat; `force_update=True` lässt neu extrahieren. **Leer für Markdown und JSON** (gemessen 11.09.2026): die Datei ist nicht leer, das Repository zieht aus diesen beiden nur nichts heraus |
-| `node.content.upload(data, filename=…, mimetype=…, version_comment=…)` | `Node` — `mimetype=` ist Pflicht und muss ein schlichtes `type/subtype` sein; `text/plain`, `text/markdown`, `application/json` und `application/pdf` wurden hochgeladen und zurückgelesen (11.09.2026). `version_comment=` ist die Notiz in der Versionsgeschichte |
+| `node.content.upload(data, filename=…, mimetype=…, version_comment=…)` | `Node` — `mimetype=` ist Pflicht und muss ein schlichtes `type/subtype` sein; `text/plain`, `text/markdown`, `application/json` und `application/pdf` wurden hochgeladen und zurückgelesen (11.09.2026) — das Repositorium speichert womöglich einen eigenen Typ, `text/markdown` kam als `text/x-web-markdown` zurück. `version_comment=` ist die Notiz in der Versionsgeschichte |
 | `node.content.set_preview(data, mimetype="image/png")` | `Node` |
 | `node.content.delete_preview()` | `Node` |
 

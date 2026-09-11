@@ -94,6 +94,14 @@ and in [`docs/audits/`](docs/audits/).
   a result that carries asynchronous methods, and it covers `repo.nodes`,
   `collections`, `searcher` and `vocab`, which it had never called. Found by
   the skill review of 2026-09-11.
+- **What the live run of the writing tasks found.** `repo.nodes.wrap(data)` was
+  described as "a record from any response" — handed the whole response body it
+  builds a node with an empty `id`, and only the *next* call says so
+  (*An empty identifier cannot be part of a URL path*). It takes the node
+  record: `body["node"]` from `/metadata`, one entry of `body["nodes"]` from a
+  listing. Measured both ways on 2026-09-11, and written down. Also measured:
+  the repository stores a type of its own for an upload — `text/markdown` came
+  back as `text/x-web-markdown`.
 - **What the second acceptance round still had to guess:** the mimetype for a
   Markdown upload stood nowhere. Measured and written down — `text/plain`,
   `text/markdown`, `application/json` and `application/pdf` were uploaded and

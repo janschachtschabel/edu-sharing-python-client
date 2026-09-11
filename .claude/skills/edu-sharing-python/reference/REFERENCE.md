@@ -292,7 +292,7 @@ Which short names exist is read from the instance, not fixed in the library.
 | `repo.nodes.get(node_id)` | the same |
 | `repo.nodes.children(node_id, limit=…, offset=…, sort=…, ascending=…, only=…)` | `ChildPage` — `sort` orders the page (`cm:name` by default, because paging over an unordered listing repeats some entries and misses others); `only="files"` or `"folders"` narrows it |
 | `repo.nodes.repository_url` | `str` |
-| `repo.nodes.wrap(data)` | `Node` — a record from any response, without a request |
+| `repo.nodes.wrap(data)` | `Node` — the node **record** out of any response, without a request: `body["node"]` from `/metadata`, one entry of `body["nodes"]` from a listing. It checks nothing, so the whole envelope gives a node with an empty `id` and an empty `title`, and only the next call says so: *An empty identifier cannot be part of a URL path* (measured 2026-09-11). Read `node.id` if you need the guarantee |
 | `repo.create_node(parent_id, name=…, type=…, properties=…, rename_if_exists=…, verify=…)` | `Node` — `type="cm:folder"` makes a folder, `ccm:io` is material; `rename_if_exists=` (on by default) appends a counter on a name collision instead of answering 409, so `node.name` is the key the repository chose (measured 2026-09-11: `probe - 2.md`, and `409` with it off); `verify=False` switches the read-back off, for a field you know is derived |
 
 **A new `cm:folder` drops `cm:title`.** Measured 2026-09-11:
@@ -408,7 +408,7 @@ turns the same information into a breadcrumb that reads top-down.
 | `node.content.download()` | `bytes` — read in chunks. **Public content only** on the measured instance: the download servlet does not authenticate, so a private node answers `403` no matter who asks. Use `text()` for a private node |
 | `node.content.download(max_bytes=…)` | `bytes` — `ContentTooLargeError` above the limit, before the request when `size` is known; the text paths pass `MAX_TEXT_BYTES` (8 MiB) |
 | `node.content.text(force_update=…)` | `str` — the extracted text the repository holds; `force_update=True` has it extract again. **Empty for Markdown and JSON** (measured 2026-09-11): the file is not empty, the repository extracts nothing from those two |
-| `node.content.upload(data, filename=…, mimetype=…, version_comment=…)` | `Node` — `mimetype=` is mandatory and must be a plain `type/subtype`; `text/plain`, `text/markdown`, `application/json` and `application/pdf` were uploaded and read back (2026-09-11). `version_comment=` is the note in the version history |
+| `node.content.upload(data, filename=…, mimetype=…, version_comment=…)` | `Node` — `mimetype=` is mandatory and must be a plain `type/subtype`; `text/plain`, `text/markdown`, `application/json` and `application/pdf` were uploaded and read back (2026-09-11) — the repository may store a type of its own, `text/markdown` came back as `text/x-web-markdown`. `version_comment=` is the note in the version history |
 | `node.content.set_preview(data, mimetype="image/png")` | `Node` |
 | `node.content.delete_preview()` | `Node` |
 
