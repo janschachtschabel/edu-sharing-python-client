@@ -549,6 +549,29 @@ async def test_suggest_wiederholt_keine_verbindungsstoerung():
     assert len(aufrufe) == 1
 
 
+@pytest.mark.parametrize("fehler", [httpx.ConnectError("abgewiesen"),
+                                    httpx.ConnectTimeout("keine Verbindung"),
+                                    httpx.PoolTimeout("kein freier Platz")])
+async def test_suggest_wiederholt_was_vor_dem_senden_scheiterte(fehler):
+    """Eine Verbindung, die nie zustande kam, hat nichts gesendet -- also auch
+    nichts gespeichert. "may have arrived" schickte den Aufrufer nach etwas
+    suchen, das es nicht geben kann (Review 11.09.2026). Dieselbe Grenze zieht
+    der Transport des Repositoriums mit ``_BEFORE_SENDING``."""
+    aufrufe = []
+    versuche = iter([fehler, None])
+
+    def handler(_request):
+        vorher = next(versuche)
+        if vorher:
+            raise vorher
+        return httpx.Response(200, json=[VORSCHLAG])
+    async with _vorlagen(handler, aufrufe) as vorlagen:
+        vorschlaege = await vorlagen.suggest(["a"], {LRT: "default"},
+                                             context_node_id=KNOTEN)
+    assert len(aufrufe) == 2
+    assert [v.id for v in vorschlaege] == [VORSCHLAG["id"]]
+
+
 async def test_eine_antwort_ohne_liste_ist_ein_fehler_und_keine_leere_menge():
     """Eine leere Liste hiesse "nichts vorgeschlagen". Eine unerwartete Form
     sagt das nicht -- sie still als leer zu lesen, verschwiege, dass der Aufrufer

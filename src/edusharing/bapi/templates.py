@@ -50,6 +50,7 @@ from ..errors import (
 from ..repository import ENV_METADATASET
 from ..retry import RetryPolicy, parse_retry_after
 from ..suggestions import Suggestion
+from ..transport import _BEFORE_SENDING
 from ..urls import refuse_userinfo
 from .body import read_answer
 from .client import (
@@ -411,7 +412,8 @@ class BapiTemplates:
         """One request, retried where a repeat is harmless.
 
         ``writes`` marks the routes that store their result. There a transport
-        failure is not retried either: the request may have arrived.
+        failure is not retried either, because the request may have arrived --
+        unless it failed before anything was sent.
         """
         url = f"{self.base_url}{_BASE}{path}"
         retry_on = _RETRY_WRITING if writes else _RETRY_READING
@@ -431,7 +433,9 @@ class BapiTemplates:
                                  "Accept": "application/json"})
             except httpx.HTTPError as exc:
                 last = EduSharingError(f"{type(exc).__name__}: {exc}", url=url)
-                if writes:
+                # Before these nothing went over the wire, so nothing can have
+                # been stored -- the repository's transport draws the same line.
+                if writes and not isinstance(exc, _BEFORE_SENDING):
                     raise EduSharingError(
                         f"{type(exc).__name__}: {exc} -- the request may have "
                         "arrived and been stored. Check before sending it again.",

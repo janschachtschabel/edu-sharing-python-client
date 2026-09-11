@@ -25,7 +25,8 @@ and in [`docs/audits/`](docs/audits/).
   on a node. A class of its own with a request path of its own (ARCHITECTURE
   E11), because the rules differ: a 500 here is an unknown configuration id and
   is not retried, and `suggest` and `qas` store their result, so a 502, a 504
-  or a lost connection there is not retried either.
+  or a lost connection there is not retried either — a connection that never
+  came about is, because nothing was sent.
 - **Measured against staging on 2026-09-11, and written down where it is used.**
   All five request fields are required; `var()` beats `node()` per
   placeholder; free text in `variables` steered the answer, while through the

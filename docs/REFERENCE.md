@@ -1213,7 +1213,7 @@ in the year 58665, so keep that one as a string.
 | 500 *Missing MDS AI configuration for id X* | `ValidationError` naming the id and the metadata set — not retried |
 | any other 500 | an error, not retried — here a 500 has meant a wrong configuration |
 | 429, 502, 503, 504 on `chat`, `respond`, `images` and their `_limited` forms | retried |
-| 429, 503 on `suggest`, `qas` | retried — refused before anything happened |
+| 429, 503, or a connection that never came about, on `suggest`, `qas` | retried — nothing has happened yet |
 | 502, 504 or a lost connection on `suggest`, `qas` | **not** retried — the message says the result may already be stored |
 | the Java stack trace in every error body, about 18 kB | never copied into an exception |
 

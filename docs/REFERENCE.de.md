@@ -1237,7 +1237,7 @@ String behält.
 | 500 *Missing MDS AI configuration for id X* | `ValidationError`, der die ID und das Metadatenset nennt — nicht wiederholt |
 | jede andere 500 | ein Fehler, nicht wiederholt — hier hieß 500 bisher: falsche Konfiguration |
 | 429, 502, 503, 504 bei `chat`, `respond`, `images` und ihren `_limited`-Formen | wiederholt |
-| 429, 503 bei `suggest`, `qas` | wiederholt — abgewiesen, bevor etwas geschah |
+| 429, 503 oder eine Verbindung, die nie zustande kam, bei `suggest`, `qas` | wiederholt — es ist noch nichts geschehen |
 | 502, 504 oder eine abgerissene Verbindung bei `suggest`, `qas` | **nicht** wiederholt — die Meldung sagt, dass das Ergebnis schon gespeichert sein kann |
 | der Java-Stacktrace in jedem Fehlerkörper, rund 18 kB | wird nie in eine Ausnahme übernommen |
 
