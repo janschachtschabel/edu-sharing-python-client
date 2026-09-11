@@ -203,8 +203,8 @@ has to be guessed — argument and return shapes are in `docs/REFERENCE.md`.
 
 | You hold | From | On it |
 |---|---|---|
-| `Repository` | `Repository(url, auth=…)` or `.from_env()` | `.search()` `.node()` `.create_node()` `.children()` `.create_collection()` `.update_collection()` `.add_to_collection()` `.remove_from_collection()` `.find_collections()` `.resolve()` `.resolve_all()` `.about()` `.whoami()` `.metadatasets()` `.close()`; `.url` `.credential` `.metadataset` `.raw` `.flows` `.people` `.relations` |
-| `AsyncRepository` | the same, inside an event loop | the same names awaited, `.aclose()` for `.close()`, plus `.nodes` `.collections` `.vocab` `.searcher` |
+| `Repository` | `Repository(url, auth=…)` or `.from_env()` | `.search()` `.node()` `.create_node()` `.children()` `.create_collection()` `.update_collection()` `.add_to_collection()` `.remove_from_collection()` `.find_collections()` `.resolve()` `.resolve_all()` `.about()` `.whoami()` `.metadatasets()` `.close()`; `.url` `.credential` `.metadataset` `.raw` `.flows` `.people` `.relations` `.nodes` `.collections` `.vocab` `.searcher` |
+| `AsyncRepository` | the same, inside an event loop | the same names awaited, `.aclose()` for `.close()` |
 | `Credential` | `BasicCredential(user, pw)`, `BasicCredential.from_env()`, `AnonymousCredential()`, `credential_from(…)` | `.headers()` `.is_anonymous` `.username` |
 
 **One node and everything hanging off it**
@@ -227,10 +227,10 @@ has to be guessed — argument and return shapes are in `docs/REFERENCE.md`.
 
 | You hold | From | On it |
 |---|---|---|
-| `Collections` | `repo.collections` — **async only** | `.find()` `.create()` `.update()` `.add()` `.remove()` |
-| `Nodes` | `repo.nodes` — **async only** | `.get()` `.create()` `.children()` `.repository_url` `.wrap(data)`; `ChildPage`: `.nodes` `.total` `.offset` |
-| `Search` | `repo.searcher` — **async only** | `.search()` |
-| `Vocabulary` | `repo.vocab` — **async only** | `.values()` `.suggest()` `.resolve()` `.resolve_all()` `.clear_cache()`; `VocabularyValue`: `.uri` `.label` |
+| `Collections` | `repo.collections` — blocking on `Repository` too, since 2026-09-10 | `.find()` `.create()` `.update()` `.add()` `.remove()` |
+| `Nodes` | `repo.nodes` — blocking on `Repository` too, since 2026-09-10 | `.get()` `.create()` `.children()` `.repository_url` `.wrap(data)`; `ChildPage`: `.nodes` `.total` `.offset` |
+| `Search` | `repo.searcher` — blocking on `Repository` too, since 2026-09-10 | `.search()` |
+| `Vocabulary` | `repo.vocab` — blocking on `Repository` too, since 2026-09-10 | `.values()` `.suggest()` `.resolve()` `.resolve_all()` `.clear_cache()`; `VocabularyValue`: `.uri` `.label` |
 | `People` | `repo.people` | `.memberships()` `.group()` `.members()` `.create_group()` `.delete_group()` `.add_member()` `.remove_member()`; `Group`: `.name` `.short_name` `.display_name` `.type` `.signup`; `Member`: `.name` `.is_group` |
 | `Skills` | `repo.skills` | `.search()` `.get()` `.registry()` `.pick()`; `SkillConventions`: `.type_property` `.skill_type` `.registry_type` `.registry_mark` `.markdown_mimetypes` `.block_kinds`; `WLO_SKILLS` |
 | `SkillSummary` / `SkillDocument` | `.search().hits` / `.get()` | `.id` `.original_id` `.title` `.description` `.keywords` `.url` `.download_url`; the document adds `.content` `.references` `.files` `.files_reason` `.folder_file_count`; `SkillFile`: `.id` `.title` `.mimetype` `.size` `.download_url`; `SkillSearch`: `.hits` `.unresolved` `.truncated` |

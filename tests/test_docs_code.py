@@ -24,6 +24,7 @@ Was ein Aufruf *tut*, steht anderswo.
 """
 
 import ast
+import inspect
 import re
 from pathlib import Path
 
@@ -242,3 +243,56 @@ def test_die_ausnahmen_gibt_es_noch():
     vorhanden = {(rel, erste) for rel in DOKUMENTE for erste, _ in _bloecke(rel)}
     verwaist = sorted(NICHT_PYTHON - vorhanden)
     assert not verwaist, f"in NICHT_PYTHON, aber nicht mehr im Dokument: {verwaist}"
+
+
+# --- "async only" in der Prosa (11.09.2026) ------------------------------
+#
+# Die Wachen oben lesen Code. Eine Tabellenzeile, die eine Flaeche "async
+# only" nennt, ist kein Code -- und genau so eine hat den Fix vom 10.09.2026
+# ueberlebt: vier Zeilen je Sprache nannten Flaechen asynchron, die ab da
+# blockierten. Ein Agent, der den Skill liest, haette sie auf dem
+# blockierenden Repository gemieden.
+#
+# Die Pruefung glaubt der Aussage nicht, sie misst sie: wer "async only" sagt,
+# muss eine Flaeche meinen, die auf dem blockierenden Repository wirklich noch
+# Koroutinen hergibt.
+
+_NUR_ASYNC = re.compile(r"`repo\.(\w+)`\s*—\s*\*\*(?:async only|nur asynchron)\*\*")
+
+
+def _ist_nur_asynchron(name: str) -> bool:
+    """Gibt ``Repository`` fuer diese Flaeche noch Koroutinen her?"""
+    repo = Repository("https://repo.test/edu-sharing")
+    try:
+        flaeche = getattr(repo, name, None)
+        if flaeche is None:
+            return True
+        return any(
+            inspect.iscoroutinefunction(getattr(flaeche, m, None))
+            for m in dir(flaeche) if not m.startswith("_"))
+    finally:
+        repo.close()
+
+
+@pytest.mark.parametrize("rel", [
+    ".claude/skills/edu-sharing-python/SKILL.md",
+    ".claude/skills/edu-sharing-python/SKILL.de.md",
+    "docs/REFERENCE.md", "docs/REFERENCE.de.md",
+    "docs/FLOWS.md", "docs/FLOWS.de.md",
+    "README.md", "README.de.md",
+])
+def test_was_als_nur_asynchron_gilt_ist_es_auch(rel: str):
+    text = (WURZEL / rel).read_text(encoding="utf-8")
+    falsch = [name for name in _NUR_ASYNC.findall(text)
+              if not _ist_nur_asynchron(name)]
+    assert not falsch, (
+        f"{rel} nennt diese Flaechen 'async only', die auf dem blockierenden "
+        f"Repository blockieren: {', '.join('repo.' + n for n in falsch)}")
+
+
+def test_die_nur_asynchron_wache_erkennt_eine_echte_ausnahme():
+    """Die Gegenprobe: die Pruefung darf nicht jede Aussage verwerfen. Ein
+    Name, den das blockierende Repository gar nicht hat, ist nur asynchron --
+    oder gar nicht da; beides verbietet die Aussage nicht."""
+    assert _ist_nur_asynchron("gibt_es_nicht") is True
+    assert _ist_nur_asynchron("vocab") is False

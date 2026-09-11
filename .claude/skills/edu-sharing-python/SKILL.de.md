@@ -215,8 +215,8 @@ muss — die Argument- und Rückgabeformen stehen in `docs/REFERENCE.de.md`.
 
 | Man hält | Woher | Was darauf ist |
 |---|---|---|
-| `Repository` | `Repository(url, auth=…)` oder `.from_env()` | `.search()` `.node()` `.create_node()` `.children()` `.create_collection()` `.update_collection()` `.add_to_collection()` `.remove_from_collection()` `.find_collections()` `.resolve()` `.resolve_all()` `.about()` `.whoami()` `.metadatasets()` `.close()`; `.url` `.credential` `.metadataset` `.raw` `.flows` `.people` `.relations` |
-| `AsyncRepository` | dasselbe, innerhalb einer Ereignisschleife | dieselben Namen mit `await`, `.aclose()` statt `.close()`, dazu `.nodes` `.collections` `.vocab` `.searcher` |
+| `Repository` | `Repository(url, auth=…)` oder `.from_env()` | `.search()` `.node()` `.create_node()` `.children()` `.create_collection()` `.update_collection()` `.add_to_collection()` `.remove_from_collection()` `.find_collections()` `.resolve()` `.resolve_all()` `.about()` `.whoami()` `.metadatasets()` `.close()`; `.url` `.credential` `.metadataset` `.raw` `.flows` `.people` `.relations` `.nodes` `.collections` `.vocab` `.searcher` |
+| `AsyncRepository` | dasselbe, innerhalb einer Ereignisschleife | dieselben Namen mit `await`, `.aclose()` statt `.close()` |
 | `Credential` | `BasicCredential(user, pw)`, `BasicCredential.from_env()`, `AnonymousCredential()`, `credential_from(…)` | `.headers()` `.is_anonymous` `.username` |
 
 **Ein Knoten und alles, was daran hängt**
@@ -239,10 +239,10 @@ muss — die Argument- und Rückgabeformen stehen in `docs/REFERENCE.de.md`.
 
 | Man hält | Woher | Was darauf ist |
 |---|---|---|
-| `Collections` | `repo.collections` — **nur asynchron** | `.find()` `.create()` `.update()` `.add()` `.remove()` |
-| `Nodes` | `repo.nodes` — **nur asynchron** | `.get()` `.create()` `.children()` `.repository_url` `.wrap(data)`; `ChildPage`: `.nodes` `.total` `.offset` |
-| `Search` | `repo.searcher` — **nur asynchron** | `.search()` |
-| `Vocabulary` | `repo.vocab` — **nur asynchron** | `.values()` `.suggest()` `.resolve()` `.resolve_all()` `.clear_cache()`; `VocabularyValue`: `.uri` `.label` |
+| `Collections` | `repo.collections` — seit dem 10.09.2026 auch auf `Repository` blockierend | `.find()` `.create()` `.update()` `.add()` `.remove()` |
+| `Nodes` | `repo.nodes` — seit dem 10.09.2026 auch auf `Repository` blockierend | `.get()` `.create()` `.children()` `.repository_url` `.wrap(data)`; `ChildPage`: `.nodes` `.total` `.offset` |
+| `Search` | `repo.searcher` — seit dem 10.09.2026 auch auf `Repository` blockierend | `.search()` |
+| `Vocabulary` | `repo.vocab` — seit dem 10.09.2026 auch auf `Repository` blockierend | `.values()` `.suggest()` `.resolve()` `.resolve_all()` `.clear_cache()`; `VocabularyValue`: `.uri` `.label` |
 | `People` | `repo.people` | `.memberships()` `.group()` `.members()` `.create_group()` `.delete_group()` `.add_member()` `.remove_member()`; `Group`: `.name` `.short_name` `.display_name` `.type` `.signup`; `Member`: `.name` `.is_group` |
 | `Skills` | `repo.skills` | `.search()` `.get()` `.registry()` `.pick()`; `SkillConventions`: `.type_property` `.skill_type` `.registry_type` `.registry_mark` `.markdown_mimetypes` `.block_kinds`; `WLO_SKILLS` |
 | `SkillSummary` / `SkillDocument` | `.search().hits` / `.get()` | `.id` `.original_id` `.title` `.description` `.keywords` `.url` `.download_url`; das Dokument dazu `.content` `.references` `.files` `.files_reason` `.folder_file_count`; `SkillFile`: `.id` `.title` `.mimetype` `.size` `.download_url`; `SkillSearch`: `.hits` `.unresolved` `.truncated` |
