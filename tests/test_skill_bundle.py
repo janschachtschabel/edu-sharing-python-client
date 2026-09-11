@@ -19,7 +19,7 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
-from test_docs_complete import _klassen_der_bibliothek
+from test_docs_complete import _klassen_der_bibliothek, buendel
 
 WURZEL = Path(__file__).resolve().parent.parent
 SKILL = WURZEL / ".claude" / "skills" / "edu-sharing-python"
@@ -253,14 +253,6 @@ def test_die_aufrufformen_sind_die_gemessenen():
     assert not any(m.startswith("Sync") for ms in formen.values() for m in ms)
 
 
-def _buendel(sprache: str) -> str:
-    """Einstieg und Nachschlagedateien einer Sprache."""
-    einstieg = SKILL / ("SKILL.de.md" if sprache == "de" else "SKILL.md")
-    nachschlag = [p for p in sorted((SKILL / "reference").glob("*.md"))
-                  if p.name.endswith(".de.md") == (sprache == "de")]
-    return "\n".join(p.read_text(encoding="utf-8") for p in [einstieg, *nachschlag])
-
-
 def _zeigt_ergebnis(text: str, name: str) -> bool:
     """``name(`` in einer Tabellenzeile mit einer zweiten Spalte -- die sagt,
     was zurueckkommt -- oder in einem Python-Beispiel."""
@@ -286,14 +278,106 @@ def test_die_ergebniswache_sieht_eine_zeile_ohne_ergebnis():
     assert len(ohne) > 30, f"nur {len(ohne)} Formen ohne Pflichtparameter -- zaehlt die Wache?"
 
 
-@pytest.mark.parametrize("sprache", ["en", "de"])
-def test_jeder_aufruf_ohne_pflichtparameter_zeigt_was_zurueckkommt(sprache: str):
+@pytest.mark.parametrize("datei", EINSTIEGE)
+def test_jeder_aufruf_ohne_pflichtparameter_zeigt_was_zurueckkommt(datei: str):
     """``whoami()`` braucht nichts -- aber wer es ruft, muss wissen, was
     zurueckkommt. Im Buendel, nicht zwingend im Einstieg: dort steht die
     Tabelle, hier genuegt die Referenz."""
-    text = _buendel(sprache)
+    text = buendel(datei)
     fehlend = [f"{name}()  [{', '.join(methoden)}]"
                for (name, positional, benannt), methoden in sorted(_aufrufformen().items())
                if not positional and not benannt and not _zeigt_ergebnis(text, name)]
-    assert not fehlend, (f"Buendel ({sprache}) zeigt fuer {len(fehlend)} Aufrufe nicht, was "
+    assert not fehlend, (f"Buendel zu {datei} zeigt fuer {len(fehlend)} Aufrufe nicht, was "
                          "zurueckkommt:\n  " + "\n  ".join(fehlend))
+
+
+# --- Die Regeln der Anbieter (Plan T7) --------------------------------------
+#
+# Abgerufen am 11.09.2026: Anthropic empfiehlt fuer SKILL.md unter 500 Zeilen
+# und Nachschlagedateien, die der Einstieg direkt verlinkt -- eine Ebene tief,
+# denn ein Modell liest eine Datei, auf die eine andere nur verweist, oft nur
+# an. Die Frontmatter: name hoechstens 64 Zeichen aus a-z, 0-9 und "-", ohne
+# "anthropic" und "claude"; description hoechstens 1024 Zeichen, keine
+# XML-Tags (platform.claude.com, Agent Skills).
+
+_VERWEIS = re.compile(r"]\(([^)#][^)]*)\)")
+
+
+def _verweise(datei: Path) -> list[Path]:
+    """Jedes relative Verweisziel einer Datei, aufgeloest, ohne Anker."""
+    return [(datei.parent / ziel.split("#")[0]).resolve()
+            for ziel in _VERWEIS.findall(datei.read_text(encoding="utf-8"))
+            if not ziel.startswith(("http://", "https://", "mailto:"))]
+
+
+_NEUER_EINSTIEG = pytest.mark.xfail(
+    strict=True, reason="gruen erst mit dem neuen Einstieg (Plan 2026-09-11-skill-umbau, "
+    "T5/T6) -- dann faellt diese Markierung weg")
+
+
+@_NEUER_EINSTIEG
+@pytest.mark.parametrize("datei", EINSTIEGE)
+def test_der_einstieg_bleibt_unter_500_zeilen(datei: str):
+    zeilen = len((SKILL / datei).read_text(encoding="utf-8").splitlines())
+    assert zeilen < 500, f"{datei}: {zeilen} Zeilen -- Einzelheiten gehoeren nach reference/"
+
+
+@_NEUER_EINSTIEG
+@pytest.mark.parametrize("datei", EINSTIEGE)
+def test_kein_verweis_des_einstiegs_fuehrt_aus_dem_skill_ordner(datei: str):
+    """Ausserhalb des Repositoriums gibt es ``../../../docs`` nicht."""
+    draussen = [str(z) for z in _verweise(SKILL / datei)
+                if not z.is_relative_to(SKILL.resolve()) or not z.exists()]
+    assert not draussen, f"{datei} verweist aus dem Skill-Ordner oder ins Leere:\n  " + (
+        "\n  ".join(draussen))
+
+
+@_NEUER_EINSTIEG
+@pytest.mark.parametrize("datei", EINSTIEGE)
+def test_der_einstieg_verlinkt_jede_nachschlagedatei_direkt(datei: str):
+    """Eine Ebene tief: jede Nachschlagedatei seiner Sprache und jedes Beispiel."""
+    deutsch = datei.endswith(".de.md")
+    verlangt = {p.resolve() for p in (SKILL / "reference").glob("*.md")
+                if p.name.endswith(".de.md") == deutsch}
+    verlangt |= {p.resolve() for p in (SKILL / "reference" / "examples").glob("*.py")}
+    fehlend = sorted(p.relative_to(SKILL.resolve()).as_posix()
+                     for p in verlangt - set(_verweise(SKILL / datei)))
+    assert not fehlend, f"{datei} verlinkt nicht direkt: {fehlend}"
+
+
+def test_keine_nachschlagedatei_verweist_aus_dem_skill_ordner():
+    """Auch die Kopien und die Fallen: sie verweisen untereinander und auf die
+    Beispiele, gemessen -- und so soll es bleiben."""
+    draussen = [f"{d.name} -> {z}" for d in sorted((SKILL / "reference").glob("*.md"))
+                for z in _verweise(d)
+                if not z.is_relative_to(SKILL.resolve()) or not z.exists()]
+    assert not draussen, "\n  ".join(draussen)
+
+
+def _frontmatter(text: str) -> dict[str, str]:
+    """Die einzeiligen Felder zwischen den beiden ``---`` am Anfang."""
+    treffer = re.match(r"---\n(.*?)\n---\n", text, re.S)
+    assert treffer, "keine Frontmatter am Anfang"
+    return dict(re.findall(r"^([a-z_-]+):\s*(.+)$", treffer.group(1), re.M))
+
+
+def test_die_frontmatter_folgt_den_regeln_der_anbieter():
+    felder = _frontmatter((SKILL / "SKILL.md").read_text(encoding="utf-8"))
+    name, beschreibung = felder.get("name", ""), felder.get("description", "")
+    assert re.fullmatch(r"[a-z0-9-]{1,64}", name), name
+    assert "anthropic" not in name and "claude" not in name, name
+    assert 0 < len(beschreibung) <= 1024, f"{len(beschreibung)} Zeichen"
+    assert not re.search(r"<[A-Za-z/][^>]*>", beschreibung), "XML-Tag in der description"
+    assert name == SKILL.name, "der Name ist der Ordnername -- so erwarten es alle drei Ziele"
+
+
+def test_der_deutsche_einstieg_ist_eine_begleitdatei():
+    """Ohne Frontmatter: sonst gaebe es zwei Skills mit fast denselben Ausloesern."""
+    assert not (SKILL / "SKILL.de.md").read_text(encoding="utf-8").startswith("---")
+
+
+def test_die_frontmatterwache_sieht_einen_verstoss():
+    """Gegenprobe fuer den Leser der Frontmatter selbst."""
+    felder = _frontmatter("---\nname: Mein Skill\ndescription: <b>x</b>\n---\n# T\n")
+    assert felder == {"name": "Mein Skill", "description": "<b>x</b>"}
+    assert not re.fullmatch(r"[a-z0-9-]{1,64}", felder["name"])

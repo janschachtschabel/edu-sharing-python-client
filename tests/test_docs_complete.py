@@ -353,6 +353,19 @@ SKILLS = {
 }
 
 
+def buendel(name: str) -> str:
+    """Ein Einstieg und die Nachschlagedateien derselben Sprache unter ``reference/``.
+
+    Seit dem 11.09.2026 traegt der Skill-Ordner die Referenz selbst mit. Was
+    ein Modell dort findet, hat es -- auch ausserhalb dieses Repositoriums.
+    """
+    einstieg = SKILLS[name]
+    deutsch = name.endswith(".de.md")
+    nachschlag = [p for p in sorted((einstieg.parent / "reference").glob("*.md"))
+                  if p.name.endswith(".de.md") == deutsch]
+    return "\n".join(p.read_text(encoding="utf-8") for p in [einstieg, *nachschlag])
+
+
 @pytest.mark.parametrize("name", sorted(SKILLS))
 def test_der_skill_kennt_jeden_ablauf_und_erfindet_keinen(name):
     """Alle Ablaeufe, und nur echte -- in jeder Sprachfassung."""
@@ -602,13 +615,19 @@ def test_der_waechter_wuerde_einen_fehlenden_namen_bemerken():
 # Dieser Test haelt das fest, denn eine Wegweisertabelle, die eine neue
 # Funktion verschweigt, laesst die KI sie von Hand nachbauen. Wer die
 # Oberflaeche erweitert, erweitert beide Sprachfassungen des Skills mit.
+#
+# Seit dem 11.09.2026 gilt das fuer das Buendel, nicht fuer den Einstieg
+# allein: 370 Namen samt Feldern und Konstanten passen nicht in einen
+# Einstieg unter 500 Zeilen, und die Referenz liegt jetzt im Skill-Ordner.
+# Die Tueren, die Ablaeufe und die Namen der Beispiele bleiben Sache des
+# Einstiegs -- die Tests darueber.
 
 
 @pytest.mark.parametrize("name", sorted(SKILLS))
 def test_der_skill_nennt_jeden_oeffentlichen_namen(name):
-    """Alles aus ``__all__`` steht im Skill -- in beiden Sprachfassungen."""
+    """Alles aus ``__all__`` steht im Skill-Buendel -- in beiden Sprachfassungen."""
     namen = oeffentliche_namen()
-    geschrieben = _in_code_geschrieben(SKILLS[name].read_text(encoding="utf-8"))
+    geschrieben = _in_code_geschrieben(buendel(name))
     fehlend = sorted(n for n in namen if n not in geschrieben)
     assert not fehlend, (
         f"{name} nennt {len(fehlend)} von {len(namen)} oeffentlichen Namen "
