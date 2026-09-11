@@ -419,7 +419,7 @@ macht daraus einen Pfad, der sich von oben nach unten liest.
 | `node.content.download()` | `bytes` — stückweise gelesen. **Nur öffentliche Inhalte** auf der gemessenen Instanz: das Download-Servlet authentifiziert nicht, ein privater Knoten antwortet `403`, egal wer fragt. Für einen privaten Knoten `text()` nehmen |
 | `node.content.download(max_bytes=…)` | `bytes` — `ContentTooLargeError` über der Grenze, vor dem Abruf, wenn `size` bekannt ist; die Textpfade übergeben `MAX_TEXT_BYTES` (8 MiB) |
 | `node.content.text(force_update=…)` | `str` — der Text, den das Repository extrahiert hat; `force_update=True` lässt neu extrahieren. **Leer für Markdown und JSON** (gemessen 11.09.2026): die Datei ist nicht leer, das Repository zieht aus diesen beiden nur nichts heraus |
-| `node.content.upload(data, filename=…, mimetype=…, version_comment=…)` | `Node` — `version_comment` ist die Notiz in der Versionsgeschichte |
+| `node.content.upload(data, filename=…, mimetype=…, version_comment=…)` | `Node` — `mimetype=` ist Pflicht und muss ein schlichtes `type/subtype` sein; `text/plain`, `text/markdown`, `application/json` und `application/pdf` wurden hochgeladen und zurückgelesen (11.09.2026). `version_comment=` ist die Notiz in der Versionsgeschichte |
 | `node.content.set_preview(data, mimetype="image/png")` | `Node` |
 | `node.content.delete_preview()` | `Node` |
 

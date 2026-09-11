@@ -409,7 +409,7 @@ Jeder Fehler hat `.status` und `.url`. In einem Werkzeug macht `as_result` darau
 3. **`unresolved` nennt Filter, die nicht angewandt wurden**, `ignored` die, die das Repositorium selbst verworfen hat — so oder so beantwortete die Suche eine weitere Frage ([2.2](reference/TRAPS.de.md#22-unresolved-ist-keine-zierde)).
 4. **Jeder Wert ist eine Liste**; Vokabularfelder tragen URIs, `labels()` liefert die Namen ([1.1](reference/TRAPS.de.md#11-jeder-wert-ist-eine-liste), [1.4](reference/TRAPS.de.md#14-vokabularfelder-tragen-uris-nie-labels)).
 5. **`cm:name` ist ein Schlüssel, kein Titel** — `title` schreiben ([1.3](reference/TRAPS.de.md#13-cmname-ist-ein-schlüssel-kein-titel)).
-6. **Schlagworte sind gemeinsam** — `add_keywords("a", "b")`, nicht `update(keywords=…)` ([1.6](reference/TRAPS.de.md#16-manche-listen-sind-gemeinsames-eigentum)).
+6. **Schlagworte sind gemeinsam** — `add_keywords("a", "b")` führt zusammen; `update(keywords=…)` und `repo.flows.update_material(keywords=…)` ersetzen beide die ganze Liste ([1.6](reference/TRAPS.de.md#16-manche-listen-sind-gemeinsames-eigentum)).
 7. **Ein Sammlungs-Listing liefert Referenz-IDs** — der Datensatz ist `original_id` ([2.13](reference/TRAPS.de.md#213-ein-sammlungs-listing-liefert-referenz-ids)).
 8. **Ein neuer Datensatz ist nicht sofort auffindbar** — per ID lesen, nicht danach suchen ([2.15](reference/TRAPS.de.md#215-ein-datensatz-ist-nicht-in-dem-moment-auffindbar-in-dem-er-angelegt-wurde)).
 9. **Das Metadatenset entscheidet, was es gibt** — eine unbekannte Eigenschaft wird verworfen ([1.5](reference/TRAPS.de.md#15-der-metadatensatz-entscheidet-was-es-gibt--stillschweigend)).

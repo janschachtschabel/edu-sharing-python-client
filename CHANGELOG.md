@@ -94,6 +94,12 @@ and in [`docs/audits/`](docs/audits/).
   a result that carries asynchronous methods, and it covers `repo.nodes`,
   `collections`, `searcher` and `vocab`, which it had never called. Found by
   the skill review of 2026-09-11.
+- **What the second acceptance round still had to guess:** the mimetype for a
+  Markdown upload stood nowhere. Measured and written down — `text/plain`,
+  `text/markdown`, `application/json` and `application/pdf` were uploaded and
+  read back. Trap 6 in the entry now also names
+  `repo.flows.update_material(keywords=…)`, the second way to replace a shared
+  keyword list, because the flow level is where a tool reaches first.
 - **Ten smaller claims that were wrong or missing.** `SearchResult.ignored`
   and `.suggestions` were not listed at all — `ignored` is `unresolved`'s
   counterpart and says the repository itself dropped a criterion. The example

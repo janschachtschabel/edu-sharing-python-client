@@ -60,3 +60,50 @@ Skill kopiert; SKILL und TRAPS liegen nur im Skill. Immer beide Sprachen.
 6. **CHANGELOG, Nachtrag hier; zweiter Abnahmelauf** mit einem frischen Agenten
    und Aufgaben aus den Befund-Bereichen (Facetten, Vokabular, Workflow,
    private Markdown-Datei, Schlagworte über den Flow, blockierendes `wrap`).
+
+---
+
+## Umsetzung (11./12.09.2026)
+
+Sechs Commits, jeder nach dem Gate und direkt gepusht, CI je grün:
+`1530191` Bibliothek · `81e4c58` Plan · `4662ba2` Kurznamen und Status ·
+`5ce12b3` Metadatenset, Markdown, Schlagworte · `8d5f538` Optionen und
+`RELATION_TYPES` · `eab9340` die kleineren Befunde.
+
+### Abweichungen vom Plan, mit Grund
+
+| Plan | Umgesetzt | Grund |
+|---|---|---|
+| Befund 3 in der Doku als „nur async" kennzeichnen | in der Bibliothek behoben: `SyncNodes.wrap` → `SyncNode`, `SyncTransport.is_repository_url` reicht durch | der Wrapper macht die Doku wahr, statt eine Ausnahme zu erklären; `is_repository_url` antwortet ohne I/O, der Docstring „deliberately narrow" ist entsprechend ergänzt |
+| Wache für Eigenschaftspositionen in `test_docs_code.py` | eigene Datei `tests/test_docs_values.py` | die bestehende Datei fragt nach Signaturen, diese nach Werten — und sie war schon an der Größenschwelle |
+| Wache „jede Option" als Teil derselben | eigene Datei `tests/test_docs_options.py` | dieselbe Trennung; dazu eine kleine Tabelle `AUCH_ALS` für Fassaden (`create_node` für `Nodes.create`) |
+| Befund 23 beheben | bleibt | die Aufrufzeilen der Beispiele stimmen im Repo, und die Kopien müssen byte-gleich bleiben |
+
+### Zweiter Abnahmelauf
+
+Frischer Agent, Modell sonnet, eingefrorene Kopie des Skills außerhalb des
+Repos, acht Aufgaben aus genau den Befund-Bereichen; gelesen nur der
+Skill-Ordner, nichts ausgeführt.
+
+| | Ergebnis |
+|---|---|
+| statisch (Bindung, Attribute, `await`) | **8 von 8** sauber — 48 Aufrufe gebunden, 147 Attribute geprüft |
+| Werte-Wache (Kurzname an Eigenschaftsposition, Status) | **8 von 8** sauber |
+| live gegen Staging, lesend | **3 von 3** mit Exitcode 0 (Facetten 838 Treffer zu „Optik", beide `Biologie`-URIs, 18006 zu „Physik") |
+| Sicherheit | 5/5 für r3, r5, r6; 4/5 für r1, r4, r7, r8; 3/5 für r2 |
+
+Jede berichtigte Stelle wurde benutzt: Facetten über den Flow mit Kurznamen,
+`resolve_all` mit `ccm:taxonid`, `metadataset="mds_oeh"` samt Prüfung gegen
+`-default-`, der Markdown-Weg (leerer `text()`, 403 privat, veröffentlichen),
+die Vereinigung der Schlagworte vor `update_material`, `100_tocheck`,
+`repo.nodes.wrap` blockierend, `only="folders"` mit `sort`.
+
+Was der Agent noch raten musste, ist Deutung der Aufgabe statt Lücke im Skill —
+mit einer Ausnahme: der Mimetype für Markdown stand nirgends. Gemessen und
+nachgetragen (`text/markdown`, `application/json`).
+
+### Offen
+
+- Befund 23 (siehe oben).
+- Die schreibenden Aufgaben des zweiten Laufs (r4–r8) sind nur statisch
+  geprüft, wie im ersten Lauf.

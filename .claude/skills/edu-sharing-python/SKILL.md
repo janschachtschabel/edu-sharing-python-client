@@ -394,7 +394,7 @@ Every error has `.status` and `.url`. In a tool, `as_result` turns it into
 3. **`unresolved` lists filters that were not applied**, `ignored` those the repository itself discarded — either way the search answered a wider question ([2.2](reference/TRAPS.md#22-unresolved-is-not-decoration)).
 4. **Every value is a list**; vocabulary fields hold URIs, `labels()` gives the names ([1.1](reference/TRAPS.md#11-every-value-is-a-list), [1.4](reference/TRAPS.md#14-vocabulary-fields-hold-uris-never-labels)).
 5. **`cm:name` is a key, not a title** — write `title` ([1.3](reference/TRAPS.md#13-cmname-is-a-key-not-a-title)).
-6. **Keywords are shared** — `add_keywords("a", "b")`, not `update(keywords=…)` ([1.6](reference/TRAPS.md#16-some-lists-are-shared-property)).
+6. **Keywords are shared** — `add_keywords("a", "b")` merges; `update(keywords=…)` and `repo.flows.update_material(keywords=…)` both replace the whole list ([1.6](reference/TRAPS.md#16-some-lists-are-shared-property)).
 7. **A collection listing hands out reference ids** — the record is `original_id` ([2.13](reference/TRAPS.md#213-a-collection-listing-hands-out-reference-ids)).
 8. **A new record is not findable at once** — read it by id, do not search for it ([2.15](reference/TRAPS.md#215-a-record-is-not-findable-the-moment-it-is-created)).
 9. **The metadata set decides what exists** — an unknown property is dropped ([1.5](reference/TRAPS.md#15-the-metadata-set-decides-what-exists--silently)).

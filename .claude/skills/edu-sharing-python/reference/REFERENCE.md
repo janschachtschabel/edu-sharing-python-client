@@ -408,7 +408,7 @@ turns the same information into a breadcrumb that reads top-down.
 | `node.content.download()` | `bytes` — read in chunks. **Public content only** on the measured instance: the download servlet does not authenticate, so a private node answers `403` no matter who asks. Use `text()` for a private node |
 | `node.content.download(max_bytes=…)` | `bytes` — `ContentTooLargeError` above the limit, before the request when `size` is known; the text paths pass `MAX_TEXT_BYTES` (8 MiB) |
 | `node.content.text(force_update=…)` | `str` — the extracted text the repository holds; `force_update=True` has it extract again. **Empty for Markdown and JSON** (measured 2026-09-11): the file is not empty, the repository extracts nothing from those two |
-| `node.content.upload(data, filename=…, mimetype=…, version_comment=…)` | `Node` — `version_comment` is the note in the version history |
+| `node.content.upload(data, filename=…, mimetype=…, version_comment=…)` | `Node` — `mimetype=` is mandatory and must be a plain `type/subtype`; `text/plain`, `text/markdown`, `application/json` and `application/pdf` were uploaded and read back (2026-09-11). `version_comment=` is the note in the version history |
 | `node.content.set_preview(data, mimetype="image/png")` | `Node` |
 | `node.content.delete_preview()` | `Node` |
 
