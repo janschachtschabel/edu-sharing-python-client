@@ -339,11 +339,12 @@ def test_jedes_beispiel_liest_nur_variablen_die_es_gibt():
 
 # --- Der Skill ------------------------------------------------------------
 #
-# ``.claude/skills/edu-sharing-python/SKILL.md`` ist eine Wegweisertabelle fuer
-# ein Modell: "diese Aufgabe -> dieser Aufruf". Ein Wegweiser, der auf einen
-# Aufruf zeigt, den es nicht gibt, ist schlimmer als keiner -- das Modell
-# schreibt den Code trotzdem. Und ein Wegweiser, der einen Ablauf auslaesst,
-# laesst das Modell ihn von Hand nachbauen.
+# ``.claude/skills/edu-sharing-python/SKILL.md`` ist der Einstieg eines Modells
+# in die Bibliothek: Rezepte und jeder Aufruf mit seinen Parametern (seit dem
+# 11.09.2026; vorher eine Wegweisertabelle "diese Aufgabe -> dieser Aufruf").
+# Ein Einstieg, der auf einen Aufruf zeigt, den es nicht gibt, ist schlimmer
+# als keiner -- das Modell schreibt den Code trotzdem. Und einer, der einen
+# Ablauf auslaesst, laesst das Modell ihn von Hand nachbauen.
 
 #: Beide Sprachfassungen. Die deutsche ist keine Zierde -- sie steht denselben
 #: Lesern gegenueber und wuerde ohne Waechter als erste veralten.
@@ -518,9 +519,9 @@ def test_der_waechter_liest_auch_einen_umgebrochenen_code_span():
 # ``repo.vocab.resolve_all``, die Korrektur fuer mehrdeutige Labels), die
 # Instanz-Auskunft, und ``repo.people`` stand als blosser Stern da.
 #
-# Der Skill ist eine Wegweisertabelle, keine Referenz -- aber ein Wegweiser,
-# der eine Tuer nicht nennt, fuehrt niemanden hindurch. Eine KI hat im
-# Normalfall nur ihn geladen, nicht das Repositorium.
+# Der Einstieg ist keine Referenz -- die liegt daneben in ``reference/`` --,
+# aber einer, der eine Tuer nicht nennt, fuehrt niemanden hindurch. Eine KI
+# liest ihn zuerst, oft als einziges.
 
 #: Zeilen der dreispaltigen Zugriffstabelle: ``| `repo.vocab` | `Vocabulary` | ... |``
 _ZUGRIFF = re.compile(r"^\|\s*`(repo|node)\.([a-z_]+)`\s*\|\s*`[A-Z]\w*`\s*\|", re.M)
@@ -612,8 +613,8 @@ def test_der_waechter_wuerde_einen_fehlenden_namen_bemerken():
 
 # Das Mass darueber -- "was ein Beispiel benutzt" -- ist die Untergrenze. Der
 # Skill ist inzwischen darueber hinaus: er nennt jeden oeffentlichen Namen.
-# Dieser Test haelt das fest, denn eine Wegweisertabelle, die eine neue
-# Funktion verschweigt, laesst die KI sie von Hand nachbauen. Wer die
+# Dieser Test haelt das fest, denn ein Skill, der eine neue Funktion
+# verschweigt, laesst die KI sie von Hand nachbauen. Wer die
 # Oberflaeche erweitert, erweitert beide Sprachfassungen des Skills mit.
 #
 # Seit dem 11.09.2026 gilt das fuer das Buendel, nicht fuer den Einstieg
