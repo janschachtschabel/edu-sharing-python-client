@@ -49,10 +49,15 @@ Python 3.13.5 und `pip install -e .` unter 3.14.7. Beide beantworteten danach
 zieht den aktuellen `main` und zwei Abhängigkeiten, und eine Suche antwortete
 sofort.
 
-> **`@v0.1.0` vorerst nicht pinnen.** Der Tag liegt 203 Commits hinter `main`
-> und stammt aus der Zeit vor drei Prüfrunden — wer ihn pinnt, kauft die Fehler
-> mit, die sie geschlossen haben. Bis der nächste Tag geschnitten ist, ist die
-> Adresse oben ohne Pin die richtige.
+Wer auf eine Version festlegen will, hängt den Tag an:
+
+```bash
+uv pip install "git+https://github.com/janschachtschabel/edu-sharing-python-client@v0.2.0"
+```
+
+> **Nicht `@v0.1.0`.** Der Tag stammt aus der Zeit vor drei Prüfrunden — wer
+> ihn pinnt, kauft die Fehler mit, die sie geschlossen haben. `v0.2.0` ist der
+> erste Tag, der ihre Korrekturen trägt.
 
 ## Schnellstart
 

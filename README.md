@@ -45,9 +45,14 @@ Measured again on 2026-09-10, this time the git route into an empty 3.12
 environment: it pulls the current `main` and two dependencies, and a search
 answered straight away.
 
-> **Do not pin `@v0.1.0` yet.** The tag sits 203 commits behind `main` — it
-> predates three review rounds, so pinning it buys the defects they closed.
-> Until the next tag is cut, the plain address above is the one to use.
+To pin a release, add the tag:
+
+```bash
+uv pip install "git+https://github.com/janschachtschabel/edu-sharing-python-client@v0.2.0"
+```
+
+> **Not `@v0.1.0`.** It predates three review rounds, so pinning it buys the
+> defects they closed. `v0.2.0` is the first tag that carries their fixes.
 
 ## Quick start
 
