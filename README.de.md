@@ -304,7 +304,7 @@ Und vor dem Schreiben erst zeigen, was passieren würde:
 from edusharing.agent import plan_update
 
 plan = await plan_update(node, title="Neuer Titel")
-print(plan.describe())        # "cclom:title: 'Alt'  ->  'Neuer Titel'"
+print(plan.describe())        # eine Zeile je Änderung: "cclom:title: Alt  ->  Neuer Titel"
 if plan.has_changes:
     node = await plan.apply()
 ```
