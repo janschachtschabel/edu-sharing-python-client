@@ -178,6 +178,35 @@ def _text_of(body: dict[str, Any]) -> str:
     )
 
 
+def _answer_from(antwort: dict[str, Any], model: str = "") -> Answer:
+    """A ``responses`` body as an ``Answer``.
+
+    Its own function because the template mode's ``/responses`` answers in the
+    same shape -- one reading of ``status`` and ``incomplete_details`` for
+    both, rather than two that drift apart.
+    """
+    return Answer(
+        text=_text_of(antwort),
+        status=str(antwort.get("status") or ""),
+        reason=str((antwort.get("incomplete_details") or {}).get("reason") or ""),
+        model=str(antwort.get("model") or model),
+        raw=antwort,
+    )
+
+
+def _images_from(answer: dict[str, Any]) -> list[GeneratedImage]:
+    """An ``images/generations`` body as ``GeneratedImage`` values -- shared
+    with the template mode for the same reason as ``_answer_from``."""
+    return [
+        GeneratedImage(
+            url=entry.get("url"),
+            b64=entry.get("b64_json"),
+            revised_prompt=entry.get("revised_prompt") or "",
+        )
+        for entry in (answer.get("data") or [])
+    ]
+
+
 async def respond(
     api: BildungsAPI,
     prompt: str,
@@ -243,13 +272,7 @@ async def respond(
         **extra,
     }
     antwort = await call(api, "responses", body, provider=provider)
-    return Answer(
-        text=_text_of(antwort),
-        status=str(antwort.get("status") or ""),
-        reason=str((antwort.get("incomplete_details") or {}).get("reason") or ""),
-        model=str(antwort.get("model") or model),
-        raw=antwort,
-    )
+    return _answer_from(antwort, model)
 
 
 async def call(
@@ -361,11 +384,4 @@ async def images(
     answer = await call(api, "images/generations",
                         {"model": model, "prompt": prompt, **extra},
                         provider=provider)
-    return [
-        GeneratedImage(
-            url=entry.get("url"),
-            b64=entry.get("b64_json"),
-            revised_prompt=entry.get("revised_prompt") or "",
-        )
-        for entry in (answer.get("data") or [])
-    ]
+    return _images_from(answer)
