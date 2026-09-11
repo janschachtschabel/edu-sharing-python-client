@@ -24,19 +24,22 @@ Was ein Aufruf *tut*, steht anderswo.
 """
 
 import ast
+import functools
 import inspect
 import re
+import textwrap
 from pathlib import Path
 
 import pytest
 
 from edusharing import AsyncRepository, Repository
 from edusharing._sync import SyncNode
-from edusharing.bapi import BapiTemplates
+from edusharing.bapi import BapiTemplates, BildungsAPI
 from edusharing.childobjects import ChildObjects
 from edusharing.collections import Collections
 from edusharing.content import NodeContent
 from edusharing.flows import Flows
+from edusharing.metadata_agent import MetadataAgent
 from edusharing.nodes import Node, Nodes
 from edusharing.people import People
 from edusharing.relations import Relations
@@ -69,9 +72,12 @@ NICHT_PYTHON = {
 _BLOCK = re.compile(r"```(?:python|py)\n(.*?)```", re.S)
 
 #: Variablenname -> Klasse. Nur, was eindeutig ist: ``kind`` etwa steht in der
-#: README fuer eine Inhaltsart und nicht fuer ein Kindobjekt.
+#: README fuer eine Inhaltsart und nicht fuer ein Kindobjekt. ``api`` und
+#: ``agent`` seit dem 11.09.2026 -- gemessen stehen sie in jedem Block fuer
+#: ``BildungsAPI`` und ``MetadataAgent``; ``extraction`` nicht, es fehlt hier.
 _WURZELN_ASYNC = {"repo": AsyncRepository, "node": Node, "knoten": Node,
-                  "templates": BapiTemplates}
+                  "templates": BapiTemplates, "api": BildungsAPI,
+                  "agent": MetadataAgent}
 
 #: Synchron gilt ``Repository`` selbst -- die Fassade ist ausgeschrieben und
 #: damit genau pruefbar (``resolve`` gibt es dort und asynchron nicht).
@@ -81,7 +87,8 @@ _WURZELN_ASYNC = {"repo": AsyncRepository, "node": Node, "knoten": Node,
 #: ``node.get_all`` und ``node.properties`` faelschlich als Fehler da
 #: (Messung 09.09.2026).
 _WURZELN_SYNC = {"repo": Repository, "node": Node, "knoten": Node,
-                 "templates": BapiTemplates}
+                 "templates": BapiTemplates, "api": BildungsAPI,
+                 "agent": MetadataAgent}
 
 #: Wo ein Attribut selbst wieder eine Oberflaeche ist.
 _WEITER = {
@@ -119,6 +126,31 @@ def _kette(knoten: ast.AST) -> list[str] | None:
     return list(reversed(teile))
 
 
+@functools.cache
+def _instanzattribute(klasse: type) -> frozenset[str]:
+    """Was ``__init__`` als ``self.x`` setzt -- auch geerbt.
+
+    ``hasattr`` fragt die Klasse, und dort steht ``api.last_model`` nicht:
+    ``BildungsAPI.__init__`` setzt es erst am Objekt.
+    """
+    gefunden: set[str] = set()
+    for k in klasse.__mro__:
+        init = vars(k).get("__init__")
+        if not inspect.isfunction(init):
+            continue
+        try:
+            baum = ast.parse(textwrap.dedent(inspect.getsource(init)))
+        except (OSError, TypeError):   # ohne Quelltext: nichts zu lesen
+            continue
+        for knoten in ast.walk(baum):
+            ziele = (knoten.targets if isinstance(knoten, ast.Assign)
+                     else [knoten.target] if isinstance(knoten, ast.AnnAssign) else [])
+            gefunden.update(z.attr for z in ziele
+                            if isinstance(z, ast.Attribute) and isinstance(z.value, ast.Name)
+                            and z.value.id == "self")
+    return frozenset(gefunden)
+
+
 def _unbekannte_aufrufe(quelle: str, baum: ast.AST) -> list[str]:
     """Jeder ``wurzel.a.b``, den es an der Oberflaeche nicht gibt.
 
@@ -139,12 +171,60 @@ def _unbekannte_aufrufe(quelle: str, baum: ast.AST) -> list[str]:
         for name in teile[1:]:
             if klasse is None:
                 break            # hinter einem unbekannten Rueckgabewert
-            if not hasattr(klasse, name):
+            if not hasattr(klasse, name) and name not in _instanzattribute(klasse):
                 fehlend.append(f"{pfad}.{name}")
                 break
             pfad = f"{pfad}.{name}"
             klasse = _WEITER.get((klasse, name))
     return fehlend
+
+
+def _falsch_gebundene_aufrufe(quelle: str, baum: ast.AST) -> list[str]:
+    """Jeder ``wurzel.a.b(...)``, dessen Argumente die echte Signatur nicht nimmt.
+
+    ``Signature.bind`` mit Platzhaltern: zu viele Positionen, ein Name, den es
+    nicht gibt, ein fehlender Pflichtparameter. Was ``**kwargs`` weiterreicht,
+    prueft das nicht -- dort bindet jeder Name. ``f(...)`` ist in einem
+    Dokument ein Platzhalter fuer ausgelassene Argumente, kein Aufruf mit
+    ``Ellipsis``; er bleibt aussen vor, ebenso ``*args`` und ``**kw``, deren
+    Inhalt der Block nicht zeigt (dort nur ``bind_partial``).
+    """
+    wurzeln = _WURZELN_ASYNC if "await " in quelle else _WURZELN_SYNC
+    falsch = []
+    for k in ast.walk(baum):
+        if not isinstance(k, ast.Call):
+            continue
+        teile = _kette(k.func)
+        if not teile or len(teile) < 2 or teile[0] not in wurzeln:
+            continue
+        if [type(a) for a in k.args] == [ast.Constant] and k.args[0].value is Ellipsis:
+            continue
+        klasse: type | None = wurzeln[teile[0]]
+        for name in teile[1:-1]:
+            klasse = _WEITER.get((klasse, name))
+            if klasse is None:
+                break            # hinter einem unbekannten Rueckgabewert
+        if klasse is None:
+            continue
+        roh = inspect.getattr_static(klasse, teile[-1], None)
+        if isinstance(roh, (classmethod, staticmethod)):
+            funktion, ohne_erstes = roh.__func__, isinstance(roh, classmethod)
+        elif inspect.isfunction(roh):
+            funktion, ohne_erstes = roh, True
+        else:
+            continue             # gibt es nicht (sagt die Wache oben) oder ohne Python-Rumpf
+        sig = inspect.signature(funktion)
+        if ohne_erstes:
+            sig = sig.replace(parameters=list(sig.parameters.values())[1:])
+        offen = (any(isinstance(a, ast.Starred) for a in k.args)
+                 or any(kw.arg is None for kw in k.keywords))
+        positionen = [None for a in k.args if not isinstance(a, ast.Starred)]
+        namen = {kw.arg: None for kw in k.keywords if kw.arg is not None}
+        try:
+            (sig.bind_partial if offen else sig.bind)(*positionen, **namen)
+        except TypeError as fehler:
+            falsch.append(f"{'.'.join(teile)}(...): {fehler} -- Signatur {sig}")
+    return falsch
 
 
 def _nicht_parsende(rel: str, bloecke: list[tuple[str, str]]) -> list[str]:
@@ -224,6 +304,59 @@ def test_die_codewache_prueft_den_template_modus():
     assert _unbekannte_aufrufe(gut, ast.parse(gut)) == []
     assert _unbekannte_aufrufe(schlecht, ast.parse(schlecht)) == [
         "templates.template_chat"]
+
+
+def test_die_codewache_kennt_was_der_konstruktor_setzt():
+    """``api.last_model`` sagt, welches Modell geantwortet hat -- gesetzt in
+    ``BildungsAPI.__init__``, nicht an der Klasse. ``hasattr`` sieht es nicht."""
+    gut = "await api.chat('Hallo')\nprint(api.last_model)"
+    schlecht = "print(api.letztes_modell)"
+    assert _unbekannte_aufrufe(gut, ast.parse(gut)) == []
+    assert _unbekannte_aufrufe(schlecht, ast.parse(schlecht)) == ["api.letztes_modell"]
+
+
+# --- Und bindet der Aufruf? (11.09.2026) ----------------------------------
+#
+# Die Wache oben fragt, ob es ``node.set_property`` gibt -- nicht, ob
+# ``node.set_property(value="x")`` es trifft. Gemessen am 11.09.2026 zeigte
+# der Skill fuer 15 Methoden die Pflichtparameter nirgends; ein Modell, das
+# einen Aufruf nachbaut, raet sie. Ein Block, der sie falsch zeigt, lehrt den
+# Fehler gleich mit.
+
+def test_die_signaturwache_sieht_ein_erfundenes_argument():
+    """Gefuettert statt gehofft: jede Art, eine Signatur zu verfehlen."""
+    gut = ('await node.set_property("cclom:title", "Neu")\n'
+           "await templates.chat(chain, context_node_id=k)\n"
+           'await api.chat("Hallo", model="gemma")\n'
+           "await repo.search(...)\n")
+    schlecht = ('await node.set_property("cclom:title", "Neu", pruefen=True)\n'
+                "await templates.chat(chain)\n"
+                'await api.chat("Hallo", modell="gemma")\n'
+                'await node.set_property(value="Neu")\n'
+                "await repo.node('a', 'b')\n")
+    assert _falsch_gebundene_aufrufe(gut, ast.parse(gut)) == []
+    befunde = _falsch_gebundene_aufrufe(schlecht, ast.parse(schlecht))
+    erwartet = ["pruefen", "context_node_id", "modell", "'prop'", "too many positional"]
+    assert len(befunde) == len(erwartet), befunde
+    for befund, stueck in zip(befunde, erwartet, strict=True):
+        assert stueck in befund, (stueck, befund)
+
+
+@pytest.mark.parametrize("rel", DOKUMENTE)
+def test_jeder_aufruf_bindet_an_die_signatur(rel: str):
+    """Kopierter Code darf nicht am ersten Argument scheitern."""
+    falsch = []
+    for erste, quelle in _bloecke(rel):
+        if (rel, erste) in NICHT_PYTHON:
+            continue
+        try:
+            baum = ast.parse(quelle)
+        except SyntaxError:
+            continue             # sagt der Parse-Test
+        falsch.extend(_falsch_gebundene_aufrufe(quelle, baum))
+    assert not falsch, (
+        f"{rel}: das Dokument ruft mit Argumenten, die die Signatur nicht "
+        "nimmt:\n  " + "\n  ".join(falsch))
 
 
 def test_die_fassaden_loesen_auf_wie_angenommen():
