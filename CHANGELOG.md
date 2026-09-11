@@ -14,6 +14,51 @@ and in [`docs/audits/`](docs/audits/).
 
 ## [Unreleased]
 
+### Added
+
+- **The b-api's template mode, `BapiTemplates`** (`edusharing.bapi`). The
+  gateway runs two ways: as a proxy, where the caller sends the prompt
+  (`BildungsAPI`), and with prompts kept on the server, under
+  `/api/v1/edu-sharing/*` — a configuration in the metadata set, a context
+  node, values to fill in. `chat`, `respond` and `images`, each also
+  `_limited`, plus `suggest` and `qas`; `NodeConfig` for a configuration stored
+  on a node. A class of its own with a request path of its own (ARCHITECTURE
+  E11), because the rules differ: a 500 here is an unknown configuration id and
+  is not retried, and `suggest` and `qas` store their result, so a 502, a 504
+  or a lost connection there is not retried either.
+- **Measured against staging on 2026-09-11, and written down where it is used.**
+  All five request fields are required; `var()` beats `node()` per
+  placeholder; free text in `variables` steered the answer, while through the
+  limited routes it did not reach the prompt; a limited choice does not fill
+  `var(X_DISPLAYNAME)`; `respond` needs a configuration for the Responses API;
+  the gateway reads the context node with its own account, so a private node
+  answers 403 even for its owner, and `qas` needs Write for that account.
+- `docs/examples/22_bapi_templates.py`, the "template mode" sections in both
+  READMEs and REFERENCEs, trap 5.16 in the skill, and
+  `tests/test_live_bapi_templates.py` (7 reading, 3 writing).
+
+### Changed
+
+- **Nothing for the proxy.** `BildungsAPI`'s public names are pinned by a test
+  and unchanged; `client.py`, `body.py` and `models.py` are untouched in code,
+  and `passthrough.py` only had its two answer parsers moved into functions of
+  their own. Importing `edusharing.bapi` costs about 1.4 ms more — the two
+  template modules themselves (median of twelve runs); they load nothing the
+  proxy did not load already.
+- **Error messages of the template mode say what went wrong, in one line.**
+  They come from the answer's `message`, never from the 18 kB Java stack trace
+  beside it; a provider's refusal reads as its sentence rather than as the
+  object around it; a 403 says that it is the gateway's permission that is
+  missing.
+
+### Fixed
+
+- **What the spec can say about the gateway's routes.** The docs claimed
+  `/v3/api-docs` knew neither `/models` nor `/chat/completions`. It comes in
+  twelve groups, and `/v3/api-docs/openai` and `/v3/api-docs/academiccloud`
+  describe both — as the OpenAI surface, not as what a provider serves, so the
+  measured list of forwarded routes stays the source of truth.
+
 ## [0.2.0] — 2026-09-11
 
 ### Added

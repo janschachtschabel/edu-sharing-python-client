@@ -80,7 +80,8 @@ des Proxys.
 
 | Datei | Verantwortung |
 |---|---|
-| `src/edusharing/bapi/templates.py` (neu, ~300 Z.) | `BapiTemplates`, `NodeConfig`, Anfrageweg, Fehlerabbildung |
+| `src/edusharing/bapi/templates.py` (neu, 500 Z., davon gut die Hälfte Docstrings) | `BapiTemplates`, Anfrageweg, Fehlerabbildung |
+| `src/edusharing/bapi/template_body.py` (neu, 128 Z.) | `NodeConfig`, `Config`, `Values`, `DEFAULT_USER`; Form der Anfrage, Liste der schreibenden Routen — geteilt wie `body.py`/`client.py` |
 | `src/edusharing/bapi/passthrough.py` | zwei reine Parser herausgezogen: `_answer_from`, `_images_from` — sonst unverändert |
 | `src/edusharing/bapi/__init__.py` | Export `BapiTemplates`, `NodeConfig` |
 | `src/edusharing/bapi/client.py` | nur der Docstring zu `/v3/api-docs` |
@@ -94,10 +95,10 @@ des Proxys.
 
 ```
 BapiTemplates.chat(configs, context_node_id=…, user=…, variables=…)
-  ├─ _body(): configs → [{"type":"mds","id":…} | {"type":"node",…}]
+  ├─ _template_body(): configs → [{"type":"mds","id":…} | {"type":"node",…}]
   │           variables → {key: [str, …]}      (limited: choices → [{widgetId, valueId}])
   │           prüft vor dem Senden: configs nicht leer, context_node_id und user gesetzt
-  ├─ _post("/api/v1/edu-sharing/chat/completion", body, persists=False)
+  ├─ _post("/api/v1/edu-sharing/chat/completion", body, writes=False)
   │     X-API-KEY, RetryPolicy, Semaphore; Fehler aus "message", nie aus "trace"
   └─ read_answer(antwort)  → str          (derselbe Parser wie BildungsAPI.chat)
 ```
@@ -301,3 +302,33 @@ gelöscht.
 
 Regression: die ganze Suite, `ruff`, `mypy --strict`, die Live-Suiten `-m live` und
 `-m write` gegen Staging.
+
+## Umsetzung — Abweichungen und Befunde (11.09.2026)
+
+**Abweichungen vom Plan**
+
+- `templates.py` wurde nach der Umsetzung geteilt: die Form der Anfrage steht in
+  `template_body.py`, wie beim Proxy `body.py` neben `client.py`. Die 61 Tests
+  blieben dabei unverändert grün.
+- `choices` hat die Vorgabe `None` (sendet `[]`) — wie `variables`; harmlos.
+- Der Schalter heißt `writes`, nicht `persists`.
+- `test_docs_code` prüft jetzt auch Codeblöcke mit `templates` gegen die echte
+  Klasse; die Aussage zu `/v3/api-docs` stand auch im Kopf von
+  `tests/test_bapi_passthrough.py` und wurde dort mit berichtigt (nur Text).
+
+**Befunde der Live-Messung, die der Plan nicht kannte** — alle in Docstrings,
+REFERENCE und Live-Tests festgehalten:
+
+- Das Gateway liest den Kontext-Knoten mit **seinem eigenen Konto**: ein privater
+  Knoten antwortet 403, auch mit dem Eigentümer als `user`. Vorschläge legt es
+  unter `admin@B-API` an. Eine 403 sagt das jetzt in der Meldung.
+- `qas` braucht **Write** für dieses Konto (veröffentlicht genügte nicht), dauert
+  rund 50 s je Knoten und liefert `question`, `answer`, `usedText` — `created`
+  im Jahr 58665.
+- `respond` braucht eine Konfiguration für die Responses-API; die
+  chat-Konfigurationen antworten 400, und der Anbieterfehler kommt als
+  `{"error": {"message": …}}` — die Meldung liest ihn jetzt als Satz.
+- Eine limited-Wahl füllt `var(X_DISPLAYNAME)` nicht; freier Text über limited
+  erreichte den Prompt nicht. `topic_page_ai_default` merkt sich Antworten
+  (`useCaching`).
+- Importkosten am Ende: 1,36 ms (beide Template-Module), nichts sonst nachgeladen.
