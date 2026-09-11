@@ -1158,7 +1158,9 @@ OPS-3). So:
 
 1. **Nummer festlegen.** Vor 1.0, also hebt eine brechende Änderung die
    Minor-Stelle. Was im Changelog als BREAKING steht, ist eine.
-2. **`pyproject.toml`** — `version` setzen.
+2. **`pyproject.toml`** — `version` setzen, und die `__version__`-Zeile in
+   beiden REFERENCE-Fassungen mit. 0.1.0 hat das getan und die Liste hat es
+   nicht gesagt; ein Test schlägt jetzt fehl, bis alle drei übereinstimmen.
 3. **`uv lock`** — der Lock hält die eigene Version des Projekts fest und
    driftet sonst; `--locked` in der CI schlägt dann beim nächsten Push an,
    und genau dafür ist es da.

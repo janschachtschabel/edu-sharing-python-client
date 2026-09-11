@@ -1129,7 +1129,9 @@ Two tags exist and nothing said how the next one is cut (audit OPS-3). It is:
 
 1. **Decide the number.** Pre-1.0, so a breaking change bumps the minor.
    Anything marked BREAKING in the changelog is one.
-2. **`pyproject.toml`** — set `version`.
+2. **`pyproject.toml`** — set `version`, and the `__version__` line in both
+   REFERENCE files with it. 0.1.0 did this and the list did not say so; a
+   test now fails until the three agree.
 3. **`uv lock`** — the lock records the project's own version and drifts
    otherwise; CI's `--locked` then fails on the next push, which is the
    point.

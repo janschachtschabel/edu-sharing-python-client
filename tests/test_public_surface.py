@@ -50,3 +50,24 @@ def test_die_version_steht_nicht_zweimal_im_quelltext():
     quelle = (Path(edusharing.__file__).parent / "__init__.py").read_text(
         encoding="utf-8")
     assert edusharing.__version__ not in quelle
+
+
+def test_die_referenz_nennt_die_version_aus_pyproject():
+    """Beim Release 0.1.0 hiess es in der Commit-Nachricht, "beide Referenzen"
+    tragen die Nummer -- im Releasing-Abschnitt stand der Schritt nicht. Ein
+    Handgriff, den nur eine Commit-Nachricht kennt, wird vergessen; diese
+    Wache macht ihn beim naechsten Versionssprung rot, bis er getan ist.
+    """
+    import re
+    import tomllib
+    from pathlib import Path
+
+    wurzel = Path(__file__).resolve().parent.parent
+    soll = tomllib.loads(
+        (wurzel / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
+    for name in ("REFERENCE.md", "REFERENCE.de.md"):
+        text = (wurzel / "docs" / name).read_text(encoding="utf-8")
+        gefunden = re.search(r'`edusharing\.__version__` \| `str` — `"([^"]+)"`', text)
+        assert gefunden, f"{name}: die __version__-Zeile ist nicht mehr zu finden"
+        assert gefunden.group(1) == soll, (
+            f"{name} nennt {gefunden.group(1)!r}, pyproject.toml {soll!r}")

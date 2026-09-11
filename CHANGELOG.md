@@ -337,7 +337,11 @@ and in [`docs/audits/`](docs/audits/).
   the old check compared a hand-maintained list of pairs, which is where these
   four slipped through. Settings pass through in both directions: the
   wrapper is rebuilt on every access, so `repo.vocab.cache_seconds = 0` has to
-  reach the vocabulary itself, and does.
+  reach the vocabulary itself, and does. **The four properties change type**:
+  they return `SyncVocabulary`, `SyncSearch`, `SyncCollections` and
+  `SyncNodes` now, not the asynchronous objects. Every documented call works
+  as before or better, but an `isinstance` check against `Vocabulary` and the
+  others no longer holds, and a type checker will say so.
 - **A blank `url` no longer becomes a source address** (2026-09-10).
   `add_material(title, url="")` wrote `ccm:wwwurl: ['']` -- a record whose
   source points at nothing, and one no duplicate check can ever match again,
