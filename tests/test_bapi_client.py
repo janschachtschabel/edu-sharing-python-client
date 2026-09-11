@@ -872,3 +872,27 @@ async def test_auch_ueber_chat_entkommt_keine_implementierungsausnahme():
     async with _client(handler, max_retries=0) as client:
         with pytest.raises(EduSharingError):
             await client.chat("hallo")
+
+
+# --- Der Proxy bleibt, wie er ist (Template-Modus, 11.09.2026) -----------
+
+#: Gemessen am 11.09.2026, bevor der Template-Modus dazukam.
+PROXY_FLAECHE = frozenset({
+    "aclose", "call", "chat", "embeddings", "from_env", "images", "load",
+    "models", "moderate", "respond",
+})
+
+
+def test_die_flaeche_des_proxys_bleibt_unveraendert():
+    """Der Template-Modus steht neben dem Proxy, nicht in ihm.
+
+    Die Vorgabe war: beide unabhaengig nutzbar, **kein Nachteil fuer den
+    Proxy**. Ein neuer oeffentlicher Name an ``BildungsAPI`` wuerde die beiden
+    koppeln; ein verschwundener waere ein Bruch. Beides faellt hier auf -- und
+    wer den Proxy bewusst erweitert, traegt den Namen hier nach und sagt damit,
+    dass er es wollte.
+    """
+    oeffentlich = {n for n in dir(BildungsAPI) if not n.startswith("_")}
+    assert oeffentlich == PROXY_FLAECHE, (
+        f"dazugekommen: {sorted(oeffentlich - PROXY_FLAECHE)}, "
+        f"weggefallen: {sorted(PROXY_FLAECHE - oeffentlich)}")
