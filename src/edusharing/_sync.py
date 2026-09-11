@@ -634,6 +634,14 @@ class SyncVocabulary:
     def __getattr__(self, name: str) -> Any:
         return getattr(self._vocab, name)
 
+    def __setattr__(self, name: str, value: Any) -> None:
+        # Pass writes through, not only reads: the wrapper is rebuilt on every
+        # ``repo.vocab`` access, so a value kept here is gone with it.
+        if name.startswith("_"):
+            object.__setattr__(self, name, value)
+        else:
+            setattr(self._vocab, name, value)
+
     def values(self, prop: str, **kwargs: Any) -> Any:
         """Like ``Vocabulary.values``, blocking."""
         return self._loop.run(self._vocab.values(prop, **kwargs))
@@ -670,6 +678,14 @@ class SyncSearch:
     def __getattr__(self, name: str) -> Any:
         return getattr(self._searcher, name)
 
+    def __setattr__(self, name: str, value: Any) -> None:
+        # Pass writes through, not only reads: the wrapper is rebuilt on every
+        # ``repo.searcher`` access, so a value kept here is gone with it.
+        if name.startswith("_"):
+            object.__setattr__(self, name, value)
+        else:
+            setattr(self._searcher, name, value)
+
     def search(self, text: str | None = None, **kwargs: Any) -> Any:
         """Like ``Search.search``, blocking."""
         return self._loop.run(self._searcher.search(text, **kwargs))
@@ -692,6 +708,14 @@ class SyncCollections:
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._collections, name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        # Pass writes through, not only reads: the wrapper is rebuilt on every
+        # ``repo.collections`` access, so a value kept here is gone with it.
+        if name.startswith("_"):
+            object.__setattr__(self, name, value)
+        else:
+            setattr(self._collections, name, value)
 
     def find(self, text: str, **kwargs: Any) -> Any:
         """Like ``Collections.find``, blocking."""
@@ -734,6 +758,14 @@ class SyncNodes:
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._nodes, name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        # Pass writes through, not only reads: the wrapper is rebuilt on every
+        # ``repo.nodes`` access, so a value kept here is gone with it.
+        if name.startswith("_"):
+            object.__setattr__(self, name, value)
+        else:
+            setattr(self._nodes, name, value)
 
     def get(self, node_id: str) -> Any:
         """Like ``Nodes.get``, blocking."""

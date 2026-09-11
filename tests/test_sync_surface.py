@@ -1034,6 +1034,29 @@ def test_jede_oeffentliche_flaeche_hat_ein_blockierendes_spiegelbild(repo):
         f"nur {geprueft} Flaechen gefunden -- die Wache greift ins Leere")
 
 
+def test_eine_einstellung_kommt_durch_den_wrapper_an(repo):
+    """REFERENCE sagt: ``repo.vocab.cache_seconds`` setzen, ``0`` schaltet den
+    Cache ab. Seit dem Wrapper vom 10.09.2026 verpuffte das: ``repo.vocab``
+    baut bei jedem Zugriff einen neuen Wrapper, und die Zuweisung landete auf
+    ihm statt auf dem Vokabular.
+
+    Gemessen am 11.09.2026 -- gesetzt ``0``, angekommen ``3600.0``. Vorher gab
+    ``repo.vocab`` das echte Objekt heraus, und es ging. Der Fix hatte das
+    Lesen durchgereicht und das Schreiben vergessen.
+    """
+    repo.vocab.cache_seconds = 0
+    assert repo._async.vocab.cache_seconds == 0
+
+
+@pytest.mark.parametrize("flaeche", ["vocab", "searcher", "collections", "nodes"])
+def test_jede_neue_flaeche_reicht_das_schreiben_durch(repo, flaeche):
+    """Nicht nur die eine dokumentierte Einstellung. Ein Wrapper, der Lesen
+    durchreicht und Schreiben schluckt, ist eine Falle -- unabhaengig davon,
+    welches Attribut heute zufaellig in der Doku steht."""
+    getattr(repo, flaeche).probe_einstellung = 42
+    assert getattr(repo._async, flaeche).probe_einstellung == 42
+
+
 def test_der_waechter_faengt_einen_vergessenen_durchgriff(repo, unversehrt):
     """Eine Wache, die nichts findet, ist gruen und wertlos. Hier bekommt sie
     genau den Fehler vorgelegt, gegen den diese Datei geschrieben ist."""
