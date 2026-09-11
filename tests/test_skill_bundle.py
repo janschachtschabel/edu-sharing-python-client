@@ -33,7 +33,7 @@ def _abgleich() -> ModuleType:
 
 
 def test_die_nachschlagedateien_sind_kopien_der_doku():
-    """Byte fuer Byte -- sonst liest das Modell eine veraltete Referenz."""
+    """Zeichen fuer Zeichen -- sonst liest das Modell eine veraltete Referenz."""
     abweichend = _abgleich().abweichungen(WURZEL)
     assert not abweichend, (
         "Der Skill-Ordner weicht von docs/ ab -- `python scripts/sync_skill.py` "
@@ -87,3 +87,26 @@ def test_der_abgleich_sieht_jede_abweichung(tmp_path):
     abgleich.synchronisiere(tmp_path)
     assert abgleich.abweichungen(tmp_path) == []
     assert not (ziel / "examples" / "99_alt.py").exists()
+
+
+def test_der_abgleich_vergleicht_wie_git(tmp_path):
+    """CRLF gegen LF ist kein Unterschied -- fuer Git nicht, also auch hier nicht.
+
+    ``.gitattributes`` legt ``eol=lf`` fest, aber ein Arbeitsbaum, der vor
+    dieser Regel ausgecheckt wurde, behaelt CRLF (gemessen am 11.09.2026: 1172
+    Dateien auf dem Rechner, auf dem der Skill entstand). Schreibt Git nach
+    einem Pull nur die Quelle neu, stuende die Kopie byte-verschieden da,
+    obwohl Git beide fuer gleich haelt -- ein roter Test ohne Befund.
+    """
+    abgleich = _abgleich()
+    for name in ("REFERENCE.md", "REFERENCE.de.md", "FLOWS.md", "FLOWS.de.md"):
+        (tmp_path / "docs" / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / "docs" / name).write_bytes(b"# Titel\r\nText\r\n")
+    (tmp_path / "docs" / "examples").mkdir()
+    abgleich.synchronisiere(tmp_path)
+    kopie = tmp_path / ".claude" / "skills" / "edu-sharing-python" / "reference" / "FLOWS.md"
+    assert kopie.read_bytes() == b"# Titel\nText\n", "die Kopie folgt eol=lf"
+    assert abgleich.abweichungen(tmp_path) == []
+    kopie.write_bytes(b"# Titel\nAnderer Text\n")
+    assert abgleich.abweichungen(tmp_path) == [
+        "veraltet: .claude/skills/edu-sharing-python/reference/FLOWS.md"]
