@@ -91,6 +91,7 @@ The library decides that itself.
 | E8 | **Identifiers are percent-encoded in exactly one place** (`urls.path_segment`) | Interpolating an id into a path with an f-string lets it escape the path: measured on 2026-08-27, a node id of `../../../admin/v1/applications` reached a different endpoint, and `abc?admin=1` swallowed the trailing `/metadata`. Encoding at each of the 16 call sites would mean 16 chances to forget; one helper plus an integration test that walks every call site makes a forgotten site fail loudly. Relevant because under an MCP the id comes from the model, i.e. from foreign data. See audit F1. |
 | E9 | **Two levels: API-close objects and JSON flows** | The API level returns `SearchResult` and `Node` -- right for writing Python, wrong for anything that passes the result onwards. `repo.flows.*` chains the same calls and ends at `dict`. Flows add no capability; they remove steps. Kept separate rather than merged, because an object with methods and a JSON-serialisable structure are genuinely different things and picking one would have made the other awkward. Output keys are the configured aliases, so the shape is not tied to a profile (see E4). |
 | E10 | **Reranking is opt-in, and its word lists are a parameter** | edu-sharing ANDs every query word, so a naturally phrased question finds nothing -- measured 2026-08-27: "Bruchrechnung" 1591 records, "Ich suche ein Arbeitsblatt zur Bruchrechnung" **0**. That is how a language model phrases things, so the fix matters for this library's main audience. Ported from `wlo-mcp-sc` (Apache-2.0) with two changes: the German word lists became a `LanguageProfile` parameter, and the metadata-quality signals read the configured aliases instead of fixed WLO properties -- a hard-wired German list would contradict E4. Opt-in because it costs one request per variant. The reciprocal rank fusion of the original was **removed**: it weighed a record's position in the repository's answer, and that order is measurably unstable (25 hits of which 15 differ between identical queries), which made the ranking depend on arrival order -- of 30 shuffles of one candidate set, only 14 gave the same result. What is left is order-independent: quality (0.8) plus which variants returned a record at all (0.2). Same candidates in, same ranking out; two runs still differ when the index does. |
+| E11 | **The b-api's template mode is a class of its own, with a request path of its own** | The gateway runs two ways: as a proxy (`BildungsAPI`, the caller sends the prompt) and with prompts kept on the server (`BapiTemplates`, the caller sends configuration ids). The two need **different retry rules**, measured 2026-09-11: in the template mode a 500 is what an unknown configuration id answers, and `suggestions` and `qas` store their result — so a 502 or 504 there may come after the work was done. Borrowing the proxy's `_request` would have retried both. Methods on `BildungsAPI` would have given the proxy a second responsibility and a reason to change with every template route. So: its own class, built from what can be shared — `RetryPolicy`, the error classes, the redirect and non-JSON errors, the address check, and the proxy's answer parsers. Neither class needs the other; a shared connection pool is one `client=` given to both, the library's convention. `tests/test_bapi_client.py` pins the proxy's public names so that it cannot grow by accident. |
 
 ### 4.1 Feasibility proof (carried out 2026-08-27 against staging)
 
@@ -803,6 +804,16 @@ modules import a sibling: `collections` draws on five (`find`, `pages`,
 `rerank`, `serialize`, `tree`), and `serialize` is a leaf that four of them
 share. `tests/test_import_direction.py` guards the direction between *layers*;
 inside this package there is no such rule, and none is claimed.
+
+### 8.9 Stage 11 — the b-api's template mode
+
+Added 2026-09-11, see E11. Split the way the proxy is: the shape of a request
+in one module, the sending in another.
+
+| Module | Responsibility |
+|---|---|
+| `bapi/template_body.py` | What a template request must look like — configuration references, values as lists, the limited mode's pairs, and the list the writing routes answer. Pure functions |
+| `bapi/templates.py` | `BapiTemplates`: HTTP to `/api/v1/edu-sharing/*`, its own retry sets, and errors taken from the answer's `message` — never from the 18 kB stack trace beside it |
 
 ## 9. Open points
 

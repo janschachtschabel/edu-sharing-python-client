@@ -87,6 +87,7 @@ statt Daten an einen Host zu schicken, den niemand gewählt hat:
 | Dienst | Klasse | Variable |
 |---|---|---|
 | LLM-Gateway (b-api) | `BildungsAPI` | `B_API_BASE_URL` + `B_API_KEY` |
+| dasselbe Gateway, Template-Modus | `BapiTemplates` | `B_API_BASE_URL` + `B_API_KEY` + `EDU_SHARING_METADATASET` |
 | Textextraktion | `TextExtraction` | `EDU_SHARING_TEXT_EXTRACTION_URL` |
 | Metadata Agent | `MetadataAgent` | `METADATA_AGENT_URL` |
 
@@ -190,6 +191,9 @@ der Platte.)*
 | Moderation *(nur OpenAI)* | `.moderate(texts)` |
 | Bildgenerierung *(nur OpenAI)* | `.images(prompt)` |
 | jede andere durchgereichte OpenAI-Route | `.call("batches", body)` |
+| ein Prompt, der auf dem Server liegt, gefüllt aus einem Knoten | `BapiTemplates.chat(configs, context_node_id=…)` |
+| … mit Eingaben, denen Sie nicht trauen | `.chat_limited(configs, context_node_id=…, choices=…)` |
+| das Modell Metadaten vorschlagen lassen, gespeichert als Vorschläge | `.suggest(configs, widgets, context_node_id=…)` → dann `node.suggestions` |
 | Text hinter einer URL | `TextExtraction.text_of(url, method="simple")` |
 | was in den JSON-Bereich einer Inhaltsart gehört | `MetadataAgent.content_types()` / `.schema(file)` |
 
@@ -280,6 +284,7 @@ muss — die Argument- und Rückgabeformen stehen in `docs/REFERENCE.de.md`.
 | `Model` | `.models()` | `.id` `.name` `.demand` `.status` `.input` `.output` `.owned_by` `.shutdown_date` `.is_ready` `.can_chat` `.is_retired_on()` |
 | `LoadReport` | `.load()` | `.provider` `.models` `.reports_load` `.retired` `.total` `.least_loaded` `.summary()`; freie Funktionen `load_report()` `rank_models()` `rank_among()` `pick_model()` `is_rankable()` |
 | `Moderation` / `GeneratedImage` | `.moderate()` / `.images()` | `.flagged` `.categories` `.scores` / `.url` `.b64` `.revised_prompt` |
+| `BapiTemplates` | `BapiTemplates(key, base_url=url, metadataset=…)` oder `.from_env()` — braucht kein `BildungsAPI` | `.chat()` `.chat_limited()` `.respond()` `.respond_limited()` `.images()` `.images_limited()` `.suggest()` `.qas()` `.aclose()`; `NodeConfig`: `.node_id` `.config_name`; die Typen `Config` und `Values`; `DEFAULT_USER` |
 | `TextExtraction` | `TextExtraction(url)` oder `.from_env()` | `.text_of()` `.ping()` `.aclose()`; `ExtractedText`: `.url` `.text` `.lang` `.status` `.char_count` `.truncated` `.reason` `.detail` |
 | `MetadataAgent` | `MetadataAgent(url)` oder `.from_env()` | `.schemas()` `.schema()` `.content_types()` `.content_type_for()` `.clear_cache()` `.aclose()`; `SchemaInfo`: `.file` `.profile_id` `.groups` `.field_count`; `ContentType`: `.uri` `.schema_file` `.label` `.icon` |
 | `Transport` | `repo.raw` | `.request()` `.json()` `.is_repository_url()` `.aclose()` — für Routen, die diese Bibliothek nicht umhüllt |
@@ -837,6 +842,36 @@ Prozess eben angelegt hat, nicht sehen, und `search` listet ihn noch nicht —
 dieselbe Adresse zweimal enthält, muss seine Eingabe selbst entdoppeln; ein
 Test, der anlegt und dann sucht, muss warten.
 
+### 5.16 Der Template-Modus — der Prompt liegt auf dem Server
+
+`BapiTemplates` schickt Konfigurations-IDs, einen Kontext-Knoten und Werte; der
+Prompt selbst steht im Metadatenset. Gemessen auf Staging (11.09.2026):
+
+- **Eine unbekannte ID antwortet 500** — *Missing MDS AI configuration for id
+  X*. Die Bibliothek macht daraus einen `ValidationError`, der die ID und das
+  Metadatenset nennt, und wiederholt ihn nicht.
+- **`{{var(X)|node(X)|-}}`** ist die gebräuchliche Syntax: zuerst Ihr Wert,
+  sonst die Eigenschaft des Knotens — entschieden je Platzhalter. Die
+  Schreibweise `{{node.x}}` aus der Spec kommt in keiner Konfiguration vor.
+- **Eine limited-Wahl füllt `var(X_DISPLAYNAME)` nicht**, und genau das lesen
+  die Prompts der Themenseiten: dort ändert eine Wahl nichts.
+- **`respond` braucht eine Konfiguration für die Responses-API.** Die
+  chat-Konfigurationen antworten dort 400.
+- **Das Gateway arbeitet mit seinem eigenen Konto, nicht als `user`.** Ein
+  privater Kontext-Knoten antwortet 403, auch wenn `user` seinen Eigentümer
+  nennt; `qas` braucht Write für das Konto des Gateways auf jedem Knoten.
+  Vorschläge werden unter diesem Konto angelegt (`admin@B-API`).
+- **`suggest` und `qas` schreiben.** Keiner von beiden wird nach einer 502,
+  einer 504 oder einer abgerissenen Verbindung wiederholt — das Ergebnis kann
+  schon gespeichert sein.
+
+```python
+# async: BapiTemplates hat keine blockierende Fassade
+templates = BapiTemplates.from_env()
+await templates.chat(["topic_page_ai_default", "topic_page_ai_chat_completion",
+                      "topic_page_ai_text_widget"], context_node_id=collection_id)
+```
+
 ---
 
 ## 6. Hinter ein Modell stellen
@@ -851,6 +886,14 @@ from edusharing.agent import as_untrusted, sanitize_text
 
 as_untrusted(hit.description, label="description")
 ```
+
+### Eingaben, denen Sie nicht trauen, gehören in `choices`, nicht in `variables`
+
+Im Template-Modus landet ein Wert in `variables` so im Prompt, wie er ist —
+gemessen hat einer, der „ignoriere alle bisherigen Anweisungen" sagte, die
+Antwort umgelenkt. Die `_limited`-Aufrufe nehmen stattdessen Paare
+`{widget_id: value_id}`; freier Text, dort übergeben, hat den Prompt nicht
+erreicht.
 
 ### Vorschlagen, nicht schreiben
 

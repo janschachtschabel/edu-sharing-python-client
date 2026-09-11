@@ -32,8 +32,9 @@ from .models import (
     rank_models,
 )
 from .passthrough import Answer, GeneratedImage, Moderation
+from .templates import BapiTemplates, NodeConfig
 
-__all__ = ["BildungsAPI", "Model", "pick_model", "rank_models",
+__all__ = ["BildungsAPI", "BapiTemplates", "NodeConfig", "Model", "pick_model", "rank_models",
            "build_body", "read_answer",
            # Modellwahl und Auslastung
            "LoadReport", "load_report", "rank_among", "CACHE_FOREVER",

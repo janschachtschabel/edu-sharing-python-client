@@ -76,6 +76,7 @@ to a host nobody chose:
 | Service | Class | Variable |
 |---|---|---|
 | LLM gateway (b-api) | `BildungsAPI` | `B_API_BASE_URL` + `B_API_KEY` |
+| the same gateway, template mode | `BapiTemplates` | `B_API_BASE_URL` + `B_API_KEY` + `EDU_SHARING_METADATASET` |
 | Text extraction | `TextExtraction` | `EDU_SHARING_TEXT_EXTRACTION_URL` |
 | Metadata agent | `MetadataAgent` | `METADATA_AGENT_URL` |
 
@@ -179,6 +180,9 @@ table.
 | moderation *(OpenAI only)* | `.moderate(texts)` |
 | image generation *(OpenAI only)* | `.images(prompt)` |
 | any other forwarded OpenAI route | `.call("batches", body)` |
+| a prompt kept on the server, filled from a node | `BapiTemplates.chat(configs, context_node_id=…)` |
+| … with input you do not trust | `.chat_limited(configs, context_node_id=…, choices=…)` |
+| have the model propose metadata, stored as suggestions | `.suggest(configs, widgets, context_node_id=…)` → then `node.suggestions` |
 | text behind a URL | `TextExtraction.text_of(url, method="simple")` |
 | what belongs in a content type's JSON | `MetadataAgent.content_types()` / `.schema(file)` |
 
@@ -268,6 +272,7 @@ has to be guessed — argument and return shapes are in `docs/REFERENCE.md`.
 | `Model` | `.models()` | `.id` `.name` `.demand` `.status` `.input` `.output` `.owned_by` `.shutdown_date` `.is_ready` `.can_chat` `.is_retired_on()` |
 | `LoadReport` | `.load()` | `.provider` `.models` `.reports_load` `.retired` `.total` `.least_loaded` `.summary()`; free functions `load_report()` `rank_models()` `rank_among()` `pick_model()` `is_rankable()` |
 | `Moderation` / `GeneratedImage` | `.moderate()` / `.images()` | `.flagged` `.categories` `.scores` / `.url` `.b64` `.revised_prompt` |
+| `BapiTemplates` | `BapiTemplates(key, base_url=url, metadataset=…)` or `.from_env()` — needs no `BildungsAPI` | `.chat()` `.chat_limited()` `.respond()` `.respond_limited()` `.images()` `.images_limited()` `.suggest()` `.qas()` `.aclose()`; `NodeConfig`: `.node_id` `.config_name`; the types `Config` and `Values`; `DEFAULT_USER` |
 | `TextExtraction` | `TextExtraction(url)` or `.from_env()` | `.text_of()` `.ping()` `.aclose()`; `ExtractedText`: `.url` `.text` `.lang` `.status` `.char_count` `.truncated` `.reason` `.detail` |
 | `MetadataAgent` | `MetadataAgent(url)` or `.from_env()` | `.schemas()` `.schema()` `.content_types()` `.content_type_for()` `.clear_cache()` `.aclose()`; `SchemaInfo`: `.file` `.profile_id` `.groups` `.field_count`; `ContentType`: `.uri` `.schema_file` `.label` `.icon` |
 | `Transport` | `repo.raw` | `.request()` `.json()` `.is_repository_url()` `.aclose()` — for routes this library does not wrap |
@@ -795,6 +800,35 @@ ago, and `search` will not list it yet either — `repo.node(node_id)` does, bec
 that reads the node store. An import that carries the same address twice must
 de-duplicate its own input; a test that creates and then searches must wait.
 
+### 5.16 The template mode — the prompt lives on the server
+
+`BapiTemplates` sends configuration ids, a context node and values; the prompt
+itself is in the metadata set. Measured on staging (2026-09-11):
+
+- **An unknown id answers 500** — *Missing MDS AI configuration for id X*. The
+  library turns it into a `ValidationError` naming the id and the metadata set,
+  and does not retry it.
+- **`{{var(X)|node(X)|-}}`** is the syntax in use: your value first, else the
+  node's property — decided per placeholder. The spec's `{{node.x}}` spelling
+  appears in no configuration.
+- **A limited choice does not fill `var(X_DISPLAYNAME)`**, and that is what the
+  topic-page prompts read: there a choice changes nothing.
+- **`respond` needs a configuration written for the Responses API.** The chat
+  configurations answer 400 there.
+- **The gateway works with its own account, not as `user`.** A private context
+  node answers 403, even with its owner named in `user`; `qas` needs Write for
+  the gateway's account on each node. Suggestions are created under that
+  account (`admin@B-API`).
+- **`suggest` and `qas` write.** Neither is retried after a 502, a 504 or a
+  lost connection — the result may already be stored.
+
+```python
+# async: BapiTemplates has no blocking facade
+templates = BapiTemplates.from_env()
+await templates.chat(["topic_page_ai_default", "topic_page_ai_chat_completion",
+                      "topic_page_ai_text_widget"], context_node_id=collection_id)
+```
+
 ---
 
 ## 6. Putting it behind a model
@@ -809,6 +843,13 @@ from edusharing.agent import as_untrusted, sanitize_text
 
 as_untrusted(hit.description, label="description")
 ```
+
+### Input you do not trust belongs in `choices`, not `variables`
+
+In the template mode a `variables` value goes into the prompt as it stands —
+measured, one reading "ignore all previous instructions" steered the answer.
+The `_limited` calls take `{widget_id: value_id}` pairs instead; free text given
+there did not reach the prompt.
 
 ### Propose, do not write
 

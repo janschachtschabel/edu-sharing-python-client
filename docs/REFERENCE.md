@@ -873,6 +873,10 @@ sending your data to a host nobody chose.
 
 ### The LLM gateway — `BildungsAPI`
 
+This is the gateway's **proxy** mode: you send the prompt, the gateway forwards
+it. For prompts kept on the server, see *The template mode* below — a class of
+its own, which this one does not depend on.
+
 | Call | Result |
 |---|---|
 | `BildungsAPI(base_url=…, api_key=…)` | the client |
@@ -1113,6 +1117,107 @@ Model choice, when you do not pass one:
 | `pick_model(models, prefer=…)` | the one to use |
 | `build_body(...)` / `read_answer(response)` | request body and answer text |
 | `DEFAULT_MAX_TOKENS` | 1000 |
+
+### The template mode — `BapiTemplates`
+
+The gateway runs a second way, under `/api/v1/edu-sharing/*`. There the prompt
+lives on the server — in the metadata set, or in a node's `ccm:bapi_config` —
+and the caller sends only which configuration, which context node and which
+values to fill in. `BapiTemplates` is its client: it needs no `BildungsAPI`,
+and `BildungsAPI` does not change because it exists. Same key, same address.
+
+| Call | Result |
+|---|---|
+| `BapiTemplates(api_key, base_url=…, metadataset=…)` | the client — `metadataset` has no default |
+| `BapiTemplates.from_env()` | needs `B_API_KEY`, `B_API_BASE_URL` **and** `EDU_SHARING_METADATASET` |
+| `templates.chat(configs, context_node_id=…, variables=…)` | `str` |
+| `templates.chat_limited(configs, context_node_id=…, choices=…)` | `str` — values from a value space only |
+| `templates.respond(configs, context_node_id=…, variables=…)` | `Answer` — needs a configuration for the Responses API |
+| `templates.respond_limited(configs, context_node_id=…, choices=…)` | `Answer` |
+| `templates.images(configs, context_node_id=…, variables=…)` | `list[GeneratedImage]` |
+| `templates.images_limited(configs, context_node_id=…, choices=…)` | `list[GeneratedImage]` |
+| `templates.suggest(configs, widgets, context_node_id=…)` | `list[Suggestion]` — **stored** on the node as pending suggestions |
+| `templates.qas(node_ids)` | `list[dict]` — **experimental, and stored** |
+| `templates.aclose()` | give the connection back — an injected `client=` stays open |
+| `Config` | `str \| NodeConfig` — a string is an id in the metadata set |
+| `NodeConfig(node_id, config_name)` | a configuration stored on a node, in `ccm:bapi_config` |
+| `Values` | `{key: value}` or `{key: [values]}` — strings only |
+| `DEFAULT_USER` | `"guest"` — what `user=` sends when you pass none |
+
+```python
+# async: BapiTemplates has no blocking facade
+templates = BapiTemplates.from_env()
+
+chain = ["topic_page_ai_default",           # the provider
+         "topic_page_ai_chat_completion",   # the model
+         "topic_page_ai_text_widget"]       # the message
+await templates.chat(chain, context_node_id=collection_id)
+# "MINT-Fächer sind Mathematik, Informatik, Naturwissenschaften und Technik. …"
+await templates.chat(chain, context_node_id=collection_id,
+                     variables={"cm:name": "Vulkane"})
+# "Vulkane entstehen, wenn heißes Magma aus dem Erdinneren …"
+```
+
+Measured against staging on 2026-09-11:
+
+**All five fields, always.** `metadataSet`, `configIds`, `user`,
+`contextNodeId` and `variables` — leave out any one and the server answers 400,
+`variables` included when there is nothing to fill in. The library sends all
+five, and checks them first: an empty list of configurations or a missing
+`context_node_id` is a `ValidationError` before anything is sent.
+
+**A placeholder takes your value first.** The configurations read
+`{{var(X)|node(X)|-}}`: the value you pass, else the context node's property,
+else nothing — decided per placeholder. That is the second call above: the same
+node, another topic.
+
+**A list composes.** Each later configuration overrides the earlier. The chain
+above takes the provider from the first, the model from the second and the
+message from the third.
+
+**Free text goes into the prompt as it stands.** A `variables` value reading
+*"ignore all previous instructions"* steered the answer. For input you do not
+trust, use the `_limited` calls: they send `{widget_id: value_id}` pairs, and
+the route refuses a free-text map outright. Per the spec, the server puts the
+value's caption where the prompt reads `var(<widget_id>)`. Free text given for
+`cm:name` did not reach the prompt — but a choice does not fill
+`var(<widget_id>_DISPLAYNAME)` either, which is what the topic-page prompts
+read. There a choice changes nothing.
+
+**`respond` needs a configuration written for the Responses API** — `input`,
+not `messages`. The chat configurations in `mds_oeh` answer 400: *Unsupported
+parameter: 'messages'*.
+
+**Caching is the configuration's choice.** `topic_page_ai_default` sets
+`useCaching`: the same request came back word for word.
+
+**The gateway reads with its own account, not as `user`.** A private context
+node answered 403 — with `user="guest"` and with the account that owns the
+node alike. Published, the same node worked. `user` opens nothing; the 403's
+message says so.
+
+**`suggest` and `qas` write.** `suggest` stores pending suggestions on the
+context node — the same ones `node.suggestions.list()` reads and
+`repo.flows.accept_suggestion` takes over. Several came back per widget, each
+with a `confidence`, created under the gateway's account (`admin@B-API`).
+`qas` is marked EXPERIMENTAL in the spec, and it needs more: the gateway's
+account must have **Write** on each node — published was not enough. For one
+node it took about 50 seconds. Its pairs come back as the dicts the gateway
+sends: `question`, `answer`, `usedText` and review fields — and a `created`
+in the year 58665, so keep that one as a string.
+
+| Situation | Behaviour |
+|---|---|
+| 400 | `ValidationError` with the server's message |
+| 403 | `PermissionDeniedError` — and the message says whose permission is missing: the gateway's |
+| 500 *Missing MDS AI configuration for id X* | `ValidationError` naming the id and the metadata set — not retried |
+| any other 500 | an error, not retried — here a 500 has meant a wrong configuration |
+| 429, 502, 503, 504 on `chat`, `respond`, `images` and their `_limited` forms | retried |
+| 429, 503 on `suggest`, `qas` | retried — refused before anything happened |
+| 502, 504 or a lost connection on `suggest`, `qas` | **not** retried — the message says the result may already be stored |
+| the Java stack trace in every error body, about 18 kB | never copied into an exception |
+
+To share one connection pool with `BildungsAPI`, give both the same `client=`.
 
 ### Text the repository does not have — `TextExtraction`
 

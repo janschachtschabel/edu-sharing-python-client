@@ -104,6 +104,7 @@ Nicht darin → `POST /property`. Die Bibliothek entscheidet das selbst.
 | E8 | **Bezeichner werden an genau einer Stelle prozentkodiert** (`urls.path_segment`) | Eine ID per f-String in einen Pfad zu setzen lässt sie aus dem Pfad ausbrechen: gemessen am 27.08.2026 erreichte eine Knoten-ID `../../../admin/v1/applications` einen anderen Endpunkt, und `abc?admin=1` schluckte das angehängte `/metadata`. An jeder der 16 Aufrufstellen zu kodieren hieße 16 Gelegenheiten, es zu vergessen; ein Helfer plus ein Integrationstest, der jede Aufrufstelle abläuft, lässt eine vergessene Stelle laut scheitern. Wichtig, weil unter einem MCP die ID vom Modell kommt, also aus fremden Daten. Siehe Audit F1. |
 | E9 | **Zwei Ebenen: API-nahe Objekte und JSON-Abläufe** | Die API-Ebene liefert `SearchResult` und `Node` — richtig, um Python zu schreiben, falsch für alles, was das Ergebnis weiterreicht. `repo.flows.*` verkettet dieselben Aufrufe und endet bei `dict`. Abläufe fügen nichts hinzu; sie sparen Schritte. Getrennt gehalten statt verschmolzen, weil ein Objekt mit Methoden und eine JSON-fähige Struktur wirklich verschiedene Dinge sind und eines von beiden zu wählen das andere unhandlich gemacht hätte. Die Schlüssel der Ausgabe sind die konfigurierten Aliase, die Form hängt also an keinem Profil (siehe E4). |
 | E10 | **Neuordnung ist zuschaltbar, und ihre Wortlisten sind ein Parameter** | edu-sharing verknüpft alle Suchwörter mit UND, eine natürlich formulierte Frage findet also nichts — gemessen am 27.08.2026: „Bruchrechnung" 1591 Datensätze, „Ich suche ein Arbeitsblatt zur Bruchrechnung" **0**. So formuliert ein Sprachmodell, die Abhilfe zählt also für das Hauptpublikum dieser Bibliothek. Aus `wlo-mcp-sc` (Apache-2.0) übernommen, mit zwei Änderungen: aus den deutschen Wortlisten wurde ein `LanguageProfile`-Parameter, und die Qualitätssignale lesen die konfigurierten Aliase statt fester WLO-Eigenschaften — eine fest verdrahtete deutsche Liste widerspräche E4. Zuschaltbar, weil sie je Variante eine Anfrage kostet. Die reziproke Rangfusion des Originals wurde **entfernt**: sie gewichtete die Position eines Datensatzes in der Antwort des Repositoriums, und diese Reihenfolge ist messbar unstet (25 Treffer, davon 15 verschieden zwischen gleichen Anfragen), womit die Rangfolge von der Ankunftsreihenfolge abhing — von 30 Mischungen derselben Kandidatenmenge ergaben nur 14 dasselbe Ergebnis. Was bleibt, ist reihenfolgeunabhängig: Qualität (0,8) plus die Frage, welche Varianten einen Datensatz überhaupt zurückgaben (0,2). Gleiche Kandidaten hinein, gleiche Rangfolge heraus; zwei Läufe unterscheiden sich weiterhin, wenn der Index sich unterscheidet. |
+| E11 | **Der Template-Modus der b-api ist eine eigene Klasse mit eigenem Anfrageweg** | Das Gateway läuft auf zwei Arten: als Proxy (`BildungsAPI`, der Aufrufer schickt den Prompt) und mit Prompts, die auf dem Server liegen (`BapiTemplates`, der Aufrufer schickt Konfigurations-IDs). Die beiden brauchen **verschiedene Wiederholungsregeln**, gemessen am 11.09.2026: im Template-Modus antwortet eine unbekannte Konfigurations-ID mit 500, und `suggestions` und `qas` speichern ihr Ergebnis — eine 502 oder 504 kann dort also nach getaner Arbeit kommen. Das `_request` des Proxys mitzubenutzen hätte beides wiederholt. Methoden an `BildungsAPI` hätten dem Proxy eine zweite Verantwortung gegeben und einen Grund, sich mit jeder Template-Route zu ändern. Also: eine eigene Klasse, gebaut aus dem, was sich teilen lässt — `RetryPolicy`, die Fehlerklassen, die Weiterleitungs- und Nicht-JSON-Fehler, die Adressprüfung und die Antwort-Parser des Proxys. Keine der beiden Klassen braucht die andere; einen gemeinsamen Verbindungspool bekommt, wer beiden denselben `client=` gibt — die Konvention der Bibliothek. `tests/test_bapi_client.py` pinnt die öffentlichen Namen des Proxys, damit er nicht versehentlich wächst. |
 
 ### 4.1 Machbarkeitsnachweis (durchgeführt am 27.08.2026 gegen Staging)
 
@@ -879,6 +880,16 @@ Geschwistermodul zu: `collections` auf fünf (`find`, `pages`, `rerank`,
 teilen. `tests/test_import_direction.py` wacht über die Richtung zwischen den
 *Schichten*; innerhalb dieses Pakets gibt es keine solche Regel, und es wird
 auch keine behauptet.
+
+### 8.9 Etappe 11 — der Template-Modus der b-api
+
+Hinzugekommen am 11.09.2026, siehe E11. Geteilt wie der Proxy: die Form einer
+Anfrage in einem Modul, das Senden in einem anderen.
+
+| Modul | Verantwortung |
+|---|---|
+| `bapi/template_body.py` | Wie eine Template-Anfrage aussehen muss — Konfigurationsverweise, Werte als Listen, die Paare des limited-Modus und die Liste, mit der die schreibenden Routen antworten. Reine Funktionen |
+| `bapi/templates.py` | `BapiTemplates`: HTTP an `/api/v1/edu-sharing/*`, eigene Wiederholungsmengen und Fehler aus dem `message` der Antwort — nie aus dem 18-kB-Stacktrace daneben |
 
 ## 9. Offene Punkte
 

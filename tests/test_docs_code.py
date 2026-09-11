@@ -32,6 +32,7 @@ import pytest
 
 from edusharing import AsyncRepository, Repository
 from edusharing._sync import SyncNode
+from edusharing.bapi import BapiTemplates
 from edusharing.childobjects import ChildObjects
 from edusharing.collections import Collections
 from edusharing.content import NodeContent
@@ -69,7 +70,8 @@ _BLOCK = re.compile(r"```(?:python|py)\n(.*?)```", re.S)
 
 #: Variablenname -> Klasse. Nur, was eindeutig ist: ``kind`` etwa steht in der
 #: README fuer eine Inhaltsart und nicht fuer ein Kindobjekt.
-_WURZELN_ASYNC = {"repo": AsyncRepository, "node": Node, "knoten": Node}
+_WURZELN_ASYNC = {"repo": AsyncRepository, "node": Node, "knoten": Node,
+                  "templates": BapiTemplates}
 
 #: Synchron gilt ``Repository`` selbst -- die Fassade ist ausgeschrieben und
 #: damit genau pruefbar (``resolve`` gibt es dort und asynchron nicht).
@@ -78,7 +80,8 @@ _WURZELN_ASYNC = {"repo": AsyncRepository, "node": Node, "knoten": Node}
 #: ``hasattr`` nicht sehen -- so gemeldet stuenden ``node.get``,
 #: ``node.get_all`` und ``node.properties`` faelschlich als Fehler da
 #: (Messung 09.09.2026).
-_WURZELN_SYNC = {"repo": Repository, "node": Node, "knoten": Node}
+_WURZELN_SYNC = {"repo": Repository, "node": Node, "knoten": Node,
+                 "templates": BapiTemplates}
 
 #: Wo ein Attribut selbst wieder eine Oberflaeche ist.
 _WEITER = {
@@ -211,6 +214,16 @@ def test_die_codewache_sieht_ueberhaupt_etwas():
     assert _unbekannte_aufrufe(gut, ast.parse(gut)) == []
     assert _unbekannte_aufrufe(schlecht, ast.parse(schlecht)) == [
         "repo.gibt_es_nicht", "node.content.auch_nicht"]
+
+
+def test_die_codewache_prueft_den_template_modus():
+    """``templates`` steht in den Dokumenten fuer ``BapiTemplates`` (seit dem
+    11.09.2026) -- ein Aufruf, den es dort nicht gibt, muss auffallen."""
+    gut = "await templates.chat(chain, context_node_id=k)"
+    schlecht = "await templates.template_chat(chain)"
+    assert _unbekannte_aufrufe(gut, ast.parse(gut)) == []
+    assert _unbekannte_aufrufe(schlecht, ast.parse(schlecht)) == [
+        "templates.template_chat"]
 
 
 def test_die_fassaden_loesen_auf_wie_angenommen():

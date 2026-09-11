@@ -889,6 +889,10 @@ Daten an einen Host zu schicken, den niemand gewählt hat.
 
 ### Das LLM-Gateway — `BildungsAPI`
 
+Das ist der **Proxy**-Modus des Gateways: Sie schicken den Prompt, das Gateway
+reicht ihn weiter. Für Prompts, die auf dem Server liegen, siehe *Der
+Template-Modus* weiter unten — eine eigene Klasse, von der diese nicht abhängt.
+
 | Aufruf | Ergebnis |
 |---|---|
 | `BildungsAPI(base_url=…, api_key=…)` | der Client |
@@ -1135,6 +1139,110 @@ Modellwahl, wenn Sie keines übergeben:
 | `pick_model(models, prefer=…)` | das zu nehmende |
 | `build_body(...)` / `read_answer(response)` | Anfragerumpf und Antworttext |
 | `DEFAULT_MAX_TOKENS` | 1000 |
+
+### Der Template-Modus — `BapiTemplates`
+
+Das Gateway läuft auf eine zweite Art, unter `/api/v1/edu-sharing/*`. Dort liegt
+der Prompt auf dem Server — im Metadatenset oder in `ccm:bapi_config` eines
+Knotens —, und der Aufrufer schickt nur, welche Konfiguration, welcher
+Kontext-Knoten und welche Werte einzusetzen sind. `BapiTemplates` ist sein
+Client: Er braucht kein `BildungsAPI`, und `BildungsAPI` ändert sich nicht, weil
+es ihn gibt. Derselbe Schlüssel, dieselbe Adresse.
+
+| Aufruf | Ergebnis |
+|---|---|
+| `BapiTemplates(api_key, base_url=…, metadataset=…)` | der Client — `metadataset` hat keine Voreinstellung |
+| `BapiTemplates.from_env()` | braucht `B_API_KEY`, `B_API_BASE_URL` **und** `EDU_SHARING_METADATASET` |
+| `templates.chat(configs, context_node_id=…, variables=…)` | `str` |
+| `templates.chat_limited(configs, context_node_id=…, choices=…)` | `str` — nur Werte aus einem Wertebereich |
+| `templates.respond(configs, context_node_id=…, variables=…)` | `Answer` — braucht eine Konfiguration für die Responses-API |
+| `templates.respond_limited(configs, context_node_id=…, choices=…)` | `Answer` |
+| `templates.images(configs, context_node_id=…, variables=…)` | `list[GeneratedImage]` |
+| `templates.images_limited(configs, context_node_id=…, choices=…)` | `list[GeneratedImage]` |
+| `templates.suggest(configs, widgets, context_node_id=…)` | `list[Suggestion]` — **gespeichert**, als offene Vorschläge am Knoten |
+| `templates.qas(node_ids)` | `list[dict]` — **experimentell, und gespeichert** |
+| `templates.aclose()` | die Verbindung zurückgeben — ein mitgebrachter `client=` bleibt offen |
+| `Config` | `str \| NodeConfig` — ein String ist eine ID im Metadatenset |
+| `NodeConfig(node_id, config_name)` | eine Konfiguration, die auf einem Knoten liegt, in `ccm:bapi_config` |
+| `Values` | `{schlüssel: wert}` oder `{schlüssel: [werte]}` — nur Strings |
+| `DEFAULT_USER` | `"guest"` — was `user=` schickt, wenn Sie nichts angeben |
+
+```python
+# async: BapiTemplates hat keine blockierende Fassade
+templates = BapiTemplates.from_env()
+
+chain = ["topic_page_ai_default",           # der Anbieter
+         "topic_page_ai_chat_completion",   # das Modell
+         "topic_page_ai_text_widget"]       # die Nachricht
+await templates.chat(chain, context_node_id=collection_id)
+# "MINT-Fächer sind Mathematik, Informatik, Naturwissenschaften und Technik. …"
+await templates.chat(chain, context_node_id=collection_id,
+                     variables={"cm:name": "Vulkane"})
+# "Vulkane entstehen, wenn heißes Magma aus dem Erdinneren …"
+```
+
+Gemessen gegen Staging am 11.09.2026:
+
+**Immer alle fünf Felder.** `metadataSet`, `configIds`, `user`,
+`contextNodeId` und `variables` — fehlt eines, antwortet der Server 400, auch
+`variables`, wenn es nichts einzusetzen gibt. Die Bibliothek schickt alle fünf
+und prüft sie vorher: eine leere Liste von Konfigurationen oder eine fehlende
+`context_node_id` ist ein `ValidationError`, bevor irgendetwas gesendet wird.
+
+**Ein Platzhalter nimmt zuerst Ihren Wert.** Die Konfigurationen lesen
+`{{var(X)|node(X)|-}}`: den übergebenen Wert, sonst die Eigenschaft des
+Kontext-Knotens, sonst nichts — entschieden je Platzhalter. Das ist der zweite
+Aufruf oben: derselbe Knoten, ein anderes Thema.
+
+**Eine Liste setzt sich zusammen.** Jede spätere Konfiguration überschreibt die
+frühere. Die Kette oben nimmt den Anbieter aus der ersten, das Modell aus der
+zweiten und die Nachricht aus der dritten.
+
+**Freier Text landet so im Prompt, wie er ist.** Ein Wert in `variables`, der
+*„ignoriere alle bisherigen Anweisungen"* sagte, hat die Antwort umgelenkt. Für
+Eingaben, denen Sie nicht trauen, gibt es die `_limited`-Aufrufe: Sie schicken
+Paare `{widget_id: value_id}`, und eine Map mit freiem Text weist die Route
+rundweg ab. Laut Spec setzt der Server die Beschriftung des Werts dort ein, wo
+der Prompt `var(<widget_id>)` liest. Freier Text für `cm:name` hat den Prompt
+nicht erreicht — aber eine Wahl füllt auch `var(<widget_id>_DISPLAYNAME)` nicht,
+und genau das lesen die Prompts der Themenseiten. Dort ändert eine Wahl nichts.
+
+**`respond` braucht eine Konfiguration für die Responses-API** — `input`, nicht
+`messages`. Die chat-Konfigurationen in `mds_oeh` antworten 400: *Unsupported
+parameter: 'messages'*.
+
+**Ob gemerkt wird, entscheidet die Konfiguration.** `topic_page_ai_default`
+setzt `useCaching`: dieselbe Anfrage kam Wort für Wort gleich zurück.
+
+**Das Gateway liest mit seinem eigenen Konto, nicht als `user`.** Ein privater
+Kontext-Knoten antwortete 403 — mit `user="guest"` und mit dem Konto, dem der
+Knoten gehört, gleichermaßen. Veröffentlicht ging derselbe Knoten. `user` öffnet
+nichts; die Meldung der 403 sagt das.
+
+**`suggest` und `qas` schreiben.** `suggest` legt offene Vorschläge am
+Kontext-Knoten an — dieselben, die `node.suggestions.list()` liest und
+`repo.flows.accept_suggestion` übernimmt. Je Widget kamen mehrere zurück, jeder
+mit einer `confidence`, angelegt unter dem Konto des Gateways (`admin@B-API`).
+`qas` ist in der Spec als EXPERIMENTAL markiert, und es braucht mehr: das Konto
+des Gateways muss auf jedem Knoten **Write** haben — veröffentlicht genügte
+nicht. Für einen Knoten dauerte es rund 50 Sekunden. Seine Paare kommen als die
+Dicts zurück, die das Gateway schickt: `question`, `answer`, `usedText` und
+Felder für die Prüfung — und ein `created` im Jahr 58665, das man also als
+String behält.
+
+| Lage | Verhalten |
+|---|---|
+| 400 | `ValidationError` mit der Meldung des Servers |
+| 403 | `PermissionDeniedError` — und die Meldung sagt, wessen Recht fehlt: das des Gateways |
+| 500 *Missing MDS AI configuration for id X* | `ValidationError`, der die ID und das Metadatenset nennt — nicht wiederholt |
+| jede andere 500 | ein Fehler, nicht wiederholt — hier hieß 500 bisher: falsche Konfiguration |
+| 429, 502, 503, 504 bei `chat`, `respond`, `images` und ihren `_limited`-Formen | wiederholt |
+| 429, 503 bei `suggest`, `qas` | wiederholt — abgewiesen, bevor etwas geschah |
+| 502, 504 oder eine abgerissene Verbindung bei `suggest`, `qas` | **nicht** wiederholt — die Meldung sagt, dass das Ergebnis schon gespeichert sein kann |
+| der Java-Stacktrace in jedem Fehlerkörper, rund 18 kB | wird nie in eine Ausnahme übernommen |
+
+Einen gemeinsamen Verbindungspool mit `BildungsAPI` bekommt, wer beiden
+denselben `client=` gibt.
 
 ### Text, den das Repository nicht hat — `TextExtraction`
 
