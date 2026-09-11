@@ -67,6 +67,7 @@ from .template_body import (
     NodeConfig,
     Values,
     _as_lists,
+    _object,
     _pairs,
     _records,
     _template_body,
@@ -220,7 +221,7 @@ class BapiTemplates:
         Returns:
             The answer text.
         """
-        return read_answer(await self._ask(
+        return read_answer(await self._read(
             "/chat/completion", configs, context_node_id, user, _as_lists(variables)))
 
     async def chat_limited(
@@ -250,7 +251,7 @@ class BapiTemplates:
                 e.g. ``{"ccm:educationallearningresourcetype":
                 "http://w3id.org/openeduhub/vocabs/learningResourceType/application"}``.
         """
-        return read_answer(await self._ask(
+        return read_answer(await self._read(
             "/chat/completion/limited", configs, context_node_id, user, _pairs(choices)))
 
     async def respond(
@@ -271,7 +272,7 @@ class BapiTemplates:
             An ``Answer`` -- the proxy's own type, read the same way. **Check
             ``truncated``.**
         """
-        return _answer_from(await self._ask(
+        return _answer_from(await self._read(
             "/responses", configs, context_node_id, user, _as_lists(variables)))
 
     async def respond_limited(
@@ -283,7 +284,7 @@ class BapiTemplates:
         choices: Values | None = None,
     ) -> Answer:
         """``respond`` with values from a value space only -- see ``chat_limited``."""
-        return _answer_from(await self._ask(
+        return _answer_from(await self._read(
             "/responses/limited", configs, context_node_id, user, _pairs(choices)))
 
     async def images(
@@ -299,7 +300,7 @@ class BapiTemplates:
         Nothing is written to the repository -- unlike ``suggest`` and
         ``qas``. For input you do not trust, use ``images_limited``.
         """
-        return _images_from(await self._ask(
+        return _images_from(await self._read(
             "/images/generations", configs, context_node_id, user, _as_lists(variables)))
 
     async def images_limited(
@@ -311,7 +312,7 @@ class BapiTemplates:
         choices: Values | None = None,
     ) -> list[GeneratedImage]:
         """``images`` with values from a value space only -- see ``chat_limited``."""
-        return _images_from(await self._ask(
+        return _images_from(await self._read(
             "/images/generations/limited", configs, context_node_id, user,
             _pairs(choices)))
 
@@ -395,6 +396,14 @@ class BapiTemplates:
                               variables)
         body.update(extra or {})
         return await self._post(path, body, writes=writes)
+
+    async def _read(
+        self, path: str, configs: Sequence[Config], context_node_id: str,
+        user: str, variables: Any,
+    ) -> dict[str, Any]:
+        """A reading route: its answer is an object, checked before it is read."""
+        answer = await self._ask(path, configs, context_node_id, user, variables)
+        return _object(answer, path.lstrip("/"))
 
     async def _post(
         self, path: str, body: dict[str, Any], *, writes: bool = False,

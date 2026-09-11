@@ -94,6 +94,20 @@ def _pairs(choices: Values | None) -> list[dict[str, str]]:
             for value in values]
 
 
+def _object(answer: Any, route: str) -> dict[str, Any]:
+    """The object a reading route answers with -- or an error, never a guess.
+
+    The parsers behind these routes read with ``.get()``: a list or a string
+    reached them as an ``AttributeError``, which no ``except EduSharingError``
+    catches (review 2026-09-11).
+    """
+    if not isinstance(answer, dict):
+        raise EduSharingError(
+            f"The b-api answered /{route} with {type(answer).__name__}, not an "
+            "object -- there is no answer to read from it.")
+    return answer
+
+
 def _records(answer: Any, route: str) -> list[dict[str, Any]]:
     """The list a writing route answers with -- or an error, never a guess.
 

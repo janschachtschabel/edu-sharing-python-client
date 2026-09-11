@@ -49,7 +49,9 @@ and in [`docs/audits/`](docs/audits/).
   They come from the answer's `message`, never from the 18 kB Java stack trace
   beside it; a provider's refusal reads as its sentence rather than as the
   object around it; a 403 says that it is the gateway's permission that is
-  missing.
+  missing. An answer of the wrong shape — no object where a route reads one,
+  no list where it stores — is an `EduSharingError` too, not an
+  `AttributeError` (review 2026-09-11).
 
 ### Fixed
 

@@ -427,6 +427,40 @@ async def test_images_liefert_generierte_bilder_wie_der_proxy():
         GeneratedImage(b64="aGFsbG8=")]
 
 
+#: Die sechs lesenden Routen: Methode, Route, was sie zusaetzlich braucht.
+LESENDE_ROUTEN = [
+    ("chat", "chat/completion", {}),
+    ("chat_limited", "chat/completion/limited", {"choices": {}}),
+    ("respond", "responses", {}),
+    ("respond_limited", "responses/limited", {"choices": {}}),
+    ("images", "images/generations", {}),
+    ("images_limited", "images/generations/limited", {"choices": {}}),
+]
+
+
+@pytest.mark.parametrize("koerper", [b"[]", b'"ok"', b"null"])
+@pytest.mark.parametrize(("methode", "route", "art"), LESENDE_ROUTEN)
+async def test_eine_antwort_ohne_objekt_ist_ein_fehler_der_bibliothek(
+        methode, route, art, koerper):
+    """Die Parser dahinter lesen mit ``.get()`` -- eine Liste oder ein String
+    entkam deshalb als ``AttributeError`` (Review 11.09.2026, per Attrappe
+    belegt). Die Bibliothek verspricht, dass ``except EduSharingError`` alles
+    faengt; der Proxy haelt es fuer respond und images ueber ``call()``.
+
+    Rohe Koerper, weil ``httpx.Response(json=None)`` gar keinen schickt -- das
+    waere der schon abgedeckte Fall "kein JSON", nicht JSON ``null``."""
+    from edusharing.errors import EduSharingError
+    aufrufe = []
+
+    def handler(_request):
+        return httpx.Response(200, content=koerper,
+                              headers={"content-type": "application/json"})
+    async with _vorlagen(handler, aufrufe) as vorlagen:
+        with pytest.raises(EduSharingError, match=f"/{route} "):
+            await getattr(vorlagen, methode)(["a"], context_node_id=KNOTEN, **art)
+    assert len(aufrufe) == 1, "eine 200 ist beantwortet -- kein zweiter Versuch"
+
+
 # --- Aufgabe 8: suggest -- schreibt Vorschlaege ins Repositorium ------------
 #
 # Die Spec: "store them as suggestions in edu-sharing". Dieselbe Form, die
