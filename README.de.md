@@ -91,6 +91,7 @@ Metadatensatzes und nicht der Eigenschaft selbst.
   - [Schreiben — mit Rückleseprobe](#schreiben--mit-rückleseprobe)
   - [Für KI-Anwendungen](#für-ki-anwendungen)
   - [Das LLM-Gateway](#das-llm-gateway)
+  - [Der Template-Modus — Prompts, die auf dem Server liegen](#der-template-modus--prompts-die-auf-dem-server-liegen)
   - [Der Extraktionsdienst — Text, den das Repositorium nicht hat](#der-extraktionsdienst--text-den-das-repositorium-nicht-hat)
   - [Der Metadata Agent — was in den JSON einer Inhaltsart gehört](#der-metadata-agent--was-in-den-json-einer-inhaltsart-gehört)
   - [Abläufe — ein Anwendungsfall, ein Aufruf](#abläufe--ein-anwendungsfall-ein-aufruf)
@@ -182,7 +183,7 @@ from edusharing import Repository, Node, SearchResult, NotFoundError
 |---|---|
 | `from edusharing import …` | das Repositorium, seine Ergebnisse, seine Fehler |
 | `edusharing.agent` | Bausteine für KI-Anwendungen: Sicherheit, Bereinigung, Formatierung |
-| `edusharing.bapi` | das LLM-Gateway — ein eigener Dienst |
+| `edusharing.bapi` | das LLM-Gateway — ein eigener Dienst, in beiden Modi: `BildungsAPI` und `BapiTemplates` |
 | `edusharing.extraction` | der Extraktionsdienst — ebenso |
 | `edusharing.metadata_agent` | der Metadata Agent — ebenso |
 
@@ -377,6 +378,46 @@ Auf der Liste: `chat/completions`, `completions`, `embeddings`, `moderations`,
 `batches`, `fine_tuning/jobs`, `vector_stores`. **Nicht** darauf: `rerank`.
 
 Zum Ausprobieren: `python docs/examples/04_agent_blocks.py`
+
+### Der Template-Modus — Prompts, die auf dem Server liegen
+
+Dasselbe Gateway läuft auf eine zweite Art. Dort ist der Prompt eine
+Konfiguration im Metadatenset — die Themenseiten nutzen sie —, und Sie schicken
+nur ihre ID, einen Kontext-Knoten und, wenn Sie wollen, Werte zum Einsetzen.
+`BapiTemplates` ist sein Client: Er braucht kein `BildungsAPI`, und
+`BildungsAPI` ändert sich nicht, weil es ihn gibt.
+
+```python
+# async: BapiTemplates hat keine blockierende Fassade
+from edusharing.bapi import BapiTemplates
+
+async with BapiTemplates.from_env() as templates:   # + EDU_SHARING_METADATASET
+    text = await templates.chat(
+        ["topic_page_ai_default", "topic_page_ai_chat_completion",
+         "topic_page_ai_text_widget"],
+        context_node_id=collection_id)
+```
+
+**Welcher Modus wann.** Der Proxy, wenn Ihr Code den Prompt besitzt. Der
+Template-Modus, wenn das Repositorium ihn besitzen soll: derselbe Text für
+jeden Aufrufer, geändert ohne Release, gefüllt aus dem Knoten selbst.
+
+**Freier Text landet so im Prompt, wie er ist.** Gemessen am 11.09.2026 hat ein
+Wert, der „ignoriere alle bisherigen Anweisungen" sagte, die Antwort umgelenkt.
+Für Eingaben, denen Sie nicht trauen, gibt es `chat_limited` und seine
+Geschwister: Sie schicken Paare `{widget_id: value_id}`, und freier Text, dort
+übergeben, hat den Prompt nicht erreicht.
+
+**Das Gateway arbeitet mit seinem eigenen Konto.** Ein privater Kontext-Knoten
+antwortet 403, gleich, wen `user` nennt. `suggest` legt seine Vorschläge unter
+diesem Konto am Knoten ab — prüfen mit `node.suggestions`, übernehmen mit
+`repo.flows.accept_suggestion`.
+
+Der Rest — die Fehlertabelle, `respond`, `qas`, was eine limited-Wahl nicht
+füllt — steht in [docs/REFERENCE.de.md](docs/REFERENCE.de.md) unter *Der
+Template-Modus*.
+
+Zum Ausprobieren: `python docs/examples/22_bapi_templates.py`
 
 ### Der Extraktionsdienst — Text, den das Repositorium nicht hat
 
@@ -1047,6 +1088,7 @@ wird:
 | [`19_collection_audit.py`](docs/examples/19_collection_audit.py) | eine Sammlung prüfen — und warum ein leerer `path` nicht „nirgends“ heißt |
 | [`20_provider_load.py`](docs/examples/20_provider_load.py) | welches Modell antworten soll, und woran man das misst - Auslastung, Verbünde, Verweigerung |
 | [`21_skills.py`](docs/examples/21_skills.py) | welche Skills eine Sammlung freigibt, und was einer davon sagt |
+| [`22_bapi_templates.py`](docs/examples/22_bapi_templates.py) | ein Prompt, der auf dem Server liegt, gefüllt aus einer Sammlung — und was freier Text mit ihm macht |
 
 **Beide Ebenen nebeneinander:**
 
@@ -1075,7 +1117,7 @@ weil eine Verbindung zum Repositorium nichts darüber sagt, ob es sie gibt:
 
 | Modul | Dienst |
 |---|---|
-| `edusharing.bapi` | das LLM-Gateway (`B_API_BASE_URL` + `B_API_KEY`) |
+| `edusharing.bapi` | das LLM-Gateway (`B_API_BASE_URL` + `B_API_KEY`): der Proxy `BildungsAPI` und der Template-Modus `BapiTemplates` |
 | `edusharing.extraction` | der Volltextdienst (`EDU_SHARING_TEXT_EXTRACTION_URL`) |
 | `edusharing.metadata_agent` | der Metadata Agent: welche Felder eine Inhaltsart trägt (`METADATA_AGENT_URL`) |
 

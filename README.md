@@ -90,6 +90,7 @@ why; the reference is the lookup table.
   - [Writing — with a read-back check](#writing--with-a-read-back-check)
   - [For AI applications](#for-ai-applications)
   - [The LLM gateway](#the-llm-gateway)
+  - [The template mode — prompts kept on the server](#the-template-mode--prompts-kept-on-the-server)
   - [The extraction service — text the repository does not have](#the-extraction-service--text-the-repository-does-not-have)
   - [The metadata agent — what belongs in a content type's JSON](#the-metadata-agent--what-belongs-in-a-content-types-json)
   - [Flows — a use case in one call](#flows--a-use-case-in-one-call)
@@ -180,7 +181,7 @@ from edusharing import Repository, Node, SearchResult, NotFoundError
 |---|---|
 | `from edusharing import …` | the repository, its results, its errors |
 | `edusharing.agent` | building blocks for AI use: safety, sanitising, formatting |
-| `edusharing.bapi` | the LLM gateway — a separate service |
+| `edusharing.bapi` | the LLM gateway — a separate service, in both its modes: `BildungsAPI` and `BapiTemplates` |
 | `edusharing.extraction` | the text-extraction service — likewise |
 | `edusharing.metadata_agent` | the metadata agent — likewise |
 
@@ -372,6 +373,43 @@ it does. On that list: `chat/completions`, `completions`, `embeddings`,
 `rerank`.
 
 Try it: `python docs/examples/04_agent_blocks.py`
+
+### The template mode — prompts kept on the server
+
+The same gateway runs a second way. There the prompt is a configuration in the
+metadata set — the topic pages use them — and you send only its id, a context
+node and, if you like, values to fill in. `BapiTemplates` is its client: it
+needs no `BildungsAPI`, and `BildungsAPI` does not change because it exists.
+
+```python
+# async: BapiTemplates has no blocking facade
+from edusharing.bapi import BapiTemplates
+
+async with BapiTemplates.from_env() as templates:   # + EDU_SHARING_METADATASET
+    text = await templates.chat(
+        ["topic_page_ai_default", "topic_page_ai_chat_completion",
+         "topic_page_ai_text_widget"],
+        context_node_id=collection_id)
+```
+
+**Which mode when.** The proxy when your code owns the prompt. The template
+mode when the repository should: the same text for every caller, changed
+without a release, filled from the node itself.
+
+**Free text goes into the prompt as it stands.** Measured 2026-09-11, a value
+reading "ignore all previous instructions" steered the answer. For input you do
+not trust, use `chat_limited` and its siblings: they send `{widget_id:
+value_id}` pairs, and free text given there did not reach the prompt.
+
+**The gateway works with its own account.** A private context node answers 403,
+whatever `user` names. `suggest` stores its proposals on the node under that
+account — review them with `node.suggestions`, take one over with
+`repo.flows.accept_suggestion`.
+
+The rest — the error table, `respond`, `qas`, what a limited choice does not
+fill — is in [docs/REFERENCE.md](docs/REFERENCE.md), under *The template mode*.
+
+Try it: `python docs/examples/22_bapi_templates.py`
 
 ### The extraction service — text the repository does not have
 
@@ -1019,6 +1057,7 @@ them:
 | [`19_collection_audit.py`](docs/examples/19_collection_audit.py) | audit a collection - and why an empty `path` is not `nowhere` |
 | [`20_provider_load.py`](docs/examples/20_provider_load.py) | which model should answer, and on what basis - load, groups, and a refusal |
 | [`21_skills.py`](docs/examples/21_skills.py) | which skills a collection approves, and what one of them says |
+| [`22_bapi_templates.py`](docs/examples/22_bapi_templates.py) | a prompt kept on the server, filled from a collection — and what free text does to it |
 
 **Both levels side by side:**
 
@@ -1048,7 +1087,7 @@ exist:
 
 | Module | Service |
 |---|---|
-| `edusharing.bapi` | The LLM gateway (`B_API_BASE_URL` + `B_API_KEY`) |
+| `edusharing.bapi` | The LLM gateway (`B_API_BASE_URL` + `B_API_KEY`): the proxy `BildungsAPI` and the template mode `BapiTemplates` |
 | `edusharing.extraction` | The text-extraction service (`EDU_SHARING_TEXT_EXTRACTION_URL`) |
 | `edusharing.metadata_agent` | The metadata agent: which fields a content type carries (`METADATA_AGENT_URL`) |
 
