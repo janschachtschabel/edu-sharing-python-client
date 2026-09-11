@@ -41,7 +41,7 @@ from edusharing import (
     Repository,
     ValidationError,
 )
-from edusharing._sync import SyncNode
+from edusharing._sync import SyncFlows, SyncNode
 from edusharing.agent import plan_update
 from edusharing.bapi import BapiTemplates, BildungsAPI
 from edusharing.childobjects import ChildObjects
@@ -115,6 +115,10 @@ _WEITER = {
     (AsyncRepository, "searcher"): Search,
     (Node, "content"): NodeContent,
     (Node, "children"): ChildObjects,
+    # Blockierend ``SyncFlows``: Name fuer Name dieselben Ablaeufe, jeder reicht
+    # an ``Flows`` weiter. Nur hier gleichgesetzt -- ``SyncNodes`` etwa hat kein
+    # ``wrap``, dort waere die asynchrone Flaeche zu nachsichtig.
+    (Repository, "flows"): Flows,
 }
 
 _SCHREIBEN = frozenset(WRITE_FIELD_ALIASES)
@@ -484,6 +488,20 @@ def test_die_signaturwache_kennt_kurznamen_und_einzelwerte():
     assert len(befunde) == len(erwartet), befunde
     for befund, stueck in zip(befunde, erwartet, strict=True):
         assert stueck in befund, (stueck, befund)
+
+
+def test_die_wache_liest_ablaeufe_auch_am_blockierenden_repository():
+    """``repo.flows`` ist blockierend ``SyncFlows`` -- Name fuer Name dieselben
+    Ablaeufe wie ``Flows`` (``test_sync_surface`` haelt das), und jeder reicht
+    weiter. Ein blockierender Block wird also gegen ``Flows`` geprueft."""
+    gut = 'hits = repo.flows.search("x", subject="Physik", limit=3)["hits"]\n'
+    schlecht = ('repo.flows.search("x", fach="Physik")\n'
+                "repo.flows.gibt_es_nicht()\n")
+    assert _falsch_gebundene_aufrufe(gut, ast.parse(gut)) == []
+    assert _unbekannte_aufrufe(gut, ast.parse(gut)) == []
+    assert "fach=" in " ".join(_falsch_gebundene_aufrufe(schlecht, ast.parse(schlecht)))
+    assert _unbekannte_aufrufe(schlecht, ast.parse(schlecht)) == ["repo.flows.gibt_es_nicht"]
+    assert set(dir(Flows)) - set(dir(SyncFlows)) <= {n for n in dir(Flows) if n.startswith("_")}
 
 
 def test_die_importwache_sieht_ein_modul_das_es_nicht_gibt():
