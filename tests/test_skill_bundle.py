@@ -14,6 +14,7 @@ stellt sie her; dieser Test verlangt, dass sie gleich sind.
 
 import inspect
 import re
+import zipfile
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from types import ModuleType
@@ -371,3 +372,59 @@ def test_die_frontmatterwache_sieht_einen_verstoss():
     felder = _frontmatter("---\nname: Mein Skill\ndescription: <b>x</b>\n---\n# T\n")
     assert felder == {"name": "Mein Skill", "description": "<b>x</b>"}
     assert not re.fullmatch(r"[a-z0-9-]{1,64}", felder["name"])
+
+
+# --- Die ZIP fuer claude.ai (Plan T8) ---------------------------------------
+#
+# claude.ai nimmt einen Skill als ZIP hoch: der Skill-Ordner als Wurzel, eine
+# description von hoechstens 200 Zeichen (Hilfe-Artikel 12512198, abgerufen am
+# 11.09.2026). Claude Code erlaubt 1536, die Plattform 1024 -- der Einstieg im
+# Repositorium behaelt die lange Fassung mit ihren Ausloesern, die ZIP traegt
+# deren ersten Satz.
+
+
+def _zipbau() -> ModuleType:
+    spec = spec_from_file_location("build_skill_zip", WURZEL / "scripts" / "build_skill_zip.py")
+    assert spec is not None and spec.loader is not None
+    modul = module_from_spec(spec)
+    spec.loader.exec_module(modul)
+    return modul
+
+
+def test_die_zip_hat_den_skill_ordner_als_wurzel_und_alles_darin(tmp_path):
+    ziel = _zipbau().baue(tmp_path / "skill.zip")
+    with zipfile.ZipFile(ziel) as z:
+        namen = set(z.namelist())
+    erwartet = {f"edu-sharing-python/{p.relative_to(SKILL).as_posix()}"
+                for p in SKILL.rglob("*") if p.is_file() and "__pycache__" not in p.parts}
+    assert "edu-sharing-python/SKILL.md" in namen
+    assert "edu-sharing-python/reference/REFERENCE.md" in namen
+    assert namen == erwartet, f"fehlt: {erwartet - namen}, zu viel: {namen - erwartet}"
+
+
+def test_die_zip_traegt_eine_beschreibung_die_claude_ai_nimmt(tmp_path):
+    with zipfile.ZipFile(_zipbau().baue(tmp_path / "skill.zip")) as z:
+        eingepackt = z.read("edu-sharing-python/SKILL.md").decode("utf-8")
+    felder = _frontmatter(eingepackt)
+    assert felder["name"] == "edu-sharing-python"
+    assert 0 < len(felder["description"]) <= 200, len(felder["description"])
+    lang = _frontmatter((SKILL / "SKILL.md").read_text(encoding="utf-8"))["description"]
+    assert lang.startswith(felder["description"]), "der erste Satz der langen Fassung"
+    rumpf = (SKILL / "SKILL.md").read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert eingepackt.split("\n---\n", 1)[1] == rumpf.split("\n---\n", 1)[1], (
+        "hinter der Frontmatter aendert die ZIP nichts")
+
+
+def test_die_kurzbeschreibung_verweigert_einen_zu_langen_ersten_satz():
+    """Lieber ein Fehler beim Bauen als eine abgeschnittene Beschreibung."""
+    zipbau = _zipbau()
+    assert zipbau.kurzbeschreibung("Kurz genug. Und mehr.") == "Kurz genug."
+    with pytest.raises(ValueError, match="200"):
+        zipbau.kurzbeschreibung("x" * 201 + ". Rest.")
+
+
+def test_die_zip_ist_reproduzierbar(tmp_path):
+    """Zwei Laeufe, dieselben Bytes -- sonst sieht jede ZIP neu aus."""
+    zipbau = _zipbau()
+    assert zipbau.baue(tmp_path / "a.zip").read_bytes() == zipbau.baue(
+        tmp_path / "b.zip").read_bytes()
