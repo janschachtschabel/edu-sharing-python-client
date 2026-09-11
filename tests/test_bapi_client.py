@@ -903,14 +903,18 @@ async def test_die_ablehnung_des_anbieters_liest_sich_als_satz():
 
 # --- Der Proxy bleibt, wie er ist (Template-Modus, 11.09.2026) -----------
 
-#: Gemessen am 11.09.2026, bevor der Template-Modus dazukam.
+#: Gemessen am 11.09.2026, bevor der Template-Modus dazukam -- an einer
+#: Instanz: die Methoden und die Attribute, die ``__init__`` setzt.
 PROXY_FLAECHE = frozenset({
     "aclose", "call", "chat", "embeddings", "from_env", "images", "load",
     "models", "moderate", "respond",
+    "backoff_base", "base_url", "last_model", "max_retries",
+    "models_cache_seconds", "provider", "retries_before_switching",
+    "virtual_models",
 })
 
 
-def test_die_flaeche_des_proxys_bleibt_unveraendert():
+async def test_die_flaeche_des_proxys_bleibt_unveraendert():
     """Der Template-Modus steht neben dem Proxy, nicht in ihm.
 
     Die Vorgabe war: beide unabhaengig nutzbar, **kein Nachteil fuer den
@@ -918,8 +922,14 @@ def test_die_flaeche_des_proxys_bleibt_unveraendert():
     koppeln; ein verschwundener waere ein Bruch. Beides faellt hier auf -- und
     wer den Proxy bewusst erweitert, traegt den Namen hier nach und sagt damit,
     dass er es wollte.
+
+    An einer **Instanz** gemessen, nicht an der Klasse (Review 11.09.2026):
+    ``dir(BildungsAPI)`` sieht nichts, was ``__init__`` setzt. Ein
+    ``self.templates = ...`` dort -- genau die ausgeschlossene Kopplung -- kam
+    an der alten Fassung dieser Wache gruen vorbei.
     """
-    oeffentlich = {n for n in dir(BildungsAPI) if not n.startswith("_")}
+    async with _client(lambda _request: httpx.Response(200)) as api:
+        oeffentlich = {n for n in dir(api) if not n.startswith("_")}
     assert oeffentlich == PROXY_FLAECHE, (
         f"dazugekommen: {sorted(oeffentlich - PROXY_FLAECHE)}, "
         f"weggefallen: {sorted(PROXY_FLAECHE - oeffentlich)}")
