@@ -150,7 +150,7 @@ table.
 | attach an answer sheet | `node.children.add(data, filename=…, mimetype=…)` |
 | link two materials | `repo.relations.create(a, "isPartOf", b)` |
 | make it publicly readable | `node.permissions.publish()` |
-| keywords | `node.add_keywords([...])` / `node.remove_keywords([...])` |
+| keywords | `node.add_keywords("Bruch", "Kürzen")` / `node.remove_keywords("alt")` — one argument per keyword, not a list |
 
 ### Editorial surfaces (API level, except accepting a proposal)
 

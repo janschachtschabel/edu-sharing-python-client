@@ -161,7 +161,7 @@ der Platte.)*
 | Lösungsblatt anhängen | `node.children.add(data, filename=…, mimetype=…)` |
 | zwei Materialien verknüpfen | `repo.relations.create(a, "isPartOf", b)` |
 | öffentlich lesbar machen | `node.permissions.publish()` |
-| Schlagwörter | `node.add_keywords([...])` / `node.remove_keywords([...])` |
+| Schlagwörter | `node.add_keywords("Bruch", "Kürzen")` / `node.remove_keywords("alt")` — je Schlagwort ein Argument, keine Liste |
 
 ### Redaktionelle Flächen (API-Ebene, außer dem Annehmen eines Vorschlags)
 

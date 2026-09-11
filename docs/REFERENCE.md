@@ -293,23 +293,30 @@ arrive. That check is the library's central promise.
 
 | Call | Result |
 |---|---|
-| `node.update(title=…, description=…, subject=…)` | `Node` — the state after |
+| `node.update(title=…, description=…, keywords=…)` | `Node` — the state after |
+| `node.update(properties={"ccm:taxonid": [uri]})` | `Node` — any property, by its full name |
 | `node.set_property("cclom:title", "Neu")` | `Node` |
-| `node.add_keywords(["Bruch"])` | `Node` |
-| `node.remove_keywords(["alt"])` | `Node` |
+| `node.add_keywords("Bruch", "Klasse 6")` | `Node` — one argument per keyword |
+| `node.remove_keywords("alt")` | `Node` |
 | `node.rate(4)` / `node.unrate()` | `Rating` |
 | `node.delete()` | `None` — into the recycle bin |
+
+`update` takes the short names in `WRITE_FIELD_ALIASES` — `author`,
+`description`, `keywords`, `name`, `title`, `url` — and nothing else: an
+unknown one raises `ValidationError` before anything is sent. A vocabulary
+field such as the subject goes in `properties=` as a URI, or through
+`repo.flows.update_material`, which resolves labels.
 
 ```python
 node = await repo.node(node_id)
 after = await node.update(title="Bruchrechnen Klasse 6")
 after.title                     # "Bruchrechnen Klasse 6"
 
-await node.add_keywords(["Bruch", "Klasse 6"])
+await node.add_keywords("Bruch", "Klasse 6")
 node = await repo.node(node_id)
 node.keywords                   # ["Bruch", "Klasse 6"]
 
-await node.remove_keywords(["Klasse 6"])
+await node.remove_keywords("Klasse 6")
 (await repo.node(node_id)).keywords     # ["Bruch"]
 ```
 
@@ -907,7 +914,7 @@ These are exported for anyone building their own flow.
 
 ```python
 from edusharing import GERMAN
-from edusharing.flows.ranking import query_terms
+from edusharing.ranking import query_terms
 
 query_terms("die Bruchrechnung", GERMAN)     # ["bruchrechnung"]
 ```
@@ -1355,7 +1362,7 @@ to a network by itself.
 
 | Call | Result |
 |---|---|
-| `plan_update(node, title=…, subject=…)` | `ChangePlan` |
+| `plan_update(node, title=…, keywords=…)` | `ChangePlan` — the same short names as `node.update`, or `properties=` |
 | `ChangePlan` | `can_write`, `changes`, `has_changes`, `node`, `unchanged` |
 | `plan.has_changes` | `bool` |
 | `plan.can_write` | `bool` |
@@ -1364,13 +1371,16 @@ to a network by itself.
 
 ```python
 # async: plan_update and apply() are coroutines
-plan = await plan_update(node, title="Bruchrechnen Klasse 6", subject="Mathematik")
+plan = await plan_update(node, title="Bruchrechnen Klasse 6", keywords=node.keywords)
 
 plan.has_changes      # True
-plan.can_write        # True
+plan.can_write        # True on a node you may write -- describe() warns otherwise
 print(plan.describe())
-# cclom:title: "Bruchrechnen – Einführung" -> "Bruchrechnen Klasse 6"
-# ccm:taxonid: "Mathematik" (unchanged)
+# Node 9f2c… (Bruchrechnen – Einführung)
+# 2 change(s):
+#   cm:title: (empty)  ->  Bruchrechnen Klasse 6
+#   cclom:title: Bruchrechnen – Einführung  ->  Bruchrechnen Klasse 6
+#   (unchanged: cclom:general_keyword)
 
 await plan.apply()    # only now does anything change
 ```
@@ -1470,8 +1480,8 @@ from edusharing import EduSharingError, NotFoundError, SilentDropError
 try:
     await node.update(title="Neu")
 except SilentDropError as exc:
-    exc.node_id     # "9f2c…"
-    exc.dropped     # {"cclom:title": ["Neu"]}
+    exc.dropped     # ["cclom:title"] -- the properties missing after reading back
+    exc.url         # the node the write was aimed at
 except NotFoundError:
     ...
 except EduSharingError as exc:

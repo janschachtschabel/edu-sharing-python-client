@@ -301,23 +301,30 @@ nicht angekommen ist. Diese Probe ist das zentrale Versprechen der Bibliothek.
 
 | Aufruf | Ergebnis |
 |---|---|
-| `node.update(title=…, description=…, subject=…)` | `Node` — der Stand danach |
+| `node.update(title=…, description=…, keywords=…)` | `Node` — der Stand danach |
+| `node.update(properties={"ccm:taxonid": [uri]})` | `Node` — jede Eigenschaft, mit vollem Namen |
 | `node.set_property("cclom:title", "Neu")` | `Node` |
-| `node.add_keywords(["Bruch"])` | `Node` |
-| `node.remove_keywords(["alt"])` | `Node` |
+| `node.add_keywords("Bruch", "Klasse 6")` | `Node` — je Schlagwort ein Argument |
+| `node.remove_keywords("alt")` | `Node` |
 | `node.rate(4)` / `node.unrate()` | `Rating` |
 | `node.delete()` | `None` — in den Papierkorb |
+
+`update` nimmt die Kurznamen aus `WRITE_FIELD_ALIASES` — `author`,
+`description`, `keywords`, `name`, `title`, `url` — und keine anderen: ein
+unbekannter wirft `ValidationError`, bevor etwas gesendet wird. Ein
+Vokabularfeld wie das Fach gehört als URI in `properties=`, oder durch
+`repo.flows.update_material`, das Labels auflöst.
 
 ```python
 node = await repo.node(node_id)
 after = await node.update(title="Bruchrechnen Klasse 6")
 after.title                     # "Bruchrechnen Klasse 6"
 
-await node.add_keywords(["Bruch", "Klasse 6"])
+await node.add_keywords("Bruch", "Klasse 6")
 node = await repo.node(node_id)
 node.keywords                   # ["Bruch", "Klasse 6"]
 
-await node.remove_keywords(["Klasse 6"])
+await node.remove_keywords("Klasse 6")
 (await repo.node(node_id)).keywords     # ["Bruch"]
 ```
 
@@ -923,7 +930,7 @@ Diese sind für alle da, die sich einen eigenen Ablauf bauen.
 
 ```python
 from edusharing import GERMAN
-from edusharing.flows.ranking import query_terms
+from edusharing.ranking import query_terms
 
 query_terms("die Bruchrechnung", GERMAN)     # ["bruchrechnung"]
 ```
@@ -1381,7 +1388,7 @@ Nichts davon spricht von sich aus mit einem Netz.
 
 | Aufruf | Ergebnis |
 |---|---|
-| `plan_update(node, title=…, subject=…)` | `ChangePlan` |
+| `plan_update(node, title=…, keywords=…)` | `ChangePlan` — dieselben Kurznamen wie `node.update`, oder `properties=` |
 | `ChangePlan` | `can_write`, `changes`, `has_changes`, `node`, `unchanged` |
 | `plan.has_changes` | `bool` |
 | `plan.can_write` | `bool` |
@@ -1390,13 +1397,16 @@ Nichts davon spricht von sich aus mit einem Netz.
 
 ```python
 # async: plan_update und apply() sind Koroutinen
-plan = await plan_update(node, title="Bruchrechnen Klasse 6", subject="Mathematik")
+plan = await plan_update(node, title="Bruchrechnen Klasse 6", keywords=node.keywords)
 
 plan.has_changes      # True
-plan.can_write        # True
+plan.can_write        # True an einem Knoten, den man schreiben darf -- sonst warnt describe()
 print(plan.describe())
-# cclom:title: "Bruchrechnen – Einführung" -> "Bruchrechnen Klasse 6"
-# ccm:taxonid: "Mathematik" (unverändert)
+# Node 9f2c… (Bruchrechnen – Einführung)
+# 2 change(s):
+#   cm:title: (empty)  ->  Bruchrechnen Klasse 6
+#   cclom:title: Bruchrechnen – Einführung  ->  Bruchrechnen Klasse 6
+#   (unchanged: cclom:general_keyword)
 
 await plan.apply()    # erst jetzt ändert sich etwas
 ```
@@ -1497,8 +1507,8 @@ from edusharing import EduSharingError, NotFoundError, SilentDropError
 try:
     await node.update(title="Neu")
 except SilentDropError as exc:
-    exc.node_id     # "9f2c…"
-    exc.dropped     # {"cclom:title": ["Neu"]}
+    exc.dropped     # ["cclom:title"] -- die Eigenschaften, die nach dem Zurücklesen fehlten
+    exc.url         # der Knoten, auf den der Schreibvorgang zielte
 except NotFoundError:
     ...
 except EduSharingError as exc:
