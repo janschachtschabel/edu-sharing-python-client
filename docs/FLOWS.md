@@ -1460,6 +1460,12 @@ come back as `replaced`. And when the value is on the node but marking the
 proposal fails, `failed` carries a `mark` part that says so — the value is
 not lost with the error.
 
+**Proposals from a model arrive the same way.** The b-api's template mode
+stores its proposals as ordinary pending suggestions — `BapiTemplates.suggest`
+in `edusharing.bapi` — and this flow takes them over like any other. Measured
+on 2026-09-11: eight keyword proposals, each with a `confidence`; the best one,
+accepted, was on the node afterwards, and the rest stayed `PENDING`.
+
 ---
 
 ## `add_material` — create with proper metadata

@@ -236,7 +236,7 @@ nicht bauen ließe, schon. Abgeleitet aus `wlo-mcp-sc`:
 | **Prompt-Injection entschärfen** | Fremder Repositoriumsinhalt landet im Modellkontext. | ✅ `agent/sanitize` |
 | **SSRF-/Private-Host-Schutz** | URLs aus fremdem Inhalt werden abgerufen. | ✅ `agent/safety` |
 | **Strukturierte Ergebnisse statt Ausnahmen** | Ein Werkzeug gibt Fehler als *Text* zurück; eine Ausnahme beendet den Zug. | ✅ `agent/result` |
-| **Nebenläufigkeit und Drosselung** | Auffächern über viele Knoten, ohne das Repositorium zu überfahren. | ✅ `transport`, `bapi/client` |
+| **Nebenläufigkeit und Drosselung** | Auffächern über viele Knoten, ohne das Repositorium zu überfahren. | ✅ `transport`, `bapi/client`, `bapi/templates` |
 | **Rückmeldung zur Auflösung** | „subject 'Bio' nicht auflösbar — meintest du Biologie?" statt stiller Leere. | ✅ `search`, `results` |
 | **Doppelte zusammenführen** | Die beiden Sammlungswege auf der Knoten-ID vereinen. | ✅ `collections` |
 | **Cache mit Verfallszeit** | Vokabulare und Modelllisten sind teuer und ändern sich selten. | ✅ `vocab` (`DEFAULT_CACHE_SECONDS`, 1 h — erst seit 08.09.2026 wirklich, Audit PRF-4), `bapi/client` (`models_cache_seconds`, 30 s) |

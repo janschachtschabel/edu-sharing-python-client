@@ -1503,6 +1503,13 @@ Eigenschaft kommen die verdrängten Werte als `replaced` zurück. Und wenn der
 Wert auf dem Knoten ist, das Markieren aber scheitert, trägt `failed` einen
 Teil `mark`, der das sagt — der Wert geht mit dem Fehler nicht verloren.
 
+**Vorschläge eines Modells kommen genauso an.** Der Template-Modus der b-api
+legt seine Vorschläge als gewöhnliche offene Vorschläge ab —
+`BapiTemplates.suggest` in `edusharing.bapi` —, und dieser Ablauf übernimmt sie
+wie jeden anderen. Gemessen am 11.09.2026: acht Schlagwort-Vorschläge mit je
+einer `confidence`; der beste stand nach dem Übernehmen am Knoten, die übrigen
+blieben `PENDING`.
+
 ---
 
 ## `add_material` — anlegen, mit sauberen Metadaten

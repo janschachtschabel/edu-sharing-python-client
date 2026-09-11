@@ -372,7 +372,7 @@ it does. On that list: `chat/completions`, `completions`, `embeddings`,
 `files`, `batches`, `fine_tuning/jobs`, `vector_stores`. **Not** on it:
 `rerank`.
 
-Try it: `python docs/examples/04_agent_blocks.py`
+Try it: `python docs/examples/04_agent_blocks.py` and `20_provider_load.py`
 
 ### The template mode — prompts kept on the server
 
@@ -1166,9 +1166,10 @@ throwaway folder they create themselves.
 
 The suites against the three neighbouring services skip themselves silently
 without their own variables — `B_API_KEY` **and** `B_API_BASE_URL` for the LLM
-gateway, `EDU_SHARING_TEXT_EXTRACTION_URL` for the extraction service,
-`METADATA_AGENT_URL` for the metadata agent. A skip there means "not
-configured", not "not covered".
+gateway (its template mode also `EDU_SHARING_URL`: the configurations and the
+context nodes live in the repository), `EDU_SHARING_TEXT_EXTRACTION_URL` for
+the extraction service, `METADATA_AGENT_URL` for the metadata agent. A skip
+there means "not configured", not "not covered".
 
 ## Releasing
 

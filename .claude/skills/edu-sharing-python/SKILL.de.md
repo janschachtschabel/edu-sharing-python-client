@@ -193,7 +193,8 @@ der Platte.)*
 | jede andere durchgereichte OpenAI-Route | `.call("batches", body)` |
 | ein Prompt, der auf dem Server liegt, gefüllt aus einem Knoten | `BapiTemplates.chat(configs, context_node_id=…)` |
 | … mit Eingaben, denen Sie nicht trauen | `.chat_limited(configs, context_node_id=…, choices=…)` |
-| das Modell Metadaten vorschlagen lassen, gespeichert als Vorschläge | `.suggest(configs, widgets, context_node_id=…)` → dann `node.suggestions` |
+| das Modell Metadaten vorschlagen lassen, gespeichert als Vorschläge | `.suggest(configs, widgets, context_node_id=…)` → übernehmen mit `repo.flows.accept_suggestion` |
+| Frage-Antwort-Paare zu einem Knoten *(experimentell, gespeichert)* | `.qas(node_ids)` — braucht Write für das eigene Konto des Gateways |
 | Text hinter einer URL | `TextExtraction.text_of(url, method="simple")` |
 | was in den JSON-Bereich einer Inhaltsart gehört | `MetadataAgent.content_types()` / `.schema(file)` |
 
@@ -863,7 +864,8 @@ Prompt selbst steht im Metadatenset. Gemessen auf Staging (11.09.2026):
   Vorschläge werden unter diesem Konto angelegt (`admin@B-API`).
 - **`suggest` und `qas` schreiben.** Keiner von beiden wird nach einer 502,
   einer 504 oder einer abgerissenen Verbindung wiederholt — das Ergebnis kann
-  schon gespeichert sein.
+  schon gespeichert sein. Eine Verbindung, die nie zustande kam, wird
+  wiederholt: gesendet wurde nichts.
 
 ```python
 # async: BapiTemplates hat keine blockierende Fassade
@@ -899,7 +901,10 @@ erreicht.
 
 Für alles, was ein Modell entschieden hat, führt der Weg über
 `suggestions.propose(...)` und einen Menschen — nicht über `node.update(...)`.
-Wo wirklich geschrieben werden soll: planen und den Plan zeigen.
+Der Template-Modus der b-api schlägt genauso vor: `BapiTemplates.suggest` legt
+offene Vorschläge an, und `repo.flows.accept_suggestion` übernimmt einen
+(gemessen am 11.09.2026). Wo wirklich geschrieben werden soll: planen und den
+Plan zeigen.
 
 ```python
 # async: plan_update und apply() sind Koroutinen

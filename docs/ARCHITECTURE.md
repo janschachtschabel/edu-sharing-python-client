@@ -218,7 +218,7 @@ built are. Derived from `wlo-mcp-sc`:
 | **Prompt-injection defusing** | Foreign repository content lands in the model context. | ✅ `agent/sanitize` |
 | **SSRF / private-host guard** | URLs from foreign content get fetched. | ✅ `agent/safety` |
 | **Structured results, not exceptions** | A tool returns errors as *text*; an exception ends the turn. | ✅ `agent/result` |
-| **Concurrency + rate limiting** | Fan-out across many nodes without overwhelming the repository. | ✅ `transport`, `bapi/client` |
+| **Concurrency + rate limiting** | Fan-out across many nodes without overwhelming the repository. | ✅ `transport`, `bapi/client`, `bapi/templates` |
 | **Resolution feedback** | "subject 'Bio' unresolvable — did you mean Biologie?" instead of silent emptiness. | ✅ `search`, `results` |
 | **Dedupe** | Merge the two collection legs on the node id. | ✅ `collections` |
 | **Cache with TTL** | Vocabulary and model lists are costly and change rarely. | ✅ `vocab` (`DEFAULT_CACHE_SECONDS`, 1 h — real since 2026-09-08, audit PRF-4), `bapi/client` (`models_cache_seconds`, 30 s) |

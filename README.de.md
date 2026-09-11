@@ -377,7 +377,7 @@ Auf der Liste: `chat/completions`, `completions`, `embeddings`, `moderations`,
 `responses`, `images/generations`, `images/edits`, `audio/*`, `files`,
 `batches`, `fine_tuning/jobs`, `vector_stores`. **Nicht** darauf: `rerank`.
 
-Zum Ausprobieren: `python docs/examples/04_agent_blocks.py`
+Zum Ausprobieren: `python docs/examples/04_agent_blocks.py` und `20_provider_load.py`
 
 ### Der Template-Modus — Prompts, die auf dem Server liegen
 
@@ -1196,10 +1196,11 @@ Schreibtests (`-m write`) brauchen Zugangsdaten und arbeiten ausschließlich in
 einem Wegwerf-Ordner, den sie selbst anlegen.
 
 Die Suiten gegen die drei Nachbardienste überspringen sich still ohne ihre
-eigenen Variablen — `B_API_KEY` **und** `B_API_BASE_URL` für das LLM-Gateway,
-`EDU_SHARING_TEXT_EXTRACTION_URL` für den Extraktionsdienst,
-`METADATA_AGENT_URL` für den Metadata Agent. Ein Übersprungen heißt dort
-„nicht konfiguriert“, nicht „nicht abgedeckt“.
+eigenen Variablen — `B_API_KEY` **und** `B_API_BASE_URL` für das LLM-Gateway
+(sein Template-Modus zusätzlich `EDU_SHARING_URL`: die Konfigurationen und die
+Kontext-Knoten liegen im Repositorium), `EDU_SHARING_TEXT_EXTRACTION_URL` für
+den Extraktionsdienst, `METADATA_AGENT_URL` für den Metadata Agent. Ein
+Übersprungen heißt dort „nicht konfiguriert“, nicht „nicht abgedeckt“.
 
 ## Veröffentlichen
 

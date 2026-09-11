@@ -1,6 +1,6 @@
 ---
 name: edu-sharing-python
-description: Using the edu-sharing-python-client library (import `edusharing`) — both levels (API objects and flow dicts), every flow, the complete public surface object by object, how edu-sharing stores metadata (list-valued properties, the cm:/cclom:/ccm:/virtual: namespaces, cm:name versus cclom:title, vocabulary URIs, metadata sets), the neighbouring services (b-api LLM gateway, text extraction, metadata agent), the measured traps, and the rules for putting it behind a model. Use when writing Python against an edu-sharing repository, building an MCP server or agent tool over WLO/OpenEduHub content, or when a call returned HTTP 200 and stored nothing. Trigger u.a. "edu-sharing Python", "edusharing library", "repo.flows", "SilentDropError", "Bibliothek nutzen", "Suche in Python", "Material anlegen Python", "MCP-Werkzeug edu-sharing", "b-api Python", "Textextraktion", "metadata agent schema", "welcher Aufruf für", "unresolved", "total_is_lower_bound", "cm:name", "cclom:title", "propertyFilter", "Metadatensatz", "properties leer", "Eigenschaft schreiben".
+description: Using the edu-sharing-python-client library (import `edusharing`) — both levels (API objects and flow dicts), every flow, the whole public surface, how edu-sharing stores metadata (list values, the cm:/cclom:/ccm:/virtual: namespaces, cm:name vs cclom:title, vocabulary URIs, metadata sets), the neighbouring services (b-api LLM gateway as proxy and with prompt templates; text extraction; metadata agent), the measured traps, and putting it behind a model. Use when writing Python against edu-sharing, building an MCP server or agent tool over WLO/OpenEduHub content, or when a call returned HTTP 200 and stored nothing. Trigger u.a. "edu-sharing Python", "edusharing library", "repo.flows", "SilentDropError", "Bibliothek nutzen", "Material anlegen Python", "MCP-Werkzeug edu-sharing", "b-api Python", "BapiTemplates", "KI-Vorschläge", "Textextraktion", "metadata agent schema", "welcher Aufruf für", "unresolved", "total_is_lower_bound", "propertyFilter", "Metadatensatz", "properties leer", "Eigenschaft schreiben".
 ---
 
 # edu-sharing for Python — how to use it
@@ -182,7 +182,8 @@ table.
 | any other forwarded OpenAI route | `.call("batches", body)` |
 | a prompt kept on the server, filled from a node | `BapiTemplates.chat(configs, context_node_id=…)` |
 | … with input you do not trust | `.chat_limited(configs, context_node_id=…, choices=…)` |
-| have the model propose metadata, stored as suggestions | `.suggest(configs, widgets, context_node_id=…)` → then `node.suggestions` |
+| have the model propose metadata, stored as suggestions | `.suggest(configs, widgets, context_node_id=…)` → take one over with `repo.flows.accept_suggestion` |
+| question–answer pairs for a node *(experimental, stored)* | `.qas(node_ids)` — needs Write for the gateway's own account |
 | text behind a URL | `TextExtraction.text_of(url, method="simple")` |
 | what belongs in a content type's JSON | `MetadataAgent.content_types()` / `.schema(file)` |
 
@@ -820,7 +821,8 @@ itself is in the metadata set. Measured on staging (2026-09-11):
   the gateway's account on each node. Suggestions are created under that
   account (`admin@B-API`).
 - **`suggest` and `qas` write.** Neither is retried after a 502, a 504 or a
-  lost connection — the result may already be stored.
+  lost connection — the result may already be stored. A connection that never
+  came about is retried: nothing was sent.
 
 ```python
 # async: BapiTemplates has no blocking facade
@@ -854,8 +856,10 @@ there did not reach the prompt.
 ### Propose, do not write
 
 For anything a model decided, the route is `suggestions.propose(...)` and a
-person decides — not `node.update(...)`. When a write really is intended, plan
-it and show the plan:
+person decides — not `node.update(...)`. The b-api's template mode proposes
+the same way: `BapiTemplates.suggest` stores pending suggestions, and
+`repo.flows.accept_suggestion` takes one over (measured 2026-09-11). When a
+write really is intended, plan it and show the plan:
 
 ```python
 # async: plan_update and apply() are coroutines
