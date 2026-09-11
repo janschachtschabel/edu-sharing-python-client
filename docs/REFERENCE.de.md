@@ -23,6 +23,7 @@ asynchron gibt, sagen das in ihrer ersten Zeile.
 
 - [Die zwei Ebenen](#die-zwei-ebenen)
 - [Verbinden](#verbinden)
+  - [Was ein Einstieg entgegennimmt](#was-ein-einstieg-entgegennimmt)
   - [Zugangsdaten](#zugangsdaten)
   - [Der rohe Transport](#der-rohe-transport)
 - [Suchen](#suchen)
@@ -111,8 +112,8 @@ Ereignisschleife in einem Thread für Sie.
 | `About` | `api_version`, `features`, `plugins`, `raw`, `renderservice_version`, `repository_version`, `services`, `themes_url` |
 | `repo.whoami()` | `Identity` — `authority`, `username`, `display_name`, `is_anonymous`, `home_folder` |
 | `repo.metadatasets()` | `list[MetadataSet]` |
-| `repo.resolve(prop, label)` | `str \| None` — der Filterwert zu einem Label, blockierend |
-| `repo.resolve_all(prop, label)` | `list[str]` — **jeder** Wert, der dieses Label trägt |
+| `repo.resolve(prop, label, locale=…)` | `str \| None` — der Filterwert zu einem Label, blockierend |
+| `repo.resolve_all(prop, label, locale=…)` | `list[str]` — **jeder** Wert, der dieses Label trägt |
 | `repo.close()` / `await repo.aclose()` | die Verbindung zurückgeben |
 
 ```python
@@ -127,6 +128,37 @@ repo.about().repository_version   # "11.0"
 **Die Instanz ist ein Parameter, nie eine Konstante in der Bibliothek.** Es gibt
 keine voreingestellte Adresse, und kein Aufruf weiter unten nimmt eine eigene
 Adresse entgegen.
+
+### Was ein Einstieg entgegennimmt
+
+Vier Klassen öffnen eine Verbindung, und sie nehmen dieselbe Art von
+Einstellungen. Jede ist optional; die Vorgaben sind die, mit denen die
+Messungen unten entstanden sind.
+
+| Aufruf |
+|---|
+| `AsyncRepository(url, auth=…, metadataset=…, query=…, field_aliases=…, timeout=…, max_retries=…, max_concurrency=…, backoff_base=…, client=…)` |
+| `BildungsAPI(api_key, base_url=…, provider=…, timeout=…, max_retries=…, max_concurrency=…, backoff_base=…, models_cache_seconds=…, retries_before_switching=…, virtual_models=…, client=…)` |
+| `BapiTemplates(api_key, base_url=…, metadataset=…, timeout=…, max_retries=…, max_concurrency=…, backoff_base=…, client=…)` |
+| `TextExtraction(base_url, timeout=…, max_retries=…, backoff_base=…, resolve=…, client=…)` |
+| `MetadataAgent(base_url, timeout=…, client=…)` |
+
+| Einstellung | Bedeutet | Vorgabe |
+|---|---|---|
+| `auth` | `None`, `(user, password)` oder ein fertiges `Credential` | anonym |
+| `metadataset` | welcher Metadatensatz antwortet | `-default-`, über `from_env()` auch `EDU_SHARING_METADATASET` |
+| `query` | der Abfragekontext für Suche und Vokabular | `ngsearch` |
+| `field_aliases` | eigene Kurznamen, `{"fach": "ccm:taxonid"}` | die fünf üblichen |
+| `timeout` | Sekunden, bis eine Anfrage aufgegeben wird | 30 Repositorium und Agent, 180 Gateway (gemessene Warteschlangen von 94 s), 60 Extraktion |
+| `max_retries` | Versuche nach dem ersten | 3, Extraktion 2 |
+| `max_concurrency` | gleichzeitig laufende Anfragen | 8 Repositorium, 6 Gateway |
+| `backoff_base` | die erste Pause, danach verdoppelt, mit Jitter | 0,5 Repositorium, 2,5 Gateway, 1,0 Extraktion |
+| `client` | ein eigener `httpx.AsyncClient` — vier Regeln, siehe `check_client`; er bleibt offen, wenn der Einstieg schließt | keiner |
+| `provider` | welcher Anbieter antwortet | `academiccloud` |
+| `resolve` | ein Resolver, mit dem die Extraktion eine Adresse beurteilt | keiner |
+
+`timeout` und `client` schließen sich aus: ein Client bringt seinen eigenen mit,
+und dieser hier bliebe unbeachtet.
 
 ### Zugangsdaten
 
@@ -158,8 +190,8 @@ README.
 | Aufruf | Ergebnis |
 |---|---|
 | `repo.raw.json("GET", "/node/v1/nodes/-home-/{id}/metadata")` | der geparste Rumpf |
-| `repo.raw.request("POST", path, json=…)` | `httpx.Response` |
-| `repo.raw.download(path, max_bytes=…)` | `bytes` — gestreamt und über `max_bytes` gedeckelt, wiederholt wie jedes GET. Die Grenze zählt **entpackte** Bytes; eine komprimierte Antwort wird genau einmal dekodiert, und die zurückgegebene Antwort behauptet keine Kodierung mehr, die sie nicht mehr trägt |
+| `repo.raw.request("POST", path, params=…, json=…, content=…, files=…, headers=…, credential=…, idempotent=…, max_bytes=…)` | `httpx.Response` — `idempotent=True` sagt, dass ein zweiter Versuch sicher ist, nachdem der erste vielleicht ausgeführt wurde (ohne das werden nur `GET`, `HEAD`, `PUT` und `DELETE` wiederholt); `credential=` schickt genau diese eine Anfrage als jemand anderes; `params`, `json`, `content`, `files` und `headers` gehen so auf die Leitung, wie sie übergeben werden |
+| `repo.raw.download(path, max_bytes=…, credential=…)` | `bytes` — gestreamt und über `max_bytes` gedeckelt, wiederholt wie jedes GET. Die Grenze zählt **entpackte** Bytes; eine komprimierte Antwort wird genau einmal dekodiert, und die zurückgegebene Antwort behauptet keine Kodierung mehr, die sie nicht mehr trägt |
 | `repo.raw.is_repository_url(url)` | `bool` — ob Zugangsdaten mitgingen |
 
 ```python
@@ -180,7 +212,7 @@ Sie selbst.
 | `repo.search("Bruchrechnung")` | `SearchResult` |
 | `repo.search(subject="Mathematik", level="Sekundarstufe I")` | reine Filtersuche |
 | `repo.searcher` | das `Search`-Objekt, für `facets=` und Blättern |
-| `repo.searcher.search(text, filters=…, facets=…, limit=…, offset=…)` | `SearchResult` |
+| `repo.searcher.search(text, filters=…, facets=…, facet_limit=…, limit=…, offset=…, content_type=…)` | `SearchResult` — `content_type="FILES"` (Vorgabe) oder `"FILES_AND_FOLDERS"`; Sammlungen gibt diese Abfrage nie zurück, dafür gibt es eine eigene |
 
 ```python
 result = repo.search("Bruchrechnung", limit=3)
@@ -261,10 +293,17 @@ festgelegt.
 |---|---|
 | `repo.node(node_id)` | `Node` |
 | `repo.nodes.get(node_id)` | dasselbe |
-| `repo.nodes.children(node_id, limit=…, offset=…)` | `ChildPage` |
+| `repo.nodes.children(node_id, limit=…, offset=…, sort=…, ascending=…, only=…)` | `ChildPage` — `sort` ordnet die Seite (`cm:name` als Vorgabe, denn Blättern über eine ungeordnete Liste wiederholt manche Einträge und lässt andere aus); `only="files"` oder `"folders"` grenzt ein |
 | `repo.nodes.repository_url` | `str` |
 | `repo.nodes.wrap(data)` | `Node` — ein Datensatz aus irgendeiner Antwort, ohne Anfrage |
-| `repo.create_node(parent_id, name=…, properties=…)` | `Node` |
+| `repo.create_node(parent_id, name=…, type=…, properties=…, rename_if_exists=…, verify=…)` | `Node` — `type="cm:folder"` legt einen Ordner an, `ccm:io` ist Material; `rename_if_exists=` (als Vorgabe an) hängt bei einer Namenskollision einen Zähler an, statt 409 zu antworten, `node.name` ist also der Schlüssel, den das Repositorium gewählt hat (gemessen 11.09.2026: `probe - 2.md`, und `409`, wenn es aus ist); `verify=False` schaltet das Zurücklesen ab, für ein Feld, von dem man weiß, dass es abgeleitet ist |
+
+**Ein neuer `cm:folder` verwirft `cm:title`.** Gemessen am 11.09.2026:
+`repo.create_node(parent_id, name="x", type="cm:folder", title="X")` wirft
+`SilentDropError(dropped=['cm:title'])` — und **der Ordner ist trotzdem da**.
+Ein `update(title="X")` gleich danach sitzt. Also erst den Ordner anlegen, dann
+betiteln; und nach einem `SilentDropError` beim Anlegen erst nachsehen, bevor
+man ein zweites Mal anlegt.
 
 ### Einen Knoten lesen
 
@@ -309,9 +348,9 @@ nicht angekommen ist. Diese Probe ist das zentrale Versprechen der Bibliothek.
 
 | Aufruf | Ergebnis |
 |---|---|
-| `node.update(title=…, description=…, keywords=…)` | `Node` — der Stand danach |
+| `node.update(title=…, description=…, keywords=…, verify=…)` | `Node` — der Stand danach; `verify=False` lässt das Zurücklesen aus |
 | `node.update(properties={"ccm:taxonid": [uri]})` | `Node` — jede Eigenschaft, mit vollem Namen |
-| `node.set_property("cclom:title", "Neu")` | `Node` |
+| `node.set_property("cclom:title", "Neu", verify=…)` | `Node` — schreibt an der Filterung des Metadatensatzes vorbei |
 | `node.add_keywords("Bruch", "Klasse 6")` | `Node` — je Schlagwort ein Argument |
 | `node.remove_keywords("alt")` | `Node` |
 | `node.rate(4)` / `node.unrate()` | `Rating` |
@@ -364,8 +403,8 @@ macht daraus einen Pfad, der sich von oben nach unten liest.
 | `node.content.download_url` | `str \| None` |
 | `node.content.download()` | `bytes` — stückweise gelesen. **Nur öffentliche Inhalte** auf der gemessenen Instanz: das Download-Servlet authentifiziert nicht, ein privater Knoten antwortet `403`, egal wer fragt. Für einen privaten Knoten `text()` nehmen |
 | `node.content.download(max_bytes=…)` | `bytes` — `ContentTooLargeError` über der Grenze, vor dem Abruf, wenn `size` bekannt ist; die Textpfade übergeben `MAX_TEXT_BYTES` (8 MiB) |
-| `node.content.text()` | `str` — der Text, den das Repository extrahiert hat. **Leer für Markdown und JSON** (gemessen 11.09.2026): die Datei ist nicht leer, das Repository zieht aus diesen beiden nur nichts heraus |
-| `node.content.upload(data, filename=…, mimetype=…)` | `Node` |
+| `node.content.text(force_update=…)` | `str` — der Text, den das Repository extrahiert hat; `force_update=True` lässt neu extrahieren. **Leer für Markdown und JSON** (gemessen 11.09.2026): die Datei ist nicht leer, das Repository zieht aus diesen beiden nur nichts heraus |
+| `node.content.upload(data, filename=…, mimetype=…, version_comment=…)` | `Node` — `version_comment` ist die Notiz in der Versionsgeschichte |
 | `node.content.set_preview(data, mimetype="image/png")` | `Node` |
 | `node.content.delete_preview()` | `Node` |
 
@@ -459,7 +498,7 @@ Systems keine Sammlung.
 | Aufruf | Ergebnis |
 |---|---|
 | `node.rating` | `Rating \| None` — Durchschnitt, Anzahl, die eigene |
-| `node.rate(4)` | `Rating` |
+| `node.rate(4, text="Passt")` | `Rating` — der Text ist optional |
 | `node.unrate()` | `Rating` |
 | `rating_of(node)` | `Rating \| None` — dasselbe Lesen wie `node.rating`, für einen `Node`, den man hält |
 | `node.comments.list()` | `list[Comment]` |
@@ -565,9 +604,10 @@ größere Gruppe, ohne es zu sagen.
 
 | Aufruf | Ergebnis |
 |---|---|
+| `RELATION_TYPES` | die sieben, die sich anlegen lassen: `isPartOf`, `isBasedOn`, `references`, `isDuplicateOf`, `requires`, `replaces`, `hasFormat`. Die anderen fünf (`hasPart`, `isBasisFor`, `isRequiredBy`, `isReplacedBy`, `isFormatOf`) entstehen als Gegenrichtung und sind nur lesbar; alles andere ist ein `ValidationError`, der die sieben nennt |
 | `repo.relations.of(node_id)` | `list[Relation]` |
 | `Relation` | `ai_generated`, `approved`, `created_at`, `created_by`, `from_id`, `from_title`, `metadata`, `raw`, `to_id`, `to_title`, `type` |
-| `repo.relations.create(from_id, "isPartOf", to_id, ai_generated=…)` | `None` |
+| `repo.relations.create(from_id, "isPartOf", to_id, ai_generated=…, metadata=…)` | `None` — `metadata=` wird angenommen und nirgends gespeichert, siehe unten |
 | `repo.relations.approve(from_id, "isPartOf", to_id)` | `None` |
 | `repo.relations.delete(from_id, "isPartOf", to_id)` | `None` |
 | `Relation.opposite_of("isPartOf")` | `"hasPart"` |
@@ -721,9 +761,9 @@ page.by_position             # True
 | `repo.vocab.values(prop, locale=…)` | `list[VocabularyValue]` — gemerkt für `DEFAULT_CACHE_SECONDS` (1 h); `repo.vocab.cache_seconds` setzt eine andere Frist, `0` schaltet ab, `float("inf")` behält für immer |
 | `DEFAULT_CACHE_SECONDS` | `3600.0` — wie lange ein geladenes Vokabular gilt |
 | `SUGGEST_LOOKUP_MAX` | `10` — unauflösbare Filterwerte, für die Vorschläge geholt werden; darüber wird der Wert weiterhin gemeldet, nur ohne sie |
-| `repo.vocab.suggest(prop, text)` | `list[VocabularyValue]` — Teilzeichenkette, nicht gemerkt |
-| `repo.vocab.resolve(prop, "Biologie")` | `str \| None` — die erste URI |
-| `repo.vocab.resolve_all(prop, "Biologie")` | `list[str]` — **alle**; ein Label kann in zwei Vokabularen stehen |
+| `repo.vocab.suggest(prop, text, locale=…)` | `list[VocabularyValue]` — Teilzeichenkette, nicht gemerkt |
+| `repo.vocab.resolve(prop, "Biologie", locale=…)` | `str \| None` — die erste URI |
+| `repo.vocab.resolve_all(prop, "Biologie", locale=…)` | `list[str]` — **alle**; ein Label kann in zwei Vokabularen stehen. `locale` ist die Sprache der Labels, z. B. `en_EN` |
 | `repo.vocab.clear_cache()` | `None` |
 | `value.uri` / `value.label` | `str` |
 
@@ -979,12 +1019,12 @@ Template-Modus* weiter unten — eine eigene Klasse, von der diese nicht abhäng
 | `BildungsAPI.from_env()` | braucht `B_API_BASE_URL` **und** `B_API_KEY` |
 | `api.models(provider=…)` | `list[Model]` — kurz gemerkt |
 | `Model` | `can_chat`, `demand`, `id`, `input`, `is_ready`, `name`, `output`, `owned_by`, `shutdown_date`, `status` |
-| `api.chat(prompt, model=…, system=…, max_tokens=…, thinking=…)` | `str` |
+| `api.chat(prompt, model=…, system=…, max_tokens=…, temperature=…, thinking=…, provider=…)` | `str` — `prompt` ist eine Zeichenkette oder eine fertige Nachrichtenliste (`[{"role": …, "content": …}]`), so geht ein Gespräch über mehrere Runden hinein; `temperature` steht auf `0.0`, und die Familien, die eine abweichende ablehnen, bekommen sie nie |
 | `api.chat(…, reasoning_effort="high", verbosity="low")` | `str` — siehe unten |
 | `api.embeddings(texts, model=…, provider="openai")` | `list[list[float]]`, nach `index` sortiert |
 | `api.moderate(text, model=…, provider="openai")` | eine `Moderation` |
 | `Moderation` | `categories`, `flagged`, `raw`, `scores` |
-| `api.images(prompt, model=…, n=…, size=…)` | `list[GeneratedImage]` |
+| `api.images(prompt, model=…, n=…, size=…, provider=…)` | `list[GeneratedImage]` |
 | `GeneratedImage` | `b64`, `revised_prompt`, `url` |
 | `api.call(route, body, provider=…)` | das rohe JSON jeder durchgereichten Route |
 | `api.aclose()` | die Verbindung zurückgeben |
@@ -1237,13 +1277,14 @@ es ihn gibt. Derselbe Schlüssel, dieselbe Adresse.
 |---|---|
 | `BapiTemplates(api_key, base_url=…, metadataset=…)` | der Client — `metadataset` hat keine Voreinstellung |
 | `BapiTemplates.from_env()` | braucht `B_API_KEY`, `B_API_BASE_URL` **und** `EDU_SHARING_METADATASET` |
-| `templates.chat(configs, context_node_id=…, variables=…)` | `str` |
-| `templates.chat_limited(configs, context_node_id=…, choices=…)` | `str` — nur Werte aus einem Wertebereich |
-| `templates.respond(configs, context_node_id=…, variables=…)` | `Answer` — braucht eine Konfiguration für die Responses-API |
-| `templates.respond_limited(configs, context_node_id=…, choices=…)` | `Answer` |
-| `templates.images(configs, context_node_id=…, variables=…)` | `list[GeneratedImage]` |
-| `templates.images_limited(configs, context_node_id=…, choices=…)` | `list[GeneratedImage]` |
-| `templates.suggest(configs, widgets, context_node_id=…)` | `list[Suggestion]` — **gespeichert**, als offene Vorschläge am Knoten |
+| `templates.chat(configs, context_node_id=…, variables=…, user=…)` | `str` |
+| `templates.chat_limited(configs, context_node_id=…, choices=…, user=…)` | `str` — nur Werte aus einem Wertebereich |
+| `templates.respond(configs, context_node_id=…, variables=…, user=…)` | `Answer` — braucht eine Konfiguration für die Responses-API |
+| `templates.respond_limited(configs, context_node_id=…, choices=…, user=…)` | `Answer` |
+| `templates.images(configs, context_node_id=…, variables=…, user=…)` | `list[GeneratedImage]` |
+| `templates.images_limited(configs, context_node_id=…, choices=…, user=…)` | `list[GeneratedImage]` |
+| `templates.suggest(configs, widgets, context_node_id=…, variables=…, user=…)` | `list[Suggestion]` — **gespeichert**, als offene Vorschläge am Knoten; `widgets` ist `{widget_id: ai_config_id}`, und jede Widget-Konfiguration in `mds_oeh` trägt die Id `default` (gemessen) |
+| `user=` bei allen sieben | der Name, den das Gateway mitschickt — `"guest"`, wenn man keinen übergibt. Er öffnet nichts: das Gateway liest mit seinem eigenen Konto |
 | `templates.qas(node_ids)` | `list[dict]` — **experimentell, und gespeichert** |
 | `templates.aclose()` | die Verbindung zurückgeben — ein mitgebrachter `client=` bleibt offen |
 | `Config` | `str \| NodeConfig` — ein String ist eine ID im Metadatenset |
@@ -1370,7 +1411,7 @@ Dienst, und nur zur Laufzeit.
 | `MetadataAgent.from_env()` | braucht `METADATA_AGENT_URL` |
 | `agent.content_types(context=…, version=…)` | `list[ContentType]` — je Kontext gemerkt |
 | `ContentType` | `icon`, `label`, `raw`, `schema_file`, `uri` |
-| `agent.content_type_for(uri)` | `ContentType \| None` |
+| `agent.content_type_for(uri, context=…, version=…)` | `ContentType \| None` |
 | `agent.schemas(context=…, version=…)` | `list[SchemaInfo]` |
 | `SchemaInfo` | `field_count`, `file`, `groups`, `profile_id`, `raw` |
 | `agent.schema(file, context=…, version=…)` | `dict` — ungeformt, wie geliefert |

@@ -22,6 +22,7 @@ their first line.
 
 - [The two levels](#the-two-levels)
 - [Connecting](#connecting)
+  - [What an entry point takes](#what-an-entry-point-takes)
   - [Credentials](#credentials)
   - [The raw transport](#the-raw-transport)
 - [Searching](#searching)
@@ -107,8 +108,8 @@ returns; the sync one runs a loop in a thread for you.
 | `About` | `api_version`, `features`, `plugins`, `raw`, `renderservice_version`, `repository_version`, `services`, `themes_url` |
 | `repo.whoami()` | `Identity` — `authority`, `username`, `display_name`, `is_anonymous`, `home_folder` |
 | `repo.metadatasets()` | `list[MetadataSet]` |
-| `repo.resolve(prop, label)` | `str \| None` — a label's filter value, blocking |
-| `repo.resolve_all(prop, label)` | `list[str]` — **every** value carrying that label |
+| `repo.resolve(prop, label, locale=…)` | `str \| None` — a label's filter value, blocking |
+| `repo.resolve_all(prop, label, locale=…)` | `list[str]` — **every** value carrying that label |
 | `repo.close()` / `await repo.aclose()` | give the connection back |
 
 ```python
@@ -122,6 +123,36 @@ repo.about().repository_version   # "11.0"
 
 **The instance is a parameter, never a constant in the library.** No default
 address exists; a call further down never takes an address of its own.
+
+### What an entry point takes
+
+Four classes open a connection, and they take the same kind of settings. Each
+one is optional; the defaults are what the measurements below were made with.
+
+| Call |
+|---|
+| `AsyncRepository(url, auth=…, metadataset=…, query=…, field_aliases=…, timeout=…, max_retries=…, max_concurrency=…, backoff_base=…, client=…)` |
+| `BildungsAPI(api_key, base_url=…, provider=…, timeout=…, max_retries=…, max_concurrency=…, backoff_base=…, models_cache_seconds=…, retries_before_switching=…, virtual_models=…, client=…)` |
+| `BapiTemplates(api_key, base_url=…, metadataset=…, timeout=…, max_retries=…, max_concurrency=…, backoff_base=…, client=…)` |
+| `TextExtraction(base_url, timeout=…, max_retries=…, backoff_base=…, resolve=…, client=…)` |
+| `MetadataAgent(base_url, timeout=…, client=…)` |
+
+| Option | Means | Default |
+|---|---|---|
+| `auth` | `None`, `(user, password)` or a ready `Credential` | anonymous |
+| `metadataset` | which metadata set answers | `-default-`, and `EDU_SHARING_METADATASET` through `from_env()` |
+| `query` | the query context for search and vocabulary | `ngsearch` |
+| `field_aliases` | short names of your own, `{"fach": "ccm:taxonid"}` | the five standard ones |
+| `timeout` | seconds until a request is abandoned | 30 repository and agent, 180 gateway (queues of 94 s measured), 60 extraction |
+| `max_retries` | attempts after the first | 3, extraction 2 |
+| `max_concurrency` | requests running at once | 8 repository, 6 gateway |
+| `backoff_base` | the first pause, doubling from there, with jitter | 0.5 repository, 2.5 gateway, 1.0 extraction |
+| `client` | your own `httpx.AsyncClient` — four rules, see `check_client`; it stays open when you close the entry point | none |
+| `provider` | which provider answers | `academiccloud` |
+| `resolve` | a resolver the extraction service judges an address with | none |
+
+`timeout` cannot be combined with `client`: a client carries its own, and this
+one would be ignored.
 
 ### Credentials
 
@@ -152,8 +183,8 @@ Credentials never reach a log line — see *Logging* in the README.
 | Call | Result |
 |---|---|
 | `repo.raw.json("GET", "/node/v1/nodes/-home-/{id}/metadata")` | the parsed body |
-| `repo.raw.request("POST", path, json=…)` | `httpx.Response` |
-| `repo.raw.download(path, max_bytes=…)` | `bytes` — streamed past `max_bytes`, retried like any GET. The limit counts **unpacked** bytes; a compressed response is decoded once, and the response handed back no longer claims an encoding it no longer carries |
+| `repo.raw.request("POST", path, params=…, json=…, content=…, files=…, headers=…, credential=…, idempotent=…, max_bytes=…)` | `httpx.Response` — `idempotent=True` says a second attempt is safe once the first may have been carried out (without it only `GET`, `HEAD`, `PUT` and `DELETE` are repeated); `credential=` sends this one request as somebody else; `params`, `json`, `content`, `files` and `headers` go on the wire as given |
+| `repo.raw.download(path, max_bytes=…, credential=…)` | `bytes` — streamed past `max_bytes`, retried like any GET. The limit counts **unpacked** bytes; a compressed response is decoded once, and the response handed back no longer claims an encoding it no longer carries |
 | `repo.raw.is_repository_url(url)` | `bool` — whether credentials would be attached |
 
 ```python
@@ -173,7 +204,7 @@ boundary live there; a path you hand it is yours to escape.
 | `repo.search("Bruchrechnung")` | `SearchResult` |
 | `repo.search(subject="Mathematik", level="Sekundarstufe I")` | filter-only search |
 | `repo.searcher` | the `Search` object, for `facets=` and paging |
-| `repo.searcher.search(text, filters=…, facets=…, limit=…, offset=…)` | `SearchResult` |
+| `repo.searcher.search(text, filters=…, facets=…, facet_limit=…, limit=…, offset=…, content_type=…)` | `SearchResult` — `content_type="FILES"` (default) or `"FILES_AND_FOLDERS"`; this query never returns collections, they have one of their own |
 
 ```python
 result = repo.search("Bruchrechnung", limit=3)
@@ -252,10 +283,17 @@ Which short names exist is read from the instance, not fixed in the library.
 |---|---|
 | `repo.node(node_id)` | `Node` |
 | `repo.nodes.get(node_id)` | the same |
-| `repo.nodes.children(node_id, limit=…, offset=…)` | `ChildPage` |
+| `repo.nodes.children(node_id, limit=…, offset=…, sort=…, ascending=…, only=…)` | `ChildPage` — `sort` orders the page (`cm:name` by default, because paging over an unordered listing repeats some entries and misses others); `only="files"` or `"folders"` narrows it |
 | `repo.nodes.repository_url` | `str` |
 | `repo.nodes.wrap(data)` | `Node` — a record from any response, without a request |
-| `repo.create_node(parent_id, name=…, properties=…)` | `Node` |
+| `repo.create_node(parent_id, name=…, type=…, properties=…, rename_if_exists=…, verify=…)` | `Node` — `type="cm:folder"` makes a folder, `ccm:io` is material; `rename_if_exists=` (on by default) appends a counter on a name collision instead of answering 409, so `node.name` is the key the repository chose (measured 2026-09-11: `probe - 2.md`, and `409` with it off); `verify=False` switches the read-back off, for a field you know is derived |
+
+**A new `cm:folder` drops `cm:title`.** Measured 2026-09-11:
+`repo.create_node(parent_id, name="x", type="cm:folder", title="X")` raises
+`SilentDropError(dropped=['cm:title'])` — and **the folder exists all the
+same**. An `update(title="X")` right after it sits. So create the folder, then
+title it; and after a `SilentDropError` from a creation, look before you
+create again.
 
 ### Reading a node
 
@@ -300,9 +338,9 @@ arrive. That check is the library's central promise.
 
 | Call | Result |
 |---|---|
-| `node.update(title=…, description=…, keywords=…)` | `Node` — the state after |
+| `node.update(title=…, description=…, keywords=…, verify=…)` | `Node` — the state after; `verify=False` skips the read-back |
 | `node.update(properties={"ccm:taxonid": [uri]})` | `Node` — any property, by its full name |
-| `node.set_property("cclom:title", "Neu")` | `Node` |
+| `node.set_property("cclom:title", "Neu", verify=…)` | `Node` — writes past the metadata set's filtering |
 | `node.add_keywords("Bruch", "Klasse 6")` | `Node` — one argument per keyword |
 | `node.remove_keywords("alt")` | `Node` |
 | `node.rate(4)` / `node.unrate()` | `Rating` |
@@ -355,8 +393,8 @@ turns the same information into a breadcrumb that reads top-down.
 | `node.content.download_url` | `str \| None` |
 | `node.content.download()` | `bytes` — read in chunks. **Public content only** on the measured instance: the download servlet does not authenticate, so a private node answers `403` no matter who asks. Use `text()` for a private node |
 | `node.content.download(max_bytes=…)` | `bytes` — `ContentTooLargeError` above the limit, before the request when `size` is known; the text paths pass `MAX_TEXT_BYTES` (8 MiB) |
-| `node.content.text()` | `str` — the extracted text the repository holds. **Empty for Markdown and JSON** (measured 2026-09-11): the file is not empty, the repository extracts nothing from those two |
-| `node.content.upload(data, filename=…, mimetype=…)` | `Node` |
+| `node.content.text(force_update=…)` | `str` — the extracted text the repository holds; `force_update=True` has it extract again. **Empty for Markdown and JSON** (measured 2026-09-11): the file is not empty, the repository extracts nothing from those two |
+| `node.content.upload(data, filename=…, mimetype=…, version_comment=…)` | `Node` — `version_comment` is the note in the version history |
 | `node.content.set_preview(data, mimetype="image/png")` | `Node` |
 | `node.content.delete_preview()` | `Node` |
 
@@ -448,7 +486,7 @@ system.
 | Call | Result |
 |---|---|
 | `node.rating` | `Rating \| None` — average, count, your own |
-| `node.rate(4)` | `Rating` |
+| `node.rate(4, text="Passt")` | `Rating` — the text is optional |
 | `node.unrate()` | `Rating` |
 | `rating_of(node)` | `Rating \| None` — the same reading `node.rating` does, for a `Node` you hold |
 | `node.comments.list()` | `list[Comment]` |
@@ -552,9 +590,10 @@ group without saying so.
 
 | Call | Result |
 |---|---|
+| `RELATION_TYPES` | the seven that can be created: `isPartOf`, `isBasedOn`, `references`, `isDuplicateOf`, `requires`, `replaces`, `hasFormat`. The other five (`hasPart`, `isBasisFor`, `isRequiredBy`, `isReplacedBy`, `isFormatOf`) arise as the opposite of one of these and are read-only; anything else is a `ValidationError` naming the seven |
 | `repo.relations.of(node_id)` | `list[Relation]` |
 | `Relation` | `ai_generated`, `approved`, `created_at`, `created_by`, `from_id`, `from_title`, `metadata`, `raw`, `to_id`, `to_title`, `type` |
-| `repo.relations.create(from_id, "isPartOf", to_id, ai_generated=…)` | `None` |
+| `repo.relations.create(from_id, "isPartOf", to_id, ai_generated=…, metadata=…)` | `None` — `metadata=` is accepted and stored nowhere, see below |
 | `repo.relations.approve(from_id, "isPartOf", to_id)` | `None` |
 | `repo.relations.delete(from_id, "isPartOf", to_id)` | `None` |
 | `Relation.opposite_of("isPartOf")` | `"hasPart"` |
@@ -707,9 +746,9 @@ page.by_position             # True
 | `repo.vocab.values(prop, locale=…)` | `list[VocabularyValue]` — cached for `DEFAULT_CACHE_SECONDS` (1 h); set `repo.vocab.cache_seconds` for another span, `0` to disable, `float("inf")` to keep forever |
 | `DEFAULT_CACHE_SECONDS` | `3600.0` — how long a loaded vocabulary stays valid |
 | `SUGGEST_LOOKUP_MAX` | `10` — unresolved filter values that get suggestions looked up; beyond it the value is still reported, without them |
-| `repo.vocab.suggest(prop, text)` | `list[VocabularyValue]` — substring, not cached |
-| `repo.vocab.resolve(prop, "Biologie")` | `str \| None` — the first URI |
-| `repo.vocab.resolve_all(prop, "Biologie")` | `list[str]` — **all** of them; one label can sit in two vocabularies |
+| `repo.vocab.suggest(prop, text, locale=…)` | `list[VocabularyValue]` — substring, not cached |
+| `repo.vocab.resolve(prop, "Biologie", locale=…)` | `str \| None` — the first URI |
+| `repo.vocab.resolve_all(prop, "Biologie", locale=…)` | `list[str]` — **all** of them; one label can sit in two vocabularies. `locale` is the label language, e.g. `en_EN` |
 | `repo.vocab.clear_cache()` | `None` |
 | `value.uri` / `value.label` | `str` |
 
@@ -962,12 +1001,12 @@ its own, which this one does not depend on.
 | `BildungsAPI.from_env()` | needs `B_API_BASE_URL` **and** `B_API_KEY` |
 | `api.models(provider=…)` | `list[Model]` — cached briefly |
 | `Model` | `can_chat`, `demand`, `id`, `input`, `is_ready`, `name`, `output`, `owned_by`, `shutdown_date`, `status` |
-| `api.chat(prompt, model=…, system=…, max_tokens=…, thinking=…)` | `str` |
+| `api.chat(prompt, model=…, system=…, max_tokens=…, temperature=…, thinking=…, provider=…)` | `str` — `prompt` is a string or a ready message list (`[{"role": …, "content": …}]`), which is how a conversation of several turns goes in; `temperature` defaults to `0.0`, and the families that refuse a deviating one never get it |
 | `api.chat(…, reasoning_effort="high", verbosity="low")` | `str` — see below |
 | `api.embeddings(texts, model=…, provider="openai")` | `list[list[float]]`, ordered by `index` |
 | `api.moderate(text, model=…, provider="openai")` | one `Moderation` |
 | `Moderation` | `categories`, `flagged`, `raw`, `scores` |
-| `api.images(prompt, model=…, n=…, size=…)` | `list[GeneratedImage]` |
+| `api.images(prompt, model=…, n=…, size=…, provider=…)` | `list[GeneratedImage]` |
 | `GeneratedImage` | `b64`, `revised_prompt`, `url` |
 | `api.call(route, body, provider=…)` | the raw JSON of any forwarded route |
 | `api.aclose()` | give the connection back |
@@ -1213,13 +1252,14 @@ and `BildungsAPI` does not change because it exists. Same key, same address.
 |---|---|
 | `BapiTemplates(api_key, base_url=…, metadataset=…)` | the client — `metadataset` has no default |
 | `BapiTemplates.from_env()` | needs `B_API_KEY`, `B_API_BASE_URL` **and** `EDU_SHARING_METADATASET` |
-| `templates.chat(configs, context_node_id=…, variables=…)` | `str` |
-| `templates.chat_limited(configs, context_node_id=…, choices=…)` | `str` — values from a value space only |
-| `templates.respond(configs, context_node_id=…, variables=…)` | `Answer` — needs a configuration for the Responses API |
-| `templates.respond_limited(configs, context_node_id=…, choices=…)` | `Answer` |
-| `templates.images(configs, context_node_id=…, variables=…)` | `list[GeneratedImage]` |
-| `templates.images_limited(configs, context_node_id=…, choices=…)` | `list[GeneratedImage]` |
-| `templates.suggest(configs, widgets, context_node_id=…)` | `list[Suggestion]` — **stored** on the node as pending suggestions |
+| `templates.chat(configs, context_node_id=…, variables=…, user=…)` | `str` |
+| `templates.chat_limited(configs, context_node_id=…, choices=…, user=…)` | `str` — values from a value space only |
+| `templates.respond(configs, context_node_id=…, variables=…, user=…)` | `Answer` — needs a configuration for the Responses API |
+| `templates.respond_limited(configs, context_node_id=…, choices=…, user=…)` | `Answer` |
+| `templates.images(configs, context_node_id=…, variables=…, user=…)` | `list[GeneratedImage]` |
+| `templates.images_limited(configs, context_node_id=…, choices=…, user=…)` | `list[GeneratedImage]` |
+| `templates.suggest(configs, widgets, context_node_id=…, variables=…, user=…)` | `list[Suggestion]` — **stored** on the node as pending suggestions; `widgets` is `{widget_id: ai_config_id}`, and every widget configuration in `mds_oeh` carries the id `default` (measured) |
+| `user=` on all seven | the name the gateway sends along — `"guest"` when you pass none. It opens nothing: the gateway reads with its own account |
 | `templates.qas(node_ids)` | `list[dict]` — **experimental, and stored** |
 | `templates.aclose()` | give the connection back — an injected `client=` stays open |
 | `Config` | `str \| NodeConfig` — a string is an id in the metadata set |
@@ -1343,7 +1383,7 @@ runtime.
 | `MetadataAgent.from_env()` | needs `METADATA_AGENT_URL` |
 | `agent.content_types(context=…, version=…)` | `list[ContentType]` — cached per context |
 | `ContentType` | `icon`, `label`, `raw`, `schema_file`, `uri` |
-| `agent.content_type_for(uri)` | `ContentType \| None` |
+| `agent.content_type_for(uri, context=…, version=…)` | `ContentType \| None` |
 | `agent.schemas(context=…, version=…)` | `list[SchemaInfo]` |
 | `SchemaInfo` | `field_count`, `file`, `groups`, `profile_id`, `raw` |
 | `agent.schema(file, context=…, version=…)` | `dict` — unshaped, as delivered |

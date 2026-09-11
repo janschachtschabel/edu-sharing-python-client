@@ -78,6 +78,14 @@ def oeffentliche_namen() -> dict[str, str]:
                     name = getattr(ziel, "id", "")
                     if name and name != "__all__" and name in exportiert:
                         gefunden.setdefault(name, herkunft)
+            # Eine Konstante mit Annotation (``X: tuple[str, ...] = (...)``) ist
+            # ein ``AnnAssign`` und rutschte bis zum 11.09.2026 durch: so blieb
+            # ``RELATION_TYPES`` undokumentiert, und mit ihm die Frage, welche
+            # Beziehungen es ueberhaupt anzulegen gibt.
+            elif isinstance(knoten, ast.AnnAssign):
+                name = getattr(knoten.target, "id", "")
+                if name and name in exportiert:
+                    gefunden.setdefault(name, herkunft)
     return gefunden
 
 

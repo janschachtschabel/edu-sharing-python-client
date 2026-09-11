@@ -94,6 +94,20 @@ and in [`docs/audits/`](docs/audits/).
   a result that carries asynchronous methods, and it covers `repo.nodes`,
   `collections`, `searcher` and `vocab`, which it had never called. Found by
   the skill review of 2026-09-11.
+- **Every option with its method, and the relation types at all.** 66 of the
+  library's 144 optional parameters stood nowhere near the call they belong to
+  — `rename_if_exists` and `sort`/`ascending`/`only` on `nodes.children`,
+  `type=` (the one that makes a folder), `verify=`, `version_comment`,
+  `force_update`, `content_type`, `locale`, `temperature` and the message-list
+  form of `chat`, `user=` on all seven template calls, the whole raw-transport
+  request, and the connection settings of all four entry points (`timeout`,
+  `max_retries`, `max_concurrency`, `backoff_base`, `client`, `query`,
+  `field_aliases`), whose defaults are now named. REFERENCE has a section for
+  the entry points and rows for the rest, in both languages.
+  `tests/test_docs_options.py` keeps it that way. `RELATION_TYPES` was
+  documented nowhere: the completeness guard read only `ast.Assign` and never
+  saw an annotated constant, so which seven relations can be created was
+  missing — the guard reads `ast.AnnAssign` too now.
 - **Four things the docs left out about reading and writing**, measured against
   staging on 2026-09-11 in a throwaway folder. `content.text()` is empty for
   Markdown and JSON — the file is not empty, and `download()` refuses a private
