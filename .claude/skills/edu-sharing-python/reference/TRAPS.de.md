@@ -97,8 +97,8 @@ SKOS-Vokabular. Ein Label zu filtern oder zu schreiben setzt einen Wert ein,
 der auf nichts passt.
 
 ```python
-await repo.vocab.resolve_all("subject", "Biologie")
-# -> beide URIs: das Schulfach und das Hochschulfach
+await repo.vocab.resolve_all("ccm:taxonid", "Biologie")
+# -> beide URIs: das Schulfach und das Hochschulfach (gemessen 11.09.2026)
 ```
 
 Ein Label kann zu zwei Vokabularen gehören — gegen die Staging gemessen tragen

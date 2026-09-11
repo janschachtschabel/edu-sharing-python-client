@@ -116,8 +116,9 @@ _WEITER = {
     (Node, "content"): NodeContent,
     (Node, "children"): ChildObjects,
     # Blockierend ``SyncFlows``: Name fuer Name dieselben Ablaeufe, jeder reicht
-    # an ``Flows`` weiter. Nur hier gleichgesetzt -- ``SyncNodes`` etwa hat kein
-    # ``wrap``, dort waere die asynchrone Flaeche zu nachsichtig.
+    # an ``Flows`` weiter. Nur hier gleichgesetzt -- ``SyncTransport`` etwa ist
+    # absichtlich schmaler als ``Transport`` (kein ``aclose``), dort waere die
+    # asynchrone Flaeche zu nachsichtig.
     (Repository, "flows"): Flows,
 }
 

@@ -94,6 +94,16 @@ and in [`docs/audits/`](docs/audits/).
   a result that carries asynchronous methods, and it covers `repo.nodes`,
   `collections`, `searcher` and `vocab`, which it had never called. Found by
   the skill review of 2026-09-11.
+- **Short names where a property belongs, and a guessed workflow status.**
+  The skill and REFERENCE showed `facets=["subject"]` on `repo.search` and
+  `repo.searcher.search`, and TRAPS `repo.vocab.resolve_all("subject", …)` —
+  both answer 400 (*Widget subject was not found*, measured 2026-09-11);
+  short names work as keywords and in the flows, nowhere else. And
+  `workflow.submit(…, "TO_BE_CHECKED")`, a status no WLO queue knows — it is
+  stored, read back and reported as done; WLO's is `100_tocheck`. The entry
+  now states where short names apply. `tests/test_docs_values.py` reads
+  every block, every inline span that parses and every example, and refuses
+  a short name in a property position and any status but the measured one.
 - **What the spec can say about the gateway's routes.** The docs claimed
   `/v3/api-docs` knew neither `/models` nor `/chat/completions`. It comes in
   twelve groups, and `/v3/api-docs/openai` and `/v3/api-docs/academiccloud`

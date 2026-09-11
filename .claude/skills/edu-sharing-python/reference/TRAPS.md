@@ -95,8 +95,8 @@ SKOS vocabulary. Filtering or writing a label puts a value in that matches
 nothing.
 
 ```python
-await repo.vocab.resolve_all("subject", "Biologie")
-# -> both URIs: the school subject and the university subject
+await repo.vocab.resolve_all("ccm:taxonid", "Biologie")
+# -> both URIs: the school subject and the university subject (measured 2026-09-11)
 ```
 
 One label can belong to two vocabularies — measured against staging, 25 subject

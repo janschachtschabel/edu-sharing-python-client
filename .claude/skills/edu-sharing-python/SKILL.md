@@ -94,8 +94,12 @@ answer = repo.flows.search("Bruchrechnung", subject="Mathematik", limit=5)   # d
 ```
 
 Search short names: `subject`, `level`, `type`, `license`, `difficulty`
-(`STANDARD_FIELD_ALIASES`) — pass labels, they are resolved. Anything else:
-`repo.searcher.search(text, filters={"ccm:taxonid": [uri]}, facets=["subject"])`.
+(`STANDARD_FIELD_ALIASES`) — pass labels, they are resolved. **Short names are
+keywords only**: in `search(…)`, `update(…)`, `create_node(…)` and anywhere in
+`repo.flows.*`. Where a call names a property — `filters=`, `facets=`,
+`properties=`, `repo.vocab.*`, `repo.resolve(…)`, `labels(…)` — it takes the full
+name; a short name there answers 400:
+`repo.searcher.search(text, filters={"ccm:taxonid": [uri]}, facets=["ccm:taxonid"])`.
 A vague request ranks better with `repo.flows.search(text, rerank=True)` — its
 stopwords and synonyms are a `LanguageProfile`, German (`GERMAN`) by default.
 
@@ -198,13 +202,15 @@ uri = repo.resolve("ccm:taxonid", "Mathematik")  # a vocabulary value is a URI, 
 proposal = node.suggestions.propose("ccm:taxonid", uri, "model, confidence 0.9")
 done = repo.flows.accept_suggestion(node.id, proposal.id)
 done["applied"], done["status"]                  # True -- written, read back, marked
-node.workflow.submit("GROUP_redaktion", "TO_BE_CHECKED", comment="Bitte prüfen")
+node.workflow.submit("GROUP_redaktion", "100_tocheck", comment="Bitte prüfen")
 ```
 
 **Propose, do not write**, for anything a model decided: `propose` stores a
 pending suggestion; `accept_suggestion` writes it and reads it back, while
 `node.suggestions.decide(ids, accept=True)` only marks it. The value is written
 as it stands — nothing resolves a label there, so a vocabulary field gets its URI.
+The workflow status belongs to the instance — `100_tocheck` on WLO; a guessed one
+is stored without complaint and reaches no queue. `history()` lists newest first.
 
 ### 3.8 Relations, child objects, vocabulary, people
 

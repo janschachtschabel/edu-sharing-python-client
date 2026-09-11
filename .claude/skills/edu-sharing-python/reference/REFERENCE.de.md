@@ -206,7 +206,7 @@ result.unresolved            # []  <- immer prüfen
 | `UnresolvedFilter` | `field`, `value`, `suggestions` |
 
 ```python
-result = repo.search("Bruch", facets=["subject"])
+result = repo.search("Bruch", facets=["ccm:taxonid"])
 
 result.facets[0].property        # "ccm:taxonid"
 result.facets[0].values[0].value # "http://w3id.org/openeduhub/…/380"
@@ -216,6 +216,11 @@ result.facets[0].truncated       # True  -> die Liste wurde gekürzt
 # Ein Facettenwert ist die URI, kein Label. Für ein Label das Vokabular fragen:
 await repo.vocab.resolve("ccm:taxonid", "Mathematik")   # die Gegenrichtung
 ```
+
+**`facets=` nimmt hier die Eigenschaft, keinen Kurznamen.** Gemessen am
+11.09.2026: `facets=["subject"]` antwortete 400 — *Widget subject was not found
+in the mds oeh*. Kurznamen gelten als Schlüsselwort (`subject="Mathematik"`)
+und überall in `repo.flows`, wo `facets=["subject"]` richtig ist.
 
 **`total_is_lower_bound` ist wichtig.** Steht dort `True`, zählt `total`
 mindestens so viele, nicht genau so viele. **`unresolved` ist wichtiger**: ein
@@ -600,16 +605,20 @@ proposal.status         # "PENDING"
 
 await node.suggestions.decide([proposal.id], accept=True)
 
-step = await node.workflow.submit("GROUP_redaktion", "TO_BE_CHECKED",
+step = await node.workflow.submit("GROUP_redaktion", "100_tocheck",
                                   comment="Bitte prüfen")
-step.status             # "TO_BE_CHECKED"
-[s.status for s in await node.workflow.history()]   # ["TO_BE_CHECKED"]
+step.status             # "100_tocheck"
+[s.status for s in await node.workflow.history()]   # ["100_tocheck"] -- neueste zuerst
 ```
 
 Das ist der Weg für ein Modell: vorschlagen, und einen Menschen entscheiden
 lassen. `decide` markiert den Vorschlag nur; `repo.flows.accept_suggestion`
 schreibt seinen Wert und markiert ihn — so, wie er ist, ohne ein Label
 aufzulösen; ein Vokabularfeld wird deshalb als URI vorgeschlagen.
+
+**Der Status gehört zur Instanz, nicht zur API.** WLO nutzt `100_tocheck`. Ein
+geratener Wert wird ohne Beanstandung gespeichert und zurückgelesen — und legt
+das Material in eine Warteschlange, die es nicht gibt.
 
 ---
 

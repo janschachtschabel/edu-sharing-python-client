@@ -199,7 +199,7 @@ result.unresolved            # []  <- always check this
 | `UnresolvedFilter` | `field`, `value`, `suggestions` |
 
 ```python
-result = repo.search("Bruch", facets=["subject"])
+result = repo.search("Bruch", facets=["ccm:taxonid"])
 
 result.facets[0].property        # "ccm:taxonid"
 result.facets[0].values[0].value # "http://w3id.org/openeduhub/…/380"
@@ -209,6 +209,11 @@ result.facets[0].truncated       # True  -> the list was cut short
 # A facet value is the URI, not a label. To show one, ask the vocabulary:
 await repo.vocab.resolve("ccm:taxonid", "Mathematik")   # the other direction
 ```
+
+**`facets=` takes the property here, not a short name.** Measured 2026-09-11:
+`facets=["subject"]` answered 400 — *Widget subject was not found in the mds
+oeh*. Short names work as keywords (`subject="Mathematik"`) and anywhere in
+`repo.flows`, where `facets=["subject"]` is right.
 
 **`total_is_lower_bound` matters.** When it is `True`, `total` counts at least
 that many, not exactly. **`unresolved` matters more**: a filter value this
@@ -588,16 +593,20 @@ proposal.status         # "PENDING"
 
 await node.suggestions.decide([proposal.id], accept=True)
 
-step = await node.workflow.submit("GROUP_redaktion", "TO_BE_CHECKED",
+step = await node.workflow.submit("GROUP_redaktion", "100_tocheck",
                                   comment="Bitte prüfen")
-step.status             # "TO_BE_CHECKED"
-[s.status for s in await node.workflow.history()]   # ["TO_BE_CHECKED"]
+step.status             # "100_tocheck"
+[s.status for s in await node.workflow.history()]   # ["100_tocheck"] -- newest first
 ```
 
 This is the route for a model: propose, and let a person decide. `decide` only
 marks the proposal; `repo.flows.accept_suggestion` writes its value and marks it
 — as it stands, with no label resolved, so a vocabulary field is proposed as a
 URI.
+
+**The status belongs to the instance, not to the API.** WLO uses `100_tocheck`.
+A guessed value is stored and read back without complaint — and files the
+material into a queue that does not exist.
 
 ---
 

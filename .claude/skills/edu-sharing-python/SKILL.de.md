@@ -103,8 +103,12 @@ answer = repo.flows.search("Bruchrechnung", subject="Mathematik", limit=5)   # d
 ```
 
 Such-Kurznamen: `subject`, `level`, `type`, `license`, `difficulty`
-(`STANDARD_FIELD_ALIASES`) — Labels übergeben, sie werden aufgelöst. Alles andere:
-`repo.searcher.search(text, filters={"ccm:taxonid": [uri]}, facets=["subject"])`.
+(`STANDARD_FIELD_ALIASES`) — Labels übergeben, sie werden aufgelöst. **Kurznamen
+gibt es nur als Schlüsselwort**: in `search(…)`, `update(…)`, `create_node(…)`
+und überall in `repo.flows.*`. Wo ein Aufruf eine Eigenschaft nennt —
+`filters=`, `facets=`, `properties=`, `repo.vocab.*`, `repo.resolve(…)`,
+`labels(…)` — steht der volle Name; ein Kurzname dort antwortet 400:
+`repo.searcher.search(text, filters={"ccm:taxonid": [uri]}, facets=["ccm:taxonid"])`.
 Eine vage Anfrage rankt besser mit `repo.flows.search(text, rerank=True)` —
 Stoppwörter und Synonyme sind ein `LanguageProfile`, als Vorgabe Deutsch (`GERMAN`).
 
@@ -209,14 +213,16 @@ uri = repo.resolve("ccm:taxonid", "Mathematik")  # ein Vokabularwert ist eine UR
 proposal = node.suggestions.propose("ccm:taxonid", uri, "Modell, Konfidenz 0.9")
 done = repo.flows.accept_suggestion(node.id, proposal.id)
 done["applied"], done["status"]                  # True -- geschrieben, zurückgelesen, markiert
-node.workflow.submit("GROUP_redaktion", "TO_BE_CHECKED", comment="Bitte prüfen")
+node.workflow.submit("GROUP_redaktion", "100_tocheck", comment="Bitte prüfen")
 ```
 
 **Vorschlagen, nicht schreiben**, für alles, was ein Modell entschieden hat:
 `propose` legt einen offenen Vorschlag an; `accept_suggestion` schreibt ihn und
 liest zurück, `node.suggestions.decide(ids, accept=True)` markiert ihn nur. Der
 Wert wird geschrieben, wie er ist — dort löst nichts ein Label auf, ein
-Vokabularfeld bekommt also seine URI.
+Vokabularfeld bekommt also seine URI. Der Workflow-Status gehört zur Instanz —
+`100_tocheck` auf WLO; ein geratener wird ohne Beanstandung gespeichert und
+erreicht keine Warteschlange. `history()` liefert die neuesten zuerst.
 
 ### 3.8 Beziehungen, Kindobjekte, Vokabular, Personen
 
