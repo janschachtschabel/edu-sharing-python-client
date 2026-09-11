@@ -102,8 +102,31 @@ Was der Agent noch raten musste, ist Deutung der Aufgabe statt Lücke im Skill �
 mit einer Ausnahme: der Mimetype für Markdown stand nirgends. Gemessen und
 nachgetragen (`text/markdown`, `application/json`).
 
+### Nachlauf (12.09.2026): die schreibenden Aufgaben live
+
+Die schreibenden Abnahmeaufgaben liefen bisher nie. Jetzt gegen Staging, jede
+in ihrem eigenen Wegwerf-Ordner, danach `delete(recycle=False)` — geändert war
+an den Dateien des Agenten nur diese eine Zeile.
+
+| Aufgabe | Ergebnis |
+|---|---|
+| r4 Markdown anlegen, hochladen, auslesen | grün — leerer `text()`, `reason="repository_failed"`, nach `publish()` `source="download"`, Inhalt identisch |
+| r5 Schlagworte über die Flow-Ebene ergänzen | grün — `['Anfangswort', 'Neu1', 'Neu2']`, nichts verloren |
+| r6 zur Prüfung einreichen | grün — `100_tocheck` an `GROUP_redaktion`, im Verlauf bestätigt |
+| r7 roher Transport → `wrap` → Titel setzen | **rot** — siehe unten |
+| r8 Unterordner auflisten | grün — `only="folders"`, `sort`, 3 von 3 |
+
+**Was r7 fand:** `repo.nodes.wrap` stand als „ein Datensatz aus irgendeiner
+Antwort" da. Der ganze Antwortkörper ergibt einen Knoten mit leerer `id`, und
+erst der nächste Aufruf sagt es. `wrap` nimmt den Knoten-Datensatz
+(`body["node"]`). Berichtigt, und mit der berichtigten Zeile lief r7 durch.
+Nebenbei gemessen: `text/markdown` kommt als `text/x-web-markdown` zurück.
+
+**Geteilt:** `tests/test_docs_code.py` (684 Zeilen, zwei Fragen) ist in
+`test_docs_code.py` (Existenz, 426) und `test_docs_signatures.py` (Bindung,
+292) zerlegt — wortgleich verschoben, 2463 Tests grün wie vorher.
+
 ### Offen
 
 - Befund 23 (siehe oben).
-- Die schreibenden Aufgaben des zweiten Laufs (r4–r8) sind nur statisch
-  geprüft, wie im ersten Lauf.
+- Der Upload der ZIP zu claude.ai bleibt ungeprüft — Sache des Nutzers.
