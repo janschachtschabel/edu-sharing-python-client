@@ -36,8 +36,35 @@ and in [`docs/audits/`](docs/audits/).
   answers 403 even for its owner, and `qas` needs Write for that account.
 - `docs/examples/22_bapi_templates.py` (reading) and `23_ai_suggestions.py`
   (the model proposes keywords, `accept_suggestion` takes the best one over),
-  the "template mode" sections in both READMEs and REFERENCEs, trap 5.16 in
-  the skill, and `tests/test_live_bapi_templates.py` (7 reading, 3 writing).
+  the "template mode" sections in both READMEs and REFERENCEs, trap 2.16 in
+  the skill's `reference/TRAPS.md`, and `tests/test_live_bapi_templates.py`
+  (7 reading, 3 writing).
+- **The skill is a usage guide and carries its references.**
+  `.claude/skills/edu-sharing-python/` was a routing table that named every
+  public name but showed few calls: 59 of 83 call forms with mandatory
+  parameters appeared nowhere with those parameters, and every detail sat
+  behind links to `../../../docs`, dead once the folder is copied. The new
+  entry, English and German, under 500 lines each: installing and connecting,
+  thirteen recipes with the shape of what comes back, every call with its
+  parameters, the error classes, ten traps. `reference/` carries copies of
+  REFERENCE and FLOWS in both languages, all 23 examples, and `TRAPS.md` —
+  the data model and the sixteen measured traps, moved out of the old entry
+  unchanged.
+- `scripts/sync_skill.py` keeps those copies equal to `docs/` (`--check` exits
+  1 on a difference); `scripts/build_skill_zip.py` builds
+  `dist/edu-sharing-python.zip` for claude.ai — the folder as its root, the
+  description's first sentence as the description (claude.ai takes 200
+  characters), the same bytes on every run.
+- README section *Using the skill in your own tool*: where the folder goes for
+  Claude Code and for OpenAI Codex, and the ZIP for claude.ai.
+- Tables of contents in REFERENCE and FLOWS, in both languages.
+- **Guards for what a copied call needs.** `tests/test_skill_bundle.py`: copies
+  equal, entry under 500 lines, no link out of the folder, every reference file
+  linked directly, the frontmatter rules, the ZIP — and every call form with its
+  mandatory parameters shown in both entries. `tests/test_docs_code.py`: every
+  call in a code block binds to the real signature, short names are checked
+  against the table their `ValidationError` comes from (the mapping is verified
+  offline, not believed), no list is passed to `*keywords`, every import exists.
 
 ### Changed
 
@@ -62,6 +89,17 @@ and in [`docs/audits/`](docs/audits/).
   twelve groups, and `/v3/api-docs/openai` and `/v3/api-docs/academiccloud`
   describe both — as the OpenAI surface, not as what a provider serves, so the
   measured list of forwarded routes stays the source of truth.
+- **Six calls in REFERENCE that failed when copied.** `api.embeddings` and
+  `api.moderate` without their required `model`, at a provider that has
+  neither route — and `moderate` returns one `Moderation`, not a list;
+  `node.add_keywords(["…"])` with a list, where `*keywords` takes single values
+  (an `AttributeError`); `node.update(subject=…)` and `plan_update(…,
+  subject=…)`, where `subject` is no write short name (a `ValidationError`);
+  `edusharing.flows.ranking`, which is `edusharing.ranking`; and
+  `exc.node_id` on a `SilentDropError`, which has `dropped`, a list. Every
+  corrected value was measured against staging on 2026-09-11. The old skill
+  entry taught two errors as well: `add_keywords([...])`, and `Answer` as what
+  `chat()` returns — it returns a `str`.
 - **`BildungsAPI` error messages show a provider's refusal as its sentence.**
   The gateway passes the provider's error through as it came,
   `{"error": {"message": ...}}` with no `message` on top, and the message
