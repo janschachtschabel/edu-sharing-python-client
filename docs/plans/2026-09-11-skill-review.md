@@ -133,10 +133,35 @@ beurteilbar, die übrigen schreiben ihre Parameter selbst aus. Wo das Ziel
 selbst weiterreicht, schweigt sie, statt zu raten: gemessen hätte sie sonst
 `find_skills(subject=…)` fälschlich gemeldet.
 
+### Zweiter Review-Durchgang (12.09.2026)
+
+Dieselbe Frage noch einmal, gegen den korrigierten Stand — und dazu: habe ich
+mir mit den vielen neuen Zeilen neue Fehler eingehandelt?
+
+| Prüfung | Ergebnis |
+|---|---|
+| Befunde 1–22 in den Dateien | behoben |
+| jede echte Option bei ihrer Methode | 0 von 144 fehlen |
+| **jeder dokumentierte Parameter existiert** (Gegenrichtung, vorher nie geprüft) | 0 Befunde bei 228 von 278 auflösbaren Namen; die übrigen 50 sind Fassaden mit `**kwargs`, die vier davon in der Doku benutzten von Hand belegt |
+| dokumentierte Vorgabewerte gegen die Quelle | stimmen |
+| sync/async, EN/DE-Parität, annotierte Konstanten | sauber |
+
+Vier neue Befunde, alle behoben: die Legende versprach die Optionen „alle in
+REFERENCE" (Ablauf-Optionen stehen in FLOWS); der Logging-Absatz zählte die
+warnenden Stellen unbewacht ein zweites Mal auf; das Bündel verwies auf README
+und Testpfade, die außerhalb ins Leere zeigen; und `test_docs_complete.py`
+stellte mit 984 Zeilen zwei Fragen — Vollständigkeit blieb, die Behauptungen
+sind in `test_docs_claims.py` gezogen (402 und 597 Zeilen, 28 Tests wie zuvor).
+
+Nicht geändert: der Hinweis auf die Testdateien im HTML-Kommentar von
+`SKILL.de.md` — der richtet sich an die Pflege, nicht an den Lesenden.
+
 ### Offen
 
 - Befund 23 (siehe oben).
 - Der Upload der ZIP zu claude.ai bleibt ungeprüft — Sache des Nutzers.
+- `test_docs_claims.py` ist mit 597 Zeilen über der Schwelle, stellt aber eine
+  Frage; eine weitere Teilung zersplitterte sie.
 - Blockierende Fassaden, die zwei Ebenen tief weiterreichen
   (`Repository.children` → `SyncNodes.children` → `Nodes.children`), löst die
   Wache nicht auf; ihre Parameter stehen aber in der Referenz und `bind` prüft
