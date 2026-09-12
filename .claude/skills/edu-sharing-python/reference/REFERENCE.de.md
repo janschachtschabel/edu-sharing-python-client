@@ -2,16 +2,17 @@
 
 *[English version: REFERENCE.md](REFERENCE.md)*
 
-Das README erklärt *warum*, [FLOWS.de.md](FLOWS.de.md) erklärt die Abläufe
-ausführlich. Diese Datei ist die Nachschlagetabelle: jeder Name, den die
-Bibliothek herausgibt, der Aufruf dazu und die Form, die zurückkommt. Die als
-Kommentar gezeigten Ausgaben sind echte Formen, keine Skizzen.
+[FLOWS.de.md](FLOWS.de.md) erklärt die Abläufe ausführlich; das README im
+Repositorium erklärt *warum*. Diese Datei ist die Nachschlagetabelle: jeder
+Name, den die Bibliothek herausgibt, der Aufruf dazu und die Form, die
+zurückkommt. Die als Kommentar gezeigten Ausgaben sind echte Formen, keine
+Skizzen.
 
-Ein Test hält die Datei vollständig: `tests/test_docs_complete.py` schlägt fehl,
-sobald ein öffentlicher Name hier oder in der englischen Fassung fehlt. Eine
-Kopie reist mit dem Skill für Coding-Agenten, in
-`.claude/skills/edu-sharing-python/reference/` — der README-Abschnitt *Den Skill
-im eigenen Werkzeug nutzen* sagt, wohin damit.
+Ein Test hält die Datei vollständig: er schlägt fehl, sobald ein öffentlicher
+Name hier oder in der englischen Fassung fehlt. Eine Kopie reist mit dem Skill
+für Coding-Agenten, in `.claude/skills/edu-sharing-python/reference/` — dieser
+Ordner gehört für Claude Code nach `~/.claude/skills/`, für OpenAI Codex nach
+`~/.agents/skills/`, oder in ein Projekt als `<projekt>/.claude/skills/`.
 
 **Die Beispiele sind für `AsyncRepository` geschrieben.** Mit dem
 blockierenden `Repository` das `await` weglassen — jeder Aufruf auf `repo.…`
@@ -186,9 +187,9 @@ sie einschaltet — `logging.getLogger("edusharing").setLevel(logging.INFO)`
 meldet Wiederholungen und welches Gateway-Modell geantwortet hat, `DEBUG`
 zusätzlich Methode und URL jeder Anfrage. `WARNING` ist die Ausnahme vom
 Schweigen und immer an, weil jede Meldung etwas nennt, das der Aufrufer sonst
-nie erführe: eine abgelehnte Extraktionsadresse, ein leer zurückgebliebenes
-Kindobjekt, ein Modell, das die Bibliothek gewählt hat, obwohl der Anbieter es
-abgekündigt hat, eine Hintergrundschleife, die nicht rechtzeitig stehen blieb.
+nie erführe — etwa eine abgelehnte Extraktionsadresse oder ein leer
+zurückgebliebenes Kindobjekt. Welche Module warnen, zählt das README auf, und
+ein Test hält diese Liste an dem, was der Code tut.
 
 ### Der rohe Transport
 
@@ -1682,7 +1683,7 @@ Derselbe Datensatz konnte deshalb je nach Objekt einen anderen Titel zeigen
 **`path_segment` ist die eine Stelle, an der Bezeichner kodiert werden**
 (Entscheidung E8). Es kodiert auch `/` und kann deshalb nicht auf eine
 mehrteilige Route angewandt werden — die werden stattdessen geprüft.
-`tests/test_path_safety.py` schlägt fehl, wenn eine neue Aufrufstelle es
+Ein Test im Repositorium schlägt fehl, wenn eine neue Aufrufstelle es
 auslässt.
 
 Kodieren ist nicht die ganze Arbeit. `.` und `..` sind unreserviert, `quote`

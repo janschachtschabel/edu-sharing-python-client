@@ -344,8 +344,9 @@ model's URL is fetched: `check_url(url)`. Before a model's change is written:
 
 ## 4. The surface — every call
 
-`→` is what comes back; `…` stands for optional parameters, all in
-[REFERENCE.md](reference/REFERENCE.md). Blocking: the same calls without `await`.
+`→` is what comes back; `…` stands for optional parameters — all of them in
+[REFERENCE.md](reference/REFERENCE.md), those of the flows in
+[FLOWS.md](reference/FLOWS.md). Blocking: the same calls without `await`.
 
 | On | Call → result |
 |---|---|

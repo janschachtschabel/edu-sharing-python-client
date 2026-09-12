@@ -359,8 +359,9 @@ Bevor die Änderung eines Modells geschrieben wird:
 
 ## 4. Die Oberfläche — jeder Aufruf
 
-`→` ist, was zurückkommt; `…` steht für optionale Parameter, alle in
-[REFERENCE.de.md](reference/REFERENCE.de.md). Blockierend: dieselben Aufrufe ohne `await`.
+`→` ist, was zurückkommt; `…` steht für optionale Parameter — alle in
+[REFERENCE.de.md](reference/REFERENCE.de.md), die der Abläufe in
+[FLOWS.de.md](reference/FLOWS.de.md). Blockierend: dieselben Aufrufe ohne `await`.
 
 | An | Aufruf → Ergebnis |
 |---|---|

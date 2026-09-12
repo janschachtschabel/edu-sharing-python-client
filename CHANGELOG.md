@@ -94,6 +94,17 @@ and in [`docs/audits/`](docs/audits/).
   a result that carries asynchronous methods, and it covers `repo.nodes`,
   `collections`, `searcher` and `vocab`, which it had never called. Found by
   the skill review of 2026-09-11.
+- **What a second review pass found in the corrections themselves.** The
+  entry's legend still promised every optional parameter in REFERENCE, while
+  the flow options live in FLOWS — it names both now. The logging paragraph
+  enumerated the warning places a second time, unguarded beside the README
+  list the test holds; it gives two examples and points at that list. And the
+  references pointing out of the skill folder are gone: where the folder goes
+  is written out, and the tests are named as "a test in the repository", since
+  a reader with the copy has no repository. Verified alongside: every
+  documented parameter exists (0 findings across 228 resolvable names), the
+  documented defaults match the source, and no short name sits in a property
+  position.
 - **The signature guard follows `**kwargs` one level on.** A flow that takes
   `**kwargs` and passes everything on used to bind anything:
   `repo.flows.page("c", widgets_aufloesen=True)` was accepted although

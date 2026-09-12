@@ -2,15 +2,16 @@
 
 *Deutsche Fassung: [REFERENCE.de.md](REFERENCE.de.md)*
 
-The README explains *why*; [FLOWS.md](FLOWS.md) explains the flows in depth.
-This file is the lookup table: every name the library exports, the call that
-uses it, and the shape that comes back. Outputs shown as comments are real
-shapes, not sketches.
+[FLOWS.md](FLOWS.md) explains the flows in depth; the project's README, in the
+repository, explains *why*. This file is the lookup table: every name the
+library exports, the call that uses it, and the shape that comes back. Outputs
+shown as comments are real shapes, not sketches.
 
-A test keeps this file complete: `tests/test_docs_complete.py` fails when a
-public name is missing here or in the German version. A copy travels with the
-skill for coding agents, in `.claude/skills/edu-sharing-python/reference/` —
-the README section *Using the skill in your own tool* says where to put it.
+A test keeps this file complete: it fails when a public name is missing here or
+in the German version. A copy travels with the skill for coding agents, in
+`.claude/skills/edu-sharing-python/reference/` — that folder goes to
+`~/.claude/skills/` for Claude Code, to `~/.agents/skills/` for OpenAI Codex,
+or into a project as `<project>/.claude/skills/`.
 
 **The examples are written for `AsyncRepository`.** With the blocking
 `Repository`, leave out the `await` — every call on `repo.…` has a blocking
@@ -179,9 +180,9 @@ silent at `INFO` and `DEBUG` until a service switches them on —
 `logging.getLogger("edusharing").setLevel(logging.INFO)` reports retries and
 which gateway model answered, `DEBUG` adds method and URL of every request.
 `WARNING` is the exception to the silence and always on, because each one names
-something the caller would otherwise never learn: a refused extraction address,
-a child object left behind empty, a model the library picked although the
-provider has retired it, a background loop that did not stop in time.
+something the caller would otherwise never learn — a refused extraction address,
+say, or a child object left behind empty. Which modules warn is listed in the
+README, and a test holds that list to what the code actually does.
 
 ### The raw transport
 
@@ -1652,7 +1653,7 @@ arrived as (audit MNT-1).
 
 **`path_segment` is the single place identifiers are encoded** (decision E8). It
 encodes `/` too, so it cannot be applied to a multi-segment route — those are
-validated instead. `tests/test_path_safety.py` fails when a new call site
+validated instead. A test in the repository fails when a new call site
 skips it.
 
 Encoding is not the whole job. `.` and `..` are unreserved, so `quote`
