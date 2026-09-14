@@ -16,6 +16,12 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Added
 
+- **Binary b-api responses** through `BildungsAPI.call_bytes(route, body,
+  provider=…, max_bytes=…)`. JSON request bodies can now receive audio or other
+  binary data without a JSON decoding error. Optional decoded-byte limits share
+  the bounded download reader, including gzip handling; HTTP errors and retries
+  keep their existing behavior (audit B01, 2026-09-14).
+
 - **The b-api's template mode, `BapiTemplates`** (`edusharing.bapi`). The
   gateway runs two ways: as a proxy, where the caller sends the prompt
   (`BildungsAPI`), and with prompts kept on the server, under
@@ -83,6 +89,22 @@ and in [`docs/audits/`](docs/audits/).
   `AttributeError` (review 2026-09-11).
 
 ### Fixed
+
+- **b-api response validation**: missing or non-boolean moderation decisions
+  raise `EduSharingError` instead of silently approving content. Invalid nested
+  chat, response and image data raises a field-specific library error without
+  echoing private text. Embeddings require complete, unique indices and finite,
+  non-empty vectors of equal length, returned in input order (B02/B03).
+- **URL duplicate comparison preserves username and password case.** Scheme
+  and host remain case-insensitive; credentials, ports, paths, queries and
+  fragments retain their identity (B04).
+- **Generated endpoints reject empty and whole-dot path parameters.** The
+  reproducible generation pass inserts independent `ValueError` guards before
+  URL construction, preventing HTTPX from shortening paths, including DELETE
+  requests. Valid dotted identifiers and percent encoding are unchanged (R10).
+- **Both skill entry points distinguish search APIs:** low-level `filters` and
+  `facets` take property names, while `repo.flows.search` accepts facet aliases
+  such as `subject` (D02).
 
 - **Two holes left in the blocking surface.** `repo.nodes.wrap(data)` handed
   a blocking caller the asynchronous `Node`: `SyncNodes` passed `wrap` through

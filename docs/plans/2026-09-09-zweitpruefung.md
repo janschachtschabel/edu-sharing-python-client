@@ -225,6 +225,11 @@ Fünf davon durch Mutation gefunden, eine beim Schreiben des Tests:
 
 ### R10 bleibt offen — als Entscheidung, nicht als Versäumnis
 
+Nachtrag 14.09.2026: Diese damalige Entscheidung wurde durch einen
+deterministischen Generierungsnachlauf abgelöst. R10 wird im
+[Umsetzungsplan der Audit-Korrekturen](2026-09-14-audit-fixes.md) geschlossen;
+der folgende Absatz beschreibt den damaligen Stand.
+
 Vier Wachen halten den gemessenen Zustand fest: der generierte Endpunkt nimmt
 `.` und `..`, die Komfortschicht weist sie ab, beide Sprachfassungen sagen es,
 und **kein handgeschriebenes Modul importiert `_generated`**. Die letzte ist

@@ -1061,7 +1061,8 @@ Template-Modus* weiter unten — eine eigene Klasse, von der diese nicht abhäng
 | `Moderation` | `categories`, `flagged`, `raw`, `scores` |
 | `api.images(prompt, model=…, n=…, size=…, provider=…)` | `list[GeneratedImage]` |
 | `GeneratedImage` | `b64`, `revised_prompt`, `url` |
-| `api.call(route, body, provider=…)` | das rohe JSON jeder durchgereichten Route |
+| `api.call(route, body, provider=…)` | das rohe JSON einer durchgereichten JSON-Route |
+| `api.call_bytes(route, body, provider=…, max_bytes=None)` | `bytes` einer durchgereichten Binärroute, etwa `audio/speech`; der Anfragekörper ist JSON |
 | `api.aclose()` | die Verbindung zurückgeben |
 
 ```python
@@ -1084,6 +1085,22 @@ verdict.scores                            # {"hate": …, …} -- alle 13 Katego
 
 await api.call("responses", {"model": "…", "input": "…"})
 ```
+
+`call_bytes` verwendet dieselben Routenprüfungen, Zugangsdaten, Wiederholungen
+und HTTP-Fehlerklassen wie `call`. `max_bytes` begrenzt auf Wunsch die dekodierte
+Antwort beim Einlesen, auch bei komprimierten Antworten; eine Überschreitung
+wirft `ContentTooLargeError`. `None` setzt keine Grenze, `0` erlaubt nur eine
+leere Antwort. Das Ergebnis wird als Bytes gesammelt, nicht als Ereignisstrom
+bereitgestellt. Ob Anbieter und Modell eine Binärroute unterstützen, muss am
+Gateway geprüft werden.
+
+Fehlerhafte verschachtelte Chat-, Response-, Bild- oder Moderationsdaten werfen
+`EduSharingError` mit dem Feldnamen, ohne den Inhalt auszugeben. Optionale
+fehlende oder null-Textfelder bleiben leer. Moderation verlangt ein explizites
+boolesches `flagged`; fehlende Daten gelten nie als Freigabe. Embeddings
+verlangen je Eingabe einen eindeutig indizierten, nicht leeren Vektor aus
+endlichen Zahlen, jeweils mit gleicher Länge, und kommen in Eingabereihenfolge
+zurück. `call` bleibt der Zugang zum rohen JSON.
 
 ### Was welcher Anbieter kann
 
@@ -1693,8 +1710,11 @@ Pfadsegment und mit `..` zwei und erreichte einen anderen Endpunkt als den
 gefragten. Ein gekürzter Pfad ist ein *Präfix* des gemeinten, weshalb die
 Wache über ausbrechende Bezeichner ihn nie sah. Beide werden zurückgewiesen.
 Ein Punkt *im* Bezeichner (`a.b`, `...`) normalisiert nichts weg und bleibt
-gültig. Die generierte Schicht baut ihre Pfade selbst und hat diese Prüfung
-nicht.
+gültig.
+Die generierte Schicht lehnt diese Werte vor dem Pfadaufbau mit ValueError ab.
+Ihre unabhängige Prüfung wird bei jedem Generieren durch
+`scripts/generate_client.py` eingesetzt; auch leere Pfadparameter werden dort
+zurückgewiesen.
 
 ---
 

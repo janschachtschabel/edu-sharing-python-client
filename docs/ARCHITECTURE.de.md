@@ -143,6 +143,14 @@ gehört zum Erzeugen, sie ist nicht optional. Die CI erzeugt bei jedem Push neu
 und verlangt einen sauberen Diff — ohne das ist „regenerierbar" eine Behauptung
 und keine Tatsache.
 
+Seit dem 14.09.2026 weist ein deterministischer Nachlauf auch leere und ganze
+Punkt-Pfadparameter (`.`, `..`) vor dem Adressaufbau zurück (Audit R10).
+Die generierte Schicht wirft `ValueError`, ohne die handgeschriebene Schicht
+zu importieren. Der Nachlauf prüft die Kodierungsausdrücke des festgehaltenen
+Generators anhand des Syntaxbaums und bricht bei unerwarteter Form ab;
+wiederholtes Anwenden ist idempotent. Regressionstests prüfen die Ablehnung,
+gültige Kodierung und das erneute Generieren.
+
 > **Der unterstützte Ausgabeort ist der im Projekt.** `--output` in ein
 > Verzeichnis ausserhalb des Projektlayouts ergab **556 abweichende Dateien**
 > (gemessen 09.09.2026) — andere Formatierung und `typing_extensions.Self`
@@ -532,6 +540,7 @@ läuft, kommt nicht ins README.
 | `urls.py` | Repository-URL normalisieren, Deep Links ablehnen |
 | `auth.py` | Zugangsdaten als Werte; Bearer abgelehnt; Passwörter nie im `repr` |
 | `transport.py` | httpx, Zeitlimit, Wiederholung, Nebenläufigkeit, Credential-Grenze |
+| `_http.py` | Begrenztes Einlesen dekodierter Antworten, gemeinsam für Repository-Downloads und binäre b-api-Aufrufe |
 | `_sync.py` | Ereignisschleife in einem Hintergrundfaden für die synchrone Fläche |
 | `repository.py` | `AsyncRepository` / `Repository`, `about()`, `whoami()`, `raw` |
 | `extraction.py` | Der Textextraktionsdienst neben dem Repositorium und die Prüfungen davor |
@@ -694,8 +703,9 @@ Bestand wurde nach jedem Lauf gegen seinen Ausgangszustand verglichen.
 | `agent/confirm.py` | Zeigen, was geschähe, und es dann tun |
 | `bapi/models.py` | Welches Modell: Wahl, Auslastung, Abkündigung — reine Funktionen |
 | `bapi/body.py` | Wie der Anfragerumpf aussehen muss — reine Funktionen |
+| `bapi/_response.py` | Verschachtelte Antwortprüfung für Proxy- und Template-Parser; explizite Entscheidungen und vollständige Embedding-Indizes |
 | `bapi/client.py` | HTTP zur b-api, Wiederholung, Nebenläufigkeit, Cache mit Verfallszeit |
-| `bapi/passthrough.py` | Die OpenAI-Routen, die das Gateway durchreicht — Einbettungen, Moderation, Bilder, und `call` für den Rest |
+| `bapi/passthrough.py` | Durchgereichte Routen — Einbettungen, Moderation, Bilder, `call` für JSON und `call_bytes` für binäre Antworten |
 
 Drei Entscheidungen, die eine Erklärung brauchen:
 

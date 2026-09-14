@@ -128,6 +128,13 @@ exits with code 1 if even one file fails to parse; the syntax check is part of
 generating, not optional. The CI regenerates on every push and requires a clean
 diff — without that, "regenerable" is a claim rather than a fact.
 
+Since 2026-09-14, a deterministic postprocessing pass also rejects empty and
+whole-dot (`.`, `..`) path parameters before URL construction (audit R10).
+The generated layer raises `ValueError` without importing the handwritten
+layer. The pass checks the pinned generator's escaping expressions through
+the AST and fails on an unexpected shape; repeated application is idempotent.
+Regression tests cover rejection, valid escaping and regeneration.
+
 > **The supported output location is the one in the project.** `--output` into
 > a directory outside the project layout produced **556 differing files**
 > (measured 2026-09-09) — different formatting, and `typing_extensions.Self`
@@ -480,6 +487,7 @@ does not go into the README.
 | `urls.py` | Normalise repository URL, reject deep links |
 | `auth.py` | Credentials as values; bearer rejected; passwords never in `repr` |
 | `transport.py` | httpx, timeout, retry, concurrency, credential boundary |
+| `_http.py` | Bounded decoded-response reading shared by repository downloads and binary b-api calls |
 | `_sync.py` | Event loop in a background thread for the synchronous surface |
 | `repository.py` | `AsyncRepository` / `Repository`, `about()`, `whoami()`, `raw` |
 | `extraction.py` | The text-extraction service beside the repository, and the guards before it |
@@ -631,8 +639,9 @@ holdings were compared against their initial state after every run.
 | `agent/confirm.py` | Show what would happen, then do it |
 | `bapi/models.py` | Which model: choice, load, retirement — pure functions |
 | `bapi/body.py` | What the request body must look like — pure functions |
+| `bapi/_response.py` | Nested response validation shared by proxy and template parsers; explicit decisions and complete embedding indices |
 | `bapi/client.py` | HTTP to the b-api, retry, concurrency, TTL cache |
-| `bapi/passthrough.py` | The OpenAI routes the gateway forwards — embeddings, moderation, images, and `call` for the rest |
+| `bapi/passthrough.py` | Forwarded routes — embeddings, moderation, images, `call` for JSON and `call_bytes` for binary responses |
 
 Three decisions that need explaining:
 

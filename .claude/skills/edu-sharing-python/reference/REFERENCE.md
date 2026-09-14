@@ -1039,7 +1039,8 @@ its own, which this one does not depend on.
 | `Moderation` | `categories`, `flagged`, `raw`, `scores` |
 | `api.images(prompt, model=…, n=…, size=…, provider=…)` | `list[GeneratedImage]` |
 | `GeneratedImage` | `b64`, `revised_prompt`, `url` |
-| `api.call(route, body, provider=…)` | the raw JSON of any forwarded route |
+| `api.call(route, body, provider=…)` | the raw JSON of a forwarded JSON route |
+| `api.call_bytes(route, body, provider=…, max_bytes=None)` | `bytes` from a forwarded binary route, such as `audio/speech`; the request body is JSON |
 | `api.aclose()` | give the connection back |
 
 ```python
@@ -1062,6 +1063,20 @@ verdict.scores                            # {"hate": …, …} -- all 13 categor
 
 await api.call("responses", {"model": "…", "input": "…"})
 ```
+
+`call_bytes` uses the same route checks, authentication, retries and HTTP error
+classes as `call`. `max_bytes` optionally limits the decoded response while
+streaming, including compressed responses; exceeding it raises
+`ContentTooLargeError`. `None` means no limit and `0` permits only an empty
+response. The result is collected into bytes, not exposed as an event stream.
+Provider and model support for a binary route must be checked at the gateway.
+
+Malformed nested chat, response, image or moderation data raises
+`EduSharingError` naming the field, without echoing the payload. Optional absent
+or null text stays empty. Moderation requires an explicit boolean `flagged`;
+missing data never becomes approval. Embeddings require one uniquely indexed,
+non-empty finite numeric vector per input, with equal vector lengths, and are
+returned in input order. `call` remains the escape hatch for raw JSON.
 
 ### What each provider can do
 
@@ -1663,7 +1678,9 @@ two, reaching a different endpoint than the one asked for. A shortened path
 is a *prefix* of the intended one, which is why the guard watching for
 identifiers leaving their path never saw it. Both are refused. A dot
 *inside* an identifier (`a.b`, `...`) normalises nothing and stays valid.
-The generated layer builds its own paths and does not have this check.
+The generated layer rejects these values with ValueError before building a path.
+Its independent guard is inserted by `scripts/generate_client.py` during every
+generation; empty path parameters are rejected there too.
 
 ---
 
