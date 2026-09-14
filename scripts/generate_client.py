@@ -33,6 +33,7 @@ import json
 import shutil
 import subprocess
 import sys
+import textwrap
 import tomllib
 import urllib.request
 from pathlib import Path
@@ -155,7 +156,9 @@ def write_provenance(output: Path, spec_bytes: bytes, quelle: str, info: dict) -
         f"- Quelle: `{quelle}`\n"
         f"- SHA-256 der Spec: `{hashlib.sha256(spec_bytes).hexdigest()}`\n\n"
         "Der Hash gilt fuer die Spec, wie sie gelesen wurde -- vor dem Entfernen\n"
-        "der Pfad-Parameter-Defaults, das das Skript deterministisch vornimmt.\n",
+        "der Pfad-Parameter-Defaults und der Normalisierung der Antwort-Inhaltstypen.\n"
+        "Nach dem Generieren setzt das Skript deterministische ValueError-Pruefungen\n"
+        "fuer leere und vollstaendige Punkt-Pfadsegmente (`.`, `..`) ein.\n",
         encoding="utf-8")
 
 
@@ -168,6 +171,52 @@ def verify_syntax(root: Path) -> list[str]:
         except SyntaxError as e:
             broken.append(f"{f.relative_to(root)}:{e.lineno}: {e.msg}")
     return broken
+
+
+def _quoted_path_names(function: ast.FunctionDef, path: Path) -> list[str]:
+    """Recognize the pinned generator's path escaping, failing on drift."""
+    parameters = {arg.arg for arg in function.args.args + function.args.kwonlyargs}
+    names = []
+    for node in ast.walk(function):
+        match node:
+            case ast.Call(func=ast.Name(id="quote"), args=[
+                ast.Call(func=ast.Name(id="str"), args=[ast.Name(id=name)], keywords=[])
+            ], keywords=[ast.keyword(arg="safe", value=ast.Constant(value=""))]):
+                if name not in parameters:
+                    raise ValueError(f"Unexpected quote expression in {path}: not a parameter")
+                if name not in names:
+                    names.append(name)
+            case ast.Call(func=ast.Name(id="quote")):
+                raise ValueError(f"Unexpected quote expression in {path}")
+    return names
+
+
+def guard_path_parameters(output: Path) -> int:
+    """Add reproducible guards before HTTPX can normalize empty/dot segments.
+
+    Generated code remains independent of the handwritten package. Only this
+    pass changes it; no vendored copy of an upstream template is needed (R10).
+    """
+    changed = 0
+    for path in sorted((output / "api").rglob("*.py")):
+        source = path.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=str(path))
+        function = next((n for n in tree.body
+                         if isinstance(n, ast.FunctionDef) and n.name == "_get_kwargs"), None)
+        if function is None or not (names := _quoted_path_names(function, path)):
+            continue
+        guard = (
+            f'if any(str(value) in ("", ".", "..") for value in ({", ".join(names)},)):\n'
+            '    raise ValueError("Path parameters must be non-empty and not dot segments.")\n'
+        )
+        first = function.body[1] if ast.get_docstring(function) is not None else function.body[0]
+        if ast.dump(first) == ast.dump(ast.parse(guard).body[0]):
+            continue
+        lines = source.splitlines(keepends=True)
+        lines.insert(first.lineno - 1, textwrap.indent(guard, " " * first.col_offset) + "\n")
+        path.write_text("".join(lines), encoding="utf-8")
+        changed += 1
+    return changed
 
 
 def main() -> int:
@@ -244,6 +293,8 @@ def main() -> int:
               file=sys.stderr)
         return 1
 
+    guarded = guard_path_parameters(args.output)
+    print(f"Path-parameter guards generated: {guarded} endpoints")
     broken = verify_syntax(args.output)
     total = sum(1 for _ in args.output.rglob("*.py"))
     if broken:

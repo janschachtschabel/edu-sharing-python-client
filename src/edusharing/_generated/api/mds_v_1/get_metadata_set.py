@@ -16,6 +16,9 @@ def _get_kwargs(
     metadataset: str,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (repository, metadataset,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     _kwargs: dict[str, Any] = {
         "method": "get",
         "url": "/mds/v1/metadatasets/{repository}/{metadataset}".format(

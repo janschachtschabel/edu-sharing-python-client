@@ -15,6 +15,9 @@ def _get_kwargs(
     group: str,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (group,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     _kwargs: dict[str, Any] = {
         "method": "get",
         "url": "/bulk/v1/find/group/{group}".format(

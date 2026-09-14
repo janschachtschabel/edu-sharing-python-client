@@ -21,6 +21,9 @@ def _get_kwargs(
     return_result: bool | Unset = True,
     setup_home_dir: bool | Unset = True,
 ) -> dict[str, Any]:
+    if any(str(value) in ("", ".", "..") for value in (repository, person,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     headers: dict[str, Any] = {}
 
     params: dict[str, Any] = {}

@@ -168,32 +168,59 @@ def test_die_fehlerzweige_lesen_weiterhin_json():
 
 # --- R10 (Zweitpruefung 09.09.2026): Punktsegmente im generierten Client ---
 #
-# Die Komfortschicht weist ``.`` und ``..`` seit F07 zurueck. Die generierte
-# tut es nicht: sie baut ihre Pfade mit ``quote(str(x), safe="")``, und der
-# Wert bleibt stehen, bis httpx die Adresse normalisiert.
-#
-# Es gibt keine Stelle, an der diese Bibliothek das abfangen koennte --
-# gemessen importiert **kein** handgeschriebenes Modul ``_generated``. Sie
-# umhuellt diese Schicht nicht und erreicht sie nicht. Bliebe eine eigene
-# Generatorvorlage: 160 Zeilen Jinja, von denen eine zu aendern waere, um
-# eine Schicht abzusichern, die diese Bibliothek selbst nicht benutzt.
-#
-# Solange das nicht entschieden ist, ist der Zustand hier **gemessen
-# festgehalten** statt unausgesprochen: eine bekannte Eigenschaft mit
-# Besitzer, keine Ueberraschung.
+# The former tests pinned the known gap. The 14 September implementation
+# changes that contract: the reproducible generation pass must reject those
+# values before HTTPX can normalize a destructive request's path.
 
 
-@pytest.mark.parametrize("punkt,erreicht", [
-    (".", "/rest/node/v1/nodes/-home-"),
-    ("..", "/rest/node/v1/nodes"),
-])
-def test_der_generierte_endpunkt_nimmt_punktsegmente_weiterhin(punkt, erreicht):
+@pytest.mark.parametrize("value", ["", ".", ".."])
+@pytest.mark.parametrize("parameter", ["repository", "node"])
+def test_generated_path_parameters_are_rejected_before_request_construction(value, parameter):
     from edusharing._generated.api.node_v_1 import delete
 
-    kwargs = delete._get_kwargs(repository="-home-", node=punkt)
-    with httpx.Client(base_url="https://repo.test/edu-sharing/rest") as c:
-        angefragt = c.build_request(**kwargs)
-    assert angefragt.url.path == f"/edu-sharing{erreicht}"
+    arguments = {"repository": "-home-", "node": "normal-id", parameter: value}
+    with pytest.raises(ValueError, match="Path parameters"):
+        delete._get_kwargs(**arguments)
+
+
+@pytest.mark.parametrize("node,encoded", [
+    ("id.with.dots", "id.with.dots"), ("...", "..."),
+    ("a/b?c#d", "a%2Fb%3Fc%23d"), ("%2E%2E", "%252E%252E"),
+])
+def test_generated_paths_keep_valid_identifiers_and_existing_escaping(node, encoded):
+    from edusharing._generated.api.node_v_1 import delete
+
+    kwargs = delete._get_kwargs(repository="-home-", node=node)
+    assert kwargs["url"] == f"/node/v1/nodes/-home-/{encoded}"
+
+
+def test_path_guard_generation_is_idempotent_and_preserves_other_code(tmp_path):
+    endpoint = tmp_path / "api" / "nodes" / "get.py"
+    endpoint.parent.mkdir(parents=True)
+    source = ('from urllib.parse import quote\n\n'
+              'def _get_kwargs(node: str):\n'
+              '    return {"url": "/nodes/" + quote(str(node), safe="")}\n')
+    endpoint.write_text(source, encoding="utf-8")
+    generate = _erzeugungsweg()
+    assert generate.guard_path_parameters(tmp_path) == 1
+    guarded = endpoint.read_bytes()
+    assert generate.guard_path_parameters(tmp_path) == 0
+    assert endpoint.read_bytes() == guarded
+    scope = {}
+    exec(compile(guarded, str(endpoint), "exec"), scope)
+    with pytest.raises(ValueError):
+        scope["_get_kwargs"]("..")
+    assert scope["_get_kwargs"]("a/b") == {"url": "/nodes/a%2Fb"}
+
+
+def test_unexpected_generator_quote_shape_is_rejected(tmp_path):
+    endpoint = tmp_path / "api" / "get.py"
+    endpoint.parent.mkdir()
+    endpoint.write_text('from urllib.parse import quote\n'
+                        'def _get_kwargs(node: str):\n'
+                        '    return quote(node, safe="")\n', encoding="utf-8")
+    with pytest.raises(ValueError, match="quote expression"):
+        _erzeugungsweg().guard_path_parameters(tmp_path)
 
 
 @pytest.mark.parametrize("punkt", [".", ".."])
@@ -211,9 +238,9 @@ def test_die_komfortschicht_weist_dieselben_werte_ab(punkt):
 #: Nicht irgendein Vorkommen der Woerter -- die Aussage selbst.
 GRENZE_GESAGT = {
     "docs/REFERENCE.md":
-        "The generated layer builds its own paths and does not have this check.",
+        "The generated layer rejects these values with ValueError before building a path.",
     "docs/REFERENCE.de.md":
-        "Die generierte Schicht baut ihre Pfade selbst und hat diese Prüfung\nnicht.",
+        "Die generierte Schicht lehnt diese Werte vor dem Pfadaufbau mit ValueError ab.",
 }
 
 

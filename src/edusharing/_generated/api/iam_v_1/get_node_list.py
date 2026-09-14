@@ -21,6 +21,9 @@ def _get_kwargs(
     sort_ascending: list[bool] | Unset = UNSET,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (repository, person, list_,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     params: dict[str, Any] = {}
 
     json_property_filter: list[str] | Unset = UNSET

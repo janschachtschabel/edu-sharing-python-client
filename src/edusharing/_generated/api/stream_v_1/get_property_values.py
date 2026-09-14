@@ -16,6 +16,9 @@ def _get_kwargs(
     property_: str,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (repository, property_,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     _kwargs: dict[str, Any] = {
         "method": "get",
         "url": "/stream/v1/properties/{repository}/{property_}".format(

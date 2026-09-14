@@ -15,6 +15,9 @@ def _get_kwargs(
     xml: str,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (xml,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     _kwargs: dict[str, Any] = {
         "method": "get",
         "url": "/admin/v1/applications/{xml}".format(

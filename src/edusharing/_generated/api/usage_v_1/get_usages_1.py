@@ -19,6 +19,9 @@ def _get_kwargs(
     to: int | Unset = UNSET,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (repository_id, node_id,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     params: dict[str, Any] = {}
 
     params["from"] = from_

@@ -15,6 +15,9 @@ def _get_kwargs(
     *,
     body: LtiTargetBody | Unset = UNSET,
 ) -> dict[str, Any]:
+    if any(str(value) in ("", ".", "..") for value in (node_id,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     headers: dict[str, Any] = {}
 
     _kwargs: dict[str, Any] = {

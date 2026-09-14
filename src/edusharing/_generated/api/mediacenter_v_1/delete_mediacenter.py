@@ -15,6 +15,9 @@ def _get_kwargs(
     mediacenter: str,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (repository, mediacenter,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     _kwargs: dict[str, Any] = {
         "method": "delete",
         "url": "/mediacenter/v1/mediacenter/{repository}/{mediacenter}".format(

@@ -20,6 +20,9 @@ def _get_kwargs(
     password: str | Unset = UNSET,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (repository, node, share_id,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     params: dict[str, Any] = {}
 
     params["expiryDate"] = expiry_date

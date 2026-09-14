@@ -16,6 +16,9 @@ def _get_kwargs(
     submission_file_id: str,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (assignment_id, submission_id, submission_file_id,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     _kwargs: dict[str, Any] = {
         "method": "delete",
         "url": "/assignment/v1/{assignment_id}/submissions/{submission_id}/files/{submission_file_id}".format(

@@ -20,6 +20,9 @@ def _get_kwargs(
     rename_if_exists: bool | Unset = False,
     version_comment: str | Unset = UNSET,
 ) -> dict[str, Any]:
+    if any(str(value) in ("", ".", "..") for value in (repository, toolinstance,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     headers: dict[str, Any] = {}
 
     params: dict[str, Any] = {}

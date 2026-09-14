@@ -17,6 +17,9 @@ def _get_kwargs(
     date_from: int,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (id,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     params: dict[str, Any] = {}
 
     params["dateFrom"] = date_from

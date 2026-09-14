@@ -21,6 +21,9 @@ def _get_kwargs(
     node_id: list[str] | Unset = UNSET,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (repository, metadataset, widget,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     params: dict[str, Any] = {}
 
     params["caption"] = caption

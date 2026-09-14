@@ -21,6 +21,9 @@ def _get_kwargs(
     as_proposal: bool | Unset = False,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (repository, collection, node,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     params: dict[str, Any] = {}
 
     params["sourceRepo"] = source_repo

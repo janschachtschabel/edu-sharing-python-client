@@ -18,6 +18,9 @@ def _get_kwargs(
     status: CreateOrUpdateAssignment1Status | Unset = UNSET,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (assignment_id,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     params: dict[str, Any] = {}
 
     json_status: str | Unset = UNSET

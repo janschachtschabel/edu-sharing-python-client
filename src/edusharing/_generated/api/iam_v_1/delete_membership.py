@@ -16,6 +16,9 @@ def _get_kwargs(
     member: str,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (repository, group, member,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     _kwargs: dict[str, Any] = {
         "method": "delete",
         "url": "/iam/v1/groups/{repository}/{group}/members/{member}".format(

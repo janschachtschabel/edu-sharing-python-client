@@ -19,6 +19,9 @@ def _get_kwargs(
     after: datetime.datetime,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (repository, user,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     params: dict[str, Any] = {}
 
     json_after = after.isoformat()

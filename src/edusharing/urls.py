@@ -312,9 +312,10 @@ def path_segment(value: str) -> str:
     here instead. Only the whole segment: ``a.b`` and ``...`` normalise
     nothing away and stay valid identifiers.
 
-    The generated layer builds its own paths with the same ``quote`` call and
-    does **not** have this check -- it is machine output and is not edited by
-    hand. Everything this library wraps goes through here.
+    The independent generated layer rejects the same values with ``ValueError``
+    before building paths. Its guards come from ``scripts/generate_client.py``;
+    generated files are not edited by hand. Everything this library wraps goes
+    through here and raises ``EduSharingError`` instead.
 
     Raises:
         EduSharingError: on an empty value, which would collapse into a double

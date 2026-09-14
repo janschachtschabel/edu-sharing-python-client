@@ -20,6 +20,9 @@ def _get_kwargs(
     version_comment: str | Unset = UNSET,
     mimetype: str,
 ) -> dict[str, Any]:
+    if any(str(value) in ("", ".", "..") for value in (repository, node,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     headers: dict[str, Any] = {}
 
     params: dict[str, Any] = {}

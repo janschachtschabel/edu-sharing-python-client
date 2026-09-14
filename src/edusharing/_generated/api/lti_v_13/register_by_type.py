@@ -19,6 +19,9 @@ def _get_kwargs(
     deployment_id: str | Unset = UNSET,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (type_,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     params: dict[str, Any] = {}
 
     params["baseUrl"] = base_url

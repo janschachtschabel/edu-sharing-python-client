@@ -16,6 +16,9 @@ def _get_kwargs(
     user: str,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (repository, node, user,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     _kwargs: dict[str, Any] = {
         "method": "get",
         "url": "/node/v1/nodes/{repository}/{node}/permissions/{user}".format(

@@ -20,6 +20,9 @@ def _get_kwargs(
     property_filter: list[str] | Unset = UNSET,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (repository, node, major, minor,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     params: dict[str, Any] = {}
 
     json_property_filter: list[str] | Unset = UNSET

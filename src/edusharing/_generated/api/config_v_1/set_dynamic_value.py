@@ -17,6 +17,9 @@ def _get_kwargs(
     body: str,
     public: bool,
 ) -> dict[str, Any]:
+    if any(str(value) in ("", ".", "..") for value in (key,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     headers: dict[str, Any] = {}
 
     params: dict[str, Any] = {}

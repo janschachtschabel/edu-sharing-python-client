@@ -18,6 +18,9 @@ def _get_kwargs(
     resolve_organizations: bool | Unset = UNSET,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (repository, group,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     params: dict[str, Any] = {}
 
     params["resolveOrganizations"] = resolve_organizations

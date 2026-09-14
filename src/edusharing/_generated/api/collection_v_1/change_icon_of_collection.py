@@ -19,6 +19,9 @@ def _get_kwargs(
     body: ChangeIconOfCollectionBody | Unset = UNSET,
     mimetype: str,
 ) -> dict[str, Any]:
+    if any(str(value) in ("", ".", "..") for value in (repository, collection,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     headers: dict[str, Any] = {}
 
     params: dict[str, Any] = {}
