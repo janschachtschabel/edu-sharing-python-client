@@ -65,8 +65,8 @@ _NOT_A_CRITERION = (
 
 
 def _comparable(url: str) -> str | None:
-    """The address as a comparison key -- scheme and authority lowered, the
-    rest left exactly as it is -- or ``None`` when it cannot be read at all.
+    """The address as a comparison key -- scheme and host lowered, user
+    information and the rest unchanged -- or ``None`` when it cannot be read.
 
     Until 2026-09-09 the **whole** address was lowered, path and query
     included, and the module said so ("ignores case and nothing else"). It was
@@ -94,7 +94,11 @@ def _comparable(url: str) -> str | None:
         return None
     if not teile.scheme or not teile.netloc:
         return url.strip()
-    return urlunsplit((teile.scheme.lower(), teile.netloc.lower(),
+    # netloc includes user information: lowercasing it also changes passwords
+    # and can make a different credential-bearing URL match (audit B04).
+    userinfo, separator, hostport = teile.netloc.rpartition("@")
+    authority = userinfo + separator + hostport.lower()
+    return urlunsplit((teile.scheme.lower(), authority,
                        teile.path, teile.query, teile.fragment))
 
 
