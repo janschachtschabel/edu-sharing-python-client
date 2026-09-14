@@ -39,6 +39,7 @@ from typing import Any, Self
 
 import httpx
 
+from .._http import _read_bounded_response
 from ..errors import (
     EduSharingError,
     RateLimitedError,
@@ -515,19 +516,47 @@ class BildungsAPI:
     async def call(
         self, route: str, body: dict[str, Any], *, provider: str | None = None,
     ) -> dict[str, Any]:
-        """Any other forwarded route. See ``passthrough.call``.
+        """Any other JSON route. See ``passthrough.call``.
 
         The escape hatch, as ``repo.raw`` is on the edu-sharing side:
-        ``await llm.call("audio/speech", {...})``.
+        ``await llm.call("completions", {...})``. For an audio file use
+        ``call_bytes`` instead.
         """
         return await passthrough.call(self, route, body, provider=provider)
+
+    async def call_bytes(
+        self, route: str, body: dict[str, Any], *, provider: str | None = None,
+        max_bytes: int | None = None,
+    ) -> bytes:
+        """POST a JSON body and receive bytes, e.g. from ``audio/speech``.
+
+        Args:
+            route: forwarded route without a leading slash.
+            body: the provider's JSON request body, passed through untouched.
+            provider: overrides this client's default for the call.
+            max_bytes: optional non-negative decoded-byte limit. With a limit,
+                the response is read in chunks and refused above it.
+
+        Returns:
+            The response bytes after HTTP content decoding, without audio
+            transcoding. This method supports neither multipart requests nor
+            event streaming; ``call`` remains the JSON-response counterpart.
+
+        Raises:
+            ContentTooLargeError: the decoded response exceeds ``max_bytes``.
+            ValidationError: the route cannot be addressed safely.
+            EduSharingError: invalid limit, or the gateway refuses the request.
+        """
+        return await passthrough.call_bytes(
+            self, route, body, provider=provider, max_bytes=max_bytes)
 
     async def _pick(self, provider: str) -> Model:
         return pick_model(await self.models(provider))
 
     async def _request(
         self, method: str, path: str, *,
-        max_retries: int | None = None, **kwargs: Any,
+        max_retries: int | None = None, response_bytes: bool = False,
+        max_bytes: int | None = None, **kwargs: Any,
     ) -> Any:
         """One request, retried within the given budget.
 
@@ -550,12 +579,9 @@ class BildungsAPI:
                 await asyncio.sleep(pause)
             try:
                 async with self._semaphore:
-                    response = await self._client.request(
-                        method, url,
-                        headers={"X-API-KEY": self._api_key,
-                                 "Accept": "application/json"},
-                        **kwargs,
-                    )
+                    response = await self._send(
+                        method, url, response_bytes=response_bytes,
+                        max_bytes=max_bytes, **kwargs)
             except httpx.HTTPError as exc:
                 last = EduSharingError(f"{type(exc).__name__}: {exc}", url=url)
                 continue
@@ -566,6 +592,8 @@ class BildungsAPI:
                     service="the b-api", env_var=ENV_BASE_URL,
                 )
             if response.status_code < 400:
+                if response_bytes:
+                    return response.content
                 try:
                     return response.json()
                 except ValueError as exc:
@@ -583,6 +611,17 @@ class BildungsAPI:
         # itself return or raise. An assert here would vanish under ``python -O``
         # and turn into ``raise None`` -- a TypeError instead of the real cause.
         raise last  # type: ignore[misc]
+
+    async def _send(
+        self, method: str, url: str, *, response_bytes: bool,
+        max_bytes: int | None, **kwargs: Any,
+    ) -> httpx.Response:
+        headers = {"X-API-KEY": self._api_key,
+                   "Accept": "*/*" if response_bytes else "application/json"}
+        if max_bytes is None:
+            return await self._client.request(method, url, headers=headers, **kwargs)
+        async with self._client.stream(method, url, headers=headers, **kwargs) as response:
+            return await _read_bounded_response(response, max_bytes, url)
 
     def _error(self, response: httpx.Response, url: str) -> EduSharingError:
         """Build an error from the b-api response.

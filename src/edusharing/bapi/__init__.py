@@ -12,8 +12,9 @@ switched off, where the very same flag is rejected with 400 -- live in
 there.
 
 The gateway forwards more than chat. ``embeddings``, ``moderate`` and ``images``
-have methods of their own, and ``call`` reaches the rest -- ``responses``,
-``audio/speech``, ``batches``. Which routes are forwarded at all was measured,
+have methods of their own; ``call`` reaches other JSON routes such as
+``responses`` and ``batches``, while ``call_bytes`` reads binary responses such
+as ``audio/speech``. Which routes are forwarded at all was measured,
 not read: see ``passthrough``, whose docstring also says why ``/v3/api-docs``
 cannot answer that question.
 

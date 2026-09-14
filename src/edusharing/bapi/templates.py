@@ -52,6 +52,7 @@ from ..retry import RetryPolicy, parse_retry_after
 from ..suggestions import Suggestion
 from ..transport import _BEFORE_SENDING
 from ..urls import refuse_userinfo
+from ._response import _object
 from .body import read_answer
 from .client import (
     DEFAULT_BACKOFF_BASE,
@@ -68,7 +69,6 @@ from .template_body import (
     NodeConfig,
     Values,
     _as_lists,
-    _object,
     _pairs,
     _records,
     _template_body,

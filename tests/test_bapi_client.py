@@ -906,7 +906,8 @@ async def test_die_ablehnung_des_anbieters_liest_sich_als_satz():
 #: Gemessen am 11.09.2026, bevor der Template-Modus dazukam -- an einer
 #: Instanz: die Methoden und die Attribute, die ``__init__`` setzt.
 PROXY_FLAECHE = frozenset({
-    "aclose", "call", "chat", "embeddings", "from_env", "images", "load",
+    # B01 adds binary responses without coupling the proxy to template mode.
+    "aclose", "call", "call_bytes", "chat", "embeddings", "from_env", "images", "load",
     "models", "moderate", "respond",
     "backoff_base", "base_url", "last_model", "max_retries",
     "models_cache_seconds", "provider", "retries_before_switching",

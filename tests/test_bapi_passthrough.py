@@ -90,7 +90,8 @@ async def test_ein_einzelner_text_ergibt_eine_liste_mit_einem_vektor():
 
 async def test_einbettungen_gehen_an_die_richtige_route(aufrufe=None):
     aufrufe = []
-    async with _client(_antwortet(EINBETTUNG), aufrufe) as api:
+    einer = dict(EINBETTUNG, data=[EINBETTUNG["data"][0]])
+    async with _client(_antwortet(einer), aufrufe) as api:
         await api.embeddings("x", model="m", provider="openai")
     assert aufrufe[0].url.path.endswith("/api/v1/llm/openai/embeddings")
 
@@ -156,9 +157,9 @@ async def test_call_erreicht_jede_durchgereichte_route():
     trotzdem erreichbar -- 14 Routen bekommen keine dreizehn Wrapper."""
     aufrufe = []
     async with _client(_antwortet({"ok": True}), aufrufe) as api:
-        antwort = await api.call("audio/speech", {"model": "tts-1", "input": "hi"})
+        antwort = await api.call("completions", {"model": "m", "prompt": "hi"})
     assert antwort == {"ok": True}
-    assert aufrufe[0].url.path.endswith("/api/v1/llm/academiccloud/audio/speech")
+    assert aufrufe[0].url.path.endswith("/api/v1/llm/academiccloud/completions")
 
 
 async def test_call_lehnt_einen_fuehrenden_schraegstrich_ab():
