@@ -34,7 +34,7 @@ from typing import TYPE_CHECKING, Any
 from ..language import GERMAN, LanguageProfile
 from ..search import DEFAULT_FACET_LIMIT
 from . import collections as collection_search
-from . import contents, curate, describe, find, pages, suggest, tree
+from . import contents, context, curate, describe, find, pages, place, prepare, suggest, tree
 from . import skills as skill_flows
 from . import text as text_flow
 from .rerank import DEFAULT_POOL
@@ -56,6 +56,9 @@ class Flows:
         text: str | None = None,
         *,
         filters: dict[str, str | list[str]] | None = None,
+        raw_filters: dict[str, str | list[str]] | None = None,
+        locale: str | None = None,
+        strict: bool = False,
         facets: list[str] | None = None,
         limit: int = 10,
         offset: int = 0,
@@ -80,6 +83,7 @@ class Flows:
         """
         return await find.search(
             self._repo, text, filters=filters, facets=facets,
+            raw_filters=raw_filters, locale=locale, strict=strict,
             limit=limit, offset=offset, rerank=rerank, pool=pool,
             language=language, deduplicate=deduplicate, exclude_ids=exclude_ids,
             facet_limit=facet_limit, properties=properties, **aliases,
@@ -93,6 +97,20 @@ class Flows:
         ``collections.filters_ignored``.
         """
         return await collection_search.search_all(self._repo, text, **kwargs)
+
+    async def place_material(
+        self, node_id: str, collection_id: str, **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Place existing material. See ``place.place_material``."""
+        return await place.place_material(self._repo, node_id, collection_id, **kwargs)
+
+    async def collection_context(self, collection_id: str, **kwargs: Any) -> dict[str, Any]:
+        """Description, contents and statistics. See ``context.collection_context``."""
+        return await context.collection_context(self._repo, collection_id, **kwargs)
+
+    async def prepare_material(self, url: str, **kwargs: Any) -> dict[str, Any]:
+        """Read-only material draft. See ``prepare.prepare_material``."""
+        return await prepare.prepare_material(self._repo, url, **kwargs)
 
     async def vocabulary(self, field: str, *, locale: str | None = None) -> dict[str, Any]:
         """The values a field accepts. See ``find.vocabulary``."""
@@ -236,7 +254,7 @@ class Flows:
 
     async def add_material(
         self,
-        title: str,
+        title: str | None = None,
         *,
         url: str | None = None,
         parent_id: str | None = None,
@@ -247,6 +265,7 @@ class Flows:
         properties: dict[str, Any] | None = None,
         publish: bool = False,
         if_exists: str = "return",
+        locale: str | None = None,
         **aliases: Any,
     ) -> dict[str, Any]:
         """Create material, with vocabulary. See ``curate.add_material``.
@@ -262,7 +281,7 @@ class Flows:
             self._repo, title, url=url, parent_id=parent_id, name=name,
             description=description, keywords=keywords,
             collection_id=collection_id, properties=properties,
-            publish=publish, if_exists=if_exists, **aliases,
+            publish=publish, if_exists=if_exists, locale=locale, **aliases,
         )
 
     async def update_material(
@@ -274,6 +293,7 @@ class Flows:
         description: str | None = None,
         keywords: list[str] | None = None,
         properties: dict[str, Any] | None = None,
+        locale: str | None = None,
         **aliases: Any,
     ) -> dict[str, Any]:
         """Change existing material, with vocabulary. See ``curate.update_material``.
@@ -282,7 +302,7 @@ class Flows:
         """
         return await curate.update_material(
             self._repo, node_id, title=title, url=url, description=description,
-            keywords=keywords, properties=properties, **aliases,
+            keywords=keywords, properties=properties, locale=locale, **aliases,
         )
 
     async def build_collection(

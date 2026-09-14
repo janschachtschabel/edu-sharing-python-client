@@ -26,6 +26,7 @@ from __future__ import annotations
 from typing import Any
 
 from .errors import ValidationError
+from .profile import WLO_METADATA_PROFILE, MetadataProfile
 from .results import (
     Facet,
     FacetValue,
@@ -97,13 +98,15 @@ class Search:
         metadataset: str = DEFAULT_METADATASET,
         query: str = DEFAULT_QUERY,
         field_aliases: dict[str, str] | None = None,
+        metadata_profile: MetadataProfile = WLO_METADATA_PROFILE,
     ) -> None:
         self._transport = transport
         self._vocab = vocab
         self.metadataset = metadataset
         self.query = query
+        self.metadata_profile = metadata_profile
         self.field_aliases = dict(
-            STANDARD_FIELD_ALIASES if field_aliases is None else field_aliases
+            metadata_profile.field_aliases if field_aliases is None else field_aliases
         )
 
     async def search(
@@ -111,6 +114,9 @@ class Search:
         text: str | None = None,
         *,
         filters: dict[str, str | list[str]] | None = None,
+        raw_filters: dict[str, str | list[str]] | None = None,
+        locale: str | None = None,
+        strict: bool = False,
         facets: list[str] | None = None,
         facet_limit: int = DEFAULT_FACET_LIMIT,
         limit: int = DEFAULT_LIMIT,
@@ -124,6 +130,10 @@ class Search:
             text: full-text term. Omittable when only filtering.
             filters: ``{property: label}`` -- labels are resolved, URIs taken
                 unchanged.
+            raw_filters: explicit stored values, without vocabulary resolution.
+                A property cannot appear in both raw and label filters.
+            locale: label and search response language; server default if absent.
+            strict: refuse to search if any label filter remains unresolved.
             facets: properties to count server-side.
             facet_limit: how many values per facet.
             limit, offset: page size and starting point.
@@ -141,9 +151,11 @@ class Search:
             ValidationError: for a short name ``field_aliases`` does not know --
                 a typo must not pass as "no constraint".
         """
-        criteria, unresolved = await self._criteria(self._fields(filters, aliases))
+        criteria, unresolved = await self._prepare_filters(
+            filters, raw_filters, aliases, locale=locale, strict=strict)
         if text:
-            criteria.insert(0, {"property": SEARCHWORD, "values": [text]})
+            criteria.insert(0, {"property": self.metadata_profile.fulltext_property,
+                                "values": [text]})
 
         body: dict[str, Any] = {
             "criteria": criteria,
@@ -168,12 +180,45 @@ class Search:
                     "propertyFilter": "-all-",
                 },
                 json=body,
+                headers={"locale": locale} if locale else None,
             )
         except ValidationError as exc:
             raise self._explain(exc) from exc
         return self._result(response, unresolved)
 
     # --- Internals --------------------------------------------------------
+
+    async def _preflight(
+        self, filters: dict[str, str | list[str]] | None,
+        raw_filters: dict[str, str | list[str]] | None,
+        aliases: dict[str, str | list[str]], *, locale: str | None, strict: bool,
+    ) -> None:
+        """Validate shared inputs before starting parallel search branches."""
+        self._validated_filters(filters, raw_filters, aliases)
+        if strict:
+            await self._prepare_filters(filters, raw_filters, aliases, locale=locale, strict=True)
+
+    def _validated_filters(
+        self, filters: dict[str, str | list[str]] | None,
+        raw_filters: dict[str, str | list[str]] | None,
+        aliases: dict[str, str | list[str]],
+    ) -> tuple[dict[str, str | list[str]], list[dict[str, Any]]]:
+        labels = self._fields(filters, aliases)
+        if labels.keys() & (raw_filters or {}).keys():
+            raise ValidationError("A property cannot be in both filters and raw_filters.")
+        return labels, _raw_criteria(raw_filters or {})
+
+    async def _prepare_filters(
+        self, filters: dict[str, str | list[str]] | None,
+        raw_filters: dict[str, str | list[str]] | None,
+        aliases: dict[str, str | list[str]], *, locale: str | None, strict: bool,
+    ) -> tuple[list[dict[str, Any]], list[UnresolvedFilter]]:
+        labels, raw = self._validated_filters(filters, raw_filters, aliases)
+        criteria, unresolved = await self._criteria(labels, locale=locale)
+        if strict and unresolved:
+            fields = ", ".join(sorted({item.field for item in unresolved}))
+            raise ValidationError(f"Unresolved label filters: {fields}. No search was sent.")
+        return criteria + raw, unresolved
 
     def _fields(
         self,
@@ -227,7 +272,7 @@ class Search:
         )
 
     async def _criteria(
-        self, filters: dict[str, str | list[str]]
+        self, filters: dict[str, str | list[str]], *, locale: str | None = None
     ) -> tuple[list[dict[str, Any]], list[UnresolvedFilter]]:
         """Resolve filter labels. What cannot be resolved is reported, not sent."""
         criteria: list[dict[str, Any]] = []
@@ -241,7 +286,7 @@ class Search:
                 # All of them: one label can sit in two vocabularies, and
                 # filtering on one of them answers half the question while
                 # looking like the whole one. See ``Vocabulary.resolve_all``.
-                uris = await self._vocab.resolve_all(prop, value)
+                uris = await self._vocab.resolve_all(prop, value, locale=locale)
                 if uris:
                     resolved.extend(uris)
                     continue
@@ -254,7 +299,7 @@ class Search:
                 if lookups < SUGGEST_LOOKUP_MAX:
                     lookups += 1
                     suggestions = [
-                        v.label for v in await self._vocab.suggest(prop, value)
+                        v.label for v in await self._vocab.suggest(prop, value, locale=locale)
                     ][:5]
                 unresolved.append(
                     UnresolvedFilter(field=prop, value=value, suggestions=suggestions)
@@ -271,7 +316,8 @@ class Search:
         page = response.get("pagination") or {}
         return SearchResult(
             hits=[
-                SearchHit.from_node(n, base) for n in (response.get("nodes") or [])
+                SearchHit.from_node(n, base, metadata_profile=self.metadata_profile)
+                for n in (response.get("nodes") or [])
             ],
             total=int(page.get("total") or 0),
             facets=[
@@ -295,3 +341,17 @@ class Search:
 
     def __repr__(self) -> str:
         return f"Search(metadataset={self.metadataset!r}, query={self.query!r})"
+
+
+def _raw_criteria(filters: dict[str, str | list[str]]) -> list[dict[str, Any]]:
+    """Validate explicit stored values before any vocabulary or search request."""
+    criteria = []
+    for prop, value in filters.items():
+        values = [value] if isinstance(value, str) else value
+        if (not isinstance(prop, str) or not prop.strip()
+                or not isinstance(values, list) or not values
+                or any(not isinstance(v, str) for v in values)):
+            raise ValidationError(
+                "raw_filters needs property names and non-empty lists of strings.")
+        criteria.append({"property": prop, "values": list(values)})
+    return criteria

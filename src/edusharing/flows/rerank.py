@@ -70,6 +70,9 @@ async def search_reranked(
     text: str,
     *,
     filters: dict[str, str | list[str]] | None = None,
+    raw_filters: dict[str, str | list[str]] | None = None,
+    locale: str | None = None,
+    strict: bool = False,
     facets: list[str] | None = None,
     limit: int = 10,
     pool: int = DEFAULT_POOL,
@@ -89,6 +92,8 @@ async def search_reranked(
             401, and the search answered "0 hits found" with no error at all,
             turning a configuration fault into an apparent fact about the world.
     """
+    await repo.searcher._preflight(
+        filters, raw_filters, aliases, locale=locale, strict=strict)
     variants = expand_query(text, language)
     if not variants:
         raise EduSharingError("An empty query cannot be reranked.")
@@ -110,6 +115,7 @@ async def search_reranked(
     async def run(variant: QueryVariant) -> SearchResult:
         return await repo.searcher.search(
             variant.text, filters=criteria or None, facets=facets, limit=pool,
+            raw_filters=raw_filters, locale=locale, strict=strict,
             facet_limit=facet_limit,
         )
 

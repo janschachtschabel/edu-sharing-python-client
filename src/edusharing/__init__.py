@@ -53,7 +53,9 @@ from .errors import (
 )
 from .info import About, Identity, MetadataSet
 from .language import GERMAN, LanguageProfile
+from .metadata import MetadataCatalog
 from .nodes import WRITE_FIELD_ALIASES, Node
+from .profile import WLO_METADATA_PROFILE, MetadataProfile
 from .repository import AsyncRepository, Repository
 from .results import Facet, FacetValue, SearchHit, SearchResult, UnresolvedFilter
 from .search import STANDARD_FIELD_ALIASES
@@ -69,6 +71,7 @@ except _PackageNotFound:  # pragma: no cover - only without an install
     __version__ = "0+unknown"
 
 __all__ = [
+    "MetadataProfile", "WLO_METADATA_PROFILE", "MetadataCatalog",
     "__version__",
     # Entry point
     "Repository",

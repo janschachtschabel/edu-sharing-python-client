@@ -23,8 +23,9 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from .content import MAX_TEXT_BYTES, decode_text
-from .dto import first, node_id_of, page_cut, page_total, title_of
+from .dto import first, node_id_of, page_cut, page_total
 from .errors import ContentTooLargeError, NotFoundError, PermissionDeniedError
+from .profile import WLO_METADATA_PROFILE, MetadataProfile
 from .skills import WLO_SKILLS, SkillConventions, registry_mark
 from .skills_markdown import (
     RegistryContext,
@@ -108,6 +109,7 @@ def _entries_of(
     heads: dict[str, dict[str, Any] | None],
     *,
     resolve: bool,
+    metadata_profile: MetadataProfile = WLO_METADATA_PROFILE,
 ) -> tuple[list[RegistryEntry], list[dict[str, str]]]:
     """The catalogue entries, plus the ones whose record could not be read.
 
@@ -126,9 +128,9 @@ def _entries_of(
             node_id=block.node_id,
             # The record wins over the block: the document goes stale, the
             # record is what ``get`` will actually return.
-            title=(head or {}).get("title") or block.title,
-            description=first(props.get("cclom:general_description")) or "",
-            keywords=[str(k) for k in (props.get("cclom:general_keyword") or [])],
+            title=metadata_profile.title(head or {}) or block.title,
+            description=metadata_profile.value(props, "description") or "",
+            keywords=metadata_profile.values(props, "keywords"),
             context=path,
         ))
     return entries, unresolved
@@ -211,14 +213,15 @@ async def load_registry(
     if not candidates:
         return SkillRegistry(collection_id, reason="no_registry", scan_truncated=scan_truncated)
     mark = registry_mark(conventions)
-    marked = [n for n in candidates if mark.search(_name(n)) or mark.search(_title(n))]
+    marked = [n for n in candidates if mark.search(_name(n))
+              or mark.search(repo.metadata_profile.title(n))]
     pool = marked or candidates
     # The smallest id: the same collection must resolve to the same registry
     # on every call, whatever order the repository listed the children in.
     chosen = min(pool, key=node_id_of)
     registry_id = node_id_of(chosen)
     base = SkillRegistry(
-        collection_id, registry_id=registry_id, registry_title=_title(chosen),
+        collection_id, registry_id=registry_id, registry_title=repo.metadata_profile.title(chosen),
         ambiguous=len(candidates) if len(candidates) > 1 else 0,
         scan_truncated=scan_truncated,
     )
@@ -241,7 +244,8 @@ async def load_registry(
     heads: dict[str, dict[str, Any] | None] = dict.fromkeys(unique)
     if resolve:
         heads = dict(zip(unique, await _read_heads(repo, unique), strict=True))
-    entries, ungelesen = _entries_of(with_id, heads, resolve=resolve)
+    entries, ungelesen = _entries_of(with_id, heads, resolve=resolve,
+                                   metadata_profile=repo.metadata_profile)
     unresolved = ohne_id + ungelesen
     entries, match = _by_context(entries, layout.contexts, context)
 
@@ -311,7 +315,8 @@ def _name(raw: dict[str, Any]) -> str:
 
 
 def _title(raw: dict[str, Any]) -> str:
-    return title_of(raw)
+    """Legacy standalone DTO reader; repository operations use their profile."""
+    return WLO_METADATA_PROFILE.title(raw)
 
 
 def _with(base: SkillRegistry, **changes: Any) -> SkillRegistry:

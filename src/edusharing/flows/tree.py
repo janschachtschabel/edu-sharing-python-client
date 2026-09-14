@@ -190,7 +190,7 @@ async def _walk_collections(
             seen.add(child_id)
             entry: dict[str, Any] = {
                 "id": child_id,
-                "title": data.get("title") or data.get("name") or "",
+                "title": repo.metadata_profile.title(data),
                 "raw": data,
                 "collections": [],
             }
@@ -381,6 +381,12 @@ async def collection_stats(
         NotFoundError: when no collection carries this id.
     """
     page = await collection_contents(repo, collection_id, limit=sample)
+    return stats_from_contents(page)
+
+
+def stats_from_contents(page: dict[str, Any]) -> dict[str, Any]:
+    """Count an already fetched contents page without another read."""
+    collection_id = page["id"]
     materials = page["materials"]
 
     by: dict[str, dict[str, int]] = {}

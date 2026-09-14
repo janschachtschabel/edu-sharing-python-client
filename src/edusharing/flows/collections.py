@@ -44,6 +44,8 @@ async def find_collections(
     limit: int = 10,
     parent_id: str | None = None,
     properties: Sequence[str] = (),
+    locale: str | None = None,
+    strict: bool = False,
     **aliases: str | list[str],
 ) -> dict[str, Any]:
     """Search collections and return the outcome as JSON.
@@ -91,7 +93,8 @@ async def find_collections(
         ValidationError: for an unknown short name.
         EduSharingError: for anything the repository refuses.
     """
-    found = await _collections(repo, text, limit=limit, parent_id=parent_id, aliases=aliases)
+    found = await _collections(repo, text, limit=limit, parent_id=parent_id, aliases=aliases,
+                               locale=locale, strict=strict)
     return _answer(repo, found.result, found.query, properties, found.unresolved,
                    found.unjudged)
 
@@ -110,9 +113,12 @@ class _Found:
 async def _collections(
     repo: AsyncRepository, text: str, *, limit: int, parent_id: str | None,
     aliases: dict[str, Any],
+    locale: str | None = None, strict: bool = False,
 ) -> _Found:
     """``find_collections`` up to the answer: the filtered, cut result."""
-    wanted, unresolved = await resolve_vocabulary(repo, aliases, every_value=True)
+    wanted, unresolved = await resolve_vocabulary(repo, aliases, every_value=True, locale=locale)
+    if strict and unresolved:
+        raise ValidationError("Unresolved collection filters. No collection search was sent.")
     query = _query(repo, text, limit, aliases, parent_id)
     # With a local filter the page must hold candidates, not answers. Below a
     # parent the walk holds every record anyway: judge them all, cut after.
@@ -120,7 +126,7 @@ async def _collections(
         result = await _below(repo, parent_id, text, None if wanted else limit)
     else:
         scan = min(limit * 5, _FILTER_SCAN_MAX) if wanted else limit
-        result = await repo.collections.find(text, limit=scan)
+        result = await repo.collections.find(text, limit=scan, locale=locale)
 
     unjudged = 0
     if wanted:
@@ -208,7 +214,8 @@ async def _below(
                        else needle in title)
             if matched:
                 # The record itself, so a short-name filter can judge the hit.
-                hits.append(SearchHit.from_node(entry["raw"], repo.url))
+                hits.append(SearchHit.from_node(entry["raw"], repo.url,
+                                                 metadata_profile=repo.metadata_profile))
         level = [child for entry in level for child in (entry.get("collections") or [])]
     warnings = ["the walk was cut short: its cap, or more sub-collections than a "
                 "page lists"] if truncated else []
@@ -223,6 +230,9 @@ async def search_all(
     text: str,
     *,
     filters: dict[str, str | list[str]] | None = None,
+    raw_filters: dict[str, str | list[str]] | None = None,
+    locale: str | None = None,
+    strict: bool = False,
     facets: list[str] | None = None,
     limit: int = 10,
     rerank: bool = False,
@@ -281,6 +291,9 @@ async def search_all(
             "Use search() for that."
         )
 
+    await repo.searcher._preflight(
+        filters, raw_filters, aliases, locale=locale, strict=strict)
+
     # As in ``search()``: the short names are configured, not declarable.
     forwarded: dict[str, Any] = dict(aliases)
     # ``return_exceptions=True``: each slot is a result OR the exception that
@@ -291,12 +304,14 @@ async def search_all(
     collection_outcome: _Found | BaseException
     material_outcome, collection_outcome = await asyncio.gather(
         search(repo, text, filters=filters, facets=facets, limit=limit,
+               raw_filters=raw_filters, locale=locale, strict=strict,
                rerank=rerank, pool=pool, language=language,
                deduplicate=deduplicate, properties=properties, **forwarded),
         # The short names go along: ``find_collections`` applies them locally,
         # so only raw ``filters`` stay out of that bucket. Before
         # serialisation, because the pages bucket reads the records.
-        _collections(repo, text, limit=limit, parent_id=None, aliases=forwarded),
+        _collections(repo, text, limit=limit, parent_id=None, aliases=forwarded,
+                     locale=locale, strict=strict),
         return_exceptions=True,
     )
     for outcome in (material_outcome, collection_outcome):
@@ -331,7 +346,7 @@ async def search_all(
             # Read off the hits already fetched: the same search, no second one.
             pages = {**pages_among(found.result, text), "error": ""}
     collections.setdefault("error", "")
-    collections["filters_ignored"] = list(filters or {})
+    collections["filters_ignored"] = list(dict.fromkeys([*(filters or {}), *(raw_filters or {})]))
     answer = {
         "query": {"text": text, "metadataset": repo.metadataset, "limit": limit},
         "materials": materials,

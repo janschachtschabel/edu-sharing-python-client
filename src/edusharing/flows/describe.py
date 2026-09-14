@@ -67,7 +67,7 @@ async def describe(repo: AsyncRepository, node_id: str) -> dict[str, Any]:
         PermissionDeniedError: when it exists but is not readable.
     """
     node = await repo.nodes.get(node_id)
-    hit = SearchHit.from_node(node.raw, repo.url)
+    hit = SearchHit.from_node(node.raw, repo.url, metadata_profile=repo.metadata_profile)
     data = hit_as_dict(hit, repo.searcher.field_aliases)
     data.update({
         "name": node.name,

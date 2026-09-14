@@ -106,7 +106,7 @@ async def text(
     # so the most common answer of all -- text out of the repository --
     # came back without the address it had in hand (R07, 2026-09-09).
     # The docstring promised it "whenever there is one".
-    answer["source_url"] = node.get("ccm:wwwurl") or None
+    answer["source_url"] = node.metadata_profile.value(node.properties, "url")
 
     try:
         stored = await _stored(node, answer, max_chars)

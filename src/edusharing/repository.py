@@ -23,6 +23,7 @@ from ._sync import (
     LoopThread,
     SyncCollections,
     SyncFlows,
+    SyncMetadataCatalog,
     SyncNode,
     SyncNodes,
     SyncPeople,
@@ -37,8 +38,10 @@ from .collections import Collections
 from .errors import EduSharingError
 from .flows import Flows
 from .info import About, Identity, MetadataSet
+from .metadata import MetadataCatalog
 from .nodes import Node, Nodes
 from .people import People
+from .profile import WLO_METADATA_PROFILE, MetadataProfile
 from .relations import Relations
 from .results import SearchResult
 from .search import Search
@@ -117,6 +120,7 @@ class AsyncRepository:
         metadataset: str = DEFAULT_METADATASET,
         query: str = DEFAULT_QUERY,
         field_aliases: dict[str, str] | None = None,
+        metadata_profile: MetadataProfile | None = None,
         timeout: float | None = None,
         max_retries: int = DEFAULT_MAX_RETRIES,
         max_concurrency: int = DEFAULT_MAX_CONCURRENCY,
@@ -134,18 +138,23 @@ class AsyncRepository:
         )
         self.metadataset = metadataset
         self.query = query
+        self.metadata_profile = (
+            WLO_METADATA_PROFILE if metadata_profile is None else metadata_profile)
         #: Who this connection is, keyed by the credential it was asked
         #: under -- see ``whoami`` (audit PRF-5).
         self._identity: tuple[Credential, Identity] | None = None
         # Created once and kept: the vocabulary cache lives inside it, and a
         # fresh object per access would discard it on every call.
         self._vocab = Vocabulary(self._transport, metadataset=metadataset, query=query)
+        self._metadata = MetadataCatalog(self._transport, metadataset=metadataset)
         self._search = Search(
             self._transport, self._vocab,
             metadataset=metadataset, query=query, field_aliases=field_aliases,
+            metadata_profile=self.metadata_profile,
         )
-        self._collections = Collections(self._transport, metadataset=metadataset)
-        self._nodes = Nodes(self._transport)
+        self._collections = Collections(self._transport, metadataset=metadataset,
+                                        metadata_profile=self.metadata_profile)
+        self._nodes = Nodes(self._transport, metadata_profile=self.metadata_profile)
         self._relations = Relations(self._transport)
         self._people = People(self._transport)
         self._skills = Skills(self)
@@ -302,6 +311,11 @@ class AsyncRepository:
             if m.get("id")
         ]
 
+    @property
+    def metadata(self) -> MetadataCatalog:
+        """The connected repository's full MDS definition and named fields."""
+        return self._metadata
+
     async def whoami(self) -> Identity:
         """Who this connection is working as.
 
@@ -384,6 +398,11 @@ class Repository:
         return self._async.credential
 
     @property
+    def metadata_profile(self) -> MetadataProfile:
+        """The immutable read/write and query conventions of this connection."""
+        return self._async.metadata_profile
+
+    @property
     def raw(self) -> SyncTransport:
         """The transport, for endpoints without a method of their own.
 
@@ -395,6 +414,11 @@ class Repository:
     def metadataset(self) -> str:
         """As ``AsyncRepository.metadataset``."""
         return self._async.metadataset
+
+    @property
+    def metadata(self) -> SyncMetadataCatalog:
+        """The MDS catalog, with blocking load() and fields() methods."""
+        return SyncMetadataCatalog(self._async.metadata, self._loop)
 
     @property
     def vocab(self) -> SyncVocabulary:

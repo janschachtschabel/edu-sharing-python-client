@@ -359,7 +359,7 @@ async def test_ein_abbruch_wird_nicht_zur_teilantwort():
     Wer eine Suche abbricht, will sie abgebrochen haben -- und nicht ein halbes
     Ergebnis mit einer Warnung, die nach einem Ausfall der Instanz klingt.
     """
-    async def bricht_ab(self, text, limit):
+    async def bricht_ab(self, text, limit, locale=None):
         raise asyncio.CancelledError
 
     c = _collections(_router())
@@ -373,13 +373,13 @@ async def test_ein_programmierfehler_wird_nicht_zur_teilantwort():
     """Ein ``TypeError`` in einem Zweig ist ein Defekt dieser Bibliothek und
     keine Aussage ueber die Instanz. Als Warnung verpackt bleibt er
     unauffindbar."""
-    async def kaputt(self, text, limit):
+    async def kaputt(self, text, limit, locale=None):
         raise TypeError("ein Defekt")
 
     c = _collections(_router())
     with pytest.MonkeyPatch.context() as mp:
         mp.setattr(type(c), "_mds_leg", kaputt)
-        with pytest.raises(TypeError):
+        with pytest.raises(TypeError, match="ein Defekt"):
             await c.find("Optik")
 
 

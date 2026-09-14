@@ -27,7 +27,7 @@ import pytest
 from test_docs_code import _WEITER
 from test_docs_complete import _klassen_der_bibliothek
 
-from edusharing import AsyncRepository
+from edusharing import AsyncRepository, MetadataProfile
 from edusharing.bapi import BapiTemplates, BildungsAPI
 from edusharing.extraction import TextExtraction
 from edusharing.flows import Flows
@@ -46,7 +46,7 @@ SPRACHEN = {
 #: Konstruktor.
 EINSTIEGE = {"AsyncRepository": AsyncRepository, "BildungsAPI": BildungsAPI,
              "BapiTemplates": BapiTemplates, "TextExtraction": TextExtraction,
-             "MetadataAgent": MetadataAgent}
+             "MetadataAgent": MetadataAgent, "MetadataProfile": MetadataProfile}
 
 #: Dieselbe Methode, kuerzer erreichbar: die Referenz zeigt oft nur den kurzen
 #: Weg, und das genuegt. Von Hand gepflegt -- eine Zeile je Fassade.
@@ -74,6 +74,7 @@ PFADE = {
     "Collections": {"repo.collections"}, "Flows": {"repo.flows"},
     "People": {"repo.people"}, "Relations": {"repo.relations"},
     "Search": {"repo.searcher"}, "Skills": {"repo.skills"},
+    "MetadataCatalog": {"repo.metadata"}, "MetadataProfile": {"profile"},
     "Transport": {"repo.raw"}, "Vocabulary": {"repo.vocab"},
 }
 

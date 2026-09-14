@@ -16,11 +16,12 @@ from . import nodes_write, placement, ratings
 from .childobjects import ChildObjects
 from .comments import Comments
 from .content import NodeContent
-from .dto import first, node_id_of, render_url, title_of
+from .dto import first, node_id_of, render_url
 from .errors import ValidationError
 from .nodes_write import KEYWORD_PROPERTY, WRITE_FIELD_ALIASES, as_list
 from .pages import NodePage
 from .permissions import NodePermissions
+from .profile import WLO_METADATA_PROFILE, MetadataProfile
 from .ratings import Rating
 from .results import original_id_of, preview_url_of
 from .suggestions import Suggestions
@@ -76,7 +77,13 @@ class Node:
         arrived as "arbeitsblatt.pdf" from a search and as "Bruchrechnung"
         as a node (audit MNT-1). ``dto.title_of`` carries the chain.
         """
-        return title_of(self._data)
+        return self.metadata_profile.title(self._data)
+
+    @property
+    def metadata_profile(self) -> MetadataProfile:
+        """The immutable metadata conventions used by this node's repository."""
+        # Standalone DTO readers historically construct Node(data, None).
+        return WLO_METADATA_PROFILE if self._nodes is None else self._nodes.metadata_profile
 
     @property
     def type(self) -> str:
@@ -367,7 +374,7 @@ class Node:
     @property
     def keywords(self) -> list[str]:
         """This node's keywords (``cclom:general_keyword``)."""
-        return self.get_all(KEYWORD_PROPERTY)
+        return self.metadata_profile.values(self.properties, "keywords")
 
     async def add_keywords(self, *keywords: str) -> Node:
         """Add keywords without losing the existing ones.
@@ -438,8 +445,10 @@ class ChildPage:
 class Nodes:
     """Access to a repository's nodes."""
 
-    def __init__(self, transport: Transport) -> None:
+    def __init__(self, transport: Transport, *,
+                 metadata_profile: MetadataProfile = WLO_METADATA_PROFILE) -> None:
         self.transport = transport
+        self.metadata_profile = metadata_profile
 
     @property
     def repository_url(self) -> str:
@@ -480,7 +489,7 @@ class Nodes:
         parent_id: str,
         *,
         name: str,
-        type: str = DEFAULT_NODE_TYPE,
+        type: str | None = None,
         properties: dict[str, Any] | None = None,
         rename_if_exists: bool = True,
         verify: bool = True,
@@ -515,14 +524,14 @@ class Nodes:
                 "A node needs a name (cm:name) -- it is the key within the parent."
             )
 
-        fields = nodes_write.fields_of(properties, aliases)
+        fields = nodes_write.fields_of(properties, aliases, metadata_profile=self.metadata_profile)
         fields["cm:name"] = [name]
 
         response = await self.transport.json(
             "POST",
             f"/node/v1/nodes/-home-/{path_segment(parent_id)}/children",
             params={
-                "type": type,
+                "type": type if type is not None else self.metadata_profile.material_type,
                 "renameIfExists": "true" if rename_if_exists else "false",
             },
             json=fields,

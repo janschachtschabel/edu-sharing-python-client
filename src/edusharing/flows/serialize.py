@@ -6,10 +6,9 @@ every consumer sees, which is easier to notice in a file that does nothing else.
 
 Two rules run through all of it:
 
-**Readable values, not URIs.** ``ccm:taxonid`` holds
-``http://w3id.org/openeduhub/vocabs/discipline/080``; a language model reading
-that learns nothing. edu-sharing ships a ``<prop>_DISPLAYNAME`` next to every
-vocabulary field, and that is what goes out.
+**Readable fields and stored identities.** ``fields`` keeps the readable
+projection, while ``value_fields`` preserves raw values with available labels.
+Display labels must never be the only way to recover a stored identity.
 
 **Short names, not properties.** The keys are the configured aliases
 (``subject``), not the edu-sharing properties (``ccm:taxonid``). Otherwise the
@@ -74,6 +73,7 @@ def hit_as_dict(
         "license": hit.license,
         "size": hit.size,
         "fields": fields,
+        "value_fields": _value_fields(hit, aliases, properties),
         # ``None`` on an original. A listing or a collection-scoped search hands
         # out reference ids; this is the record behind one -- and the id a
         # write goes to.
@@ -82,6 +82,23 @@ def hit_as_dict(
         # means the repository holds further nodes for the same source address.
         "duplicate_ids": list((folded or {}).get(hit.id, [])),
     }
+
+
+def _value_fields(
+    hit: SearchHit, aliases: dict[str, str], properties: Sequence[str],
+) -> dict[str, list[dict[str, Any]]]:
+    result = {}
+    for name, prop in {**aliases, **{p: p for p in properties}}.items():
+        stored = hit.properties().get(prop)
+        if stored is None or stored == []:
+            continue
+        values = stored if isinstance(stored, list) else [stored]
+        labels = hit.labels(prop)
+        # A partial display projection gives no reliable positional mapping.
+        paired = labels if len(labels) == len(values) else [None] * len(values)
+        result[name] = [{"value": value, "label": label}
+                        for value, label in zip(values, paired, strict=True)]
+    return result
 
 
 def _facet_values(facet: Facet) -> list[dict[str, Any]]:

@@ -50,6 +50,7 @@ _REPO = "repo"
 #: nicht darauf, faellt hier auf und muss bewusst eingetragen werden.
 DURCHREICHER = {
     "browse_tree", "collection_stats", "find_collections", "find_pages",
+    "place_material", "collection_context", "prepare_material",
     "page", "related", "search_all", "search_in_collection", "text",
 }
 

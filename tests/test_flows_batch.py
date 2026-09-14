@@ -210,12 +210,13 @@ async def test_ein_unbekannter_kurzname_wird_gemeldet():
             raise AssertionError("ein Tippfehler darf nicht als 'kein Filter' durchgehen")
 
 
-async def test_ein_unaufloesbarer_wert_wird_gemeldet():
+async def test_ein_unaufloesbares_label_ohne_rohwert_wird_gemeldet():
     """Der Filter waere sonst stillschweigend weggefallen und die Aehnlichkeit
-    breiter, als sie aussieht. Hier traegt der Knoten ein Fach, dessen Label
-    das Vokabular der Instanz nicht kennt -- gemessen kommt das vor, wenn
-    Bestand aelter ist als der Metadatensatz."""
+    breiter, als sie aussieht. Ohne gespeicherten Rohwert bleibt nur die
+    Label-Aufloesung; eine vorhandene Identitaet darf dagegen nicht von einem
+    veralteten oder unbekannten Anzeigelabel abhaengen."""
     fremd = _knoten("a", "Mit fremdem Fach")
+    del fremd["properties"]["ccm:taxonid"]
     fremd["properties"]["ccm:taxonid_DISPLAYNAME"] = ["Gibtesnicht"]
     instanz = Instanz(knoten={"a": fremd})
     async with instanz.repo() as repo:

@@ -41,7 +41,7 @@ __all__ = ["find_by_url", "check_before_create", "validate_if_exists", "DUPLICAT
 #: rest of the page is neighbours, and twenty is plenty of room for them.
 DUPLICATE_SCAN_LIMIT = 20
 _NOT_A_CRITERION = (
-    "{url!r} could not be sent as a ccm:wwwurl criterion -- the search takes only "
+    "{url!r} could not be sent as a URL criterion -- the search takes only "
     "http(s) addresses -- so the duplicate check did not run."
 )
 
@@ -143,7 +143,12 @@ async def find_by_url(repo: AsyncRepository, url: str) -> dict[str, Any] | None:
         # would cost a vocabulary lookup and an unfiltered search for the same
         # answer; the check below stays as the second line of defence.
         raise ValidationError(_NOT_A_CRITERION.format(url=mask_userinfo(url)))
-    result = await repo.search(filters={"ccm:wwwurl": url.strip()}, limit=DUPLICATE_SCAN_LIMIT)
+    prop = repo.metadata_profile.url_search_property
+    if prop is None:
+        raise ValidationError("URL duplicate lookup needs a configured url_search_property.")
+    if not repo.metadata_profile.read_fields.get("url"):
+        raise ValidationError("URL duplicate lookup needs a configured URL read role.")
+    result = await repo.search(raw_filters={prop: url.strip()}, limit=DUPLICATE_SCAN_LIMIT)
     if result.unresolved:
         # Not sent means not filtered: the hits below would be neighbours of
         # nothing, and "no duplicate" a guess.
@@ -152,6 +157,12 @@ async def find_by_url(repo: AsyncRepository, url: str) -> dict[str, Any] | None:
         stored = (hit.source_url or "").strip()
         if stored and _comparable(stored) == wanted:  # None never equals it
             return {"id": hit.id, "title": hit.title, "url": stored}
+    if (result.ignored or result.total_is_lower_bound or result.total > len(result.hits)
+            or any(not hit.source_url for hit in result.hits)):
+        raise ValidationError(
+            "The URL lookup was incomplete, omitted source URLs or ignored a criterion; "
+            "absence of a duplicate cannot be established."
+        )
     return None
 
 
