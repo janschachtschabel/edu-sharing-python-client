@@ -143,6 +143,14 @@ gehört zum Erzeugen, sie ist nicht optional. Die CI erzeugt bei jedem Push neu
 und verlangt einen sauberen Diff — ohne das ist „regenerierbar" eine Behauptung
 und keine Tatsache.
 
+Seit dem 14.09.2026 weist ein deterministischer Nachlauf auch leere und ganze
+Punkt-Pfadparameter (`.`, `..`) vor dem Adressaufbau zurück (Audit R10).
+Die generierte Schicht wirft `ValueError`, ohne die handgeschriebene Schicht
+zu importieren. Der Nachlauf prüft die Kodierungsausdrücke des festgehaltenen
+Generators anhand des Syntaxbaums und bricht bei unerwarteter Form ab;
+wiederholtes Anwenden ist idempotent. Regressionstests prüfen die Ablehnung,
+gültige Kodierung und das erneute Generieren.
+
 > **Der unterstützte Ausgabeort ist der im Projekt.** `--output` in ein
 > Verzeichnis ausserhalb des Projektlayouts ergab **556 abweichende Dateien**
 > (gemessen 09.09.2026) — andere Formatierung und `typing_extensions.Self`
@@ -532,6 +540,8 @@ läuft, kommt nicht ins README.
 | `urls.py` | Repository-URL normalisieren, Deep Links ablehnen |
 | `auth.py` | Zugangsdaten als Werte; Bearer abgelehnt; Passwörter nie im `repr` |
 | `transport.py` | httpx, Zeitlimit, Wiederholung, Nebenläufigkeit, Credential-Grenze |
+| `_http.py` | Begrenztes Einlesen dekodierter Antworten, gemeinsam für Repository-Downloads und binäre b-api-Aufrufe |
+| `_decoding.py` | Schrittweises Dekodieren von gzip/deflate mit begrenzter Ausgabe und begrenzten Zwischenschichten |
 | `_sync.py` | Ereignisschleife in einem Hintergrundfaden für die synchrone Fläche |
 | `repository.py` | `AsyncRepository` / `Repository`, `about()`, `whoami()`, `raw` |
 | `extraction.py` | Der Textextraktionsdienst neben dem Repositorium und die Prüfungen davor |
@@ -694,8 +704,9 @@ Bestand wurde nach jedem Lauf gegen seinen Ausgangszustand verglichen.
 | `agent/confirm.py` | Zeigen, was geschähe, und es dann tun |
 | `bapi/models.py` | Welches Modell: Wahl, Auslastung, Abkündigung — reine Funktionen |
 | `bapi/body.py` | Wie der Anfragerumpf aussehen muss — reine Funktionen |
+| `bapi/_response.py` | Verschachtelte Antwortprüfung für Proxy- und Template-Parser; explizite Entscheidungen und vollständige Embedding-Indizes |
 | `bapi/client.py` | HTTP zur b-api, Wiederholung, Nebenläufigkeit, Cache mit Verfallszeit |
-| `bapi/passthrough.py` | Die OpenAI-Routen, die das Gateway durchreicht — Einbettungen, Moderation, Bilder, und `call` für den Rest |
+| `bapi/passthrough.py` | Durchgereichte Routen — Einbettungen, Moderation, Bilder, `call` für JSON und `call_bytes` für binäre Antworten |
 
 Drei Entscheidungen, die eine Erklärung brauchen:
 
@@ -861,6 +872,7 @@ nirgends genannt ist.
 |---|---|
 | `skills.py` | Skills — Datensätze, deren Inhaltsart „Anleitung" sagt und deren angehängte Datei die `SKILL.md` ist. Lesen, die Dateien daneben auflisten, und die Gründe, aus denen ein anonymer Leser eine leere Antwort bekommt (`files_reason`, `content_reason`) |
 | `skills_markdown.py` | Was ein Skill-Dokument über sich selbst sagt, gelesen ohne jede Ein- und Ausgabe: Kopfdaten, die `::: ki-skill`-Blöcke, die Überschriften, die sie gruppieren |
+| `_markdown_outline.py` | Indizierte Zuordnung von Überschriften und Abschnittsgrenzen für begrenzten Kontextaufbau |
 | `skills_registry.py` | Das Register einer Sammlung — welche Skills sie freigegeben hat, nach Arbeitszusammenhängen gruppiert |
 | `flows/skills.py` | Derselbe Zugang als schlichte Wörterbücher: `find_skills`, `skill`, `skill_registry`, `pick_skill` |
 | `flows/text.py` | `text` — der Volltext eines Materials und, wenn es keinen gibt, welcher der gemessenen Gründe zutrifft |

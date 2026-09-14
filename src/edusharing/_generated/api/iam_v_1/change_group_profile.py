@@ -17,6 +17,9 @@ def _get_kwargs(
     *,
     body: GroupProfile,
 ) -> dict[str, Any]:
+    if any(str(value) in ("", ".", "..") for value in (repository, group,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     headers: dict[str, Any] = {}
 
     _kwargs: dict[str, Any] = {

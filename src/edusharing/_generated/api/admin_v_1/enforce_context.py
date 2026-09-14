@@ -14,6 +14,9 @@ def _get_kwargs(
     context_id: str,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (context_id,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     _kwargs: dict[str, Any] = {
         "method": "put",
         "url": "/admin/v1/repositoryConfig/enforceContext/{context_id}".format(

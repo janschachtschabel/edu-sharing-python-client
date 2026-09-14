@@ -28,6 +28,26 @@ HOME = "home-folder-id"
 URL = "https://example.org/Arbeitsblatt"
 
 
+@pytest.mark.parametrize("stored,wanted,matches", [
+    ("https://alice:DummyPass@example.test/a", "https://alice:DummyPass@EXAMPLE.TEST/a", True),
+    ("https://alice:DummyPass@example.test/a", "https://alice:dummypass@example.test/a", False),
+    ("https://alice:DummyPass@example.test/a", "https://Alice:DummyPass@example.test/a", False),
+    ("https://alice:DummyPass@example.test/a", "https://alice:DummyPass@example.test/A", False),
+    ("https://alice:DummyPass@[2001:db8::a]:8443/a",
+     "https://alice:DummyPass@[2001:DB8::A]:8443/a", True),
+    ("https://alice:DummyPass@[2001:db8::a]:8443/a",
+     "https://alice:dummypass@[2001:db8::a]:8443/a", False),
+    ("https://example.test:8443/a", "https://example.test:8444/a", False),
+])
+async def test_duplicate_url_normalization_preserves_user_information(stored, wanted, matches):
+    instance = Instanz([_treffer("existing", stored)])
+    async with instance.repo() as repo:
+        result = await find_by_url(repo, wanted)
+    assert (result is not None) is matches
+    if matches:
+        assert result == {"id": "existing", "title": "Vorhanden", "url": stored}
+
+
 def _treffer(nid: str, url: str, titel: str = "Vorhanden") -> dict:
     return {"ref": {"id": nid}, "title": titel, "type": "ccm:io",
             "properties": {"cclom:title": [titel], "ccm:wwwurl": [url]}}

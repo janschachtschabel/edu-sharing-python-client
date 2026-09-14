@@ -65,7 +65,6 @@ from .errors import (
 from .retry import RETRYABLE_STATUS, RetryPolicy, parse_retry_after
 from .urls import (
     is_unroutable_host,
-    mask_userinfo,
     refuse_userinfo,
     unsafe_url_syntax,
 )
@@ -245,9 +244,7 @@ class TextExtraction:
         # service unchecked. The host stays this client's own question --
         # ``_judge`` resolves it, and its answers are part of the contract.
         if unsafe_url_syntax(url) is not None:
-            logger.warning(
-                "text extraction refused an unsafe address: %s", mask_userinfo(url)
-            )
+            logger.warning("text extraction refused an unsafe address")
             return _miss(url, "unsafe_url")
 
         target = urlsplit(url.strip())

@@ -39,8 +39,9 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from ..errors import EduSharingError, ValidationError
+from ..errors import EduSharingError, ValidationError, whole_number
 from ..urls import path_segment
+from ._response import _boolean, _items, _number, _object, _text, _vectors
 from .body import UNSET, ReasoningParam, _Vorgabe, reasoning_for_responses
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -52,7 +53,7 @@ if TYPE_CHECKING:  # pragma: no cover
 DEFAULT_MAX_OUTPUT_TOKENS = 1000
 
 __all__ = ["Answer", "DEFAULT_MAX_OUTPUT_TOKENS", "GeneratedImage", "Moderation",
-           "call", "embeddings", "images", "moderate", "respond"]
+           "call", "call_bytes", "embeddings", "images", "moderate", "respond"]
 
 
 #: What a route segment may consist of. Every forwarded route is built from
@@ -167,17 +168,18 @@ class Answer:
 def _text_of(body: dict[str, Any]) -> str:
     """The text out of the nested ``output[].content[].text``.
 
-    Every level is checked, because every level comes from the gateway. An
-    ``AttributeError`` out of here would be neither informative nor catchable
-    as an ``EduSharingError``; an empty string at least says "no text".
+    Non-text output entries remain ignored. Invalid text values and containers
+    raise ``EduSharingError`` instead of escaping as built-in exceptions.
     """
-    return "".join(
-        teil.get("text") or ""
-        for eintrag in (body.get("output") or [])
-        if isinstance(eintrag, dict)
-        for teil in (eintrag.get("content") or [])
-        if isinstance(teil, dict)
-    )
+    text = []
+    for i, entry in enumerate(_items(body.get("output"), "responses", "output")):
+        if not isinstance(entry, dict) or isinstance(entry.get("content"), str):
+            continue
+        field = f"output[{i}].content"
+        for j, part in enumerate(_items(entry.get("content"), "responses", field)):
+            if isinstance(part, dict):
+                text.append(_text(part.get("text"), "responses", f"{field}[{j}].text"))
+    return "".join(text)
 
 
 def _answer_from(antwort: dict[str, Any], model: str = "") -> Answer:
@@ -187,11 +189,13 @@ def _answer_from(antwort: dict[str, Any], model: str = "") -> Answer:
     same shape -- one reading of ``status`` and ``incomplete_details`` for
     both, rather than two that drift apart.
     """
+    details = antwort.get("incomplete_details")
+    details = {} if details is None else _object(details, "responses", "incomplete_details")
     return Answer(
         text=_text_of(antwort),
-        status=str(antwort.get("status") or ""),
-        reason=str((antwort.get("incomplete_details") or {}).get("reason") or ""),
-        model=str(antwort.get("model") or model),
+        status=_text(antwort.get("status"), "responses", "status"),
+        reason=_text(details.get("reason"), "responses", "incomplete_details.reason"),
+        model=_text(antwort.get("model"), "responses", "model") or model,
         raw=antwort,
     )
 
@@ -199,14 +203,18 @@ def _answer_from(antwort: dict[str, Any], model: str = "") -> Answer:
 def _images_from(answer: dict[str, Any]) -> list[GeneratedImage]:
     """An ``images/generations`` body as ``GeneratedImage`` values -- shared
     with the template mode for the same reason as ``_answer_from``."""
-    return [
-        GeneratedImage(
-            url=entry.get("url"),
-            b64=entry.get("b64_json"),
-            revised_prompt=entry.get("revised_prompt") or "",
-        )
-        for entry in (answer.get("data") or [])
-    ]
+    images = []
+    for i, item in enumerate(_items(answer.get("data"), "images/generations", "data")):
+        field = f"data[{i}]"
+        entry = _object(item, "images/generations", field)
+        images.append(GeneratedImage(
+            url=(_text(entry.get("url"), "images/generations", f"{field}.url")
+                 if entry.get("url") is not None else None),
+            b64=(_text(entry.get("b64_json"), "images/generations", f"{field}.b64_json")
+                 if entry.get("b64_json") is not None else None),
+            revised_prompt=_text(entry.get("revised_prompt"), "images/generations",
+                                 f"{field}.revised_prompt")))
+    return images
 
 
 async def respond(
@@ -273,24 +281,28 @@ async def respond(
         **denken,
         **extra,
     }
-    antwort = await call(api, "responses", body, provider=provider)
+    antwort = await _call_object(api, "responses", body, provider=provider)
     return _answer_from(antwort, model)
 
 
 async def call(
     api: BildungsAPI, route: str, body: dict[str, Any], *,
-    provider: str | None = None,
+    provider: str | None = None, idempotent: bool = False,
 ) -> dict[str, Any]:
-    """POST ``body`` to one forwarded route and return the parsed answer.
+    """POST a JSON ``body`` and return the parsed JSON answer.
 
     The escape hatch, mirroring ``repo.raw`` on the edu-sharing side: fourteen
     routes do not need thirteen wrappers. Use it for the ones without a method
-    of their own -- ``audio/speech``, ``batches``, ``responses``.
+    of their own -- ``completions``, ``batches``, ``responses``. A binary
+    response such as ``audio/speech`` needs ``call_bytes`` instead.
 
     Args:
-        route: without a leading slash, e.g. ``"audio/speech"``.
+        route: without a leading slash, e.g. ``"completions"``.
         body: the request body, passed through untouched.
         provider: overrides the client's default for this call.
+        idempotent: allow retries after uncertain network failures or server
+            errors only for an operation that is safe to repeat. By default,
+            only failures before sending and HTTP 429 are retried.
 
     Raises:
         ValidationError: for a leading slash, and for any route that could address
@@ -299,20 +311,41 @@ async def call(
             because it is the one a language model picks.
         EduSharingError: as the route answered.
     """
+    answer = await api._request(
+        "POST", _route_path(route, provider or api.provider), json=body, repeatable=idempotent)
+    return dict(answer) if isinstance(answer, dict) else {"data": answer}
+
+
+async def _call_object(
+    api: BildungsAPI, route: str, body: dict[str, Any], *, provider: str | None,
+) -> dict[str, Any]:
+    """Typed model routes validate their original body, before raw normalisation."""
+    answer = await api._request(
+        "POST", _route_path(route, provider or api.provider), json=body)
+    return _object(answer, route)
+
+
+async def call_bytes(
+    api: BildungsAPI, route: str, body: dict[str, Any], *,
+    provider: str | None = None, max_bytes: int | None = None, idempotent: bool = False,
+) -> bytes:
+    """POST JSON and return bytes; see ``BildungsAPI.call_bytes`` for the contract."""
+    if max_bytes is not None:
+        whole_number("max_bytes", max_bytes, 0)
+    answer = await api._request(
+        "POST", _route_path(route, provider or api.provider), json=body,
+        response_bytes=True, max_bytes=max_bytes, repeatable=idempotent)
+    return bytes(answer)
+
+
+def _route_path(route: str, provider: str) -> str:
     if route.startswith("/"):
         raise ValidationError(
             f"route={route!r} must be given without a leading slash -- it is "
             "appended to /api/v1/llm/{provider}/."
         )
     _check_route(route)
-    which = provider or api.provider
-    # Reaching into the client's request plumbing: retry, concurrency limit and
-    # the X-API-KEY header live there, and duplicating them here would be two
-    # things to keep in step.
-    answer = await api._request(
-        "POST", f"/api/v1/llm/{path_segment(which)}/{route}", json=body,
-    )
-    return dict(answer) if isinstance(answer, dict) else {"data": answer}
+    return f"/api/v1/llm/{path_segment(provider)}/{route}"
 
 
 async def embeddings(
@@ -332,14 +365,16 @@ async def embeddings(
         One vector per input, in the order the input had. The answer carries an
         ``index`` per entry and is sorted by it here: the API may reorder, and
         a vector matched to the wrong text is silent nonsense.
+
+    Raises:
+        EduSharingError: on missing, duplicate or invalid indices, or vectors
+            that are empty, unequal in length or contain non-finite numbers.
     """
     eingabe = [texts] if isinstance(texts, str) else list(texts)
-    answer = await call(api, "embeddings",
-                        {"model": model, "input": eingabe, **extra},
-                        provider=provider)
-    entries = answer.get("data") or []
-    ordered = sorted(entries, key=lambda e: e.get("index", 0))
-    return [list(e.get("embedding") or []) for e in ordered]
+    body = {"model": model, "input": eingabe, **extra}
+    answer = await _call_object(api, "embeddings", body, provider=provider)
+    effective_input = body["input"]
+    return _vectors(answer, 1 if isinstance(effective_input, str) else len(effective_input))
 
 
 async def moderate(
@@ -349,27 +384,31 @@ async def moderate(
     """Whether a text trips the provider's content policy.
 
     Raises:
-        EduSharingError: when the answer carries no result. Reading an empty
-            list as "not flagged" would make an outage look like approval --
-            the one reading that lets everything through.
+        EduSharingError: when the answer carries no result or an invalid
+            decision, category or score. ``flagged`` must be an explicit bool;
+            missing data must never be interpreted as approval.
     """
-    answer = await call(api, "moderations",
+    answer = await _call_object(api, "moderations",
                         {"model": model, "input": text, **extra},
                         provider=provider)
-    results = answer.get("results") or []
+    results = _items(answer.get("results"), "moderations", "results")
     if not results:
         raise EduSharingError(
             "The moderation endpoint returned no result for this input. "
             "Treating that as 'not flagged' would let everything through on "
             "an outage, so it is an error here."
         )
-    first = results[0]
-    categories = first.get("categories") or {}
+    first = _object(results[0], "moderations", "results[0]")
+    flagged = _boolean(first.get("flagged"), "moderations", "results[0].flagged")
+    categories = first.get("categories")
+    categories = {} if categories is None else _object(categories, "moderations", "categories")
+    scores = first.get("category_scores")
+    scores = {} if scores is None else _object(scores, "moderations", "category_scores")
     return Moderation(
-        flagged=bool(first.get("flagged")),
-        categories=tuple(name for name, hit in categories.items() if hit),
-        scores={k: float(v) for k, v in
-                (first.get("category_scores") or {}).items()},
+        flagged=flagged,
+        categories=tuple(name for name, hit in categories.items()
+                         if _boolean(hit, "moderations", "categories entry")),
+        scores={k: _number(v, "moderations", "category_scores entry") for k, v in scores.items()},
         raw=answer,
     )
 
@@ -383,7 +422,7 @@ async def images(
     ``extra`` is passed through -- ``n``, ``size``, ``quality``,
     ``response_format`` are the provider's business, not this library's.
     """
-    answer = await call(api, "images/generations",
+    answer = await _call_object(api, "images/generations",
                         {"model": model, "prompt": prompt, **extra},
                         provider=provider)
     return _images_from(answer)

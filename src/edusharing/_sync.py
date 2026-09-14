@@ -48,7 +48,35 @@ class LoopThread:
 
     def run(self, coro: Coroutine[Any, Any, T]) -> T:
         """Run ``coro`` on the background loop and wait for the result."""
-        return asyncio.run_coroutine_threadsafe(coro, self._loop).result()
+        gate = threading.Lock()
+        started = cancelled = False
+
+        async def guarded() -> T:
+            nonlocal started
+            with gate:
+                if cancelled:
+                    raise asyncio.CancelledError
+                started = True
+            return await coro
+
+        wrapper = guarded()
+        try:
+            future = asyncio.run_coroutine_threadsafe(wrapper, self._loop)
+        except BaseException:
+            wrapper.close()
+            coro.close()
+            raise
+        try:
+            return future.result()
+        except BaseException:
+            # A cancelled concurrent Future can still start its asyncio Task
+            # before task.cancel() runs. Gate entry as well as cancelling waits.
+            with gate:
+                cancelled = True
+                if not started:
+                    coro.close()
+            future.cancel()
+            raise
 
     def close(self) -> None:
         """Stop the loop and join the thread.

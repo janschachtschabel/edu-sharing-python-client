@@ -141,6 +141,14 @@ async def walk_collections(
     ``seen`` is right again: each collection appears once in the tree, and the
     cap counts it once.
     """
+    return await _walk_collections(repo, collection_id, depth, max_collections)
+
+
+async def _walk_collections(
+    repo: AsyncRepository, collection_id: str, depth: int, max_collections: int,
+    failed: list[tuple[str, EduSharingError]] | None = None,
+) -> tuple[list[dict[str, Any]], int, bool]:
+    """Strict for standalone walks; aggregate searches retain failed branches."""
     seen: set[str] = {collection_id}
     opened = 0
     truncated = False
@@ -160,17 +168,15 @@ async def walk_collections(
             break
         opened += 1
 
-        response = await repo.raw.json(
-            "GET",
-            f"/collection/v1/collections/-home-/{path_segment(node_id)}"
-            "/children/collections",
-            # One over the cap, so the page says for itself whether it is all
-            # of them. Read off the stated total alone this was ``False``
-            # exactly where the endpoint stated nothing -- and at ``depth=1``
-            # the ``opened`` counter does not catch it either, because the
-            # children are never opened (review 2026-09-09).
-            params={"maxItems": max_collections + 1},
-        )
+        try:
+            response = await repo.raw.json(
+                "GET", f"/collection/v1/collections/-home-/{path_segment(node_id)}"
+                "/children/collections", params={"maxItems": max_collections + 1})
+        except EduSharingError as exc:
+            if failed is None or node_id == collection_id:
+                raise
+            failed.append((node_id, exc))
+            continue
         roh = list(response.get("collections") or [])
         if page_cut(roh, response, max_collections):
             # More than one page lists: the rest is neither read nor followed.
@@ -261,14 +267,14 @@ async def search_in_collection(
         )
     needle = query.strip().lower()
 
-    tree = await browse_tree(
-        repo, collection_id, depth=depth, max_collections=max_collections
-    )
+    walk_failed: list[tuple[str, EduSharingError]] = []
+    entries, _, walk_truncated = await _walk_collections(
+        repo, collection_id, depth, max_collections, walk_failed)
     # The walk lists children it did not open -- they come free with their
     # parent's answer. Reading material from all of them would cost two
     # requests each and blow past the cap the caller set, so the same cap
     # applies here.
-    found = [collection_id, *_ids_of(tree["collections"])]
+    found = [collection_id, *_ids_of(entries)]
     ids = found[:max_collections]
 
     # ``return_exceptions``: the ids come from their parents' answers, so they
@@ -297,17 +303,20 @@ async def search_in_collection(
     # raising ``max_collections`` or ``depth``; a page cut short means raising
     # ``limit``. A bare ``True`` said neither (F08, 2026-09-09).
     reasons = []
-    if tree["truncated"] or len(found) > len(ids):
+    if walk_truncated or len(found) > len(ids):
         reasons.append("collections")
     if any(page["total_materials"] > page["returned_materials"] for page in readable):
         reasons.append("material")
+    # The same branch can refuse both listings; count it once.
+    failures = dict(walk_failed + refused)
     return {
         "query": query,
         "hits": hits,
         "searched": len(readable),
         "materials_read": sum(len(page["materials"]) for page in readable),
-        "unreadable": len(refused),
-        "failed": [{"id": cid, "reason": f"{type(e).__name__}: {e}"} for cid, e in refused],
+        "unreadable": len(failures),
+        "failed": [{"id": cid, "reason": f"{type(e).__name__}: {e}"}
+                   for cid, e in failures.items()],
         "truncated": bool(reasons),
         "truncated_by": reasons,
     }
@@ -378,7 +387,7 @@ async def collection_stats(
     for hit in materials:
         for field, values in (hit.get("fields") or {}).items():
             counter = by.setdefault(field, {})
-            for value in values:
+            for value in dict.fromkeys(values):
                 counter[value] = counter.get(value, 0) + 1
 
     total = int(page.get("total_materials") or 0)

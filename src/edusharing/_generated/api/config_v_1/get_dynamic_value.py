@@ -15,6 +15,9 @@ def _get_kwargs(
     key: str,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (key,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     _kwargs: dict[str, Any] = {
         "method": "get",
         "url": "/config/v1/dynamic/{key}".format(

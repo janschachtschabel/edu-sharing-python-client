@@ -128,6 +128,20 @@ async def test_ein_schema_kommt_unveraendert_zurueck():
     assert len(schema["fields"]) == 2
 
 
+@pytest.mark.parametrize("payload", [[None], ["invalid"], [{"field_count": "invalid"}]])
+async def test_invalid_schema_list_entries_raise_library_errors(payload):
+    async with _agent(lambda request: httpx.Response(200, json=payload)) as agent:
+        with pytest.raises(EduSharingError):
+            await agent.schemas()
+
+
+@pytest.mark.parametrize("payload", [[], ["invalid"], "invalid"])
+async def test_a_schema_must_be_an_object(payload):
+    async with _agent(lambda request: httpx.Response(200, json=payload)) as agent:
+        with pytest.raises(EduSharingError):
+            await agent.schema("core.json")
+
+
 # --- Die Zuordnung Inhaltsart -> Schema ------------------------------------
 
 async def test_inhaltsarten_kommen_aus_core_json():

@@ -14,6 +14,9 @@ def _get_kwargs(
     authority_name: str,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (authority_name,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     _kwargs: dict[str, Any] = {
         "method": "post",
         "url": "/admin/v1/authenticate/{authority_name}".format(

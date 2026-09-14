@@ -22,6 +22,9 @@ def _get_kwargs(
     skip_count: int | Unset = 0,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (repository,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     params: dict[str, Any] = {}
 
     params["pattern"] = pattern

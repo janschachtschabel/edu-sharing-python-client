@@ -17,6 +17,9 @@ def _get_kwargs(
     timeout_seconds: int | Unset = 10,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (mode,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     params: dict[str, Any] = {}
 
     params["timeoutSeconds"] = timeout_seconds

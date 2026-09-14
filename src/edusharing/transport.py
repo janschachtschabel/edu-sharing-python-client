@@ -31,9 +31,9 @@ from typing import Any, Self
 
 import httpx
 
+from ._http import _read_bounded_response
 from .auth import ANONYMOUS, Credential, credential_from
 from .errors import (
-    ContentTooLargeError,
     EduSharingError,
     RateLimitedError,
     ServerError,
@@ -74,20 +74,6 @@ _SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 # Failures from before anything went over the wire: nothing happened on the
 # server, so any method may try again.
 _BEFORE_SENDING = (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout)
-# How much of an error page a capped download keeps for the message.
-_ERROR_PAGE_LIMIT = 64 * 1024
-
-
-def _check_size(size: int, max_bytes: int | None, url: str) -> None:
-    if max_bytes is not None and size > max_bytes:
-        raise ContentTooLargeError(
-            f"The file is larger than max_bytes={max_bytes}: {size} bytes "
-            "(announced, or received so far). Raise the limit, or read "
-            "NodeContent.size first and decide.",
-            url=url,
-        )
-
-
 def _repeatable(method: str, idempotent: bool | None) -> bool:
     """Whether a second attempt is safe once the first may have arrived.
 
@@ -476,44 +462,13 @@ class Transport:
                 method, url, params=params, json=json, content=content,
                 files=files, headers=headers,
             )
+        bounded_headers = httpx.Headers(headers)
+        bounded_headers["Accept-Encoding"] = "gzip, deflate"
         async with self._client.stream(
             method, url, params=params, json=json, content=content,
-            files=files, headers=headers,
+            files=files, headers=bounded_headers,
         ) as response:
-            success = response.status_code < 300
-            # The announced length describes the bytes on the wire. With a
-            # content encoding those are the *packed* ones, and the limit is
-            # about what they unpack to -- holding one against the other
-            # refuses content that fits. The count below sees the unpacked
-            # bytes and is the check that matters (F05, 2026-09-09).
-            announced = response.headers.get("content-length", "")
-            if (success and "content-encoding" not in response.headers
-                    and announced.isascii() and announced.isdigit()):
-                _check_size(int(announced), max_bytes, url)
-            chunks: list[bytes] = []
-            received = 0
-            async for chunk in response.aiter_bytes():
-                received += len(chunk)
-                if success:
-                    _check_size(received, max_bytes, url)
-                elif received > _ERROR_PAGE_LIMIT:
-                    break
-                chunks.append(chunk)
-            # ``aiter_bytes`` hands over the DECODED body, so the two
-            # headers that describe the encoded one no longer describe this
-            # content. Carrying them along made the new response unpack a
-            # second time: measured 2026-09-09, the same gzip stream loaded
-            # correctly without a limit and raised ``DecodingError: incorrect
-            # header check`` with one, at a size far below it (F05).
-            # Deterministic, so no retry ever cured it. httpx fills the length
-            # in from the body it is given.
-            passend = httpx.Headers(response.headers)
-            passend.pop("content-encoding", None)
-            passend.pop("content-length", None)
-            return httpx.Response(
-                response.status_code, headers=passend,
-                content=b"".join(chunks), request=response.request,
-            )
+            return await _read_bounded_response(response, max_bytes, url)
 
     def __repr__(self) -> str:
         return f"Transport({self.repository_url!r})"

@@ -26,6 +26,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..errors import ValidationError
+from ._response import _items, _object, _text
 
 __all__ = [
     "build_body", "read_answer", "reasoning_for_responses",
@@ -204,9 +205,19 @@ def read_answer(response: dict[str, Any]) -> str:
     Checks ``content`` **and** ``reasoning``: if the token budget went into
     thinking, ``content`` is null and the text sits in the second field. Reading
     only ``content`` yields nothing there.
+
+    Raises:
+        EduSharingError: on malformed nested choices, messages or text.
+            Absent or null optional text fields still yield empty text.
     """
-    choices = response.get("choices") or []
+    response = _object(response, "chat/completions")
+    choices = _items(response.get("choices"), "chat/completions", "choices")
     if not choices:
         return ""
-    message = choices[0].get("message") or {}
-    return str(message.get("content") or message.get("reasoning") or "")
+    choice = _object(choices[0], "chat/completions", "choices[0]")
+    message = choice.get("message")
+    if message is None:
+        return ""
+    message = _object(message, "chat/completions", "choices[0].message")
+    return (_text(message.get("content"), "chat/completions", "choices[0].message.content")
+            or _text(message.get("reasoning"), "chat/completions", "choices[0].message.reasoning"))

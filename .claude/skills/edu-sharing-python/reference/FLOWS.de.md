@@ -1283,7 +1283,7 @@ repo.flows.find_pages("Deutsch", limit=25)
 {"query": "Deutsch", "checked": 50, "total": 876, "total_is_lower_bound": true,
  "hits": [{"id": "69f9ff64-…", "title": "Deutsch", "url": "https://…",
            "folder_id": "f2020460-…"}],
- "reason": ""}
+ "warnings": [], "reason": ""}
 ```
 
 Eine Suche — zwei Wege parallel, genau das, was `find_collections` sendet.
@@ -1324,6 +1324,9 @@ Auf der API-Ebene ist dasselbe Erkennen eine Zeile:
 `node.page.get()`.
 
 ---
+
+Auch bei leeren `hits` die `warnings` lesen: Ein fehlgeschlagener
+Sammlungssuchweg bleibt hier und im Seitenbereich von `search_all` sichtbar.
 
 ## `find_skills` — welche Skills zu einer Aufgabe passen
 

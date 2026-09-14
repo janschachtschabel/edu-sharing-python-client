@@ -320,7 +320,8 @@ async def search_all(
         collections["error"] = failure
         if include_pages:
             # The same path as a filled bucket, so the keys cannot drift.
-            pages = {**pages_among(SearchResult(total_is_lower_bound=True), text),
+            pages = {**pages_among(SearchResult(total_is_lower_bound=True,
+                                               warnings=[failure]), text),
                      "reason": failure, "error": failure}
     else:
         found: _Found = collection_outcome

@@ -39,6 +39,7 @@ from typing import Any, Self
 
 import httpx
 
+from .._http import _read_bounded_response
 from ..errors import (
     EduSharingError,
     RateLimitedError,
@@ -51,8 +52,10 @@ from ..errors import (
     whole_number,
 )
 from ..retry import RETRYABLE_STATUS, RetryPolicy, parse_retry_after
+from ..transport import _BEFORE_SENDING
 from ..urls import path_segment, refuse_userinfo
 from . import passthrough
+from ._response import _items
 from .body import UNSET, ReasoningParam, build_body, read_answer
 from .models import (
     LoadReport,
@@ -274,7 +277,7 @@ class BildungsAPI:
             now = time.monotonic()
             response = await self._request("GET", f"/api/v1/llm/{path_segment(which)}/models")
             raw = response.get("data") if isinstance(response, dict) else response
-            models = [Model.from_response(m) for m in (raw or [])]
+            models = [Model.from_response(m) for m in _items(raw, "models", "data")]
             if which == self.provider:
                 self._models_cache = (now, models)
             return models
@@ -391,8 +394,9 @@ class BildungsAPI:
         if gruppe is not None:
             candidates = rank_among(await self.models(which), gruppe)
         elif isinstance(model, str) and model:
+            answer = read_answer(await self._request("POST", path, json=body_for(model)))
             self.last_model = model
-            return read_answer(await self._request("POST", path, json=body_for(model)))
+            return answer
         else:
             angebot = await self.models(which)
             if not is_rankable(angebot):
@@ -414,14 +418,14 @@ class BildungsAPI:
         versuche = candidates if gruppe is not None \
             else candidates[:DEFAULT_MODEL_ATTEMPTS]
 
-        return read_answer(await self._first_that_answers(versuche, path, body_for))
+        return await self._first_that_answers(versuche, path, body_for)
 
     async def _first_that_answers(
         self,
         versuche: list[Model],
         path: str,
         body_for: Callable[[str], dict[str, Any]],
-    ) -> dict[str, Any]:
+    ) -> str:
         """Try the candidates in order and return the first answer.
 
         Switching beats waiting while another candidate remains: a 503 is
@@ -443,7 +447,12 @@ class BildungsAPI:
             try:
                 response = await self._request(
                     "POST", path, json=body_for(candidate.id), max_retries=budget)
+                answer = read_answer(response)
             except EduSharingError as exc:
+                if isinstance(exc, RateLimitedError) and exc.retry_after is not None:
+                    # The gateway limits the key. A different model does not
+                    # make its explicit waiting period disappear.
+                    raise
                 # A "ready" model may still not answer. Whoever left the choice
                 # to the library wants an answer -- not the news that the first
                 # candidate happens to be unbillable right now.
@@ -462,7 +471,7 @@ class BildungsAPI:
                     candidate.id, candidate.shutdown_date,
                 )
             self.last_model = candidate.id
-            return dict(response)
+            return answer
 
         raise EduSharingError(
             "None of the models tried answered. " + " | ".join(failures)
@@ -514,20 +523,52 @@ class BildungsAPI:
 
     async def call(
         self, route: str, body: dict[str, Any], *, provider: str | None = None,
+        idempotent: bool = False,
     ) -> dict[str, Any]:
-        """Any other forwarded route. See ``passthrough.call``.
+        """Any other JSON route. See ``passthrough.call``.
 
         The escape hatch, as ``repo.raw`` is on the edu-sharing side:
-        ``await llm.call("audio/speech", {...})``.
+        ``await llm.call("completions", {...})``. For an audio file use
+        ``call_bytes`` instead.
         """
-        return await passthrough.call(self, route, body, provider=provider)
+        return await passthrough.call(self, route, body, provider=provider, idempotent=idempotent)
+
+    async def call_bytes(
+        self, route: str, body: dict[str, Any], *, provider: str | None = None,
+        max_bytes: int | None = None,
+        idempotent: bool = False,
+    ) -> bytes:
+        """POST a JSON body and receive bytes, e.g. from ``audio/speech``.
+
+        Args:
+            route: forwarded route without a leading slash.
+            body: the provider's JSON request body, passed through untouched.
+            provider: overrides this client's default for the call.
+            max_bytes: optional non-negative decoded-byte limit. With a limit,
+                the response is read in chunks and refused above it.
+            idempotent: opt into repeating uncertain requests only when the
+                operation is safe to repeat. Defaults to False, as on ``call``.
+
+        Returns:
+            The response bytes after HTTP content decoding, without audio
+            transcoding. This method supports neither multipart requests nor
+            event streaming; ``call`` remains the JSON-response counterpart.
+
+        Raises:
+            ContentTooLargeError: the decoded response exceeds ``max_bytes``.
+            ValidationError: the route cannot be addressed safely.
+            EduSharingError: invalid limit, or the gateway refuses the request.
+        """
+        return await passthrough.call_bytes(
+            self, route, body, provider=provider, max_bytes=max_bytes, idempotent=idempotent)
 
     async def _pick(self, provider: str) -> Model:
         return pick_model(await self.models(provider))
 
     async def _request(
         self, method: str, path: str, *,
-        max_retries: int | None = None, **kwargs: Any,
+        max_retries: int | None = None, response_bytes: bool = False,
+        max_bytes: int | None = None, repeatable: bool = True, **kwargs: Any,
     ) -> Any:
         """One request, retried within the given budget.
 
@@ -550,14 +591,16 @@ class BildungsAPI:
                 await asyncio.sleep(pause)
             try:
                 async with self._semaphore:
-                    response = await self._client.request(
-                        method, url,
-                        headers={"X-API-KEY": self._api_key,
-                                 "Accept": "application/json"},
-                        **kwargs,
-                    )
+                    response = await self._send(
+                        method, url, response_bytes=response_bytes,
+                        max_bytes=max_bytes, **kwargs)
             except httpx.HTTPError as exc:
                 last = EduSharingError(f"{type(exc).__name__}: {exc}", url=url)
+                if not repeatable and not isinstance(exc, _BEFORE_SENDING):
+                    raise EduSharingError(
+                        f"{type(exc).__name__}: {exc} -- the request may have "
+                        "arrived and been stored. Check before sending it again.",
+                        url=url) from exc
                 continue
 
             if 300 <= response.status_code < 400:
@@ -566,16 +609,11 @@ class BildungsAPI:
                     service="the b-api", env_var=ENV_BASE_URL,
                 )
             if response.status_code < 400:
-                try:
-                    return response.json()
-                except ValueError as exc:
-                    raise non_json_error(
-                        response.status_code, url, response.text,
-                        service="The b-api",
-                    ) from exc
+                return _response_body(response, url, response_bytes)
 
             last = self._error(response, url)
-            if response.status_code not in RETRYABLE_STATUS:
+            if (response.status_code not in RETRYABLE_STATUS
+                    or (not repeatable and response.status_code != 429)):
                 raise last
 
         # ``max_retries >= 0`` is checked in the constructor, so the loop runs
@@ -583,6 +621,18 @@ class BildungsAPI:
         # itself return or raise. An assert here would vanish under ``python -O``
         # and turn into ``raise None`` -- a TypeError instead of the real cause.
         raise last  # type: ignore[misc]
+
+    async def _send(
+        self, method: str, url: str, *, response_bytes: bool,
+        max_bytes: int | None, **kwargs: Any,
+    ) -> httpx.Response:
+        headers = {"X-API-KEY": self._api_key,
+                   "Accept": "*/*" if response_bytes else "application/json"}
+        if max_bytes is None:
+            return await self._client.request(method, url, headers=headers, **kwargs)
+        headers["Accept-Encoding"] = "gzip, deflate"
+        async with self._client.stream(method, url, headers=headers, **kwargs) as response:
+            return await _read_bounded_response(response, max_bytes, url)
 
     def _error(self, response: httpx.Response, url: str) -> EduSharingError:
         """Build an error from the b-api response.
@@ -621,3 +671,13 @@ class BildungsAPI:
 
     def __repr__(self) -> str:
         return f"BildungsAPI(base_url={self.base_url!r}, provider={self.provider!r})"
+
+
+def _response_body(response: httpx.Response, url: str, as_bytes: bool) -> Any:
+    """Decode the successful HTTP body without mixing in retry decisions."""
+    if as_bytes:
+        return response.content
+    try:
+        return response.json()
+    except ValueError as exc:
+        raise non_json_error(response.status_code, url, response.text, service="The b-api") from exc

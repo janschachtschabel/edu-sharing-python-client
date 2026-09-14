@@ -18,6 +18,9 @@ def _get_kwargs(
     force_update: bool | Unset = UNSET,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (repository, node,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     params: dict[str, Any] = {}
 
     params["forceUpdate"] = force_update

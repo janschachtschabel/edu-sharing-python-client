@@ -99,11 +99,11 @@ answer = repo.flows.search("Bruchrechnung", subject="Mathematik", limit=5)   # d
 ```
 
 Search short names: `subject`, `level`, `type`, `license`, `difficulty`
-(`STANDARD_FIELD_ALIASES`) — pass labels, they are resolved. **Short names are
-keywords only**: in `search(…)`, `update(…)`, `create_node(…)` and anywhere in
-`repo.flows.*`. Where a call names a property — `filters=`, `facets=`,
-`properties=`, `repo.vocab.*`, `repo.resolve(…)`, `labels(…)` — it takes the full
-name; a short name there answers 400:
+(`STANDARD_FIELD_ALIASES`) — pass labels, they are resolved. In `repo.search(…)`
+and `repo.searcher.search(…)`, use short names as keywords; `filters=` and
+`facets=` take full property names. **The search flow also accepts facet aliases:**
+`repo.flows.search(text, facets=["subject"])` resolves `subject` for you.
+`properties=`, `repo.vocab.*`, `repo.resolve(…)` and `labels(…)` take full names:
 `repo.searcher.search(text, filters={"ccm:taxonid": [uri]}, facets=["ccm:taxonid"])`.
 A vague request ranks better with `repo.flows.search(text, rerank=True)` — its
 stopwords and synonyms are a `LanguageProfile`, German (`GERMAN`) by default.
@@ -366,7 +366,7 @@ model's URL is fetched: `check_url(url)`. Before a model's change is written:
 | `repo.skills` | `search(text, collection_id=…, **filters)` → `SkillSearch` · `get(node_id)` → `SkillDocument` · `registry(collection_id, context=…)` → `SkillRegistry` · `pick(text)` → `(SkillDocument, list[SkillSummary]) \| None` |
 | `repo.raw` | `json(method, path, json=…)` → parsed body · `request(method, path, …)` → `httpx.Response` · `download(path, max_bytes=…)` → `bytes` · `is_repository_url(url)` → `bool` |
 | `repo.flows` — all → `dict` | `repo.flows.search(text, filters=…, limit=…, rerank=…, exclude_ids=…, **filters)` · `repo.flows.search_all(text)` → `{materials, collections}` · `repo.flows.find_collections(text, parent_id=…)` · `repo.flows.related(node_id, on=…)` · `repo.flows.vocabulary(field)` · `repo.flows.describe(node_id)` · `repo.flows.describe_many(node_ids)` · `repo.flows.placement(node_id)` → `{path, …}` · `repo.flows.text(node_id, extraction=…)` · `repo.flows.collection_contents(collection_id)` · `repo.flows.child_objects(node_id)` · `repo.flows.relations(node_id)` · `repo.flows.browse_tree(collection_id, depth=…)` · `repo.flows.search_in_collection(collection_id, query)` · `repo.flows.collection_stats(collection_id)` · `repo.flows.page(collection_id)` · `repo.flows.find_pages(text)` · `repo.flows.add_material(title, url=…, parent_id=…, **filters)` · `repo.flows.update_material(node_id, title=…)` · `repo.flows.build_collection(title, node_ids=…)` · `repo.flows.accept_suggestion(node_id, suggestion_id)` · `repo.flows.find_skills(text)` · `repo.flows.skill(node_id)` · `repo.flows.skill_registry(collection_id, context=…)` · `repo.flows.pick_skill(text)` · `repo.flows.delete(node_id, recycle=True)` → `{recycled, …}` |
-| `BildungsAPI` | `BildungsAPI(api_key, base_url=…)` · `chat(prompt, model=…, system=…, max_tokens=…)` → `str` · `last_model` · `respond(prompt, model=…)` → `Answer` · `models(provider=…)` → `list[Model]` · `load(provider=…)` → `LoadReport` · `embeddings(texts, model=…)` → `list[list[float]]` · `moderate(text, model=…)` → `Moderation` · `images(prompt, model=…)` → `list[GeneratedImage]` · `call(route, body)` → `dict` · `model.is_retired_on(day)` |
+| `BildungsAPI` | `BildungsAPI(api_key, base_url=…)` · `chat(prompt, model=…, system=…, max_tokens=…)` → `str` · `last_model` · `respond(prompt, model=…)` → `Answer` · `models(provider=…)` → `list[Model]` · `load(provider=…)` → `LoadReport` · `embeddings(texts, model=…)` → `list[list[float]]` · `moderate(text, model=…)` → `Moderation` · `images(prompt, model=…)` → `list[GeneratedImage]` · `call(route, body)` → `dict` · `call_bytes(route, body, provider=…, max_bytes=…)` → `bytes` · `model.is_retired_on(day)` |
 | `BapiTemplates` | `BapiTemplates(api_key, base_url=…, metadataset=…)` · `chat(configs, context_node_id=…, variables=…)` / `chat_limited(configs, context_node_id=…, choices=…)` → `str` · `respond(configs, context_node_id=…)` / `respond_limited(configs, context_node_id=…)` → `Answer` · `images(configs, context_node_id=…)` / `images_limited(configs, context_node_id=…)` → `list[GeneratedImage]` · `suggest(configs, widgets, context_node_id=…)` → `list[Suggestion]` · `qas(node_ids)` → `list[dict]` · `NodeConfig(node_id, config_name)` |
 | `TextExtraction` · `MetadataAgent` | `text_of(url, method="simple", max_chars=…)` → `ExtractedText` (`.text` `.reason` `.truncated`) · `ping()` · `schemas()` · `schema(file)` → `dict` · `content_types()` · `content_type_for(uri)` → `ContentType \| None` |
 | `edusharing.agent` | `as_result(awaitable, format=…)` → `ToolResult` · `as_untrusted(text, label=…)` · `sanitize_text(text)` · `one_line(text)` · `format_results(result)` · `format_hit(hit)` · `check_url(url)` / `is_safe_url(url)` · `plan_update(node, title=…)` → `ChangePlan` (`.describe()` `.apply()`) |

@@ -14,6 +14,9 @@ def _get_kwargs(
     mail: str,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (mail,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     _kwargs: dict[str, Any] = {
         "method": "post",
         "url": "/register/v1/resend/{mail}".format(

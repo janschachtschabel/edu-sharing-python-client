@@ -21,6 +21,9 @@ def _get_kwargs(
     published: bool | Unset = UNSET,
     content_type: GetByUsersAsyncContentType | Unset = UNSET,
 ) -> dict[str, Any]:
+    if any(str(value) in ("", ".", "..") for value in (user_id,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     headers: dict[str, Any] = {}
 
     params: dict[str, Any] = {}

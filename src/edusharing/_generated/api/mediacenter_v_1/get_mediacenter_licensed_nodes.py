@@ -24,6 +24,9 @@ def _get_kwargs(
     property_filter: list[str] | Unset = UNSET,
     searchword: str,
 ) -> dict[str, Any]:
+    if any(str(value) in ("", ".", "..") for value in (repository, mediacenter,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     headers: dict[str, Any] = {}
 
     params: dict[str, Any] = {}

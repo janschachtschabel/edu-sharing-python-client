@@ -16,6 +16,9 @@ def _get_kwargs(
     course_id: str,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (app_id, course_id,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     _kwargs: dict[str, Any] = {
         "method": "get",
         "url": "/usage/v1/usages/course/{app_id}/{course_id}".format(

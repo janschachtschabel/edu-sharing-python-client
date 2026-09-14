@@ -20,6 +20,9 @@ def _get_kwargs(
     parent: str | Unset = UNSET,
     return_result: bool | Unset = True,
 ) -> dict[str, Any]:
+    if any(str(value) in ("", ".", "..") for value in (repository, group,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     headers: dict[str, Any] = {}
 
     params: dict[str, Any] = {}

@@ -26,6 +26,9 @@ def _get_kwargs(
     resolve_inherited_access: bool | Unset = UNSET,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (repository, collection,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     params: dict[str, Any] = {}
 
     json_scope = scope.value

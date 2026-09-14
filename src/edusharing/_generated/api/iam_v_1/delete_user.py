@@ -17,6 +17,9 @@ def _get_kwargs(
     force: bool | Unset = False,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (repository, person,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     params: dict[str, Any] = {}
 
     params["force"] = force

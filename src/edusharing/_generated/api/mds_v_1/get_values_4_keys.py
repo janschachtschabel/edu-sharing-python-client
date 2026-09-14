@@ -20,6 +20,9 @@ def _get_kwargs(
     property_: str | Unset = UNSET,
     locale: str | Unset = UNSET,
 ) -> dict[str, Any]:
+    if any(str(value) in ("", ".", "..") for value in (repository, metadataset,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     headers: dict[str, Any] = {}
     if not isinstance(locale, Unset):
         headers["locale"] = locale

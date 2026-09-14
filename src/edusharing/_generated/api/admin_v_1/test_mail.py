@@ -15,6 +15,9 @@ def _get_kwargs(
     template: str,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (receiver, template,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     _kwargs: dict[str, Any] = {
         "method": "post",
         "url": "/admin/v1/mail/{receiver}/{template}".format(

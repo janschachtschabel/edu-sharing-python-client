@@ -24,6 +24,9 @@ def _get_kwargs(
     assoc_type: str | Unset = UNSET,
     obey_mds: bool | Unset = True,
 ) -> dict[str, Any]:
+    if any(str(value) in ("", ".", "..") for value in (repository, node,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     headers: dict[str, Any] = {}
 
     params: dict[str, Any] = {}

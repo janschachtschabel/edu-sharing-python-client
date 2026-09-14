@@ -20,6 +20,9 @@ def _get_kwargs(
     max_items: int | Unset = 100,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (repository,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     params: dict[str, Any] = {}
 
     json_after = after.isoformat()

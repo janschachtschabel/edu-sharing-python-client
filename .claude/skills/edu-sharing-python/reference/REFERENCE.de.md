@@ -10,9 +10,12 @@ Skizzen.
 
 Ein Test hält die Datei vollständig: er schlägt fehl, sobald ein öffentlicher
 Name hier oder in der englischen Fassung fehlt. Eine Kopie reist mit dem Skill
-für Coding-Agenten, in `.claude/skills/edu-sharing-python/reference/` — dieser
-Ordner gehört für Claude Code nach `~/.claude/skills/`, für OpenAI Codex nach
-`~/.agents/skills/`, oder in ein Projekt als `<projekt>/.claude/skills/`.
+für Coding-Agenten, in `.claude/skills/edu-sharing-python/reference/`.
+Kopiert wird der ganze
+Skill-Ordner `edu-sharing-python/` samt `SKILL.md` nach `~/.claude/skills/`
+(Claude Code) oder `~/.agents/skills/` (OpenAI Codex). Für ein einzelnes
+Projekt gehören die Ordner entsprechend nach `<repo>/.claude/skills/`
+oder `<repo>/.agents/skills/`.
 
 **Die Beispiele sind für `AsyncRepository` geschrieben.** Mit dem
 blockierenden `Repository` das `await` weglassen — jeder Aufruf auf `repo.…`
@@ -132,7 +135,7 @@ Adresse entgegen.
 
 ### Was ein Einstieg entgegennimmt
 
-Vier Klassen öffnen eine Verbindung, und sie nehmen dieselbe Art von
+Fünf Klassen öffnen eine Verbindung, und sie nehmen dieselbe Art von
 Einstellungen. Jede ist optional; die Vorgaben sind die, mit denen die
 Messungen unten entstanden sind.
 
@@ -197,10 +200,19 @@ ein Test hält diese Liste an dem, was der Code tut.
 
 | Aufruf | Ergebnis |
 |---|---|
-| `repo.raw.json("GET", "/node/v1/nodes/-home-/{id}/metadata")` | der geparste Rumpf |
+| `repo.raw.json(method, path, params=…, json=…, content=…, files=…, headers=…, credential=…, idempotent=…, max_bytes=…)` | der geparste Rumpf |
 | `repo.raw.request("POST", path, params=…, json=…, content=…, files=…, headers=…, credential=…, idempotent=…, max_bytes=…)` | `httpx.Response` — `idempotent=True` sagt, dass ein zweiter Versuch sicher ist, nachdem der erste vielleicht ausgeführt wurde (ohne das werden nur `GET`, `HEAD`, `PUT` und `DELETE` wiederholt); `credential=` schickt genau diese eine Anfrage als jemand anderes; `params`, `json`, `content`, `files` und `headers` gehen so auf die Leitung, wie sie übergeben werden |
 | `repo.raw.download(path, max_bytes=…, credential=…)` | `bytes` — gestreamt und über `max_bytes` gedeckelt, wiederholt wie jedes GET. Die Grenze zählt **entpackte** Bytes; eine komprimierte Antwort wird genau einmal dekodiert, und die zurückgegebene Antwort behauptet keine Kodierung mehr, die sie nicht mehr trägt |
 | `repo.raw.is_repository_url(url)` | `bool` — ob Zugangsdaten mitgingen |
+
+Downloads mit Größenlimit handeln `gzip, deflate` aus und entpacken
+schrittweise, einschließlich Raw Deflate. Andere Kodierungen werden
+abgewiesen. Höchstens vier Kodierungsschichten sind erlaubt; Zwischenergebnisse
+dürfen das angeforderte Limit um höchstens 64 KiB überschreiten. Fehlerseiten
+sind separat auf 64 KiB begrenzt. Bereits gepufferte injizierte Antworten
+werden auf Größe geprüft; ihre vorherigen Speicherbelegungen verantwortet
+der puffernde Client. Ein abgebrochener synchroner Aufruf storniert wartende
+Hintergrundarbeit, kann aber einen bereits angenommenen Serverauftrag nicht zurücknehmen.
 
 ```python
 body = await repo.raw.json("GET", "/_about/status/ALFRESCO")
@@ -217,7 +229,7 @@ Sie selbst.
 
 | Aufruf | Ergebnis |
 |---|---|
-| `repo.search("Bruchrechnung")` | `SearchResult` |
+| `repo.search(text, filters=…, limit=…, offset=…, facets=…, facet_limit=…, content_type=…)` | `SearchResult` |
 | `repo.search(subject="Mathematik", level="Sekundarstufe I")` | reine Filtersuche |
 | `repo.searcher` | das `Search`-Objekt, für `facets=` und Blättern |
 | `repo.searcher.search(text, filters=…, facets=…, facet_limit=…, limit=…, offset=…, content_type=…)` | `SearchResult` — `content_type="FILES"` (Vorgabe) oder `"FILES_AND_FOLDERS"`; Sammlungen gibt diese Abfrage nie zurück, dafür gibt es eine eigene |
@@ -362,7 +374,7 @@ nicht angekommen ist. Diese Probe ist das zentrale Versprechen der Bibliothek.
 | `node.add_keywords("Bruch", "Klasse 6")` | `Node` — je Schlagwort ein Argument |
 | `node.remove_keywords("alt")` | `Node` |
 | `node.rate(4)` / `node.unrate()` | `Rating` |
-| `node.delete()` | `None` — in den Papierkorb |
+| `node.delete(recycle=True)` | `None` — in den Papierkorb; `recycle=False` löscht endgültig |
 
 **Drei gemessene Ursachen, wenn ein Schreibvorgang halb gelingt**, und was
 jede braucht: eine Eigenschaft, die der Metadatensatz nicht kennt
@@ -714,7 +726,7 @@ ist; der Ordner eines Skills antwortete anonym mit 403.
 | `repo.skills.search(text, collection_id=…, include_subcollections=…, limit=…, conventions=…, subject=…)` | `SkillSearch` — gereiht: Titel 3, Schlagwörter 2, Beschreibung 1; das Original gewinnt über die Referenz |
 | `repo.skills.get(node_id, include_files=…, conventions=…)` | `SkillDocument` — das Markdown, seine Verweise, die Dateien daneben |
 | `repo.skills.registry(collection_id, context=…, resolve=…, conventions=…)` | `SkillRegistry` — über das Dateilisting der Sammlung, nie über den Index |
-| `repo.skills.pick(text, …)` | `(SkillDocument, list[SkillSummary]) \| None` — der beste Treffer geladen, die anderen genannt |
+| `repo.skills.pick(text, include_files=…, collection_id=…, conventions=…, include_subcollections=…, limit=…)` | `(SkillDocument, list[SkillSummary]) \| None` — der beste Treffer geladen, die anderen genannt |
 | `SkillConventions` | `type_property`, `skill_type`, `registry_type`, `registry_mark`, `markdown_mimetypes`, `block_kinds`, `skill_kind` |
 | `WLO_SKILLS` | die Vorgabe-Konventionen |
 | `SkillSummary` | `id`, `original_id`, `title`, `description`, `keywords`, `url`, `download_url` |
@@ -731,7 +743,7 @@ Das Markdown selbst, ohne I/O — `edusharing.skills_markdown`:
 
 | Aufruf | Ergebnis |
 |---|---|
-| `parse_blocks(text, kinds=…)` | `list[SkillReference]` — die `:::`-Blöcke |
+| `parse_blocks(text, kinds=…, skill_kind="ki-skill")` | `list[SkillReference]` — die `:::`-Blöcke |
 | `parse_sections(text)` | `list[MarkdownSection]` — ATX-Überschriften mit ihrer Reichweite |
 | `layout_contexts(text, blocks, skill_kind=…)` | `ContextLayout` — unter welcher benannten Überschrift jeder Block liegt |
 | `SkillReference` | `kind`, `title`, `url`, `node_id`, `offset` |
@@ -848,11 +860,11 @@ gebunden — `repo.flows.search("Bruch")`; die Modulfunktionen dahinter
 
 | Aufruf | Liefert |
 |---|---|
-| `repo.flows.search(text, filters=…, facets=…, limit=…, rerank=…, exclude_ids=…, facet_limit=…, properties=…)` | `{query, total, total_is_lower_bound, returned, duplicates_removed, hits, facets, facet_meta, unresolved, ignored, warnings, suggestions}` — `facet_meta[name]` trägt `other_count` und `truncated` der Facette; eine vom Server gekürzte Werteliste sieht sonst vollständig aus |
-| `repo.flows.search_all(text, limit=…, include_pages=…, properties=…)` | `{query, materials, collections}` — beide Körbe auf einmal; `pages` als dritter mit `include_pages=True` |
+| `repo.flows.search(text, filters=…, facets=…, limit=…, rerank=…, exclude_ids=…, facet_limit=…, properties=…, deduplicate=…, language=…, offset=…, pool=…)` | `{query, total, total_is_lower_bound, returned, duplicates_removed, hits, facets, facet_meta, unresolved, ignored, warnings, suggestions}` — `facet_meta[name]` trägt `other_count` und `truncated` der Facette; eine vom Server gekürzte Werteliste sieht sonst vollständig aus |
+| `repo.flows.search_all(text, limit=…, include_pages=…, properties=…, deduplicate=…, facets=…, filters=…, language=…, pool=…, rerank=…)` | `{query, materials, collections}` — beide Körbe auf einmal; `pages` als dritter mit `include_pages=True` |
 | `repo.flows.find_collections(text, limit=…, parent_id=…, properties=…, subject=…)` | dieselbe Form wie `search` plus `unjudged`; Filter wirken lokal; `total_is_lower_bound` ist bei einer Suche **immer** wahr |
 | `repo.flows.related(node_id, on=…, limit=…)` | `{seed, based_on, hits, unresolved, reason}` — eine Referenz-ID geht: das eigene Original und jede andere Referenz darauf fallen heraus. Bleibt dabei nichts übrig, sagt `reason` das -- eine leere Liste allein läse sich als „nichts Ähnliches vorhanden" |
-| `repo.flows.vocabulary(field)` | `{field, property, values, count}` |
+| `repo.flows.vocabulary(field, locale=…)` | `{field, property, values, count}` |
 
 ```python
 answer = await repo.flows.search("Bruchrechnung", limit=2, facets=["subject"])
@@ -930,8 +942,8 @@ eine Sammlung aus Untersammlungen leer aussehen.
 | Aufruf | Liefert |
 |---|---|
 | `repo.flows.browse_tree(collection_id, depth=…, max_collections=…)` | `{id, collections, opened, truncated}`, verschachtelt |
-| `repo.flows.search_in_collection(collection_id, query, …)` | `{query, hits, searched, materials_read, unreadable, failed, truncated, truncated_by}` — `searched` zählt Sammlungen, `materials_read` das Verglichene; `truncated_by` trägt `"collections"`, `"material"` oder beides |
-| `repo.flows.collection_stats(collection_id, …)` | `{id, materials, collections, collections_truncated, sampled, complete, by}` |
+| `repo.flows.search_in_collection(collection_id, query, depth=…, limit=…, max_collections=…, properties=…)` | `{query, hits, searched, materials_read, unreadable, failed, truncated, truncated_by}` — `searched` zählt Sammlungen, `materials_read` das Verglichene; `truncated_by` trägt `"collections"`, `"material"` oder beides |
+| `repo.flows.collection_stats(collection_id, sample=…)` | `{id, materials, collections, collections_truncated, sampled, complete, by}` |
 | `DEFAULT_MAX_COLLECTIONS` | die voreingestellte Obergrenze des Gangs |
 
 ```python
@@ -952,26 +964,26 @@ Gang, der früh abgebrochen hat, heißt nicht „es gibt keins".
 
 | Aufruf | Liefert |
 |---|---|
-| `repo.flows.page(collection_id)` | `{collection, folder_id, rendered, variants, variants_total, swimlanes, node_ids, resolved, truncated, truncated_by, reason}` — `truncated_by` trägt `"widgets"` (dann `max_widgets` heben) oder `"variants"` (der eigene Deckel des Lesers auf die Kinder des Seitenordners; `rendered` kann dann `None` sein, obwohl eine Standardvariante festgelegt ist) |
-| `repo.flows.find_pages(text, limit=…)` | `{query, hits, checked, total, total_is_lower_bound, reason}` |
+| `repo.flows.page(collection_id, max_widgets=…, resolve_widgets=…, variant=…)` | `{collection, folder_id, rendered, variants, variants_total, swimlanes, node_ids, resolved, truncated, truncated_by, reason}` — `truncated_by` trägt `"widgets"` (dann `max_widgets` heben) oder `"variants"` (der eigene Deckel des Lesers auf die Kinder des Seitenordners; `rendered` kann dann `None` sein, obwohl eine Standardvariante festgelegt ist) |
+| `repo.flows.find_pages(text, limit=…)` | `{query, hits, checked, total, total_is_lower_bound, warnings, reason}` |
 
 ### Schreiben
 
 | Aufruf | Liefert |
 |---|---|
-| `repo.flows.add_material(title, url=…, parent_id=…, subject=…, if_exists=…)` | `{id, title, url, parent_id, name, collection, public, unresolved, existing, created, warnings}` — `if_exists="return"` nennt einen vorhandenen Datensatz zu `url`, statt einen zweiten anzulegen. Eine leere `url` zählt als keine: nichts wird gespeichert, keine Prüfung läuft |
+| `repo.flows.add_material(title, url=…, parent_id=…, subject=…, if_exists=…, collection_id=…, description=…, keywords=…, name=…, properties=…, publish=…)` | `{id, title, url, parent_id, name, collection, public, unresolved, existing, created, warnings}` — `if_exists="return"` nennt einen vorhandenen Datensatz zu `url`, statt einen zweiten anzulegen. Eine leere `url` zählt als keine: nichts wird gespeichert, keine Prüfung läuft |
 | `validate_if_exists(if_exists)` | wirft `ValidationError`, wenn nicht `return`, `raise` oder `create` |
 | `find_by_url(repo, url)` | `{id, title, url} \| None` — der Datensatz, der diese Adresse schon trägt; `ValidationError`, wenn der Metadatensatz nicht nach `ccm:wwwurl` filtern kann Verglichen wird komponentenweise: Schema und Host schreibungsblind, **Pfad und Query nicht** (geändert am 09.09.2026 — bisher wurde die ganze Adresse kleingeschrieben, `/A` traf also `/a`). Eine gespeicherte Adresse, die sich nicht lesen lässt, wird übersprungen; ein unlesbares `url`-Argument ist ein `ValidationError` |
 | `check_before_create(repo, url, if_exists)` | `(existing, warnings)` — wendet `if_exists` an; wirft `ConflictError` bei `"raise"` |
 | `DUPLICATE_SCAN_LIMIT` | `20` — verglichene Treffer je Prüfung |
-| `repo.flows.update_material(node_id, …)` | `{id, title, url, name, unresolved, redirected_from}` — `keywords=` **ersetzt** die gemeinsame Liste; `node.add_keywords(…)` auf API-Ebene führt zusammen |
-| `repo.flows.build_collection(title, node_ids=[…], …)` | `{id, title, url, added, failed, public, warnings}` |
+| `repo.flows.update_material(node_id, description=…, keywords=…, properties=…, title=…, url=…)` | `{id, title, url, name, unresolved, redirected_from}` — `keywords=` **ersetzt** die gemeinsame Liste; `node.add_keywords(…)` auf API-Ebene führt zusammen |
+| `repo.flows.build_collection(title, node_ids=[…], description=…, parent_id=…, publish=…, scope=…)` | `{id, title, url, added, failed, public, warnings}` |
 | `repo.flows.accept_suggestion(node_id, suggestion_id)` | `{id, suggestion_id, property, value, applied, status, failed}` — schreiben, zurücklesen, dann markieren |
-| `repo.flows.find_skills(text, collection_id=…, subject=…)` | `{query, hits, unresolved, truncated}` |
-| `repo.flows.skill(node_id, include_files=…)` | das `SkillDocument` als dict — `files_reason` lesen |
-| `repo.flows.skill_registry(collection_id, context=…)` | die `SkillRegistry` als dict — `reason` vor `entries` lesen |
-| `repo.flows.pick_skill(text, …)` | `{best, alternatives, reason}` |
-| `repo.flows.delete(node_id)` | `{id, title, name, type, is_reference, original_id, recycled}` — an einer Referenz verschwindet nur die Referenz |
+| `repo.flows.find_skills(text, collection_id=…, subject=…, conventions=…, include_subcollections=…, limit=…)` | `{query, hits, unresolved, truncated}` |
+| `repo.flows.skill(node_id, include_files=…, conventions=…)` | das `SkillDocument` als dict — `files_reason` lesen |
+| `repo.flows.skill_registry(collection_id, context=…, conventions=…, resolve=…)` | die `SkillRegistry` als dict — `reason` vor `entries` lesen |
+| `repo.flows.pick_skill(text, include_files=…, collection_id=…, conventions=…, include_subcollections=…, limit=…)` | `{best, alternatives, reason}` |
+| `repo.flows.delete(node_id, recycle=…)` | `{id, title, name, type, is_reference, original_id, recycled}` — an einer Referenz verschwindet nur die Referenz |
 
 ```python
 made = await repo.flows.add_material(
@@ -1061,8 +1073,18 @@ Template-Modus* weiter unten — eine eigene Klasse, von der diese nicht abhäng
 | `Moderation` | `categories`, `flagged`, `raw`, `scores` |
 | `api.images(prompt, model=…, n=…, size=…, provider=…)` | `list[GeneratedImage]` |
 | `GeneratedImage` | `b64`, `revised_prompt`, `url` |
-| `api.call(route, body, provider=…)` | das rohe JSON jeder durchgereichten Route |
+| `api.call(route, body, provider=…, idempotent=…)` | das rohe JSON einer durchgereichten JSON-Route |
+| `api.call_bytes(route, body, provider=…, max_bytes=None, idempotent=…)` | `bytes` einer durchgereichten Binärroute, etwa `audio/speech`; der Anfragekörper ist JSON |
 | `api.aclose()` | die Verbindung zurückgeben |
+
+`call` und `call_bytes` wiederholen standardmäßig nur Verbindungsfehler
+vor dem Senden und HTTP 429. Eine verlorene Antwort oder ein Serverfehler
+kann nach einem gespeicherten Schreibvorgang auftreten: vor erneutem
+Senden den Serverstand prüfen. `idempotent=True` nur setzen, wenn eine
+Wiederholung sicher ist. Typisierte Modellmethoden behalten ihre
+Wiederholungsregeln. Die automatische Chat-Auswahl prüft die Antwort vor
+dem Setzen von `last_model`; ein ausdrückliches `Retry-After` bleibt
+erhalten und wird nicht durch einen Modellwechsel mit demselben Schlüssel umgangen.
 
 ```python
 # async: BildungsAPI hat keine blockierende Fassade
@@ -1084,6 +1106,22 @@ verdict.scores                            # {"hate": …, …} -- alle 13 Katego
 
 await api.call("responses", {"model": "…", "input": "…"})
 ```
+
+`call_bytes` verwendet dieselben Routenprüfungen, Zugangsdaten, Wiederholungen
+und HTTP-Fehlerklassen wie `call`. `max_bytes` begrenzt auf Wunsch die dekodierte
+Antwort beim Einlesen, auch bei komprimierten Antworten; eine Überschreitung
+wirft `ContentTooLargeError`. `None` setzt keine Grenze, `0` erlaubt nur eine
+leere Antwort. Das Ergebnis wird als Bytes gesammelt, nicht als Ereignisstrom
+bereitgestellt. Ob Anbieter und Modell eine Binärroute unterstützen, muss am
+Gateway geprüft werden.
+
+Fehlerhafte verschachtelte Chat-, Response-, Bild- oder Moderationsdaten werfen
+`EduSharingError` mit dem Feldnamen, ohne den Inhalt auszugeben. Optionale
+fehlende oder null-Textfelder bleiben leer. Moderation verlangt ein explizites
+boolesches `flagged`; fehlende Daten gelten nie als Freigabe. Embeddings
+verlangen je Eingabe einen eindeutig indizierten, nicht leeren Vektor aus
+endlichen Zahlen, jeweils mit gleicher Länge, und kommen in Eingabereihenfolge
+zurück. `call` bleibt der Zugang zum rohen JSON.
 
 ### Was welcher Anbieter kann
 
@@ -1117,7 +1155,7 @@ bei OpenAI und `gemma-4-31b-it` bei der AcademicCloud beide mit
 
 | Aufruf | Ergebnis |
 |---|---|
-| `api.respond(prompt, model=…, max_output_tokens=…)` | `Answer` |
+| `api.respond(prompt, model=…, max_output_tokens=…, provider=…, reasoning_effort=…, verbosity=…)` | `Answer` |
 | `answer.text` | `str` |
 | `answer.truncated` | `bool` — **zuerst lesen** |
 | `answer.status` / `answer.reason` | `"incomplete"` / `"max_output_tokens"` |
@@ -1693,8 +1731,11 @@ Pfadsegment und mit `..` zwei und erreichte einen anderen Endpunkt als den
 gefragten. Ein gekürzter Pfad ist ein *Präfix* des gemeinten, weshalb die
 Wache über ausbrechende Bezeichner ihn nie sah. Beide werden zurückgewiesen.
 Ein Punkt *im* Bezeichner (`a.b`, `...`) normalisiert nichts weg und bleibt
-gültig. Die generierte Schicht baut ihre Pfade selbst und hat diese Prüfung
-nicht.
+gültig.
+Die generierte Schicht lehnt diese Werte vor dem Pfadaufbau mit ValueError ab.
+Ihre unabhängige Prüfung wird bei jedem Generieren durch
+`scripts/generate_client.py` eingesetzt; auch leere Pfadparameter werden dort
+zurückgewiesen.
 
 ---
 

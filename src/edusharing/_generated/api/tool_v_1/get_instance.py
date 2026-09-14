@@ -16,6 +16,9 @@ def _get_kwargs(
     nodeid: str,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (repository, nodeid,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     _kwargs: dict[str, Any] = {
         "method": "get",
         "url": "/tool/v1/tools/{repository}/{nodeid}/toolinstance".format(

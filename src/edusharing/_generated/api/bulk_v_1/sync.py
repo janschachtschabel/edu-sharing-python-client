@@ -23,6 +23,9 @@ def _get_kwargs(
     resolve_node: bool | Unset = True,
     reset_version: bool | Unset = UNSET,
 ) -> dict[str, Any]:
+    if any(str(value) in ("", ".", "..") for value in (group,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     headers: dict[str, Any] = {}
 
     params: dict[str, Any] = {}

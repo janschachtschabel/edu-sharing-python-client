@@ -19,6 +19,9 @@ def _get_kwargs(
     status: GetCollectionsProposalsStatus,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (repository, collection,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     params: dict[str, Any] = {}
 
     json_status = status.value

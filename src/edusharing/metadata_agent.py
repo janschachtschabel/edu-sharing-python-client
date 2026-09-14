@@ -200,16 +200,7 @@ class MetadataAgent:
                 "one would read as 'this agent offers no schemas', which is a "
                 "different statement."
             )
-        return [
-            SchemaInfo(
-                file=entry.get("file") or "",
-                profile_id=entry.get("profile_id") or "",
-                groups=tuple(entry.get("groups") or ()),
-                field_count=int(entry.get("field_count") or 0),
-                raw=entry,
-            )
-            for entry in entries
-        ]
+        return [_schema_info(entry) for entry in entries]
 
     async def schema(
         self, file: str, *, context: str = DEFAULT_CONTEXT,
@@ -226,7 +217,7 @@ class MetadataAgent:
         Args:
             file: as the list reports it, e.g. ``"organization.json"``.
         """
-        return dict(await self._json(
+        return _schema_object(await self._json(
             f"/info/schema/{path_segment(context)}/{path_segment(version)}"
             f"/{path_segment(file)}"))
 
@@ -322,6 +313,26 @@ class MetadataAgent:
                 response.status_code, url, response.text,
                 service="The metadata agent",
             ) from exc
+
+
+def _schema_object(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise EduSharingError("The metadata agent returned an invalid schema: expected an object.")
+    return value
+
+
+def _schema_info(value: Any) -> SchemaInfo:
+    entry = _schema_object(value)
+    try:
+        return SchemaInfo(
+            file=entry.get("file") or "",
+            profile_id=entry.get("profile_id") or "",
+            groups=tuple(entry.get("groups") or ()),
+            field_count=int(entry.get("field_count") or 0),
+            raw=entry,
+        )
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise EduSharingError("The metadata agent returned invalid schema list fields.") from exc
 
 
 def _check_base(value: str) -> str:

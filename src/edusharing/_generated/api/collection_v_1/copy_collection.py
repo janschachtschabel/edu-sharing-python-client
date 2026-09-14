@@ -22,6 +22,9 @@ def _get_kwargs(
     copy_child_collections: bool | Unset = True,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (repository, source_collection,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     params: dict[str, Any] = {}
 
     params["targetCollection"] = target_collection

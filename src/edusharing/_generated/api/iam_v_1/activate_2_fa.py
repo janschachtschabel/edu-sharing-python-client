@@ -16,6 +16,9 @@ def _get_kwargs(
     *,
     x_2fa_token: int | Unset = UNSET,
 ) -> dict[str, Any]:
+    if any(str(value) in ("", ".", "..") for value in (repository, person,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     headers: dict[str, Any] = {}
     if not isinstance(x_2fa_token, Unset):
         headers["X-2FA-Token"] = str(x_2fa_token)

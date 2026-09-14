@@ -23,6 +23,9 @@ def _get_kwargs(
     property_filter: list[str] | Unset = UNSET,
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (repository, pattern, person,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     params: dict[str, Any] = {}
 
     params["maxItems"] = max_items

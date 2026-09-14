@@ -226,7 +226,7 @@ async def load_registry(
     if markdown is None:
         return _with(base, reason=why)
 
-    blocks = parse_blocks(markdown, conventions.block_kinds)
+    blocks = parse_blocks(markdown, conventions.block_kinds, skill_kind=conventions.skill_kind)
     layout = layout_contexts(markdown, blocks, skill_kind=conventions.skill_kind)
     skills = [(b, layout.paths[i]) for i, b in enumerate(blocks)
               if b.kind == conventions.skill_kind]

@@ -16,6 +16,9 @@ def _get_kwargs(
     archived_node_ids: list[str],
 ) -> dict[str, Any]:
 
+    if any(str(value) in ("", ".", "..") for value in (repository,)):
+        raise ValueError("Path parameters must be non-empty and not dot segments.")
+
     params: dict[str, Any] = {}
 
     json_archived_node_ids = archived_node_ids
