@@ -45,6 +45,8 @@ import re
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
+from ._markdown_outline import _Outline
+
 __all__ = [
     "ContextLayout",
     "MarkdownSection",
@@ -65,11 +67,9 @@ REGISTRY_CONTEXT_MAX = 50
 DEFAULT_KINDS: tuple[str, ...] = ("ki-skill", "wlo-material")
 
 _UUID = r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
-#: The URL shapes that carry a node id. The FIRST occurrence in a block wins --
-#: for a material that is the preview image, which is the record itself.
+#: A skill's title URL names the skill; a material's preview names the record.
 _NODE_ID = re.compile(r"(?:[?&]nodeId=|/components/render/)(" + _UUID + ")")
-#: A Markdown link that is NOT an image: the first one is the title link.
-_TITLE_LINK = re.compile(r"(?<!!)\[([^\]]+)\]\(([^)\s]+)")
+_LINK_TARGET = re.compile(r"[^)\s]+")
 #: A backslash before ASCII punctuation means that character literally.
 _ESCAPED = re.compile(r"\\([!-/:-@\[-`{-~])")
 #: ``#`` to ``######``, at most three of indent, and a space after the hashes.
@@ -163,7 +163,9 @@ class ContextLayout:
     truncated: tuple[int, int] | None = None
 
 
-def parse_blocks(text: str, kinds: tuple[str, ...] = DEFAULT_KINDS) -> list[SkillReference]:
+def parse_blocks(
+    text: str, kinds: tuple[str, ...] = DEFAULT_KINDS, *, skill_kind: str = "ki-skill",
+) -> list[SkillReference]:
     """The ``:::`` blocks of ``text``, in document order -- none from inside a code fence.
 
     One pass over the lines outside the fences. A block opens on ``::: kind``
@@ -171,6 +173,7 @@ def parse_blocks(text: str, kinds: tuple[str, ...] = DEFAULT_KINDS) -> list[Skil
     body text, an opener without a closer references nothing. That is what
     the non-greedy regex before it read -- minus its run from every unclosed
     opener to the end of the document (audit SEC-2, 2026-09-06).
+    ``skill_kind`` identifies blocks whose title link supplies the node id.
     """
     if not kinds:
         return []
@@ -188,7 +191,7 @@ def parse_blocks(text: str, kinds: tuple[str, ...] = DEFAULT_KINDS) -> list[Skil
             if m:
                 open_kind, open_offset, body = m.group(1), offset, []
         elif _BLOCK_END.match(bare):
-            ref = _reference(open_kind, "".join(body), open_offset)
+            ref = _reference(open_kind, "".join(body), open_offset, skill_kind)
             if ref is not None:
                 refs.append(ref)
             open_kind = None
@@ -197,20 +200,36 @@ def parse_blocks(text: str, kinds: tuple[str, ...] = DEFAULT_KINDS) -> list[Skil
     return refs
 
 
-def _reference(kind: str, body: str, offset: int) -> SkillReference | None:
+def _reference(kind: str, body: str, offset: int, skill_kind: str) -> SkillReference | None:
     """One block's reference -- ``None`` for a block with no link, which
     references nothing."""
-    link = _TITLE_LINK.search(body)
+    link = _title_link(body)
     if not link:
         return None
-    node = _NODE_ID.search(body)
+    title, url = link
+    node = _NODE_ID.search(url if kind == skill_kind else body)
     return SkillReference(
         kind=kind,
-        title=_plain_title(link.group(1)),
-        url=link.group(2),
+        title=_plain_title(title),
+        url=url,
         node_id=node.group(1) if node else "",
         offset=offset,
     )
+
+
+def _title_link(body: str) -> tuple[str, str] | None:
+    """The first non-image link, without rescanning unclosed ``[`` runs."""
+    start = None
+    for index, char in enumerate(body):
+        if char == "[" and start is None and (index == 0 or body[index - 1] != "!"):
+            start = index + 1
+        elif char == "]":
+            if start is not None and index > start and body.startswith("(", index + 1):
+                target = _LINK_TARGET.match(body, index + 2)
+                if target is not None:
+                    return body[start:index], target.group()
+            start = None
+    return None
 
 
 def _plain_title(raw: str) -> str:
@@ -319,82 +338,13 @@ def layout_contexts(
             instruction=outline.instruction_of(s),
             skills=skills_of[id(s)], range=(s.heading_start, s.end),
         )
-        for s in outline.named
+        for s in outline.named[:REGISTRY_CONTEXT_MAX]
     ]
-    contexts, truncated = _capped(contexts)
+    total = len(outline.named)
+    truncated = (len(contexts), total) if total > len(contexts) else None
     return ContextLayout(
         contexts=contexts,
         general=RegistryGeneral(instruction=outline.general_instruction(), skills=general_skills),
         paths=paths,
         truncated=truncated,
     )
-
-
-class _Outline:
-    """The headings of one document, and the questions the layout asks of them."""
-
-    def __init__(self, text: str, sections: list[MarkdownSection], offsets: list[int]) -> None:
-        self.text = text
-        self.sections = sections
-        self.named = [s for s in sections if s.level in (2, 3) and s.title]
-        self._boundaries = sorted(offsets)
-        # Only ``#`` to ``###`` end a stretch of prose: deeper headings open
-        # no context and stay part of what the editors wrote.
-        self._headings = sorted(s.heading_start for s in sections if s.level <= 3)
-
-    def owner_at(self, offset: int) -> MarkdownSection | None:
-        # The last match in document order is the innermost: a named H2 spans
-        # its H3s, so where both match, the H3 comes later.
-        found = None
-        for section in self.named:
-            if section.heading_start < offset < section.end:
-                found = section
-        return found
-
-    def path_of(self, section: MarkdownSection) -> str:
-        if section.level == 3:
-            parent = next((s for s in self.named if s.level == 2
-                           and s.heading_start < section.heading_start < s.end), None)
-            if parent is not None:
-                return f"{parent.title}/{section.title}"
-        return section.title
-
-    def prose(self, start: int, end: int) -> str | None:
-        # Up to the first block or heading inside the span: a block is a
-        # catalogue entry, not instruction, and a sub-heading opens its own.
-        cut = min([b for b in self._boundaries if start <= b < end]
-                  + [h for h in self._headings if start < h < end] + [end])
-        body = self.text[start:cut].strip()
-        return body or None
-
-    def instruction_of(self, section: MarkdownSection) -> str | None:
-        """Its own prose, plus that of the untitled sub-sections it owns --
-        transparent for the prose as for the skills."""
-        pieces = [self.prose(section.body_start, section.end)] + [
-            self.prose(u.body_start, u.end) for u in self.sections
-            if u.level in (2, 3) and not u.title
-            and section.heading_start < u.heading_start < section.end
-            and self.owner_at(u.heading_start + 1) is section
-        ]
-        return "\n\n".join(p for p in pieces if p) or None
-
-    def general_instruction(self) -> str | None:
-        """The prose before the first named context, plus that of untitled
-        top-level sections -- each transparent, none dropped."""
-        first_named = min((s.heading_start for s in self.named), default=len(self.text))
-        lead_start = next((s.body_start for s in self.sections
-                           if s.level == 1 and s.heading_start < first_named), 0)
-        pieces = [self.prose(lead_start, first_named)] + [
-            self.prose(s.body_start, s.end) for s in self.sections
-            if s.level in (2, 3) and not s.title and self.owner_at(s.heading_start + 1) is None
-        ]
-        return "\n\n".join(p for p in pieces if p) or None
-
-
-def _capped(
-    contexts: list[RegistryContext],
-) -> tuple[list[RegistryContext], tuple[int, int] | None]:
-    """At most ``REGISTRY_CONTEXT_MAX`` -- and a note when the document had more."""
-    if len(contexts) <= REGISTRY_CONTEXT_MAX:
-        return contexts, None
-    return contexts[:REGISTRY_CONTEXT_MAX], (REGISTRY_CONTEXT_MAX, len(contexts))

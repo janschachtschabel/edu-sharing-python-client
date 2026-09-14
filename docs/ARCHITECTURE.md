@@ -488,6 +488,7 @@ does not go into the README.
 | `auth.py` | Credentials as values; bearer rejected; passwords never in `repr` |
 | `transport.py` | httpx, timeout, retry, concurrency, credential boundary |
 | `_http.py` | Bounded decoded-response reading shared by repository downloads and binary b-api calls |
+| `_decoding.py` | Incremental gzip/deflate decoding with bounded output and intermediate layers |
 | `_sync.py` | Event loop in a background thread for the synchronous surface |
 | `repository.py` | `AsyncRepository` / `Repository`, `about()`, `whoami()`, `raw` |
 | `extraction.py` | The text-extraction service beside the repository, and the guards before it |
@@ -796,6 +797,7 @@ now fails when a module is named nowhere here.
 |---|---|
 | `skills.py` | Skills — records whose content type says "instruction" and whose attached file is the `SKILL.md`. Reading, listing the files beside one, and the reasons an anonymous reader gets an empty answer (`files_reason`, `content_reason`) |
 | `skills_markdown.py` | What a skill document says about itself, read without any I/O: front matter, the `::: ki-skill` blocks, the headings that group them |
+| `_markdown_outline.py` | Indexed heading ownership and section boundaries for bounded context construction |
 | `skills_registry.py` | The registry of a collection — which skills it has approved, grouped into working contexts |
 | `flows/skills.py` | The same accessor as plain dictionaries: `find_skills`, `skill`, `skill_registry`, `pick_skill` |
 | `flows/text.py` | `text` — the full text of one material, and, when there is none, which of the measured reasons applies |

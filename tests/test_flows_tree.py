@@ -92,6 +92,35 @@ class Instanz:
 
 # --- browse_tree ----------------------------------------------------------
 
+@pytest.mark.parametrize("depth", [1, 2])
+async def test_search_keeps_readable_siblings_when_a_subcollection_is_denied(depth):
+    instanz = Instanz(baum={"wurzel": ["a", "b"], "a": [], "b": []})
+    original = instanz.handler
+
+    def handler(request):
+        if request.url.path.endswith("/a/children/collections"):
+            return httpx.Response(403, json={"message": "branch denied"})
+        return original(request)
+
+    instanz.handler = handler
+    async with instanz.repo() as repo:
+        got = await repo.flows.search_in_collection("wurzel", "Photosynthese", depth=depth)
+    assert [h["id"] for h in got["hits"]] == ["m2"]
+    assert got["unreadable"] == 1
+    assert [f["id"] for f in got["failed"]] == ["a"]
+
+
+async def test_stats_count_equal_display_labels_once_per_record():
+    material = _material("m", "Physik")
+    material["properties"].update({
+        "ccm:taxonid": ["https://vocab.test/one", "https://vocab.test/two"],
+        "ccm:taxonid_DISPLAYNAME": ["Physik", "Physik"],
+    })
+    async with Instanz(baum={"wurzel": []}, inhalt={"wurzel": [material]}).repo() as repo:
+        got = await repo.flows.collection_stats("wurzel")
+    assert got["sampled"] == 1
+    assert got["by"]["subject"]["Physik"] == 1
+
 async def test_der_baum_kommt_verschachtelt():
     instanz = Instanz()
     async with instanz.repo() as repo:

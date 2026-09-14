@@ -21,6 +21,7 @@ from datetime import date
 from typing import Any
 
 from ..errors import ValidationError
+from ._response import _object
 
 __all__ = [
     "Model", "LoadReport", "load_report",
@@ -90,6 +91,7 @@ class Model:
         Every field stays optional: which of them a gateway fills is its own
         decision, and a missing one is an answer rather than an error.
         """
+        data = _object(data, "models", "model entry")
         return cls(
             id=data.get("id") or "",
             demand=data.get("demand"),
@@ -184,7 +186,7 @@ def rank_models(models: list[Model]) -> list[Model]:
     usable = [m for m in models if m.is_ready and m.can_chat]
     # Sort demand None (providers without load info) last, so a measured value
     # is preferred over a missing one.
-    return sorted(usable, key=lambda m: (m.demand if m.demand is not None else 99, m.id))
+    return sorted(usable, key=lambda m: (m.demand is None, m.demand or 0, m.id))
 
 
 def rank_among(models: list[Model], among: Sequence[str]) -> list[Model]:
@@ -225,7 +227,7 @@ def rank_among(models: list[Model], among: Sequence[str]) -> list[Model]:
         # No load reported anywhere: keep the caller's order untouched.
         return brauchbar
     return sorted(brauchbar,
-                  key=lambda m: (m.demand if m.demand is not None else 99,
+                  key=lambda m: (m.demand is None, m.demand or 0,
                                  among.index(m.id)))
 
 

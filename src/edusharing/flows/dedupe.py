@@ -52,7 +52,7 @@ def deduplicate(
 
     for hit in hits:
         source = (hit.source_url or "").strip()
-        if not source:
+        if not source or not hit.id:
             kept.append(hit)
             continue
 
@@ -62,11 +62,6 @@ def deduplicate(
             kept.append(hit)
             continue
 
-        # A hit without an id cannot be referenced later, so it is kept rather
-        # than folded away into a group nobody can trace back.
-        if not hit.id:
-            kept.append(hit)
-            continue
         folded.setdefault(winner, []).append(hit.id)
 
     return kept, folded

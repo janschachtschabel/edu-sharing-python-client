@@ -54,6 +54,16 @@ def test_der_erste_treffer_gewinnt():
     assert behalten[0].id == "besser"
 
 
+def test_an_idless_first_hit_cannot_hide_a_referencable_hit():
+    kept, folded = deduplicate([
+        _hit("", "Missing id", "https://x/optik"),
+        _hit("valid", "Working id", "https://x/optik"),
+        _hit("duplicate", "Other id", "https://x/optik"),
+    ])
+    assert [hit.id for hit in kept] == ["", "valid"]
+    assert folded == {"valid": ["duplicate"]}
+
+
 def test_verschiedene_quellen_bleiben_getrennt():
     behalten, doppelt = deduplicate([
         _hit("a", "Optik", "https://x/optik"),

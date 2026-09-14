@@ -737,6 +737,22 @@ async def test_eine_gesperrte_untersammlungsliste_der_wurzel_ist_ein_fehler():
             await repo.skills.search("", collection_id=COLL, include_subcollections=True)
 
 
+async def test_readable_skill_files_survive_a_denied_subcollection_listing():
+    instanz = Instanz(unter={"u1": 200})
+    original = instanz.handler
+
+    def handler(request):
+        if request.url.path.endswith("/u1/children/collections"):
+            return httpx.Response(403, json=_fehler("DAOSecurityException"))
+        return original(request)
+
+    instanz.handler = handler
+    async with instanz.repo() as repo:
+        got = await repo.skills.search("", collection_id=COLL, include_subcollections=True)
+    assert {h.original_id for h in got.hits} == {SA, SD}
+    assert got.unreadable == 1
+
+
 async def test_octet_stream_gilt_als_unbekannt_und_wird_dekodiert():
     """application/octet-stream ist das MIME-"unbekannt", kein Urteil "binaer"."""
     instanz = Instanz()

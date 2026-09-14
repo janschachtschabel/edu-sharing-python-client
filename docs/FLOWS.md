@@ -1247,7 +1247,7 @@ repo.flows.find_pages("Deutsch", limit=25)
 {"query": "Deutsch", "checked": 50, "total": 876, "total_is_lower_bound": true,
  "hits": [{"id": "69f9ff64-…", "title": "Deutsch", "url": "https://…",
            "folder_id": "f2020460-…"}],
- "reason": ""}
+ "warnings": [], "reason": ""}
 ```
 
 One search — two routes in parallel, exactly what `find_collections` sends.
@@ -1286,6 +1286,9 @@ At the API level the same recognition is one line:
 `node.page.get()`.
 
 ---
+
+Read `warnings` even when `hits` is empty: a failed collection-search
+route is preserved here and in the page bucket of `search_all`.
 
 ## `find_skills` — which skills fit a task
 

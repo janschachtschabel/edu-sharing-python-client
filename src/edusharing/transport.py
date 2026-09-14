@@ -462,9 +462,11 @@ class Transport:
                 method, url, params=params, json=json, content=content,
                 files=files, headers=headers,
             )
+        bounded_headers = httpx.Headers(headers)
+        bounded_headers["Accept-Encoding"] = "gzip, deflate"
         async with self._client.stream(
             method, url, params=params, json=json, content=content,
-            files=files, headers=headers,
+            files=files, headers=bounded_headers,
         ) as response:
             return await _read_bounded_response(response, max_bytes, url)
 

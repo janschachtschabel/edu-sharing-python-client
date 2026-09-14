@@ -171,7 +171,7 @@ async def find_pages(
         ValueError: on a limit below one.
 
     Returns:
-        ``{query, hits, checked, total, total_is_lower_bound, reason}``.
+        ``{query, hits, checked, total, total_is_lower_bound, warnings, reason}``.
         ``total`` counts the collections that matched, not the ones carrying a
         page -- and it is a **lower bound**: the collection search asks two
         routes and one of them reports no total at all.
@@ -205,6 +205,7 @@ def pages_among(found: SearchResult, text: str) -> dict[str, Any]:
         "checked": len(checked),
         "total": found.total,
         "total_is_lower_bound": found.total_is_lower_bound,
+        "warnings": list(found.warnings),
         "reason": "" if not blind else (
             f"{blind} of {len(found.hits)} hits carried no properties and could "
             "not be judged -- one leg of the collection search has a fixed "

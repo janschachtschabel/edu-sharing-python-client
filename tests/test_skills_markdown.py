@@ -110,6 +110,40 @@ def test_nur_die_genannten_arten():
     assert [r.kind for r in parse_blocks(REGISTRY, kinds=("ki-skill",))] == ["ki-skill"] * 3
 
 
+def test_skill_id_kommt_aus_dem_titellink_auch_mit_fremdem_vorschaubild():
+    text = f"::: ki-skill\n![Symbol]({RENDER}{B})\n[Skill]({RENDER}{A})\n:::\n"
+    assert parse_blocks(text)[0].node_id == A
+
+
+def test_custom_skill_id_kommt_ebenfalls_aus_dem_titellink():
+    text = f"::: ai-skill\n![Symbol]({RENDER}{B})\n[Skill]({RENDER}{A})\n:::\n"
+    refs = parse_blocks(text, ("ai-skill",), skill_kind="ai-skill")
+    assert refs[0].node_id == A
+
+
+def test_unclosed_link_in_a_closed_block_takes_bounded_time():
+    import time
+
+    text = "::: ki-skill\n" + "[" * 64_000 + "\n:::\n"
+    start = time.perf_counter()
+    assert parse_blocks(text) == []
+    assert time.perf_counter() - start < 3.0
+
+
+def test_large_outline_caps_work_but_preserves_paths_and_total():
+    import time
+
+    text = "".join(f"## Context {i}\nInstruction.\n" for i in range(16_000))
+    text += f"::: ki-skill\n[Last]({RENDER}{A})\n:::\n"
+    start = time.perf_counter()
+    layout = layout_contexts(text, parse_blocks(text))
+    assert time.perf_counter() - start < 3.0
+    assert len(layout.contexts) == 50
+    assert layout.truncated == (50, 16_000)
+    assert layout.paths == ["Context 15999"]
+    assert layout.contexts[0].instruction == "Instruction."
+
+
 # --- Abschnitte ------------------------------------------------------------
 
 def test_abschnitte_mit_ebene_titel_und_reichweite():

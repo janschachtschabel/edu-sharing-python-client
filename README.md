@@ -379,7 +379,9 @@ vectors = await llm.embeddings(["Photosynthese", "Zellatmung"],
 verdict = await llm.moderate(text, model="omni-moderation-latest",
                              provider="openai")   # .flagged, .categories, .scores
 pictures = await llm.images("ein Baum", model="dall-e-3")   # .url or .b64
-await llm.call("audio/speech", {...})             # anything else, as repo.raw
+audio = await llm.call_bytes(
+    "audio/speech", {"model": "tts-1", "input": text, "voice": "alloy"},
+    provider="openai", max_bytes=10 * 1024 * 1024)
 ```
 
 No model is guessed here — `chat()` may do that because a measured policy backs

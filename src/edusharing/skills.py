@@ -269,7 +269,8 @@ class Skills:
         return SkillDocument(
             **summary.__dict__,
             content=content, content_reason=content_reason,
-            references=parse_blocks(content or "", conventions.block_kinds),
+            references=parse_blocks(content or "", conventions.block_kinds,
+                                    skill_kind=conventions.skill_kind),
             files=files, files_reason=reason, folder_file_count=count,
         )
 
@@ -284,16 +285,17 @@ class Skills:
             self._repo, collection_id, context=context, resolve=resolve, conventions=conventions)
 
     async def pick(
-        self, text: str, **kwargs: Any
+        self, text: str, *, include_files: bool = True, **kwargs: Any
     ) -> tuple[SkillDocument, list[SkillSummary]] | None:
         """The best match with its instruction, plus the runners-up.
 
         The others come along so a wrong pick stays visible to the caller.
         ``None`` when nothing matched at all.
+        ``include_files=False`` skips the selected skill's companion files.
+        Other keyword arguments are forwarded to ``search``.
         """
         kwargs.setdefault("limit", 5)
         conventions = kwargs.get("conventions", WLO_SKILLS)
-        include_files = kwargs.pop("include_files", True)
         found = await self.search(text, **kwargs)
         if not found.hits:
             return None
@@ -370,7 +372,7 @@ class Skills:
             # siblings; each is folded below exactly where the serial version
             # handled it, so the counting and the order do not move.
             answers = await asyncio.gather(
-                *(self._level_of(cid, conventions, deeper) for cid in level),
+                *(self._level_of(cid, conventions, deeper, strict=cid == root) for cid in level),
                 return_exceptions=True,
             )
             for collection_id, answer in zip(level, answers, strict=True):
@@ -388,7 +390,8 @@ class Skills:
                         raise answer
                     unreadable += 1
                     continue
-                nodes, more, subs, more_subs = answer
+                nodes, more, subs, more_subs, missed = answer
+                unreadable += missed
                 found.extend(nodes)
                 truncated = truncated or more
                 if subs is None:
@@ -400,8 +403,8 @@ class Skills:
         return found, truncated, unreadable
 
     async def _level_of(
-        self, collection_id: str, conventions: SkillConventions, deeper: bool
-    ) -> tuple[list[dict[str, Any]], bool, list[str] | None, bool]:
+        self, collection_id: str, conventions: SkillConventions, deeper: bool, *, strict: bool,
+    ) -> tuple[list[dict[str, Any]], bool, list[str] | None, bool, int]:
         """One collection's files and -- when the walk goes on -- its
         subcollections.
 
@@ -412,9 +415,16 @@ class Skills:
         """
         nodes, more = await self._files_of(collection_id, conventions)
         if not deeper:
-            return nodes, more, None, False
-        subs, more_subs = await self._subs_of(collection_id)
-        return nodes, more, subs, more_subs
+            return nodes, more, None, False, 0
+        try:
+            subs, more_subs = await self._subs_of(collection_id)
+        except (PermissionDeniedError, NotFoundError):
+            if strict:
+                raise
+            # These files were read successfully. A refused sub-listing
+            # limits the walk but must not discard material already in hand.
+            return nodes, more, None, False, 1
+        return nodes, more, subs, more_subs, 0
 
     async def _files_of(
         self, collection_id: str, conventions: SkillConventions

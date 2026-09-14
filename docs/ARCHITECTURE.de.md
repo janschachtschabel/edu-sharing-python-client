@@ -541,6 +541,7 @@ läuft, kommt nicht ins README.
 | `auth.py` | Zugangsdaten als Werte; Bearer abgelehnt; Passwörter nie im `repr` |
 | `transport.py` | httpx, Zeitlimit, Wiederholung, Nebenläufigkeit, Credential-Grenze |
 | `_http.py` | Begrenztes Einlesen dekodierter Antworten, gemeinsam für Repository-Downloads und binäre b-api-Aufrufe |
+| `_decoding.py` | Schrittweises Dekodieren von gzip/deflate mit begrenzter Ausgabe und begrenzten Zwischenschichten |
 | `_sync.py` | Ereignisschleife in einem Hintergrundfaden für die synchrone Fläche |
 | `repository.py` | `AsyncRepository` / `Repository`, `about()`, `whoami()`, `raw` |
 | `extraction.py` | Der Textextraktionsdienst neben dem Repositorium und die Prüfungen davor |
@@ -871,6 +872,7 @@ nirgends genannt ist.
 |---|---|
 | `skills.py` | Skills — Datensätze, deren Inhaltsart „Anleitung" sagt und deren angehängte Datei die `SKILL.md` ist. Lesen, die Dateien daneben auflisten, und die Gründe, aus denen ein anonymer Leser eine leere Antwort bekommt (`files_reason`, `content_reason`) |
 | `skills_markdown.py` | Was ein Skill-Dokument über sich selbst sagt, gelesen ohne jede Ein- und Ausgabe: Kopfdaten, die `::: ki-skill`-Blöcke, die Überschriften, die sie gruppieren |
+| `_markdown_outline.py` | Indizierte Zuordnung von Überschriften und Abschnittsgrenzen für begrenzten Kontextaufbau |
 | `skills_registry.py` | Das Register einer Sammlung — welche Skills sie freigegeben hat, nach Arbeitszusammenhängen gruppiert |
 | `flows/skills.py` | Derselbe Zugang als schlichte Wörterbücher: `find_skills`, `skill`, `skill_registry`, `pick_skill` |
 | `flows/text.py` | `text` — der Volltext eines Materials und, wenn es keinen gibt, welcher der gemessenen Gründe zutrifft |

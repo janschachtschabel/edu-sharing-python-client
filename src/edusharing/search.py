@@ -102,7 +102,7 @@ class Search:
         self._vocab = vocab
         self.metadataset = metadataset
         self.query = query
-        self.field_aliases = (
+        self.field_aliases = dict(
             STANDARD_FIELD_ALIASES if field_aliases is None else field_aliases
         )
 

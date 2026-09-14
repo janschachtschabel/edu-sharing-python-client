@@ -387,7 +387,9 @@ vektoren = await llm.embeddings(["Photosynthese", "Zellatmung"],
 urteil = await llm.moderate(text, model="omni-moderation-latest",
                             provider="openai")    # .flagged, .categories, .scores
 bilder = await llm.images("ein Baum", model="dall-e-3")     # .url oder .b64
-await llm.call("audio/speech", {...})             # alles Übrige, wie repo.raw
+audio = await llm.call_bytes(
+    "audio/speech", {"model": "tts-1", "input": text, "voice": "alloy"},
+    provider="openai", max_bytes=10 * 1024 * 1024)
 ```
 
 Hier wird kein Modell geraten — `chat()` darf das, weil eine gemessene Politik

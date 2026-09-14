@@ -97,6 +97,9 @@ async def text(
         return {**answer, "reason": "node_not_found", "detail": str(exc)}
     except PermissionDeniedError as exc:
         return {**answer, "reason": "access_denied", "detail": str(exc)}
+    except EduSharingError as exc:
+        return {**answer, "reason": "repository_failed",
+                "detail": f"{type(exc).__name__}: {exc}"}
     answer["title"] = node.title or None
     # Taken as soon as it is read, not once the early returns are past.
     # It used to be assigned only on the way to the extraction fallback,

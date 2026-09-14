@@ -90,6 +90,35 @@ and in [`docs/audits/`](docs/audits/).
 
 ### Fixed
 
+- **Audit follow-up, 2026-09-14 (A01–A18, U1–U4).** Interrupted blocking
+  calls cancel queued work, including before the background task starts.
+  Bounded gzip/deflate decoding limits allocations while expanding the stream;
+  bounded requests negotiate only supported encodings. Registry links and
+  context layouts avoid quadratic scans, and a skill's title link supplies its
+  ID even when another record appears in a preview. Unsafe extraction addresses
+  no longer expose paths or query tokens in logs.
+- **Service boundaries and retries.** Generic b-api `call` and `call_bytes`
+  now retry only failures before sending and HTTP 429 by default; callers can
+  opt into safe repeats with `idempotent=True`. Typed model helpers preserve
+  their policy, validate original response objects, and validate each chat
+  candidate before marking it successful. Explicit `Retry-After` survives model
+  selection. Invalid model/schema entries raise library errors, and unknown
+  model demand sorts after every measured value.
+- **Partial flow results.** Collection search keeps readable siblings when a
+  descendant walk fails; skill search keeps already-read files when a descendant
+  sub-listing is refused. Page discovery preserves collection-search warnings,
+  and initial metadata failures become `text` flow reasons. Search aliases are
+  owned per client. `unpublish` checks the latest inherited ACL even after a
+  no-op; statistics count each label once per record, and an ID-less hit cannot
+  hide a usable duplicate.
+- **Documentation and its guard.** Both references name the whole installable
+  skill folder and all four destinations, explicitly document permanent
+  deletion, and list every optional parameter. The guard now checks qualified
+  receivers and recursively forwarded options: 247 class/method/option tuples,
+  including 81 on Flows. Negative controls cover receiver collisions, nested
+  calls and removal of actual reference entries. The READMEs use `call_bytes`
+  for speech. See [the implementation plan](docs/plans/2026-09-14-audit-follow-up.md).
+
 - **b-api response validation**: missing or non-boolean moderation decisions
   raise `EduSharingError` instead of silently approving content. Invalid nested
   chat, response and image data raises a field-specific library error without

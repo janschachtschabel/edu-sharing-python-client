@@ -2,6 +2,7 @@
 
 import httpx
 
+from ._decoding import _decoded_chunks, _DecodeLimit
 from .errors import ContentTooLargeError
 
 _ERROR_PAGE_LIMIT = 64 * 1024
@@ -31,14 +32,21 @@ async def _read_bounded_response(
         _check_size(int(announced), max_bytes, url)
     chunks: list[bytes] = []
     received = 0
-    async for chunk in response.aiter_bytes():
-        received += len(chunk)
+    limit = max_bytes if success else _ERROR_PAGE_LIMIT
+    try:
+        async for chunk in _decoded_chunks(response, limit):
+            received += len(chunk)
+            if success:
+                _check_size(received, max_bytes, url)
+            elif received > limit:
+                break
+            chunks.append(chunk)
+    except _DecodeLimit:
         if success:
-            _check_size(received, max_bytes, url)
-        elif received > _ERROR_PAGE_LIMIT:
-            break
-        chunks.append(chunk)
-    # HTTPX has decoded these bytes already. Keeping the encoding header would
+            raise ContentTooLargeError(
+                "An intermediate compression layer exceeds the bounded decoding budget "
+                f"for max_bytes={max_bytes}.", url=url) from None
+    # These bytes are decoded. Keeping the encoding header would
     # make the rebuilt response decompress them a second time (audit F05).
     headers = httpx.Headers(response.headers)
     headers.pop("content-encoding", None)

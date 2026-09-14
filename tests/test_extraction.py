@@ -138,6 +138,18 @@ async def test_die_url_landet_nicht_im_log(caplog):
     assert "intern.test" in text, "der Host gehoert ins Log, damit es nutzt"
 
 
+async def test_unsafe_url_does_not_log_secrets_from_the_path_or_query(caplog):
+    dienst = Dienst()
+    url = "https://example.test/PATH_SECRET/file\\name?token=QUERY_SECRET"
+    with caplog.at_level("WARNING", logger="edusharing.extraction"):
+        async with dienst.client(resolve=_oeffentlich) as client:
+            assert (await client.text_of(url)).reason == "unsafe_url"
+    assert dienst.anfragen == []
+    assert "unsafe" in caplog.text
+    assert "PATH_SECRET" not in caplog.text
+    assert "QUERY_SECRET" not in caplog.text
+
+
 # --- Der gute Fall ---------------------------------------------------------
 
 async def test_text_kommt_zurueck():

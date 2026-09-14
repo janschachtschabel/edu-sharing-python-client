@@ -281,13 +281,13 @@ async def respond(
         **denken,
         **extra,
     }
-    antwort = await call(api, "responses", body, provider=provider)
+    antwort = await _call_object(api, "responses", body, provider=provider)
     return _answer_from(antwort, model)
 
 
 async def call(
     api: BildungsAPI, route: str, body: dict[str, Any], *,
-    provider: str | None = None,
+    provider: str | None = None, idempotent: bool = False,
 ) -> dict[str, Any]:
     """POST a JSON ``body`` and return the parsed JSON answer.
 
@@ -300,6 +300,9 @@ async def call(
         route: without a leading slash, e.g. ``"completions"``.
         body: the request body, passed through untouched.
         provider: overrides the client's default for this call.
+        idempotent: allow retries after uncertain network failures or server
+            errors only for an operation that is safe to repeat. By default,
+            only failures before sending and HTTP 429 are retried.
 
     Raises:
         ValidationError: for a leading slash, and for any route that could address
@@ -309,20 +312,29 @@ async def call(
         EduSharingError: as the route answered.
     """
     answer = await api._request(
-        "POST", _route_path(route, provider or api.provider), json=body)
+        "POST", _route_path(route, provider or api.provider), json=body, repeatable=idempotent)
     return dict(answer) if isinstance(answer, dict) else {"data": answer}
+
+
+async def _call_object(
+    api: BildungsAPI, route: str, body: dict[str, Any], *, provider: str | None,
+) -> dict[str, Any]:
+    """Typed model routes validate their original body, before raw normalisation."""
+    answer = await api._request(
+        "POST", _route_path(route, provider or api.provider), json=body)
+    return _object(answer, route)
 
 
 async def call_bytes(
     api: BildungsAPI, route: str, body: dict[str, Any], *,
-    provider: str | None = None, max_bytes: int | None = None,
+    provider: str | None = None, max_bytes: int | None = None, idempotent: bool = False,
 ) -> bytes:
     """POST JSON and return bytes; see ``BildungsAPI.call_bytes`` for the contract."""
     if max_bytes is not None:
         whole_number("max_bytes", max_bytes, 0)
     answer = await api._request(
         "POST", _route_path(route, provider or api.provider), json=body,
-        response_bytes=True, max_bytes=max_bytes)
+        response_bytes=True, max_bytes=max_bytes, repeatable=idempotent)
     return bytes(answer)
 
 
@@ -360,7 +372,7 @@ async def embeddings(
     """
     eingabe = [texts] if isinstance(texts, str) else list(texts)
     body = {"model": model, "input": eingabe, **extra}
-    answer = await call(api, "embeddings", body, provider=provider)
+    answer = await _call_object(api, "embeddings", body, provider=provider)
     effective_input = body["input"]
     return _vectors(answer, 1 if isinstance(effective_input, str) else len(effective_input))
 
@@ -376,7 +388,7 @@ async def moderate(
             decision, category or score. ``flagged`` must be an explicit bool;
             missing data must never be interpreted as approval.
     """
-    answer = await call(api, "moderations",
+    answer = await _call_object(api, "moderations",
                         {"model": model, "input": text, **extra},
                         provider=provider)
     results = _items(answer.get("results"), "moderations", "results")
@@ -410,7 +422,7 @@ async def images(
     ``extra`` is passed through -- ``n``, ``size``, ``quality``,
     ``response_format`` are the provider's business, not this library's.
     """
-    answer = await call(api, "images/generations",
+    answer = await _call_object(api, "images/generations",
                         {"model": model, "prompt": prompt, **extra},
                         provider=provider)
     return _images_from(answer)
