@@ -7,10 +7,10 @@ file. An edu-sharing installation normally runs a second service for that: the
 openeduhub text-extraction service, which fetches a public URL and returns its
 text.
 
-It is a **separate service with its own address**, like the b-api, and it is
-built the same way: on its own, from its own environment variable, with no
-default. The MCP tried a default once and took it back -- pointing at the
-staging service sent production material URLs into another environment.
+It is a **separate service with its own address**, like the b-api. Choose it
+directly, through its environment variable, or explicitly derive the sibling
+``text-extraction`` host with ``from_repository``. There is no global default:
+the MCP tried one and took it back because staging received production URLs.
 
 Measured 2026-08-28 against ``https://text-extraction.staging.openeduhub.net``
 (FastAPI, version ``c766f2e5``):
@@ -47,6 +47,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import socket
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -65,6 +66,7 @@ from .errors import (
 from .retry import RETRYABLE_STATUS, RetryPolicy, parse_retry_after
 from .urls import (
     is_unroutable_host,
+    normalize_repository_url,
     refuse_userinfo,
     unsafe_url_syntax,
 )
@@ -136,7 +138,8 @@ class TextExtraction:
 
     Not attached to ``Repository``: this is a second service with its own
     address, and the connection to a repository says nothing about whether it
-    exists. Build it yourself, as with ``BildungsAPI``.
+    exists. Build it explicitly, optionally with ``from_repository(repo.url)``
+    for installations using the sibling-subdomain convention.
     """
 
     ENV_BASE_URL = "EDU_SHARING_TEXT_EXTRACTION_URL"
@@ -165,6 +168,40 @@ class TextExtraction:
         self._resolve = resolve
         self._client = client or httpx.AsyncClient(timeout=timeout)
         self._owns_client = client is None
+
+    @classmethod
+    def from_repository(cls, repository_url: str, **kwargs: Any) -> Self:
+        """Build for ``repository.<domain>`` → ``text-extraction.<domain>``.
+
+        Pass a repository URL or ``repo.url``. Scheme and non-default port are
+        preserved; repository paths are removed. Constructor options such as
+        ``timeout`` or ``client`` are forwarded. No service is contacted and
+        the service-address environment variable is not consulted.
+
+        Raises:
+            EduSharingError: for an invalid URL or another hostname convention.
+                Configure that service explicitly with ``TextExtraction(base_url)``.
+        """
+        try:
+            if unsafe_url_syntax(repository_url) is not None:
+                raise ValueError("unsafe URL")
+            source = httpx.URL(normalize_repository_url(repository_url))
+            # HTTPX encodes IDNA but also accepts malformed ASCII DNS labels.
+            labels = source.raw_host.decode("ascii").split(".")
+            service_host = "text-extraction." + ".".join(labels[1:])
+            if (source.query or source.fragment or len(labels) < 3
+                    or labels[0] != "repository" or len(service_host) > 253
+                    or not all(re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label)
+                               for label in labels)
+                    or (source.port is not None and not 1 <= source.port <= 65535)):
+                raise ValueError("unsupported repository address")
+            base = source.copy_with(host=service_host, path="", query=None, fragment=None)
+        except (EduSharingError, httpx.InvalidURL, ValueError):
+            raise EduSharingError(
+                "Expected a repository.<domain> URL without credentials, query or fragment. "
+                "For another layout, use TextExtraction(base_url=...) with its service address."
+            ) from None
+        return cls(str(base), **kwargs)
 
     @classmethod
     def from_env(cls, **kwargs: Any) -> TextExtraction:

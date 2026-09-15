@@ -493,10 +493,10 @@ eigenen Wegwerf-Ordner.
 
 ### Der Extraktionsdienst — Text, den das Repositorium nicht hat
 
-Ein Repositorium speichert den Volltext der Dateien, die es hält. Für Material,
-das nur irgendwohin *verlinkt* (`ccm:wwwurl`), hat es nichts — die Seite ist
-nicht seine Datei. Dafür betreibt eine edu-sharing-Installation üblicherweise
-einen zweiten Dienst.
+Ein Repositorium kann bereits extrahierten Text zu einem Material enthalten.
+Für eine neue Webseite oder fehlenden Volltext bieten manche Installationen
+einen eigenen Textextraktionsdienst. Er liefert Klartext oder Markdown und kann
+JavaScript-Seiten im Browser-Modus rendern.
 
 ```python
 # async: TextExtraction hat keine blockierende Fassade
@@ -506,6 +506,30 @@ async with TextExtraction.from_env() as dienst:   # EDU_SHARING_TEXT_EXTRACTION_
     ergebnis = await dienst.text_of("https://example.org/artikel")
     print(ergebnis.lang, ergebnis.char_count, ergebnis.text[:200])
 ```
+
+Für das Schema `repository.<domain>` → `text-extraction.<domain>` lässt sich
+der Nachbardienst explizit auswählen. Als Argument funktioniert auch `repo.url`:
+
+```python
+# async: TextExtraction hat keine blockierende Fassade
+from pathlib import Path
+
+async with TextExtraction.from_repository("https://repository.staging.openeduhub.net") as service:
+    result = await service.text_of(
+        "https://wirlernenonline.de", method="browser", output_format="markdown",
+    )
+    if result.text:
+        Path("page.md").write_text(result.text, encoding="utf-8")
+```
+
+`method="simple", output_format="txt"` liest HTML ohne Browser-Rendering.
+Der Browser läuft auf dem Dienst; lokal wird keine Browser-Abhängigkeit benötigt.
+Der Konstruktor behält Schema und abweichenden Port bei, entfernt Repository-Pfade
+und fragt nicht automatisch die Verfügbarkeit ab. Bei anderem Hostnamen oder
+Dienst-Port die Adresse direkt an `TextExtraction(base_url=...)` übergeben oder
+`EDU_SHARING_TEXT_EXTRACTION_URL` setzen. `from_env()` benötigt diese Variable
+weiterhin. Ein ausführbares URL-zu-Datei-Rezept zeigt
+[Beispiel 26](docs/examples/26_extract_page.py).
 
 Der Volltext eines Knotens, aus welcher Quelle auch immer:
 
@@ -536,8 +560,9 @@ Am 28.08.2026 gegen den openeduhub-Dienst gemessen (FastAPI, `c766f2e5`):
 
 **Es gibt keine Vorgabe-Adresse**, und das mit Absicht: jede Installation
 betreibt ihren eigenen Dienst, und eine Vorgabe auf einen Staging-Dienst hat
-schon Produktions-Material-URLs in eine fremde Umgebung geschickt. Nicht gesetzt
-heißt: kein Client.
+schon Produktions-Material-URLs in eine fremde Umgebung geschickt. Bei
+`from_env()` heißt eine fehlende Dienstvariable weiterhin: kein Client. Die
+Ableitung einer Nachbaradresse ist eine eigene, explizite Wahl.
 
 **Die Adresse wählst du, abgerufen wird sie von einem anderen.** Jede Prüfung
 läuft, *bevor* etwas gesendet wird: Schema, dann der Host als
@@ -1141,6 +1166,7 @@ wird:
 | [`04_agent_blocks.py`](docs/examples/04_agent_blocks.py) | die Bausteine für KI-Nutzung: Sicherheit, Bereinigung, Formatierung |
 | [`11_publish.py`](docs/examples/11_publish.py) | Material für andere sichtbar machen — der Schritt, den nichts von allein tut |
 | [`15_full_text.py`](docs/examples/15_full_text.py) | der Volltext eines Materials, aus dem Repositorium oder vom Extraktionsdienst |
+| [`26_extract_page.py`](docs/examples/26_extract_page.py) | eine Webseite als Text/Markdown oder UTF-8-Datei; explizite oder vom Repository abgeleitete Dienstadresse |
 | [`16_editorial.py`](docs/examples/16_editorial.py) | kommentieren, bewerten, vorschlagen, zur Prüfung geben — die redaktionellen Flächen auf der API-Ebene |
 
 **Über Abläufe** — es kommt ein `dict` zurück, fertig zum Weiterreichen:

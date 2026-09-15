@@ -490,7 +490,7 @@ which is the whole point when the answer has to travel onwards.
 then the file itself, when the record carries a text, JSON or XML upload — measured on
 2026-08-27, `/textContent` returns nothing for Markdown and JSON although the
 file has text; then the linked page (`ccm:wwwurl`) through the text-extraction
-service, and only when you pass one: the library knows no service address.
+service, and only when you pass one: the flow enables no service by itself.
 
 **Input**
 
@@ -500,6 +500,13 @@ from edusharing.extraction import TextExtraction
 service = TextExtraction.from_env()          # EDU_SHARING_TEXT_EXTRACTION_URL
 repo.flows.text(node_id, extraction=service, max_chars=20_000)
 ```
+
+For `repository.<domain>` / `text-extraction.<domain>` installations, build the
+same optional service with `TextExtraction.from_repository(repo.url)`.
+For a new webpage, or browser-rendered Markdown, call
+`service.text_of(url, method="browser", output_format="markdown")` directly;
+this material flow keeps its repository-first fallback and plain-text extraction.
+`prepare_material` can also receive the explicitly constructed `extraction=`.
 
 **Output**
 
