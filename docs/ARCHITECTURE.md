@@ -2,11 +2,24 @@
 
 Deutsche Fassung: [`ARCHITECTURE.de.md`](ARCHITECTURE.de.md)
 
-Last updated: 2026-09-08 · Status: **ten stages complete; the audit of 2026-09-03 is being worked through** — the worklists in [`docs/plans/`](plans/) say how far. No test counts stand here any more: the ones that did were wrong within a week (1122 claimed, 1303 collected — audit DOC-3). `uv run pytest --collect-only -q` counts the offline suite, `-m live` and `-m write` the two that need a real repository; those include every example in [`docs/examples/`](examples/), which run as test cases. Every public name **and every field of every object** is in [`REFERENCE.md`](REFERENCE.md) / [`REFERENCE.de.md`](REFERENCE.de.md), and the skill names all of them too; `tests/test_docs_complete.py` keeps all three complete, and `tests/test_docs_inventories.py` keeps the inventories in this document and the READMEs complete.
+Last updated: 2026-09-15 · Status: **the 0.3.0 metadata profiles, cache and composed
+flows are implemented and merged into main**. The
+[implementation report](audits/2026-09-14-functional-implementation.md) records
+the completed work, checks and remaining live acceptance. Historical stages and
+measurements below retain their original dates; worklists are in
+[`docs/plans/`](plans/).
+
+`uv run pytest --collect-only -q` counts the offline suite; `-m live` and
+`-m write` select tests that need a real repository. Examples in
+[`docs/examples/`](examples/) are exercised by tests. Every public name **and
+every field of every object** is in [`REFERENCE.md`](REFERENCE.md) /
+[`REFERENCE.de.md`](REFERENCE.de.md), and the skill names them too.
+`tests/test_docs_complete.py` checks completeness;
+`tests/test_docs_inventories.py` checks the inventories here and in the READMEs.
 
 A Python library that makes the REST API of an edu-sharing repository and the
-surrounding services (b-api) accessible with little code — **without**
-presupposing the metadata conventions of any particular instance.
+surrounding services (b-api) accessible with little code, with repository-specific
+metadata conventions configured through an explicit `MetadataProfile`.
 
 ---
 
@@ -43,9 +56,15 @@ repo.vocab.resolve("ccm:taxonid", "Biologie")
 # → "http://w3id.org/openeduhub/vocabs/discipline/080"
 ```
 
-`subject="Biologie"` therefore works on **any** instance that carries a subject
-vocabulary — without the library knowing WLO. A WLO profile stays a convenience
-layer, not a prerequisite.
+`subject="Biologie"` requires an alias pointing to the instance's subject
+property and an MDS query that accepts it. Loading a vocabulary or an MDS widget
+does not establish searchability or infer a field's semantic role.
+
+The WLO example above uses the compatibility defaults. On another metadata set,
+pass a `MetadataProfile` with its read/write fields, aliases and query conventions.
+An explicit `MetadataProfile()` inherits no WLO application fields;
+`metadata_profile=None` selects `WLO_METADATA_PROFILE` for existing applications.
+See [configuration and migration](REFERENCE.md#metadata-profiles-and-cache-030).
 
 > Measured (staging, 2026-08-12): `pattern: ""` lists all values — the
 > documented `"-all-"` returns **empty**. `pattern: "Ph"` is a working
@@ -84,10 +103,10 @@ The library decides that itself.
 | E1 | **Full endpoint coverage** through a generated layer | 318 paths / 389 operations / 378 schemas; all with an `operationId` → deterministically generatable. No blind spot. |
 | E2 | Generator: **`openapi-python-client`** (Python), not the Java `openapi-generator` | Produces **httpx**-based clients with async. The Java generator emits sync/urllib3 — incompatible with E3. Java is not installed on the target machine anyway. **Verified live, see §4.1.** |
 | E3 | **Async-first, sync wrapper** | `AsyncRepository` is the truth, `Repository` a thin wrapper (models: httpx, openai). AI applications and batch curation need concurrency; notebooks still get the simple route. |
-| E4 | **Profile-agnostic from the start** | WLO is one shipped profile among others. Stage 2 was to be verified against a second, foreign repository — otherwise WLO assumptions calcify (that is how `vocabs.ts` came about in the MCP). |
+| E4 | **Explicit per-repository metadata profiles** | `MetadataProfile` configures application fields and query conventions. An explicit neutral/custom profile inherits no WLO fields; `None` retains the named WLO compatibility profile. Version 0.3.0 is covered by HTTP-boundary tests; live acceptance on other installations remains pending. |
 | E5 | **No MCP server in v1** — but every building block for one | See §6. The MCP is built *with* the library later, not *into* it. |
 | E6 | Import `edusharing`, distribution `edu-sharing-python-client` | The bare name `edu-sharing` would have looked like an official client of metaVentis GmbH, from whom edu-sharing originates. |
-| E7 | **Field aliases in English, values in German** | The rest of the API is English (`Repository`, `search`, `update`). The values are the repository's own labels and stay as they are. |
+| E7 | **English API names, repository labels in the requested locale** | Default aliases are English; custom profiles can define their own. Labels come from the repository in the requested `locale` and stored values retain their identity. German WLO labels are examples. |
 | E8 | **Identifiers are percent-encoded in exactly one place** (`urls.path_segment`) | Interpolating an id into a path with an f-string lets it escape the path: measured on 2026-08-27, a node id of `../../../admin/v1/applications` reached a different endpoint, and `abc?admin=1` swallowed the trailing `/metadata`. Encoding at each of the 16 call sites would mean 16 chances to forget; one helper plus an integration test that walks every call site makes a forgotten site fail loudly. Relevant because under an MCP the id comes from the model, i.e. from foreign data. See audit F1. |
 | E9 | **Two levels: API-close objects and JSON flows** | The API level returns `SearchResult` and `Node` -- right for writing Python, wrong for anything that passes the result onwards. `repo.flows.*` chains the same calls and ends at `dict`. Flows add no capability; they remove steps. Kept separate rather than merged, because an object with methods and a JSON-serialisable structure are genuinely different things and picking one would have made the other awkward. Output keys are the configured aliases, so the shape is not tied to a profile (see E4). |
 | E10 | **Reranking is opt-in, and its word lists are a parameter** | edu-sharing ANDs every query word, so a naturally phrased question finds nothing -- measured 2026-08-27: "Bruchrechnung" 1591 records, "Ich suche ein Arbeitsblatt zur Bruchrechnung" **0**. That is how a language model phrases things, so the fix matters for this library's main audience. Ported from `wlo-mcp-sc` (Apache-2.0) with two changes: the German word lists became a `LanguageProfile` parameter, and the metadata-quality signals read the configured aliases instead of fixed WLO properties -- a hard-wired German list would contradict E4. Opt-in because it costs one request per variant. The reciprocal rank fusion of the original was **removed**: it weighed a record's position in the repository's answer, and that order is measurably unstable (25 hits of which 15 differ between identical queries), which made the ranking depend on arrival order -- of 30 shuffles of one candidate set, only 14 gave the same result. What is left is order-independent: quality (0.8) plus which variants returned a record at all (0.2). Same candidates in, same ranking out; two runs still differ when the index does. |

@@ -4,6 +4,17 @@ Ausgangsstand: `7d85186ffd63690281dd6d8e819092fd2d41d4fc` (`main`).
 Umsetzung nach Better Coding Workflow 2.12.0 mit Entwurf, Regressionstests,
 unabhängigem Review und Prüfung des installierbaren Pakets.
 
+Abschlussstand vom 15.09.2026: Die Umsetzung ist über
+[PR #2](https://github.com/janschachtschabel/edu-sharing-python-client/pull/2)
+in `main` gemergt. Der Merge-Commit
+[`24d973f`](https://github.com/janschachtschabel/edu-sharing-python-client/commit/24d973f04cdd2c89586f1a8256960918c4bc98d4)
+enthält exakt den lokal geprüften Dateibaum. Alle acht Jobs der
+[CI nach dem Merge](https://github.com/janschachtschabel/edu-sharing-python-client/actions/runs/34913619378)
+sind erfolgreich: Python 3.11–3.14 unter Linux, Python 3.13 unter Windows,
+minimale Abhängigkeitsversionen, Paketprüfung und reproduzierbare Generierung.
+Die Entwicklungsanpassung ist abgeschlossen; die Freigabe eines Release-Tags
+bleibt ein eigener Schritt mit der unten genannten Live-Abnahme.
+
 ## Befunde und Ergebnis
 
 | Befund / Anforderung | Umsetzung | Nachweis |
@@ -61,6 +72,23 @@ Im lokalen Offline-Testprozess wurden die von der Arbeitsumgebung gesetzten
 Proxy-Variablen entfernt: ihr SOCKS-Proxy benötigt einen optionalen Treiber,
 der nicht zu den Bibliotheksabhängigkeiten gehört. Das Lockfile blieb dabei
 unverändert. Mypy wurde mit einem eigenen frischen Cache geprüft.
+
+## Dokumentationsabschluss vom 15.09.2026
+
+Die Nachprüfung fand noch veraltete Anweisungen in README und Architekturtext:
+Die bloße Existenz eines Fachvokabulars genügt nicht für einen `subject`-Filter;
+Alias und Suchabfrage müssen dazu passen. Die Dokumentation beschreibt nun
+auch dort die explizite Profilkonfiguration und die wählbare Label-Sprache.
+Beide READMEs zeigen das Upgrade auf `main`, verlinken die neuen Beispiele und
+unterscheiden die umgesetzte Git-Version vom ausstehenden Release-Tag. Der
+Release-Ablauf verwendet die neue Versionsnummer und berücksichtigt den bereits
+vorhandenen Changelog-Eintrag. Historische Messungen bleiben als solche erhalten.
+
+Frische Prüfung dieser Dokumentationsänderung:
+`uv run --no-sync --offline pytest -q tests/test_docs* tests/test_skill_bundle.py tests/test_generic_examples.py --tb=short`
+→ **517 bestanden in 91,48 Sekunden**. Die bestehende Testumgebung wurde
+verwendet. `python scripts/sync_skill.py --check` und `git diff --check` waren
+ebenfalls erfolgreich; die Skill-Kopien benötigen keine Änderung.
 
 ## Verbleibende Grenzen
 

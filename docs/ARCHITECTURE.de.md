@@ -1,22 +1,25 @@
 # edu-sharing Python-Client — Architektur und Entwurf
 
-Stand: 08.09.2026 · Status: **zehn Etappen abgeschlossen; der Audit vom
-03.09.2026 wird abgearbeitet** — wie weit, sagen die Arbeitslisten in
-[`docs/plans/`](plans/). Testzahlen stehen hier keine mehr: die, die hier
-standen, waren binnen einer Woche falsch (1122 behauptet, 1303 gesammelt —
-Audit DOC-3). `uv run pytest --collect-only -q` zählt die Offline-Suite,
-`-m live` und `-m write` die beiden, die ein echtes Repositorium brauchen;
-darin läuft jedes Beispiel aus [`docs/examples/`](examples/) als Testfall.
-Jeder
-öffentliche Name **und jedes Feld jedes Objekts** steht in
+Stand: 15.09.2026 · Status: **Metadatenprofile, Cache und zusammengesetzte Flows
+für 0.3.0 sind umgesetzt und in main gemergt**. Der
+[Umsetzungsbericht](audits/2026-09-14-functional-implementation.md) dokumentiert
+die abgeschlossenen Arbeiten, Prüfungen und verbleibende Live-Abnahme.
+Historische Etappen und Messungen unten behalten ihre ursprünglichen Daten;
+Arbeitslisten stehen in [`docs/plans/`](plans/).
+
+`uv run pytest --collect-only -q` zählt die Offline-Suite; `-m live` und
+`-m write` wählen Tests aus, die ein echtes Repositorium brauchen. Beispiele aus
+[`docs/examples/`](examples/) werden als Tests ausgeführt. Jeder öffentliche
+Name **und jedes Feld jedes Objekts** steht in
 [`REFERENCE.de.md`](REFERENCE.de.md) / [`REFERENCE.md`](REFERENCE.md), und der
-Skill nennt sie ebenfalls alle; `tests/test_docs_complete.py` hält alle drei
-vollständig, und `tests/test_docs_inventories.py` hält die Verzeichnisse in
-diesem Dokument und in den READMEs vollständig.
+Skill nennt sie ebenfalls. `tests/test_docs_complete.py` prüft die
+Vollständigkeit; `tests/test_docs_inventories.py` prüft die Verzeichnisse in
+diesem Dokument und in den READMEs.
 
 Eine Python-Bibliothek, die die REST-API eines edu-sharing-Repositoriums und
-der Dienste daneben (b-api) mit wenig Code zugänglich macht — **ohne** die
-Metadaten-Konventionen einer bestimmten Instanz vorauszusetzen.
+der Dienste daneben (b-api) mit wenig Code zugänglich macht. Die
+Metadaten-Konventionen der Instanz werden über ein explizites `MetadataProfile`
+konfiguriert.
 
 > Dies ist die deutsche Fassung von [`ARCHITECTURE.md`](ARCHITECTURE.md). Beide
 > werden zusammen gepflegt, die Messwerte sind dieselben.
@@ -56,9 +59,17 @@ repo.vocab.resolve("ccm:taxonid", "Biologie")
 # → "http://w3id.org/openeduhub/vocabs/discipline/080"
 ```
 
-`subject="Biologie"` funktioniert damit auf **jeder** Instanz, die ein
-Fachvokabular führt — ohne dass die Bibliothek WLO kennt. Ein WLO-Profil bleibt
-eine Bequemlichkeitsschicht, keine Voraussetzung.
+`subject="Biologie"` benötigt einen Alias auf die Fach-Eigenschaft der Instanz
+und eine MDS-Abfrage, die dieses Kriterium akzeptiert. Ein geladenes Vokabular
+oder MDS-Widget beweist weder die Suchbarkeit noch die semantische Rolle eines
+Feldes.
+
+Das WLO-Beispiel oben nutzt die Kompatibilitätsvorgaben. Bei einem anderen
+Metadatensatz wird ein `MetadataProfile` mit dessen Lese-/Schreibfeldern,
+Aliasen und Abfragekonventionen übergeben. Ein explizites `MetadataProfile()`
+übernimmt keine WLO-Anwendungsfelder; `metadata_profile=None` wählt für
+bestehende Anwendungen `WLO_METADATA_PROFILE`.
+Siehe [Konfiguration und Migration](REFERENCE.de.md#metadatenprofile-und-cache-030).
 
 > Gemessen (Staging, 12.08.2026): `pattern: ""` listet alle Werte — das
 > dokumentierte `"-all-"` liefert **leer**. `pattern: "Ph"` ist eine
@@ -97,10 +108,10 @@ Nicht darin → `POST /property`. Die Bibliothek entscheidet das selbst.
 | E1 | **Vollständige Endpunktabdeckung** über eine generierte Schicht | 318 Pfade / 389 Operationen / 378 Schemata; alle mit `operationId` → deterministisch generierbar. Kein blinder Fleck. |
 | E2 | Generator: **`openapi-python-client`** (Python), nicht der Java-`openapi-generator` | Erzeugt **httpx**-basierte Clients mit async. Der Java-Generator liefert sync/urllib3 — unvereinbar mit E3. Java ist auf dem Zielrechner ohnehin nicht installiert. **Live geprüft, siehe §4.1.** |
 | E3 | **Async zuerst, synchroner Mantel** | `AsyncRepository` ist die Wahrheit, `Repository` ein dünner Mantel (Vorbilder: httpx, openai). KI-Anwendungen und Stapelredaktion brauchen Nebenläufigkeit; Notebooks bekommen trotzdem den einfachen Weg. |
-| E4 | **Von Anfang an profilunabhängig** | WLO ist ein mitgeliefertes Profil unter anderen. Etappe 2 sollte gegen ein zweites, fremdes Repositorium geprüft werden — sonst verhärten sich WLO-Annahmen (so ist `vocabs.ts` im MCP entstanden). |
+| E4 | **Explizite Metadatenprofile je Repositorium** | `MetadataProfile` konfiguriert Anwendungsfelder und Abfragekonventionen. Ein explizites neutrales/eigenes Profil übernimmt keine WLO-Felder; `None` behält das benannte WLO-Kompatibilitätsprofil bei. Version 0.3.0 ist mit HTTP-Mocks geprüft; die Live-Abnahme weiterer Installationen steht noch aus. |
 | E5 | **Kein MCP-Server in v1** — aber jeder Baustein für einen | Siehe §6. Der MCP wird später *mit* der Bibliothek gebaut, nicht *in* sie hinein. |
 | E6 | Import `edusharing`, Distribution `edu-sharing-python-client` | Der blanke Name `edu-sharing` hätte nach einem offiziellen Client der metaVentis GmbH ausgesehen, von der edu-sharing stammt. |
-| E7 | **Feld-Aliase englisch, Werte deutsch** | Der Rest der API ist englisch (`Repository`, `search`, `update`). Die Werte sind die Labels des Repositoriums und bleiben, wie sie sind. |
+| E7 | **Englische API-Namen, Repository-Labels in der gewünschten Sprache** | Die Standard-Aliase sind englisch; eigene Profile können andere festlegen. Labels kommen in der angefragten `locale` vom Repositorium, gespeicherte Werte behalten ihre Identität. Deutsche WLO-Labels sind Beispiele. |
 | E8 | **Bezeichner werden an genau einer Stelle prozentkodiert** (`urls.path_segment`) | Eine ID per f-String in einen Pfad zu setzen lässt sie aus dem Pfad ausbrechen: gemessen am 27.08.2026 erreichte eine Knoten-ID `../../../admin/v1/applications` einen anderen Endpunkt, und `abc?admin=1` schluckte das angehängte `/metadata`. An jeder der 16 Aufrufstellen zu kodieren hieße 16 Gelegenheiten, es zu vergessen; ein Helfer plus ein Integrationstest, der jede Aufrufstelle abläuft, lässt eine vergessene Stelle laut scheitern. Wichtig, weil unter einem MCP die ID vom Modell kommt, also aus fremden Daten. Siehe Audit F1. |
 | E9 | **Zwei Ebenen: API-nahe Objekte und JSON-Abläufe** | Die API-Ebene liefert `SearchResult` und `Node` — richtig, um Python zu schreiben, falsch für alles, was das Ergebnis weiterreicht. `repo.flows.*` verkettet dieselben Aufrufe und endet bei `dict`. Abläufe fügen nichts hinzu; sie sparen Schritte. Getrennt gehalten statt verschmolzen, weil ein Objekt mit Methoden und eine JSON-fähige Struktur wirklich verschiedene Dinge sind und eines von beiden zu wählen das andere unhandlich gemacht hätte. Die Schlüssel der Ausgabe sind die konfigurierten Aliase, die Form hängt also an keinem Profil (siehe E4). |
 | E10 | **Neuordnung ist zuschaltbar, und ihre Wortlisten sind ein Parameter** | edu-sharing verknüpft alle Suchwörter mit UND, eine natürlich formulierte Frage findet also nichts — gemessen am 27.08.2026: „Bruchrechnung" 1591 Datensätze, „Ich suche ein Arbeitsblatt zur Bruchrechnung" **0**. So formuliert ein Sprachmodell, die Abhilfe zählt also für das Hauptpublikum dieser Bibliothek. Aus `wlo-mcp-sc` (Apache-2.0) übernommen, mit zwei Änderungen: aus den deutschen Wortlisten wurde ein `LanguageProfile`-Parameter, und die Qualitätssignale lesen die konfigurierten Aliase statt fester WLO-Eigenschaften — eine fest verdrahtete deutsche Liste widerspräche E4. Zuschaltbar, weil sie je Variante eine Anfrage kostet. Die reziproke Rangfusion des Originals wurde **entfernt**: sie gewichtete die Position eines Datensatzes in der Antwort des Repositoriums, und diese Reihenfolge ist messbar unstet (25 Treffer, davon 15 verschieden zwischen gleichen Anfragen), womit die Rangfolge von der Ankunftsreihenfolge abhing — von 30 Mischungen derselben Kandidatenmenge ergaben nur 14 dasselbe Ergebnis. Was bleibt, ist reihenfolgeunabhängig: Qualität (0,8) plus die Frage, welche Varianten einen Datensatz überhaupt zurückgaben (0,2). Gleiche Kandidaten hinein, gleiche Rangfolge heraus; zwei Läufe unterscheiden sich weiterhin, wenn der Index sich unterscheidet. |

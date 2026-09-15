@@ -14,6 +14,12 @@ and in [`docs/audits/`](docs/audits/).
 
 ## [Unreleased]
 
+### Documentation
+
+- Complete the bilingual 0.3.0 documentation: explain upgrades from the older
+  tag, align architecture guidance with explicit metadata profiles and locales,
+  record the successful merge/CI, and correct the pending release procedure.
+
 ## [0.3.0] — 2026-09-14 (Git version; release tag pending)
 
 ### Added
