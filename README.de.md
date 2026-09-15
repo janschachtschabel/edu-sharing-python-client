@@ -5,7 +5,7 @@
 Python-Bibliothek für [edu-sharing](https://edu-sharing.com)-Repositorien und die
 **b-api** (Bildungs-API, OpenEduHub) — **repository-agnostisch** und **async-first**.
 
-> **Status: in Arbeit.** Lesen, Suchen und Schreiben stehen und sind gegen
+> **Status: vor 1.0.** Lesen, Suchen und Schreiben stehen und sind gegen
 > edu-sharing 11.0 geprüft — auch schreibend, gegen eine echte Instanz. Der
 > Fahrplan steht in [`docs/ARCHITECTURE.de.md`](docs/ARCHITECTURE.de.md)
 > ([englisch](docs/ARCHITECTURE.md)).
@@ -34,11 +34,13 @@ Drei neue Flows: `prepare_material` erstellt einen prüfbaren Entwurf,
 `collection_context` bündelt Beschreibung, Inhalte und Stichprobenstatistik.
 [API und Migration](docs/REFERENCE.de.md#metadatenprofile-und-cache-030) ·
 [Anwendungsabläufe](docs/FLOWS.de.md#neue-zusammengesetzte-abläufe-030) ·
-[generisches Beispiel](docs/examples/24_generic_metadata.py).
+[generisches Beispiel](docs/examples/24_generic_metadata.py) ·
+[Beispiel für Vorbereitung und Kontext](docs/examples/25_prepare_context.py) ·
+[Umsetzung und Prüfergebnisse](docs/audits/2026-09-14-functional-implementation.md).
 Die Ergänzungen sind offline mit API-Mocks geprüft; zusätzliche Live-Instanzen
 wurden für diese Version nicht verändert oder als verifiziert angenommen.
 
-Version 0.3.0 ist vorerst der Git-Stand; der Release-Tag folgt erst nach der
+Version 0.3.0 ist umgesetzt und in `main` gemergt; der Release-Tag folgt erst nach der
 Live-Abnahme aus dem Release-Ablauf unten. Der bisherige stabile Tag bleibt `v0.2.0`.
 
 
@@ -49,6 +51,15 @@ Python 3.11 oder neuer. Noch nicht auf PyPI, also aus git:
 ```bash
 uv pip install git+https://github.com/janschachtschabel/edu-sharing-python-client
 ```
+
+Eine bestehende Installation auf den aktuellen `main` aktualisieren:
+
+```bash
+uv pip install --upgrade "git+https://github.com/janschachtschabel/edu-sharing-python-client@main"
+```
+
+Wer unten `v0.2.0` festlegt, bleibt bei dieser älteren Veröffentlichung und
+installiert damit nicht die neuen Metadatenprofile oder zusammengesetzten Flows.
 
 Oder aus einer Arbeitskopie — das brauchen Sie, um die Tests und die Beispiele
 laufen zu lassen:
@@ -1268,8 +1279,7 @@ den Extraktionsdienst, `METADATA_AGENT_URL` für den Metadata Agent. Ein
 
 ## Veröffentlichen
 
-Es gibt zwei Tags, und nirgends stand, wie der nächste entsteht (Audit
-OPS-3). So:
+So entsteht die nächste Version mit Release-Tag:
 
 1. **Nummer festlegen.** Vor 1.0, also hebt eine brechende Änderung die
    Minor-Stelle. Was im Changelog als BREAKING steht, ist eine.
@@ -1279,15 +1289,18 @@ OPS-3). So:
 3. **`uv lock`** — der Lock hält die eigene Version des Projekts fest und
    driftet sonst; `--locked` in der CI schlägt dann beim nächsten Push an,
    und genau dafür ist es da.
-4. **`CHANGELOG.md`** — `[Unreleased]` in die Nummer mit dem heutigen Datum
-   umbenennen, ein frisches leeres `[Unreleased]` öffnen, und unten die
-   Link-Referenz ergänzen.
+4. **`CHANGELOG.md`** — den Versionseintrag samt Link-Referenz vorbereiten;
+   `[Unreleased]` bleibt für spätere Änderungen bestehen. Gibt es bereits einen
+   vorgemerkten Eintrag, diesen aktualisieren und keinen zweiten anlegen.
+   Release-Datum und Entfernung des Pending-Hinweises folgen erst nach den
+   erfolgreichen Release-Prüfungen.
 5. **Grün vor dem Tag.** `ruff check .`, `mypy`, `pytest -q`, und die
    Live-Suiten gegen die Staging — `-m live` und `-m write`. Eine
    Veröffentlichung ist der eine Moment, in dem die Live-Beweise nicht
    optional sind.
-6. **Committen, dann ein annotierter Tag**: `git tag -a v0.2.0 -m "0.2.0"`,
-   und `git push --follow-tags`.
+6. **Committen, dann ein annotierter Tag** mit der Nummer aus Schritt 1.
+   Für die vorgemerkte Version 0.3.0 nach den Prüfungen oben:
+   `git tag -a v0.3.0 -m "0.3.0"`, danach `git push --follow-tags`.
 7. **Auf grüne CI am Tag warten**, bevor irgendwo etwas angekündigt wird.
 
 Eine Veröffentlichung auf PyPI gibt es noch nicht; installiert wird aus dem

@@ -6,7 +6,7 @@ Python client for [edu-sharing](https://edu-sharing.com) repositories and the
 
 > *Deutsche Fassung: [README.de.md](README.de.md).*
 
-> **Status: work in progress.** Reading, searching and writing are in place and
+> **Status: pre-1.0.** Reading, searching and writing are in place and
 > verified against edu-sharing 11.0 — including writes, against a live instance.
 > The roadmap is in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 > ([German](docs/ARCHITECTURE.de.md)).
@@ -29,11 +29,13 @@ places existing material with reference identity and partial failures, and
 `collection_context` combines description, contents and sample statistics.
 [API and migration](docs/REFERENCE.md#metadata-profiles-and-cache-030) ·
 [Application flows](docs/FLOWS.md#new-composed-flows-030) ·
-[Generic example](docs/examples/24_generic_metadata.py).
+[Generic example](docs/examples/24_generic_metadata.py) ·
+[Preparation and context example](docs/examples/25_prepare_context.py) ·
+[Implementation and verification report](docs/audits/2026-09-14-functional-implementation.md).
 These additions are tested offline with API mocks; additional live installations
 were not modified or assumed verified for this version.
 
-Version 0.3.0 is currently the Git version; its release tag awaits the live
+Version 0.3.0 is implemented and merged into `main`; its release tag awaits the live
 acceptance required by the release procedure below. The existing tag remains `v0.2.0`.
 
 
@@ -44,6 +46,15 @@ Python 3.11 or newer. Not on PyPI yet, so install from git:
 ```bash
 uv pip install git+https://github.com/janschachtschabel/edu-sharing-python-client
 ```
+
+To update an existing installation to the current `main`:
+
+```bash
+uv pip install --upgrade "git+https://github.com/janschachtschabel/edu-sharing-python-client@main"
+```
+
+Pinning `v0.2.0` below keeps that older release and does not install the new
+metadata profiles or composed flows.
 
 Or from a checkout, which is what you want in order to run the tests and the
 examples:
@@ -1233,7 +1244,7 @@ there means "not configured", not "not covered".
 
 ## Releasing
 
-Two tags exist and nothing said how the next one is cut (audit OPS-3). It is:
+To publish the next tagged version:
 
 1. **Decide the number.** Pre-1.0, so a breaking change bumps the minor.
    Anything marked BREAKING in the changelog is one.
@@ -1243,14 +1254,16 @@ Two tags exist and nothing said how the next one is cut (audit OPS-3). It is:
 3. **`uv lock`** — the lock records the project's own version and drifts
    otherwise; CI's `--locked` then fails on the next push, which is the
    point.
-4. **`CHANGELOG.md`** — rename `[Unreleased]` to the number with today's
-   date, open a fresh empty `[Unreleased]`, and add the link reference at the
-   foot.
+4. **`CHANGELOG.md`** — prepare the version entry and its link reference,
+   keeping an `[Unreleased]` section for later changes. If a pending entry
+   already exists, update it rather than creating a second one. Set the release
+   date and remove the pending notice only when the release checks pass.
 5. **Green before the tag.** `ruff check .`, `mypy`, `pytest -q`, and the
    live suites against staging — `-m live` and `-m write`. A release is the
    one moment the live proofs are not optional.
-6. **Commit, then an annotated tag**: `git tag -a v0.2.0 -m "0.2.0"`, and
-   `git push --follow-tags`.
+6. **Commit, then an annotated tag** using the number from step 1. For the
+   pending 0.3.0 release, after the checks above:
+   `git tag -a v0.3.0 -m "0.3.0"`, then `git push --follow-tags`.
 7. **Wait for CI to be green on the tag** before announcing anything.
 
 There is no PyPI publication yet; installation is from the repository.

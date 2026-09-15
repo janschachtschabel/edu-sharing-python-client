@@ -145,6 +145,27 @@ cross-instance acceptance remains unverified without suitable live endpoints.
 - [x] Documentation, examples, skill and version synchronized.
 - [x] Independent review and local verification complete (2662 tests passed).
 
-Remote push, CI and merge outcomes are recorded in the pull request. Version
-0.3.0 is the Git version; the release tag awaits the live acceptance required
-by the repository release procedure. [Audit disposition](../audits/2026-09-14-functional-implementation.md).
+- [x] Remote push and [PR #2](https://github.com/janschachtschabel/edu-sharing-python-client/pull/2)
+  merged into `main` at `24d973f` on 2026-09-15; all eight CI jobs passed before
+  and after the merge. The remote tree matches the tested local tree.
+
+The implementation is complete. Version 0.3.0 is the Git version; the release
+tag awaits the live acceptance required by the repository release procedure.
+[Audit disposition](../audits/2026-09-14-functional-implementation.md).
+
+## Documentation closeout — 2026-09-15
+
+The follow-up request is to finish the adjustment and update README/docs as
+needed. Main already contains the functional work and has successful CI.
+
+- README EN/DE: explicit upgrade to main, completion/report links and corrected
+  instructions for the pending release rather than reusing the old 0.2.0 tag.
+- ARCHITECTURE EN/DE: current implementation status and accurate requirements
+  for custom metadata aliases, searchability and label locales.
+- Audit/changelog: record the completed merge and the documentation corrections;
+  preserve the distinction between offline/CI verification and live acceptance.
+- Verification: run the existing documentation, skill-bundle and generic-example
+  checks, check the diff, then use the authorized push/PR/merge workflow.
+
+This closeout changes documentation only; no new library APIs or dependencies
+are needed. The existing examples and bundled skill already describe the new APIs.
