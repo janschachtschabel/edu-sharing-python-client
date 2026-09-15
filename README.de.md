@@ -15,6 +15,33 @@ Python-Bibliothek für [edu-sharing](https://edu-sharing.com)-Repositorien und d
 mit Ein- und Ausgabe. Dieses README erklärt das Warum, die Referenz ist die
 Nachschlagetabelle.
 
+
+## Version 0.3.0: eigene Metadaten und weniger Anwendungscode
+
+Eigene Metadatensets lassen sich über `MetadataProfile` konfigurieren: getrennte
+Lese- und Schreibfelder, Filter-Kurznamen, Volltextkriterium und Materialtyp.
+Ein explizites leeres Profil übernimmt keine WLO-Felder. Ohne Profil bleibt
+`WLO_METADATA_PROFILE` als kompatible Vorgabe aktiv. Technische API-Felder wie
+`cm:name` bleiben erhalten.
+
+`repo.metadata` lädt und puffert MDS-Definitionen. `repo.vocab` kann Vokabulare
+parallel vorladen, Labels in beide Richtungen auflösen und JSON-Snapshots mit
+Scope- und Altersprüfung im Speicher übernehmen. Suche und optionales lokales
+Reranking unterstützen `raw_filters`, `locale` und `strict=True`.
+
+Drei neue Flows: `prepare_material` erstellt einen prüfbaren Entwurf,
+`place_material` platziert vorhandenes Material mit Referenz-ID und Teilfehlern,
+`collection_context` bündelt Beschreibung, Inhalte und Stichprobenstatistik.
+[API und Migration](docs/REFERENCE.de.md#metadatenprofile-und-cache-030) ·
+[Anwendungsabläufe](docs/FLOWS.de.md#neue-zusammengesetzte-abläufe-030) ·
+[generisches Beispiel](docs/examples/24_generic_metadata.py).
+Die Ergänzungen sind offline mit API-Mocks geprüft; zusätzliche Live-Instanzen
+wurden für diese Version nicht verändert oder als verifiziert angenommen.
+
+Version 0.3.0 ist vorerst der Git-Stand; der Release-Tag folgt erst nach der
+Live-Abnahme aus dem Release-Ablauf unten. Der bisherige stabile Tag bleibt `v0.2.0`.
+
+
 ## Installieren
 
 Python 3.11 oder neuer. Noch nicht auf PyPI, also aus git:
@@ -81,6 +108,7 @@ Metadatensatzes und nicht der Eigenschaft selbst.
 
 ## Inhalt
 
+- [Version 0.3.0: eigene Metadaten und weniger Anwendungscode](#version-030-eigene-metadaten-und-weniger-anwendungscode)
 - [Installieren](#installieren)
 - [Schnellstart](#schnellstart)
 - [Warum](#warum)
@@ -558,7 +586,7 @@ if angelegt["unresolved"]:            # Werte, die NICHT ankamen
     ...
 ```
 
-Alle Abläufe: `search`, `search_all`, `vocabulary`, `describe`,
+Alle Abläufe: `prepare_material`, `place_material`, `collection_context`, `search`, `search_all`, `vocabulary`, `describe`,
 `describe_many`, `text`, `related`, `placement`, `relations`,
 `child_objects`, `browse_tree`, `search_in_collection`,
 `collection_stats`, `find_collections`, `collection_contents`, `page`,
@@ -1123,6 +1151,8 @@ wird:
 | [`21_skills.py`](docs/examples/21_skills.py) | welche Skills eine Sammlung freigibt, und was einer davon sagt |
 | [`22_bapi_templates.py`](docs/examples/22_bapi_templates.py) | ein Prompt, der auf dem Server liegt, gefüllt aus einer Sammlung — und was freier Text mit ihm macht |
 | [`23_ai_suggestions.py`](docs/examples/23_ai_suggestions.py) | das Modell schlägt Schlagworte vor, ein Programm übernimmt das beste — und liest es zurück |
+| [`24_generic_metadata.py`](docs/examples/24_generic_metadata.py) | MDS, eigenes Profil, Vokabulare und Snapshots |
+| [`25_prepare_context.py`](docs/examples/25_prepare_context.py) | Materialentwurf und Sammlungskontext, rein lesend |
 
 **Beide Ebenen nebeneinander:**
 

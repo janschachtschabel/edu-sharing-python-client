@@ -11,6 +11,32 @@ Python client for [edu-sharing](https://edu-sharing.com) repositories and the
 > The roadmap is in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 > ([German](docs/ARCHITECTURE.de.md)).
 
+
+## Version 0.3.0: custom metadata and less application code
+
+Configure other metadata sets through `MetadataProfile`: separate read/write
+fields, filter aliases, full-text criterion and material type. An explicit
+empty profile inherits no WLO fields. Without a profile, `WLO_METADATA_PROFILE`
+preserves existing behavior. Technical API fields such as `cm:name` remain.
+
+`repo.metadata` loads and caches MDS definitions. `repo.vocab` preloads values
+concurrently, resolves labels in both directions and restores JSON snapshots
+in memory with scope and age validation. Search and optional local reranking
+support `raw_filters`, `locale` and `strict=True`.
+
+Three new flows: `prepare_material` builds a reviewable draft, `place_material`
+places existing material with reference identity and partial failures, and
+`collection_context` combines description, contents and sample statistics.
+[API and migration](docs/REFERENCE.md#metadata-profiles-and-cache-030) ·
+[Application flows](docs/FLOWS.md#new-composed-flows-030) ·
+[Generic example](docs/examples/24_generic_metadata.py).
+These additions are tested offline with API mocks; additional live installations
+were not modified or assumed verified for this version.
+
+Version 0.3.0 is currently the Git version; its release tag awaits the live
+acceptance required by the release procedure below. The existing tag remains `v0.2.0`.
+
+
 ## Installing
 
 Python 3.11 or newer. Not on PyPI yet, so install from git:
@@ -80,6 +106,7 @@ not of the property.
 every public name with what goes in and what comes out. This README explains
 why; the reference is the lookup table.
 
+- [Version 0.3.0: custom metadata and less application code](#version-030-custom-metadata-and-less-application-code)
 - [Installing](#installing)
 - [Quick start](#quick-start)
 - [Why](#why)
@@ -542,7 +569,7 @@ if created["unresolved"]:             # values that did NOT stick
     ...
 ```
 
-Every flow: `search`, `search_all`, `vocabulary`, `describe`,
+Every flow: `prepare_material`, `place_material`, `collection_context`, `search`, `search_all`, `vocabulary`, `describe`,
 `describe_many`, `text`, `related`, `placement`, `relations`,
 `child_objects`, `browse_tree`, `search_in_collection`,
 `collection_stats`, `find_collections`, `collection_contents`, `page`,
@@ -1089,6 +1116,8 @@ them:
 | [`21_skills.py`](docs/examples/21_skills.py) | which skills a collection approves, and what one of them says |
 | [`22_bapi_templates.py`](docs/examples/22_bapi_templates.py) | a prompt kept on the server, filled from a collection — and what free text does to it |
 | [`23_ai_suggestions.py`](docs/examples/23_ai_suggestions.py) | the model proposes keywords, a program takes the best one over — and reads it back |
+| [`24_generic_metadata.py`](docs/examples/24_generic_metadata.py) | MDS, custom profile, vocabularies and snapshots |
+| [`25_prepare_context.py`](docs/examples/25_prepare_context.py) | Material draft and collection context, read-only |
 
 **Both levels side by side:**
 

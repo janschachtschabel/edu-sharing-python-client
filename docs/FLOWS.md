@@ -31,6 +31,11 @@ blocking `repo.flows.…` on `Repository`.
 
 ## Contents
 
+- [New composed flows (0.3.0)](#new-composed-flows-030)
+- [`prepare_material` — a draft before writing](#prepare_material--a-draft-before-writing)
+- [`place_material` — place existing material](#place_material--place-existing-material)
+- [`collection_context` — context for an application](#collection_context--context-for-an-application)
+- [Values, labels and search](#values-labels-and-search)
 - [What each flow costs, at a glance](#what-each-flow-costs-at-a-glance)
 - [Two rules that run through every flow](#two-rules-that-run-through-every-flow)
 - [`search` — find material](#search--find-material)
@@ -1743,3 +1748,92 @@ found = await repo.flows.search("Wald", subject="Biologie")   # JSON out
 node = await repo.node(found["hits"][0]["id"])                # object back
 await node.add_keywords("geprüft")
 ```
+
+
+## New composed flows (0.3.0)
+
+These additions are tested with HTTP mocks. Earlier live measurements in other
+chapters remain scoped to the installations named there. All options are in
+[REFERENCE.md](REFERENCE.md). [Example 24](examples/24_generic_metadata.py)
+shows profiles/cache; [example 25](examples/25_prepare_context.py) shows read flows.
+
+## `prepare_material` — a draft before writing
+
+```python
+prepared = await repo.flows.prepare_material(
+    "https://example.org/material", title="Material title",
+    labels={"subject": "Biologie"}, locale="de_DE")
+print(prepared["draft"], prepared["duplicate"], prepared["unresolved"])
+```
+
+Loads the MDS, normalizes profile fields and vocabulary values and checks visible
+URL duplicates. Pass `extraction=service` to obtain text too; no model is called
+and no repository record is written. Ambiguous labels appear in `unresolved`
+with `candidates`; use the key for an exact choice. Arbitrary stored values go
+in `properties`.
+
+Returns `draft`, `duplicate`, `unresolved`, `validation`, `extraction`, `warnings`,
+`ready_to_create`. `duplicate.status` is `exists`, `absent` or `unknown`;
+a refused/truncated query or ignored criterion cannot establish absence.
+`validation` checks widget `isRequired`: `missing` for creation and
+`missing_for_publish` for publication. Conditions, datatypes, permissions and
+server rules still need validation: `scope="required_fields_only"` and
+`server_validation_required=True`. `ready_to_create` is a precheck, not a
+persistence guarantee.
+
+After reviewing it, save with `repo.flows.add_material(**prepared["draft"],
+parent_id=parent_id, if_exists="raise")`. The URL remains an argument in the draft
+so creation checks the duplicate policy again. The search index can lag newly
+created records; this is not an atomic URL upsert. Cost: one URL query, one MDS
+request per cache lifetime and vocabulary requests for new fields/locales;
+text extraction only when a service is explicitly supplied.
+
+## `place_material` — place existing material
+
+```python
+placed = await repo.flows.place_material(
+    node_id, collection_id, publish=True, remove_from=old_collection_id)
+print(placed["reference_id"], placed["failed"])
+```
+
+Accepts an original or reference id, resolves the original and creates its new
+reference. `reference_id` comes from the mutation response; no immediate index
+listing is required. An existing placement (409) gives `created=False`,
+`placed=True` and an unknown reference id (`None`) without another lookup.
+`public=None` means publication was not requested/checked.
+
+Returns `input_id`, `original_id`, `collection_id`, `reference_id`, `created`,
+`placed`, `public`, `removed_from`, `failed`. Only after placement and any
+requested publication succeed is `remove_from` removed. Errors name their
+`step` (`place`, `publish`, `remove`) and retain known identities. Already public
+material counts as success. There is no transaction across these APIs.
+Cost: one metadata GET and one reference PUT; removal adds one DELETE,
+publication adds original/ACL requests as needed.
+
+## `collection_context` — context for an application
+
+```python
+context = await repo.flows.collection_context(collection_id, limit=20)
+print(context["collection"]["title"], context["stats"], context["failed"])
+```
+
+Loads the description and one page per contents listing. Statistics reuse those
+same materials; `stats.complete` and contents totals disclose sample limits.
+`compendium` reads the optional profile property from the existing description.
+`include_registry=True` adds the skill registry; `registry_conventions` and
+`registry_context` forward its existing conventions and context filter, so
+custom skill types need not use WLO values.
+
+Returns `collection`, `contents`, `stats`, `compendium`, `registry`, `failed`,
+`loaded_at`. Failed optional parts are `None` with a named error, not apparently
+empty contents. Three requests without the registry; the optional registry adds
+`skill_registry` costs. The application chooses how long to keep this context,
+which carries a UTC timestamp, in memory.
+
+### Values, labels and search
+
+`vocabulary` adds `entries` with `value` and `label` alongside `values`.
+Hits/descriptions include `value_fields` so equal labels do not collapse identity.
+`related` uses stored values and reports them as `based_on_values`. `locale`,
+`raw_filters` and `strict=True` also survive `search(rerank=True)` and `search_all`.
+Reranking remains optional, local and LLM-free; keywords use the metadata profile.

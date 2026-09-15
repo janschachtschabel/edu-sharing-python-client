@@ -32,6 +32,11 @@ blockierend `repo.flows.…` auf `Repository`.
 
 ## Inhalt
 
+- [Neue zusammengesetzte Abläufe (0.3.0)](#neue-zusammengesetzte-abläufe-030)
+- [`prepare_material` — Entwurf vor dem Schreiben](#prepare_material--entwurf-vor-dem-schreiben)
+- [`place_material` — vorhandenes Material platzieren](#place_material--vorhandenes-material-platzieren)
+- [`collection_context` — Kontext für eine Anwendung](#collection_context--kontext-für-eine-anwendung)
+- [Werte, Labels und Suche](#werte-labels-und-suche)
 - [Was jeder Ablauf kostet, auf einen Blick](#was-jeder-ablauf-kostet-auf-einen-blick)
 - [Zwei Regeln, die durch jeden Ablauf gehen](#zwei-regeln-die-durch-jeden-ablauf-gehen)
 - [`search` — Material finden](#search--material-finden)
@@ -1792,3 +1797,96 @@ gefunden = await repo.flows.search("Wald", subject="Biologie")   # JSON heraus
 node = await repo.node(gefunden["hits"][0]["id"])                # Objekt zurück
 await node.add_keywords("geprüft")
 ```
+
+
+## Neue zusammengesetzte Abläufe (0.3.0)
+
+Die folgenden Ergänzungen sind mit HTTP-Mocks geprüft. Die bisherigen
+Live-Messungen in anderen Kapiteln bleiben auf die dort genannten Instanzen
+bezogen. Optionen stehen vollständig in [REFERENCE.de.md](REFERENCE.de.md).
+Profile und Cache zeigt [Beispiel 24](examples/24_generic_metadata.py),
+lesende Anwendungsketten [Beispiel 25](examples/25_prepare_context.py).
+
+## `prepare_material` — Entwurf vor dem Schreiben
+
+```python
+prepared = await repo.flows.prepare_material(
+    "https://example.org/material", title="Materialtitel",
+    labels={"subject": "Biologie"}, locale="de_DE")
+print(prepared["draft"], prepared["duplicate"], prepared["unresolved"])
+```
+
+Der Flow lädt das MDS, normalisiert Profilfelder und Vokabularwerte und prüft
+sichtbare URL-Dubletten. Mit `extraction=service` kommt Text hinzu; es wird
+kein Modell aufgerufen und nichts im Repository geschrieben. Mehrdeutige
+Labels stehen mit `candidates` in `unresolved`; für eine eindeutige Auswahl
+den Schlüssel verwenden. Beliebige gespeicherte Werte gehören in `properties`.
+
+Die Antwort enthält `draft`, `duplicate`, `unresolved`, `validation`,
+`extraction`, `warnings`, `ready_to_create`. `duplicate.status` ist `exists`,
+`absent` oder `unknown`; verweigerte, gekürzte oder ignorierte Suchkriterien
+beweisen keine Abwesenheit. `validation` prüft `isRequired` aus den Widgets:
+`missing` für Erstellung, `missing_for_publish` zusätzlich für Veröffentlichung.
+Bedingungen, Datentypen, Rechte und serverseitige Regeln bleiben zu prüfen:
+`scope="required_fields_only"`, `server_validation_required=True`.
+`ready_to_create` ist damit eine Vorprüfung, keine Persistenzgarantie.
+
+Nach Prüfung lässt sich der Entwurf mit `repo.flows.add_material(**prepared["draft"],
+parent_id=parent_id, if_exists="raise")` speichern. Die URL bleibt im Entwurf
+als Argument erhalten, damit die Dublettenregel beim Schreiben erneut gilt.
+Der Suchindex kann neue Datensätze verzögert sehen; einen atomaren URL-Upsert
+stellt dieser Flow nicht bereit. Kosten: eine URL-Suche, eine MDS-Abfrage je
+Cache-Lebensdauer und Vokabularabfragen je neuem Feld/Locale; Extraktion nur
+bei expliziter Übergabe eines Dienstes.
+
+## `place_material` — vorhandenes Material platzieren
+
+```python
+placed = await repo.flows.place_material(
+    node_id, collection_id, publish=True, remove_from=old_collection_id)
+print(placed["reference_id"], placed["failed"])
+```
+
+Nimmt Original- oder Referenz-ID, ermittelt das Original und erstellt die neue
+Referenz. `reference_id` stammt aus der Schreibantwort; kein unmittelbares
+Index-Listing ist nötig. Bei bestehender Zuordnung (409) ist `created=False`,
+`placed=True`, die Referenz-ID ohne weitere Abfrage `None`.
+`public=None` bedeutet, dass keine Veröffentlichung angefordert/geprüft wurde.
+
+Ergebnis: `input_id`, `original_id`, `collection_id`, `reference_id`, `created`,
+`placed`, `public`, `removed_from`, `failed`. Erst nach erfolgreicher Platzierung
+und gegebenenfalls Veröffentlichung wird `remove_from` entfernt. Ein Fehler
+nennt seinen `step` (`place`, `publish`, `remove`) und lässt bekannte IDs stehen.
+Bereits öffentliches Material zählt als Erfolg. Es gibt keine Transaktion über
+alle APIs. Kosten: ein Metadaten-GET und ein Referenz-PUT; Entfernen ein weiterer
+DELETE, Veröffentlichung zusätzlich Original- und ACL-Aufrufe nach Bedarf.
+
+## `collection_context` — Kontext für eine Anwendung
+
+```python
+context = await repo.flows.collection_context(collection_id, limit=20)
+print(context["collection"]["title"], context["stats"], context["failed"])
+```
+
+Lädt Beschreibung und genau eine Inhaltsseite je Listing. Die Statistik nutzt
+dieselben Materialien; `stats.complete` und die Zahlen in `contents` nennen die
+Stichprobengrenzen. `compendium` liest die optionale Profil-Eigenschaft aus der
+bereits geladenen Beschreibung. Mit `include_registry=True` kommt die Skill-
+Registry hinzu; `registry_conventions` und `registry_context` reichen die
+vorhandenen Konventionen und den Kontextfilter durch. Eigene Skill-Typen
+werden damit nicht auf WLO-Werte festgelegt.
+
+Ergebnis: `collection`, `contents`, `stats`, `compendium`, `registry`, `failed`,
+`loaded_at`. Fehlgeschlagene Zusatzteile sind `None` plus benanntem Fehler,
+kein scheinbar leerer Inhalt. Ohne Registry genau drei Requests; die optionale
+Registry hat die Kosten von `skill_registry`. Die Anwendung entscheidet selbst,
+wie lange sie den mit UTC-Zeitstempel versehenen Kontext im Speicher hält.
+
+### Werte, Labels und Suche
+
+`vocabulary` liefert `entries` mit `value` und `label` zusätzlich zu `values`.
+Treffer und Beschreibungen enthalten `value_fields`, damit gleiche Labels keine
+Identitäten verschlucken. `related` verwendet gespeicherte Werte und nennt sie
+unter `based_on_values`. `locale`, `raw_filters` und `strict=True` werden auch
+bei `search(rerank=True)` und `search_all` weitergegeben. Reranking bleibt optional,
+lokal und ohne LLM; Schlagwörter kommen aus dem jeweiligen Metadatenprofil.
