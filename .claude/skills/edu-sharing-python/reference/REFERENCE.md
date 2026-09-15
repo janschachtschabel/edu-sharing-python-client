@@ -1474,6 +1474,7 @@ To share one connection pool with `BildungsAPI`, give both the same `client=`.
 |---|---|
 | `TextExtraction(base_url=…)` | the client. `aclose()` closes the connection pool only when this class made it — an injected `client=` belongs to the caller and stays open, as with `Transport` and `BildungsAPI` |
 | `TextExtraction.from_env()` | needs `EDU_SHARING_TEXT_EXTRACTION_URL` |
+| `TextExtraction.from_repository(repository_url, timeout=…, max_retries=…, backoff_base=…, resolve=…, client=…)` | `TextExtraction`; explicitly replace `repository.` with `text-extraction.`, preserving scheme/non-default port and removing repository paths; no probe or environment lookup |
 | `service.ping()` | `dict` — the service's own health answer |
 | `service.text_of(url, method=…, output_format=…, lang=…, max_chars=…)` | `ExtractedText` — `text`, `lang`, `status`, `char_count`, `truncated`, `reason` |
 | `ExtractedText` | `char_count`, `detail`, `lang`, `reason`, `status`, `text`, `truncated`, `url` |
@@ -1495,6 +1496,15 @@ got.truncated                              # False
 Neither method is the better one: measured, `simple` returned an article where
 `browser` returned a cookie banner. If one yields nothing, try the other.
 Private and unroutable addresses are refused before the request goes out.
+
+`from_repository(repo.url)` works with both repository facades. The hostname must
+follow `repository.<domain>`; other layouts, invalid URLs, credentials, query
+strings and fragments raise `EduSharingError`. Use `TextExtraction(base_url=...)`
+for a custom service address. Construction does not establish availability.
+The client remains async and needs no local browser. `output_format="markdown"`
+selects Markdown; `method="browser"` renders on the service. `browser_location`
+uses the server default and `preference` is sent as `"none"`, as in the supplied
+API examples. See [example 26](examples/26_extract_page.py) for saving UTF-8 files.
 
 ### What belongs in a content type's JSON — `MetadataAgent`
 

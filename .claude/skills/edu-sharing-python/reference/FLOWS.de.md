@@ -501,7 +501,7 @@ darum geht es, wenn die Antwort weiterreisen soll.
 oder XML-Datei trägt — gemessen am 27.08.2026 liefert `/textContent` für
 Markdown und JSON nichts, obwohl die Datei Text hat; dann die verlinkte Seite
 (`ccm:wwwurl`) über den Extraktionsdienst, und nur, wenn man einen übergibt:
-die Bibliothek kennt keine Dienstadresse.
+der Ablauf aktiviert keinen Dienst von sich aus.
 
 **Eingabe**
 
@@ -511,6 +511,14 @@ from edusharing.extraction import TextExtraction
 service = TextExtraction.from_env()          # EDU_SHARING_TEXT_EXTRACTION_URL
 repo.flows.text(node_id, extraction=service, max_chars=20_000)
 ```
+
+Bei Installationen mit `repository.<domain>` / `text-extraction.<domain>` lässt
+sich derselbe optionale Dienst mit `TextExtraction.from_repository(repo.url)`
+bauen. Für eine neue Webseite oder im Browser erzeugtes Markdown direkt
+`service.text_of(url, method="browser", output_format="markdown")` aufrufen;
+dieser Material-Ablauf behält seine Reihenfolge ab dem Repository und die
+Klartext-Extraktion bei. Auch `prepare_material` nimmt den explizit gebauten
+Dienst über `extraction=` entgegen.
 
 **Ausgabe**
 

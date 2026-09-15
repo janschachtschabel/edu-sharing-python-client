@@ -1514,6 +1514,7 @@ denselben `client=` gibt.
 |---|---|
 | `TextExtraction(base_url=…)` | der Client. `aclose()` schließt den Verbindungspool nur, wenn diese Klasse ihn gebaut hat — ein mitgebrachter `client=` gehört dem Aufrufer und bleibt offen, wie bei `Transport` und `BildungsAPI` |
 | `TextExtraction.from_env()` | braucht `EDU_SHARING_TEXT_EXTRACTION_URL` |
+| `TextExtraction.from_repository(repository_url, timeout=…, max_retries=…, backoff_base=…, resolve=…, client=…)` | `TextExtraction`; ersetzt explizit `repository.` durch `text-extraction.`, behält Schema/abweichenden Port bei und entfernt Repository-Pfade; keine Verfügbarkeitsprüfung oder Umgebungsabfrage |
 | `service.ping()` | `dict` — die Gesundheitsantwort des Dienstes |
 | `service.text_of(url, method=…, output_format=…, lang=…, max_chars=…)` | `ExtractedText` — `text`, `lang`, `status`, `char_count`, `truncated`, `reason` |
 | `ExtractedText` | `char_count`, `detail`, `lang`, `reason`, `status`, `text`, `truncated`, `url` |
@@ -1536,6 +1537,16 @@ Keine der beiden Methoden ist die bessere: gemessen lieferte `simple` einen
 Artikel, wo `browser` ein Cookie-Banner lieferte. Wenn eine nichts bringt, ist
 die andere der sinnvolle zweite Versuch. Private und nicht routbare Adressen
 werden abgelehnt, bevor die Anfrage hinausgeht.
+
+`from_repository(repo.url)` funktioniert mit beiden Repository-Fassaden. Der
+Hostname muss `repository.<domain>` entsprechen; andere Varianten, ungültige
+URLs, Zugangsdaten, Query-Strings und Fragmente ergeben `EduSharingError`.
+Für eigene Dienstadressen `TextExtraction(base_url=...)` verwenden. Der
+Konstruktor beweist keine Verfügbarkeit. Der Client bleibt asynchron und benötigt
+keinen lokalen Browser. `output_format="markdown"` wählt Markdown;
+`method="browser"` rendert auf dem Dienst. Für `browser_location` gilt die
+Servervorgabe, `preference` wird wie in den übergebenen API-Beispielen als
+`"none"` gesendet. [Beispiel 26](examples/26_extract_page.py) speichert UTF-8-Dateien.
 
 ### Was in den JSON-Bereich einer Inhaltsart gehört — `MetadataAgent`
 

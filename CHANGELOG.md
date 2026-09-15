@@ -14,6 +14,15 @@ and in [`docs/audits/`](docs/audits/).
 
 ## [Unreleased]
 
+### Added
+
+- `TextExtraction.from_repository(repository_url, **kwargs)` explicitly derives
+  `text-extraction.<domain>` from the `repository.<domain>` convention, retaining
+  scheme and non-default port and stripping repository paths. Other layouts
+  continue to use an explicit service URL; `from_env()` has no new fallback.
+- Executable webpage-to-text/Markdown-file example, with offline HTTP-boundary
+  tests for both output modes and the existing extraction/flow integration.
+
 ### Documentation
 
 - Complete the bilingual 0.3.0 documentation: explain upgrades from the older

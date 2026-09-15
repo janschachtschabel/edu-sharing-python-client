@@ -481,9 +481,10 @@ throwaway folder of its own.
 
 ### The extraction service — text the repository does not have
 
-A repository stores the full text of the files it hosts. For material that only
-*links* somewhere (`ccm:wwwurl`) it has nothing, because the page is not its
-file. An edu-sharing installation normally runs a second service for that.
+A repository may already have an extracted text for a material. To read a new
+webpage, or one without stored text, some installations provide a separate
+text-extraction service. It returns plain text or Markdown and can render
+JavaScript pages through its browser mode.
 
 ```python
 # async: TextExtraction has no blocking facade
@@ -493,6 +494,29 @@ async with TextExtraction.from_env() as service:   # EDU_SHARING_TEXT_EXTRACTION
     result = await service.text_of("https://example.org/article")
     print(result.lang, result.char_count, result.text[:200])
 ```
+
+For the convention `repository.<domain>` → `text-extraction.<domain>`, select
+the sibling service explicitly. `repo.url` also works as the argument:
+
+```python
+# async: TextExtraction has no blocking facade
+from pathlib import Path
+
+async with TextExtraction.from_repository("https://repository.staging.openeduhub.net") as service:
+    result = await service.text_of(
+        "https://wirlernenonline.de", method="browser", output_format="markdown",
+    )
+    if result.text:
+        Path("page.md").write_text(result.text, encoding="utf-8")
+```
+
+`method="simple", output_format="txt"` reads HTML without browser rendering.
+The browser runs on the service, so no local browser dependency is needed.
+The factory keeps the scheme and non-default port, removes repository paths,
+and makes no availability probe. For a different hostname or service port,
+pass its address directly to `TextExtraction(base_url=...)` or set
+`EDU_SHARING_TEXT_EXTRACTION_URL`. `from_env()` still requires that variable.
+An executable URL-to-file recipe is [example 26](docs/examples/26_extract_page.py).
 
 Full text of a node, from wherever it is available:
 
@@ -522,7 +546,9 @@ Measured 2026-08-28 against the openeduhub service (FastAPI, `c766f2e5`):
 
 **There is no default address**, and that is deliberate: each installation runs
 its own service, and a default pointing at a staging one used to send production
-material URLs into a foreign environment. Unset means no client.
+material URLs into a foreign environment. With `from_env()`, an unset service
+variable still means no client; deriving a sibling address is a separate,
+explicit choice.
 
 **The URL is yours, the fetching is someone else's.** Every check runs *before*
 anything is sent: scheme, then the host as a literal address, then what it
@@ -1106,6 +1132,7 @@ them:
 | [`04_agent_blocks.py`](docs/examples/04_agent_blocks.py) | the building blocks for AI use: safety, sanitising, formatting |
 | [`11_publish.py`](docs/examples/11_publish.py) | make material visible to others — the step nothing does for you |
 | [`15_full_text.py`](docs/examples/15_full_text.py) | the full text of a material, from the repository or the extraction service |
+| [`26_extract_page.py`](docs/examples/26_extract_page.py) | one webpage as text/Markdown or a UTF-8 file; explicit or repository-derived service |
 | [`16_editorial.py`](docs/examples/16_editorial.py) | comment, rate, propose, hand over for review — the editorial surfaces at the API level |
 
 **Working through flows** — a `dict` comes back, ready to hand on:
