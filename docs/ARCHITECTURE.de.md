@@ -938,3 +938,29 @@ Anfrage in einem Modul, das Senden in einem anderen.
    Dateien, wie sie heute dastehen.
    `flows/discover.py` hatte früher eine zweite Verantwortung bekommen und
    wurde auf dieselbe Art geteilt (§8.6).
+
+
+## Metadatenprofile und zusammengesetzte Abläufe — 0.3.0
+
+| Modul | Verantwortung |
+|---|---|
+| `profile.py` | Unveränderliche Lese-/Schreib-/Suchkonventionen je Verbindung; benannte WLO-Vorgabe, explizite neutrale Profile |
+| `metadata.py` | Echte MDS-Definition je Locale puffern; unabhängige Rückgaben und explizite Invalidierung |
+| `vocab_values.py` | Unveränderlicher Vokabulareintrag, über die bestehende Vokabular-API exportiert |
+| `vocab_snapshots.py` | JSON-Format und Prüfung von Kontext und Alter; keine Datei- oder Hintergrundzugriffe |
+| `flows/place.py` | Original/Referenz-Identität und schrittweise Platzierung, Veröffentlichung, Entfernung mit Teilergebnissen |
+| `flows/context.py` | Eine Inhaltsseite für Kontext/Statistik wiederverwenden; optional konfigurierte Registry |
+| `flows/prepare.py` | Rein lesende Entwurfsnormalisierung, Dubletten-/Pflichtfeld-Vorprüfung und optionale Extraktion |
+
+Ein MDS beschreibt Widgets; daraus folgen weder Filterbarkeit noch semantische
+Schreibrollen. Profile bleiben deshalb explizit. `SearchHit` speichert eine
+serialisierbare Kopie der Lesefelder statt des unveränderlichen Profilobjekts:
+`dataclasses.asdict`, `replace` und `deepcopy` funktionieren weiter. Synchrone
+Adapter führen Snapshot/Restore auf dem Repository-Loop aus. Keine neuen
+Laufzeitabhängigkeiten.
+
+Prüfung: HTTP-Grenztests mit eigenen Feldern, URNs/Codes, gleichen Labels,
+Cache-Veränderung, Snapshot-Kontext/Alter, bereits öffentlichen Materialien,
+fehlgeschlagenen Platzierungsschritten, unvollständigen Dublettenprüfungen und
+synchronem Zugriff. Die Live-Abnahme weiterer Installationen steht aus.
+[Entwurf und Befundabschluss](plans/2026-09-14-generic-metadata.md).

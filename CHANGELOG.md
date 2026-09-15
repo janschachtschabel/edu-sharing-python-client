@@ -14,6 +14,41 @@ and in [`docs/audits/`](docs/audits/).
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-09-14 (Git version; release tag pending)
+
+### Added
+
+- Immutable per-repository `MetadataProfile` for read/write fields, query
+  conventions, material types, URL lookup and optional collection compendia.
+  `None` preserves `WLO_METADATA_PROFILE`; an explicit empty profile is neutral.
+- Cached `repo.metadata` definitions and widgets, bounded vocabulary preloading,
+  reverse label lookup and JSON snapshots with scope/context/age validation.
+- `raw_filters`, `locale`, strict unresolved-filter checks and stored value/label
+  projections; options remain effective in optional local reranking.
+- `prepare_material`, `place_material`, `collection_context` and
+  `collections.add_reference`, with synchronous access and explicit partial states.
+- Generic metadata and preparation/context examples; bilingual reference/flow
+  documentation and bundled skill updates.
+
+### Fixed
+
+- Vocabulary callers can no longer mutate cached lists. Known URNs/codes resolve
+  by identity before labels; related-material search retains stored identities.
+- Custom metadata is honored through title/description/URL/keyword consumers,
+  keyword merging and scoring; result dataclasses remain serializable/copyable.
+- Shared search input errors fail before parallel branches; strict reranking
+  preserves `ValidationError`. Bounded/incomplete URL checks report uncertainty.
+- Prepared drafts retain their URL so the creation duplicate policy runs again.
+  Placement treats already-public material as success and preserves old membership
+  after a failed placement/publication. Context supports custom skill conventions.
+
+### Verification scope
+
+New behavior is covered by offline HTTP-boundary and documentation tests.
+No additional live repository/MDS acceptance or PyPI publication is claimed.
+The changes below were previously unreleased and are included in 0.3.0.
+
+
 ### Added
 
 - **Binary b-api responses** through `BildungsAPI.call_bytes(route, body,
@@ -1375,6 +1410,7 @@ services; 1095 offline tests and 94 live ones against edu-sharing 11.0.
   per row.
 
 [Unreleased]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.2.0...HEAD
+[0.3.0]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.2.0...main
 [0.2.0]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.0.1...v0.1.0
 [0.0.1]: https://github.com/janschachtschabel/edu-sharing-python-client/releases/tag/v0.0.1

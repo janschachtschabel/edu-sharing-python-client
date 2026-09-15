@@ -17,7 +17,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ..errors import EduSharingError, NotFoundError
-from ..nodes_write import KEYWORD_PROPERTY
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..repository import AsyncRepository
@@ -74,7 +73,7 @@ async def accept_suggestion(
         answer["failed"].append({"part": "status", "reason": f"already {match.status}"})
         return answer
     try:
-        if match.property == KEYWORD_PROPERTY:
+        if match.property in node.metadata_profile.write_fields.get("keywords", ()):
             # The shared list: a proposal adds a keyword, it does not take
             # the editors' work away.
             await node.add_keywords(match.value)

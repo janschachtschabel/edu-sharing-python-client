@@ -46,6 +46,8 @@ LESEND = frozenset({
     "20_provider_load.py",
     "21_skills.py",
     "22_bapi_templates.py",
+    "24_generic_metadata.py",
+    "25_prepare_context.py",
 })
 
 #: Legen etwas an -- jedes einen eigenen Wegwerf-Ordner, den es selbst wieder

@@ -57,7 +57,8 @@ def name_from_title(title: str) -> str:
 
 
 async def resolve_vocabulary(
-    repo: AsyncRepository, aliases: dict[str, Any], *, every_value: bool = False
+    repo: AsyncRepository, aliases: dict[str, Any], *, every_value: bool = False,
+    locale: str | None = None,
 ) -> tuple[dict[str, list[str]], list[dict[str, Any]]]:
     """Turn ``{"subject": "Biologie"}`` into ``{"ccm:taxonid": ["<uri>"]}``.
 
@@ -92,7 +93,7 @@ async def resolve_vocabulary(
     props = list(dict.fromkeys(field_property(repo, name) for name in aliases))
     if len(props) > 1:
         await asyncio.gather(
-            *(repo.vocab.values(prop) for prop in props), return_exceptions=True
+            *(repo.vocab.values(prop, locale=locale) for prop in props), return_exceptions=True
         )
 
     for short_name, value in aliases.items():
@@ -106,9 +107,10 @@ async def resolve_vocabulary(
             if text.startswith(("http://", "https://")):
                 uris.append(text)
                 continue
-            found = await _resolve(repo, prop, text, every_value)
+            found = await _resolve(repo, prop, text, every_value, locale)
             if not found:
-                suggestions = [v.label for v in await repo.vocab.suggest(prop, text)][:5]
+                suggestions = [v.label for v in await repo.vocab.suggest(
+                    prop, text, locale=locale)][:5]
                 unresolved.append(
                     {"field": short_name, "value": text, "suggestions": suggestions}
                 )
@@ -129,10 +131,10 @@ def carries(props: dict[str, Any], prop: str, values: list[str]) -> bool:
 
 
 async def _resolve(
-    repo: AsyncRepository, prop: str, text: str, every_value: bool
+    repo: AsyncRepository, prop: str, text: str, every_value: bool, locale: str | None
 ) -> list[str]:
     """Every URI for a read filter; the first for a write -- see above."""
     if every_value:
-        return await repo.vocab.resolve_all(prop, text)
-    uri = await repo.vocab.resolve(prop, text)
+        return await repo.vocab.resolve_all(prop, text, locale=locale)
+    uri = await repo.vocab.resolve(prop, text, locale=locale)
     return [uri] if uri else []

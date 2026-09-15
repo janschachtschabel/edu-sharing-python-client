@@ -19,7 +19,7 @@ REST-API von edu-sharing und drei Nachbardienste. Ihr Versprechen: **ein
 Schreibvorgang, der nicht stattfand, wird als Fehler gemeldet, nicht als
 Erfolg.** Diese Datei zeigt, wie man jeden Teil davon benutzt; die Einzelheiten
 liegen daneben in `reference/` — siehe Abschnitt 7. Jeder Codeblock unten ist
-per Test gegen die echten Signaturen geprüft, jede Ausgabeform an einer
+per Test gegen die echten Signaturen geprüft, historische Ausgabeformen sind an einer
 laufenden Instanz gemessen — außer den vier schreibenden Gruppenaufrufen
 (`create_group`, `delete_group`, `add_member`, `remove_member`), die hier kein
 Konto ausführen darf.
@@ -425,7 +425,8 @@ Jeder Fehler hat `.status` und `.url`. In einem Werkzeug macht `as_result` darau
 | warum jeder Ablauf tut, was er tut, samt Kosten | [FLOWS.de.md](reference/FLOWS.de.md) |
 | das Datenmodell und alle sechzehn gemessenen Fallen | [TRAPS.de.md](reference/TRAPS.de.md) |
 
-Lauffähige Beispiele, je ein Anwendungsfall, alle gegen eine echte Instanz getestet:
+Lauffähige Beispiele; historische Live-Messungen stehen im jeweiligen Beispiel.
+Die Ergänzungen 24 und 25 sind offline geprüft:
 [01_connect](reference/examples/01_connect.py) · [02_search](reference/examples/02_search.py) ·
 [03_write](reference/examples/03_write.py) · [04_agent_blocks](reference/examples/04_agent_blocks.py) ·
 [05_flow_search](reference/examples/05_flow_search.py) · [06_flow_create](reference/examples/06_flow_create.py) ·
@@ -443,3 +444,41 @@ Falls sie installiert sind, ergänzen die Skills `wlo-edu-sharing-api` (rohe
 REST-API, das Datenmodell von WLO) und `wlo-environments` (welche Adresse
 Staging ist) diesen hier; für einen *Python*-Aufruf gelten dieser Skill und
 REFERENCE.
+
+
+## Metadata profiles and composed flows (0.3.0)
+
+Für andere Metadatensets zuerst `MetadataProfile` explizit konfigurieren.
+`metadata_profile=None` wählt `WLO_METADATA_PROFILE`; ein leeres Profil erbt
+keine Anwendungsfelder. `repo.metadata` (`MetadataCatalog`) lädt die echten
+Widgets mit `id`; daraus keine Schreibrollen oder Filterbarkeit raten.
+Die neuen Flows sind offline geprüft, nicht auf allen Installationen live.
+
+| API | Result |
+|---|---|
+| `profile.values(properties, role)` / `profile.value(properties, role)` | `list[str]` / `str` or `None` |
+| `profile.title(node)` / `profile.write_target(role)` | `str`; write target must be unique |
+| `repo.metadata.load(locale=…, refresh=…)` | full MDS `dict` |
+| `repo.metadata.fields()` | widget `list[dict]`; `locale=…`, `refresh=…` optional |
+| `repo.metadata.clear_cache()` | `None` |
+| `repo.vocab.preload(properties, locale=…, concurrency=…)` | cached values by property |
+| `repo.vocab.label(prop, value, locale=…)` | label or `None` |
+| `repo.vocab.snapshot(scope=…)` / `repo.vocab.restore(snapshot, scope=…)` | JSON `dict` / restored count; same URL, MDS, query, visibility scope; original age retained |
+| `repo.collections.add_reference(collection_id, node_id)` | `{created, reference_id}`; existing reference id can be `None` |
+| `repo.flows.prepare_material(url, title=…, labels=…, extraction=…)` | `{draft, duplicate, unresolved, validation, extraction, warnings, ready_to_create}` |
+| `repo.flows.place_material(node_id, collection_id, publish=…, remove_from=…)` | identities and `{placed, created, public, removed_from, failed}` |
+| `repo.flows.collection_context(collection_id, limit=…, include_registry=…, registry_conventions=…, registry_context=…)` | `{collection, contents, stats, compendium, registry, failed, loaded_at}` |
+
+`prepare_material` schreibt nichts und wählt kein mehrdeutiges Label.
+`ready_to_create` umfasst nur sichtbare Dubletten und deklarierte Pflichtfelder;
+`server_validation_required` bleibt wahr. Beim Speichern den gesamten `draft`
+mit `if_exists="raise"` weitergeben; enthaltene URL und IDs nicht entfernen.
+`place_material` entfernt die alte Zuordnung erst nach Erfolg und meldet
+Teilfehler. `collection_context` nennt Stichprobengrenzen. Suche/Reranking
+unterstützen `locale`, `raw_filters`, `strict=True`; `value_fields` und
+Vokabular-`entries` erhalten Werte und Labels. Cache-Snapshots nur innerhalb
+desselben Berechtigungskontexts wiederverwenden.
+
+[API details](reference/REFERENCE.de.md) · [Flows](reference/FLOWS.de.md) ·
+[Generic metadata](reference/examples/24_generic_metadata.py) ·
+[Prepare/context](reference/examples/25_prepare_context.py).

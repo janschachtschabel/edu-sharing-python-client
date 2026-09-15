@@ -8,13 +8,12 @@ repository but one. So it asks::
     {"valueParameters": {"query": "ngsearch", "property": "ccm:taxonid",
                          "pattern": ""}, "criteria": []}
 
-Two quirks, both measured (edu-sharing 11.0, staging, 2026-08-27):
+The measured endpoint contract (edu-sharing 11.0, staging, 2026-08-27):
 
 * **``pattern: ""`` lists everything.** The obvious ``"-all-"`` returns an empty
   list -- silently, so nothing points at the mistake.
-* **The response shape deviates from the OpenAPI specification.** That declares
-  ``MdsValue {id, caption}``; what arrives is ``{key, displayString}``. Anyone
-  relying on the generated layer here reads empty fields.
+* **Values use ``key`` and ``displayString``.** The generated values endpoint
+  models these as suggestions; the full MDS definition uses other value models.
 
 Resolution is **exact**, never fuzzy. The WLO MCP demonstrates where fuzzy
 guessing leads: there ``bildungsinhalte`` resolves to **Bild** (image) and turns
@@ -26,11 +25,14 @@ from __future__ import annotations
 
 import asyncio
 import time
-from dataclasses import dataclass
+from collections.abc import Sequence
+from typing import Any
 
-from .errors import at_least
+from . import vocab_snapshots
+from .errors import ValidationError, at_least
 from .transport import Transport
 from .urls import path_segment
+from .vocab_values import VocabularyValue
 
 __all__ = ["DEFAULT_CACHE_SECONDS", "VocabularyValue", "Vocabulary"]
 
@@ -48,19 +50,6 @@ DEFAULT_CACHE_SECONDS = 3600.0
 
 #: ``pattern`` meaning "all values" -- see the module docstring.
 _ALL = ""
-
-
-@dataclass(frozen=True, slots=True)
-class VocabularyValue:
-    """One value from a controlled vocabulary."""
-
-    #: The value the repository filters on (usually a SKOS URI).
-    uri: str
-    #: The human-readable form in the requested language.
-    label: str
-
-    def __str__(self) -> str:
-        return self.label
 
 
 def _is_uri(value: str) -> bool:
@@ -144,7 +133,7 @@ class Vocabulary:
             values = await self._fetch(prop, _ALL, locale)
             if generation == self._generation:
                 self._cache[key] = (time.monotonic(), values)
-            return values
+            return list(values)
 
     def _fresh(
         self, key: tuple[str, str | None]
@@ -156,7 +145,7 @@ class Vocabulary:
         loaded_at, values = entry
         if time.monotonic() - loaded_at >= self.cache_seconds:
             return None
-        return values
+        return list(values)
 
     async def suggest(
         self, prop: str, text: str, *, locale: str | None = None
@@ -212,8 +201,13 @@ class Vocabulary:
         value = label_or_uri.strip()
         if _is_uri(value):
             return [value]
+        entries = await self.values(prop, locale=locale)
+        # A stored key is an identity, even when another entry has that label.
+        # Keys can be URNs or opaque codes and need not start with HTTP(S).
+        if any(entry.uri == value for entry in entries):
+            return [value]
         wanted = value.casefold()
-        return [entry.uri for entry in await self.values(prop, locale=locale)
+        return [entry.uri for entry in entries
                 if entry.label.strip().casefold() == wanted]
 
     def clear_cache(self) -> None:
@@ -231,6 +225,61 @@ class Vocabulary:
         self._generation += 1
         self._cache.clear()
         self._locks.clear()
+
+    async def preload(self, properties: Sequence[str], *, locale: str | None = None,
+                      concurrency: int = 8) -> dict[str, list[VocabularyValue]]:
+        """Warm selected fields with bounded parallel requests; any failure raises.
+
+        Successful loads remain cached if another field fails. Duplicate fields
+        are fetched once. Locale selects one label language, as for values().
+        """
+        if isinstance(concurrency, bool) or not isinstance(concurrency, int) or concurrency < 1:
+            raise ValidationError("concurrency must be a positive integer.")
+        if isinstance(properties, str) or any(not isinstance(p, str) or not p for p in properties):
+            raise ValidationError("properties must be a sequence of non-empty field names.")
+        fields = list(dict.fromkeys(properties))
+        gate = asyncio.Semaphore(concurrency)
+
+        async def load(prop: str) -> list[VocabularyValue]:
+            async with gate:
+                return await self.values(prop, locale=locale)
+
+        # Await every load before returning an error: no requests outlive the call.
+        outcomes = await asyncio.gather(*(load(p) for p in fields), return_exceptions=True)
+        result = {}
+        for prop, outcome in zip(fields, outcomes, strict=True):
+            if isinstance(outcome, BaseException):
+                raise outcome
+            result[prop] = outcome
+        return result
+
+    async def label(self, prop: str, value: str, *, locale: str | None = None) -> str | None:
+        """Reverse an exact stored value through the cache; None for an unknown key."""
+        return next((entry.label for entry in await self.values(prop, locale=locale)
+                     if entry.uri == value), None)
+
+    def snapshot(self, *, scope: str) -> dict[str, Any]:
+        """Export fresh cached values as JSON data; scope identifies visibility.
+
+        No file is written. Save with json.dumps, using the same scope when
+        restoring. Credentials are never part of the snapshot identity.
+        """
+        identity = vocab_snapshots.context(self._transport.repository_url,
+                                           self.metadataset, self.query, scope)
+        return vocab_snapshots.snapshot(self._cache, identity, self.cache_seconds)
+
+    def restore(self, snapshot: dict[str, Any], *, scope: str) -> int:
+        """Replace the cache from a matching snapshot and return its fresh entry count.
+
+        Rejects a different repository/MDS/query/scope or malformed data without
+        changing the cache. Expired entries are discarded, not made fresh again.
+        """
+        identity = vocab_snapshots.context(self._transport.repository_url,
+                                           self.metadataset, self.query, scope)
+        restored = vocab_snapshots.restore(snapshot, identity, self.cache_seconds)
+        self.clear_cache()
+        self._cache.update(restored)
+        return len(restored)
 
     # --- Internals --------------------------------------------------------
 

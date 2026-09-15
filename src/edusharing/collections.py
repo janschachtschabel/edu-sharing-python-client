@@ -38,6 +38,7 @@ from typing import Any
 from .dto import node_id_of, stored_title_of
 from .errors import ConflictError, EduSharingError, SilentDropError
 from .nodes import Node, Nodes
+from .profile import WLO_METADATA_PROFILE, MetadataProfile
 from .results import SearchHit, SearchResult
 from .transport import Transport
 from .urls import path_segment
@@ -87,11 +88,14 @@ class Collections:
         transport: Transport,
         *,
         metadataset: str = DEFAULT_METADATASET,
+        metadata_profile: MetadataProfile = WLO_METADATA_PROFILE,
     ) -> None:
         self._transport = transport
         self.metadataset = metadataset
+        self.metadata_profile = metadata_profile
 
-    async def find(self, text: str, *, limit: int = DEFAULT_LIMIT) -> SearchResult:
+    async def find(self, text: str, *, limit: int = DEFAULT_LIMIT,
+                   locale: str | None = None) -> SearchResult:
         """Search collections by keyword.
 
         Both routes run concurrently; the results are merged on the node id.
@@ -115,8 +119,8 @@ class Collections:
             cut: the cap says how much comes back, not how much there is.
         """
         leg_a, leg_b = await asyncio.gather(
-            self._mds_leg(text, limit),
-            self._rest_leg(text, limit),
+            self._mds_leg(text, limit, locale),
+            self._rest_leg(text, limit, locale),
             return_exceptions=True,
         )
 
@@ -180,10 +184,11 @@ class Collections:
             if not node_id or node_id in seen:
                 continue
             seen.add(node_id)
-            fresh.append(SearchHit.from_node(n, base))
+            fresh.append(SearchHit.from_node(n, base, metadata_profile=self.metadata_profile))
         return fresh
 
-    async def _mds_leg(self, text: str, limit: int) -> tuple[list[dict[str, Any]], int]:
+    async def _mds_leg(self, text: str, limit: int,
+                       locale: str | None = None) -> tuple[list[dict[str, Any]], int]:
         """Leg A -- returns nodes and a real total.
 
         ``propertyFilter`` is not optional here. Without it the endpoint answers
@@ -200,8 +205,10 @@ class Collections:
         """
         response = await self._transport.json(
             "POST",
-            f"/search/v1/queries/-home-/{path_segment(self.metadataset)}/{COLLECTION_QUERY}",
+            f"/search/v1/queries/-home-/{path_segment(self.metadataset)}/"
+            f"{path_segment(self.metadata_profile.collection_query)}",
             idempotent=True,
+            headers={"locale": locale} if locale else None,
             params={
                 "contentType": "COLLECTIONS",
                 "maxItems": limit,
@@ -210,16 +217,19 @@ class Collections:
             },
             # This query accepts ngsearchword only; any other criterion ends in
             # 400 DAOValidationException.
-            json={"criteria": [{"property": "ngsearchword", "values": [text]}]},
+            json={"criteria": [{"property": self.metadata_profile.collection_fulltext_property,
+                                 "values": [text]}]},
         )
         page = response.get("pagination") or {}
         return list(response.get("nodes") or []), int(page.get("total") or 0)
 
-    async def _rest_leg(self, text: str, limit: int) -> list[dict[str, Any]]:
+    async def _rest_leg(self, text: str, limit: int,
+                        locale: str | None = None) -> list[dict[str, Any]]:
         """Leg B -- its own projection, without a total."""
         response = await self._transport.json(
             "GET",
             "/collection/v1/collections/-home-/search",
+            headers={"locale": locale} if locale else None,
             # propertyFilter is ignored by this endpoint; it has a fixed
             # projection. If you need more properties, read the nodes back by id.
             params={"query": text, "maxItems": limit, "skipCount": 0},
@@ -273,7 +283,7 @@ class Collections:
             json=body,
         )
         data = response.get("collection") or response.get("node") or response
-        return Node(data, Nodes(self._transport))
+        return Node(data, Nodes(self._transport, metadata_profile=self.metadata_profile))
 
     async def update(
         self,
@@ -320,7 +330,7 @@ class Collections:
                 "nothing still costs a request and reads like a change."
             )
 
-        nodes = Nodes(self._transport)
+        nodes = Nodes(self._transport, metadata_profile=self.metadata_profile)
         current = await nodes.get(collection_id)
         # ``stored_title_of``, not ``current.title``: the display title falls
         # back to the file name, and writing that here would be a write nobody
@@ -345,7 +355,7 @@ class Collections:
 
         stored = await nodes.get(collection_id)
         missing = []
-        if title is not None and stored.title != title:
+        if title is not None and stored_title_of(stored.raw) != title:
             missing.append("cm:title")
         # ``or ""``: eine Eigenschaft, die es nach dem Leeren nicht mehr
         # gibt, liest sich als ``None``, und ``None != ""`` machte aus dem
@@ -384,14 +394,30 @@ class Collections:
             already there. A ``409`` is not an error here -- the desired state
             has been reached, and a repeated run should not fail on it.
         """
+        return bool((await self.add_reference(collection_id, node_id))["created"])
+
+    async def add_reference(self, collection_id: str, node_id: str) -> dict[str, Any]:
+        """Place material and preserve its reference id from the write response.
+
+        Returns ``{created, reference_id}``. On 409 the placement already
+        exists, and its reference id is unknown (None). An empty successful
+        response also leaves that id unknown; no membership-index read follows.
+        """
         try:
-            await self._transport.request(
+            response = await self._transport.request(
                 "PUT",
-                f"/collection/v1/collections/-home-/{path_segment(collection_id)}/references/{path_segment(node_id)}",
+                f"/collection/v1/collections/-home-/{path_segment(collection_id)}"
+                f"/references/{path_segment(node_id)}",
             )
         except ConflictError:
-            return False
-        return True
+            return {"created": False, "reference_id": None}
+        try:
+            body = response.json()
+        except ValueError:
+            body = {}
+        node = body.get("node") if isinstance(body, dict) else None
+        return {"created": True, "reference_id": node_id_of(node) or None
+                if isinstance(node, dict) else None}
 
     async def remove(self, collection_id: str, node_id: str) -> None:
         """Take a resource out of a collection.

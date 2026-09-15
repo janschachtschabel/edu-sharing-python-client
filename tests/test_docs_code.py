@@ -46,6 +46,7 @@ from edusharing.childobjects import ChildObjects
 from edusharing.collections import Collections
 from edusharing.content import NodeContent
 from edusharing.flows import Flows
+from edusharing.metadata import MetadataCatalog
 from edusharing.metadata_agent import MetadataAgent
 from edusharing.nodes import Node, Nodes
 from edusharing.people import People
@@ -109,6 +110,8 @@ _WEITER = {
     (AsyncRepository, "people"): People,
     (AsyncRepository, "relations"): Relations,
     (AsyncRepository, "vocab"): Vocabulary,
+    (AsyncRepository, "metadata"): MetadataCatalog,
+    (Repository, "metadata"): MetadataCatalog,
     (AsyncRepository, "searcher"): Search,
     (Node, "content"): NodeContent,
     (Node, "children"): ChildObjects,

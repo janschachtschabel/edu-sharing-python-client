@@ -439,6 +439,18 @@ class SyncFlows:
         """Like ``Flows.search_all``, blocking."""
         return self._loop.run(self._flows.search_all(text, **kwargs))
 
+    def place_material(self, node_id: str, collection_id: str, **kwargs: Any) -> dict[str, Any]:
+        """Like ``Flows.place_material``, blocking."""
+        return self._loop.run(self._flows.place_material(node_id, collection_id, **kwargs))
+
+    def collection_context(self, collection_id: str, **kwargs: Any) -> dict[str, Any]:
+        """Like ``Flows.collection_context``, blocking."""
+        return self._loop.run(self._flows.collection_context(collection_id, **kwargs))
+
+    def prepare_material(self, url: str, **kwargs: Any) -> dict[str, Any]:
+        """Like ``Flows.prepare_material``, blocking."""
+        return self._loop.run(self._flows.prepare_material(url, **kwargs))
+
     def vocabulary(self, field: str, **kwargs: Any) -> dict[str, Any]:
         """Like ``Flows.vocabulary``, blocking."""
         return self._loop.run(self._flows.vocabulary(field, **kwargs))
@@ -503,7 +515,7 @@ class SyncFlows:
         """Like ``Flows.update_material``, blocking."""
         return self._loop.run(self._flows.update_material(node_id, **kwargs))
 
-    def add_material(self, title: str, **kwargs: Any) -> dict[str, Any]:
+    def add_material(self, title: str | None = None, **kwargs: Any) -> dict[str, Any]:
         """Like ``Flows.add_material``, blocking."""
         return self._loop.run(self._flows.add_material(title, **kwargs))
 
@@ -695,8 +707,53 @@ class SyncVocabulary:
         """Like ``Vocabulary.resolve_all``, blocking."""
         return self._loop.run(self._vocab.resolve_all(prop, label_or_uri, **kwargs))
 
+    def preload(self, properties: Any, **kwargs: Any) -> Any:
+        """Like Vocabulary.preload(), blocking."""
+        return self._loop.run(self._vocab.preload(properties, **kwargs))
+
+    def label(self, prop: str, value: str, **kwargs: Any) -> Any:
+        """Like Vocabulary.label(), blocking."""
+        return self._loop.run(self._vocab.label(prop, value, **kwargs))
+
+    def snapshot(self, **kwargs: Any) -> Any:
+        """Take the snapshot on the cache's owning event loop."""
+        async def take() -> Any:
+            return self._vocab.snapshot(**kwargs)
+        return self._loop.run(take())
+
+    def restore(self, snapshot: dict[str, Any], **kwargs: Any) -> int:
+        """Restore on the cache's owning event loop."""
+        async def apply() -> int:
+            return self._vocab.restore(snapshot, **kwargs)
+        return self._loop.run(apply())
+
     def __repr__(self) -> str:
         return f"SyncVocabulary({self._vocab!r})"
+
+
+class SyncMetadataCatalog:
+    """Blocking access to MDS definitions; settings remain on the shared catalog."""
+
+    def __init__(self, catalog: Any, loop: LoopThread) -> None:
+        self._catalog = catalog
+        self._loop = loop
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._catalog, name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name.startswith("_"):
+            object.__setattr__(self, name, value)
+        else:
+            setattr(self._catalog, name, value)
+
+    def load(self, **kwargs: Any) -> dict[str, Any]:
+        """Like MetadataCatalog.load(), blocking."""
+        return self._loop.run(self._catalog.load(**kwargs))
+
+    def fields(self, **kwargs: Any) -> list[dict[str, Any]]:
+        """Like MetadataCatalog.fields(), blocking."""
+        return self._loop.run(self._catalog.fields(**kwargs))
 
 
 class SyncSearch:
@@ -772,6 +829,10 @@ class SyncCollections:
     def add(self, collection_id: str, node_id: str) -> Any:
         """Like ``Collections.add``, blocking."""
         return self._loop.run(self._collections.add(collection_id, node_id))
+
+    def add_reference(self, collection_id: str, node_id: str) -> dict[str, Any]:
+        """Like ``Collections.add_reference``, blocking."""
+        return self._loop.run(self._collections.add_reference(collection_id, node_id))
 
     def remove(self, collection_id: str, node_id: str) -> Any:
         """Like ``Collections.remove``, blocking."""

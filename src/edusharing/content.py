@@ -149,7 +149,7 @@ class NodeContent:
     @property
     def size(self) -> int | None:
         """Size in bytes, where the repository reports it."""
-        value = self._node.get("cclom:size")
+        value = self._node.metadata_profile.value(self._node.properties, "size")
         return int(value) if value and str(value).isdigit() else None
 
     async def upload(

@@ -36,7 +36,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from .content import MAX_TEXT_BYTES, decode_text, is_text_like
-from .dto import first, node_id_of, page_cut, render_url, title_of
+from .dto import node_id_of, page_cut, render_url
 from .errors import ContentTooLargeError, NotFoundError, PermissionDeniedError
 from .fields import carries, resolve_vocabulary
 from .ranking import query_terms, term_matches
@@ -311,9 +311,9 @@ class Skills:
         return SkillSummary(
             id=node_id,
             original_id=original_id_of(raw) or node_id,
-            title=title_of(raw),
-            description=first(props.get("cclom:general_description")) or "",
-            keywords=[str(k) for k in (props.get("cclom:general_keyword") or [])],
+            title=self._repo.metadata_profile.title(raw),
+            description=self._repo.metadata_profile.value(props, "description") or "",
+            keywords=self._repo.metadata_profile.values(props, "keywords"),
             url=render_url(self._repo.url, node_id),
             download_url=raw.get("downloadUrl") or None,
         )

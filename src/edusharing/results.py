@@ -11,7 +11,8 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
-from .dto import first, node_id_of, render_url, title_of
+from .dto import first, node_id_of, render_url
+from .profile import WLO_METADATA_PROFILE, MetadataProfile, read_value, read_values
 
 __all__ = ["SearchHit", "FacetValue", "Facet", "UnresolvedFilter", "SearchResult"]
 
@@ -37,6 +38,20 @@ class SearchHit:
     #: scoped to a collection, and every collection listing, hands out
     #: reference ids; see ``original_id_of``.
     original_id: str | None = None
+    # Keep DTO state serializable and copyable; profiles themselves contain
+    # immutable mapping proxies. None preserves manually constructed legacy hits.
+    _read_fields: dict[str, tuple[str, ...]] | None = field(
+        default=None, repr=False, compare=False, kw_only=True)
+
+    def _role(self, role: str) -> tuple[str, ...]:
+        fields = (WLO_METADATA_PROFILE.read_fields
+                  if self._read_fields is None else self._read_fields)
+        return tuple(fields.get(role, ()))
+
+    @property
+    def keywords(self) -> list[str]:
+        """Stored keywords from this hit's configured metadata role."""
+        return read_values(self.properties(), self._role("keywords"))
 
     def properties(self) -> dict[str, Any]:
         """The raw property map of the hit -- as on ``Node.properties``.
@@ -59,12 +74,12 @@ class SearchHit:
     @property
     def license(self) -> str | None:
         """The licence key as stored, e.g. ``CC_BY``."""
-        return first(self.properties().get("ccm:commonlicense_key"))
+        return read_value(self.properties(), self._role("license"))
 
     @property
     def size(self) -> int | None:
         """Size in bytes, where the repository reports it."""
-        value = first(self.properties().get("cclom:size"))
+        value = read_value(self.properties(), self._role("size"))
         return int(value) if value and str(value).isdigit() else None
 
     def labels(self, prop: str) -> list[str]:
@@ -73,10 +88,12 @@ class SearchHit:
         edu-sharing ships a ``<prop>_DISPLAYNAME`` alongside every vocabulary
         field; that saves a second request just to make a URI readable.
         """
-        return list(self.properties().get(f"{prop}_DISPLAYNAME") or [])
+        values = self.properties().get(f"{prop}_DISPLAYNAME") or []
+        return [str(v) for v in values] if isinstance(values, list) else [str(values)]
 
     @classmethod
-    def from_node(cls, node: dict[str, Any], repository_url: str) -> SearchHit:
+    def from_node(cls, node: dict[str, Any], repository_url: str, *,
+                  metadata_profile: MetadataProfile = WLO_METADATA_PROFILE) -> SearchHit:
         """Build a hit from one record of a search response.
 
         ``repository_url`` is needed for ``url``: a record says which node it
@@ -88,14 +105,15 @@ class SearchHit:
         props = node.get("properties") or {}
         return cls(
             id=node_id,
-            title=title_of(node),
+            title=metadata_profile.title(node),
             url=render_url(repository_url, node_id),
-            description=first(props.get("cclom:general_description"))
-            or first(props.get("cm:description")),
-            source_url=first(props.get("ccm:wwwurl")),
+            description=metadata_profile.value(props, "description"),
+            source_url=metadata_profile.value(props, "url"),
             mimetype=node.get("mimetype"),
             mediatype=node.get("mediatype"),
             raw=node,
+            _read_fields={role: tuple(props)
+                          for role, props in metadata_profile.read_fields.items()},
             original_id=original_id_of(node),
         )
 

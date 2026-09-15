@@ -119,7 +119,7 @@ async def plan_update(
     """
     # Uses the same alias resolution as update(), so plan and execution cannot
     # drift apart.
-    intended = fields_of(properties, aliases)
+    intended = fields_of(properties, aliases, metadata_profile=node.metadata_profile)
 
     changes: dict[str, tuple[list[str], list[str]]] = {}
     unchanged: dict[str, list[str]] = {}

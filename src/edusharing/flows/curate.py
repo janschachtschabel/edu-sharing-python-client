@@ -34,7 +34,7 @@ __all__ = ["add_material", "build_collection", "delete", "update_material"]
 
 async def add_material(
     repo: AsyncRepository,
-    title: str,
+    title: str | None = None,
     *,
     url: str | None = None,
     parent_id: str | None = None,
@@ -45,6 +45,7 @@ async def add_material(
     properties: dict[str, Any] | None = None,
     publish: bool = False,
     if_exists: str = "return",
+    locale: str | None = None,
     **aliases: Any,
 ) -> dict[str, Any]:
     """Create material -- with vocabulary, and optionally straight into a
@@ -52,8 +53,8 @@ async def add_material(
 
     Args:
         repo: the connection.
-        title: the display title. Mandatory; ``cm:name`` is derived from it
-            unless ``name`` says otherwise.
+        title: display title written through the profile. Without it, supply
+            name and explicit properties for a neutral/raw material draft.
         url: web address, for linked material. Blank or whitespace counts
             as none at all -- an empty form field is not a source address, and
             storing one leaves a record pointing at nothing. It is written to
@@ -97,9 +98,9 @@ async def add_material(
         ValidationError: on an empty title or an unknown short name.
         EduSharingError: for anything the repository refuses.
     """
-    if not title or not title.strip():
+    if (title is not None and not title.strip()) or (title is None and not (name or "").strip()):
         raise ValidationError(
-            "Material needs a title -- it is what a person sees in the search."
+            "Material needs a non-empty title, or an explicit name without a title."
         )
     # A blank address is no address. Measured 2026-09-10: an empty string
     # passed both ``is not None`` gates below and was stored as
@@ -127,10 +128,10 @@ async def add_material(
     if parent_id is None:
         parent_id = await _home_folder(repo)
 
-    vocabulary_props, unresolved = await resolve_vocabulary(repo, aliases)
+    vocabulary_props, unresolved = await resolve_vocabulary(repo, aliases, locale=locale)
     all_properties = {**(properties or {}), **vocabulary_props}
 
-    direct: dict[str, Any] = {"title": title}
+    direct: dict[str, Any] = {} if title is None else {"title": title}
     if url is not None:
         direct["url"] = url
     if description is not None:
@@ -140,7 +141,7 @@ async def add_material(
 
     node = await repo.nodes.create(
         parent_id,
-        name=name or name_from_title(title),
+        name=name or name_from_title(title or ""),
         properties=all_properties or None,
         **direct,
     )
@@ -240,6 +241,7 @@ async def update_material(
     description: str | None = None,
     keywords: list[str] | None = None,
     properties: dict[str, Any] | None = None,
+    locale: str | None = None,
     **aliases: Any,
 ) -> dict[str, Any]:
     """Change an existing piece of material -- with vocabulary, like creating it.
@@ -271,7 +273,7 @@ async def update_material(
             store it.
         NotFoundError: when no node carries this id.
     """
-    vocabulary_props, unresolved = await resolve_vocabulary(repo, aliases)
+    vocabulary_props, unresolved = await resolve_vocabulary(repo, aliases, locale=locale)
     all_properties = {**(properties or {}), **vocabulary_props}
 
     direct: dict[str, Any] = {}

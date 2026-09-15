@@ -12,7 +12,7 @@ REST API and three neighbouring services. Its promise: **a write that did not
 happen is reported as a failure, not a success.** This file shows how to use
 every part of it; the details live beside it in `reference/` — see section 7.
 Every code block below is checked against the real signatures by tests, and the
-output shapes are measured against a live instance — except the four
+historical output shapes were measured against a live instance — except the four
 group-writing calls (`create_group`, `delete_group`, `add_member`,
 `remove_member`), which no account here may run.
 
@@ -409,7 +409,8 @@ Every error has `.status` and `.url`. In a tool, `as_result` turns it into
 | why each flow does what it does, with its costs | [FLOWS.md](reference/FLOWS.md) |
 | the data model and all sixteen measured traps | [TRAPS.md](reference/TRAPS.md) |
 
-Runnable examples, each one use case, all tested against a live instance:
+Runnable examples; historical live measurements are noted in each example.
+Additions 24 and 25 are checked offline:
 [01_connect](reference/examples/01_connect.py) · [02_search](reference/examples/02_search.py) ·
 [03_write](reference/examples/03_write.py) · [04_agent_blocks](reference/examples/04_agent_blocks.py) ·
 [05_flow_search](reference/examples/05_flow_search.py) · [06_flow_create](reference/examples/06_flow_create.py) ·
@@ -426,3 +427,40 @@ Runnable examples, each one use case, all tested against a live instance:
 If they are installed, the skills `wlo-edu-sharing-api` (raw REST, WLO's data
 model) and `wlo-environments` (which address is staging) complement this one;
 for a *Python* call, this skill and REFERENCE win.
+
+
+## Metadata profiles and composed flows (0.3.0)
+
+For other metadata sets, configure `MetadataProfile` explicitly first.
+`metadata_profile=None` selects `WLO_METADATA_PROFILE`; an empty profile
+inherits no application fields. `repo.metadata` (`MetadataCatalog`) loads actual
+widgets with `id`; do not infer write roles or query acceptance from them.
+The new flows are checked offline, not live on every installation.
+
+| API | Result |
+|---|---|
+| `profile.values(properties, role)` / `profile.value(properties, role)` | `list[str]` / `str` or `None` |
+| `profile.title(node)` / `profile.write_target(role)` | `str`; write target must be unique |
+| `repo.metadata.load(locale=…, refresh=…)` | full MDS `dict` |
+| `repo.metadata.fields()` | widget `list[dict]`; `locale=…`, `refresh=…` optional |
+| `repo.metadata.clear_cache()` | `None` |
+| `repo.vocab.preload(properties, locale=…, concurrency=…)` | cached values by property |
+| `repo.vocab.label(prop, value, locale=…)` | label or `None` |
+| `repo.vocab.snapshot(scope=…)` / `repo.vocab.restore(snapshot, scope=…)` | JSON `dict` / restored count; same URL, MDS, query, visibility scope; original age retained |
+| `repo.collections.add_reference(collection_id, node_id)` | `{created, reference_id}`; existing reference id can be `None` |
+| `repo.flows.prepare_material(url, title=…, labels=…, extraction=…)` | `{draft, duplicate, unresolved, validation, extraction, warnings, ready_to_create}` |
+| `repo.flows.place_material(node_id, collection_id, publish=…, remove_from=…)` | identities and `{placed, created, public, removed_from, failed}` |
+| `repo.flows.collection_context(collection_id, limit=…, include_registry=…, registry_conventions=…, registry_context=…)` | `{collection, contents, stats, compendium, registry, failed, loaded_at}` |
+
+`prepare_material` performs no writes and never chooses an ambiguous label.
+`ready_to_create` covers visible duplicates and declared required fields only;
+`server_validation_required` stays true. Forward the entire `draft` with
+`if_exists="raise"` when saving; retain its URL and identities. `place_material`
+removes the old placement only after success and reports partial failures.
+`collection_context` discloses sample limits. Search/reranking accept `locale`,
+`raw_filters`, `strict=True`; `value_fields` and vocabulary `entries` keep values
+and labels. Reuse snapshots only within the same permission context.
+
+[API details](reference/REFERENCE.md) · [Flows](reference/FLOWS.md) ·
+[Generic metadata](reference/examples/24_generic_metadata.py) ·
+[Prepare/context](reference/examples/25_prepare_context.py).

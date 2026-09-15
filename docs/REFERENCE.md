@@ -22,6 +22,7 @@ their first line.
 
 ## Contents
 
+- [Metadata profiles and cache (0.3.0)](#metadata-profiles-and-cache-030)
 - [The two levels](#the-two-levels)
 - [Connecting](#connecting)
   - [What an entry point takes](#what-an-entry-point-takes)
@@ -98,7 +99,7 @@ returns; the sync one runs a loop in a thread for you.
 
 | Call | Result |
 |---|---|
-| `edusharing.__version__` | `str` — `"0.2.0"`, read from the package metadata |
+| `edusharing.__version__` | `str` — `"0.3.0"`, read from the package metadata |
 | `Repository(url, auth=(user, password))` | the connection |
 | `Repository.from_env()` | reads `EDU_SHARING_URL`, `EDU_SHARING_USER`, `EDU_SHARING_PASSWORD`, optionally `EDU_SHARING_METADATASET` — without that one, `-default-` applies, which on WLO is a different repository: 2826 hits for "Physik" against 18006 with `mds_oeh` (measured 2026-09-11), and some criteria it refuses outright |
 | `Repository("https://user:password@host")` | refused — an address is logged; credentials go into `auth=` or the environment |
@@ -133,7 +134,7 @@ one is optional; the defaults are what the measurements below were made with.
 
 | Call |
 |---|
-| `AsyncRepository(url, auth=…, metadataset=…, query=…, field_aliases=…, timeout=…, max_retries=…, max_concurrency=…, backoff_base=…, client=…)` |
+| `AsyncRepository(url, auth=…, metadataset=…, query=…, field_aliases=…, metadata_profile=…, timeout=…, max_retries=…, max_concurrency=…, backoff_base=…, client=…)` |
 | `BildungsAPI(api_key, base_url=…, provider=…, timeout=…, max_retries=…, max_concurrency=…, backoff_base=…, models_cache_seconds=…, retries_before_switching=…, virtual_models=…, client=…)` |
 | `BapiTemplates(api_key, base_url=…, metadataset=…, timeout=…, max_retries=…, max_concurrency=…, backoff_base=…, client=…)` |
 | `TextExtraction(base_url, timeout=…, max_retries=…, backoff_base=…, resolve=…, client=…)` |
@@ -218,10 +219,10 @@ boundary live there; a path you hand it is yours to escape.
 
 | Call | Result |
 |---|---|
-| `repo.search(text, filters=…, limit=…, offset=…, facets=…, facet_limit=…, content_type=…)` | `SearchResult` |
+| `repo.search(text, filters=…, raw_filters=…, locale=…, strict=…, limit=…, offset=…, facets=…, facet_limit=…, content_type=…)` | `SearchResult` |
 | `repo.search(subject="Mathematik", level="Sekundarstufe I")` | filter-only search |
 | `repo.searcher` | the `Search` object, for `facets=` and paging |
-| `repo.searcher.search(text, filters=…, facets=…, facet_limit=…, limit=…, offset=…, content_type=…)` | `SearchResult` — `content_type="FILES"` (default) or `"FILES_AND_FOLDERS"`; this query never returns collections, they have one of their own |
+| `repo.searcher.search(text, filters=…, raw_filters=…, locale=…, strict=…, facets=…, facet_limit=…, limit=…, offset=…, content_type=…)` | `SearchResult` — `content_type="FILES"` (default) or `"FILES_AND_FOLDERS"`; this query never returns collections, they have one of their own |
 
 ```python
 result = repo.search("Bruchrechnung", limit=3)
@@ -476,8 +477,8 @@ field that means it. For a write that must preserve a title, use
 
 | Call | Result |
 |---|---|
-| `repo.find_collections(text, limit=…)` | `SearchResult` |
-| `repo.collections.find(text, limit=…)` | the same |
+| `repo.find_collections(text, limit=…, locale=…)` | `SearchResult` |
+| `repo.collections.find(text, limit=…, locale=…)` | the same |
 | `repo.create_collection(title, parent=…, scope=…, description=…)` | `Node` |
 | `repo.collections.create(...)` | the same |
 | `repo.collections.update(id, title=…, description=…)` | `Node` |
@@ -550,7 +551,7 @@ comment.text               # "Passt zu Klasse 6."
 | `Permissions` | `effective`, `inherited`, `inherits`, `is_public`, `own` |
 | `node.permissions.grant(authority, "Read", authority_type=…)` | `bool` — `SilentDropError` when the ACL that comes back is not the one that was sent: the new permission not stored, one this authority already held taken away, an untouched entry gone, or inheritance flipped. The POST replaces the whole local list, so a grant can lose what it did not touch |
 | `node.permissions.revoke(authority, "Read")` | `bool` — `SilentDropError` when the ACL that comes back is not the one that was sent: the permission still held, an untouched entry gone, or inheritance flipped |
-| `node.permissions.publish()` | `bool` — readable without login |
+| `node.permissions.publish()` | `bool` — `True`: published now; `False`: already public. Both mean success |
 | `node.permissions.unpublish()` | `bool` — `ConflictError` when the node would stay public because its parent is. Asked twice: before the write (nothing is written then) and of the ACL read back after it, because a parent can be published in between |
 | `perms.effective` | `tuple[Ace, ...]` |
 | `perms.allows(authority, "Write")` | `bool` |
@@ -776,6 +777,67 @@ page.by_position             # True
 
 ---
 
+
+## Metadata profiles and cache (0.3.0)
+
+`MetadataProfile` separates filter aliases, read fallbacks and write targets.
+`metadata_profile=None` selects `WLO_METADATA_PROFILE` for compatibility.
+An explicit `MetadataProfile()` is neutral and inherits no WLO fields.
+Custom profiles write only configured roles or explicit `properties`;
+`cm:name` remains the technical name required by the edu-sharing protocol.
+A requested but unconfigured write role raises `ValidationError` before writing.
+`field_aliases={}` also replaces the entire alias mapping.
+
+| API | Meaning |
+|---|---|
+| `MetadataProfile(field_aliases=…, read_fields=…, write_fields=…, fulltext_property=…, collection_query=…, collection_fulltext_property=…, material_type=…, url_search_property=…, compendium_property=…, prefer_dto_title=…)` | Immutable configuration per connection |
+| `repo.metadata_profile`, `node.metadata_profile` | `MetadataProfile` |
+| `profile.read_fields`, `profile.write_fields` | Role → properties; reading takes the first populated fallback, writing every target |
+| `profile.field_aliases` | Alias → search property; no implicit write targets |
+| `profile.fulltext_property`, `profile.collection_query`, `profile.collection_fulltext_property` | MDS query conventions; not inferred from widgets |
+| `profile.material_type`, `profile.url_search_property`, `profile.compendium_property`, `profile.prefer_dto_title` | Node type, URL criterion, optional context property, DTO title precedence |
+| `profile.values(properties, role)`, `profile.value(properties, role)`, `profile.title(node)` | Configured read projection |
+| `profile.write_target(role)` | One unambiguous write target or `ValidationError` |
+| `repo.metadata` | `MetadataCatalog` |
+| `repo.metadata.load(locale=…, refresh=…)` | Full MDS definition as an independent `dict` |
+| `repo.metadata.fields(locale=…, refresh=…)` | Raw widgets with `id`, `caption`, `isRequired`, …; no promise of filterability |
+| `repo.metadata.clear_cache()` | Invalidate every locale |
+| `repo.metadata.cache_seconds` | TTL, 3600 seconds by default; `refresh=True` forces loading |
+| `repo.vocab.preload(properties, locale=…, concurrency=…)` | `dict[str, list[VocabularyValue]]`; 8 concurrent loads by default, each property loaded once |
+| `repo.vocab.label(prop, value, locale=…)` | Label for an exact stored key, or `None` |
+| `repo.vocab.snapshot(scope=…)` | JSON-compatible `dict` of fresh cache entries |
+| `repo.vocab.restore(snapshot, scope=…)` | `int`; Number of restored entries; replaces the cache only after complete validation |
+| `repo.collections.add_reference(collection_id, node_id)` | `{created, reference_id}`; on an existing placement (409), the reference id is unknown: `None` |
+| `repo.flows.place_material(node_id, collection_id, publish=…, remove_from=…)` | `{input_id, original_id, collection_id, reference_id, created, placed, public, removed_from, failed}` |
+| `repo.flows.collection_context(collection_id, limit=…, properties=…, include_registry=…, registry_conventions=…, registry_context=…)` | `{collection, contents, stats, compendium, registry, failed, loaded_at}` |
+| `repo.flows.prepare_material(url, title=…, name=…, description=…, keywords=…, properties=…, labels=…, locale=…, extraction=…, max_chars=…)` | `{draft, duplicate, unresolved, validation, extraction, warnings, ready_to_create}` |
+
+`scope` is the caller's visibility context, such as `public` or an
+account-specific cache id. Reuse data only within the same permission context.
+Repository URL, MDS, query and scope must match; locales stay separate.
+Original age is preserved. Invalid snapshots change nothing; expired entries
+are omitted. The API writes no files; an application may persist the JSON itself.
+`values()` also returns independent lists. Exact known URNs/codes take precedence
+over matching labels; search unknown raw values through `raw_filters`, or write
+them through `properties`.
+
+Search options `locale`, `raw_filters` and `strict=True` also apply with the
+optional local `rerank=True`. Ambiguous search labels include all matching keys;
+unknown labels are rejected with `strict=True`. Overlapping raw and label filters
+fail before requests. In `search_all`, `collections.filters_ignored` identifies
+explicit filters that apply only to material. `value_fields` keeps stored values
+beside labels in search/description answers; `vocabulary` adds `entries` with
+`value` and `label`. `related` uses stored identities directly and reports them
+under `based_on_values`. Examples and limits: [FLOWS.md](FLOWS.md).
+
+URL duplicate checks require both `url_search_property` and a configured
+`url` read role. Missing URL projections produce uncertainty, not absence.
+
+Collection REST fields (`cm:title`, `cm:description`), page and reference
+protocols remain technical edu-sharing contracts. Configure the separate
+`SkillConventions` for other skill content types. The new profiles/flows have
+HTTP-mock coverage; live acceptance on additional MDS installations is pending.
+
 ## Vocabularies
 
 | Call | Result |
@@ -839,9 +901,9 @@ bound — `repo.flows.search("Bruch")`; the module functions behind them
 
 | Call | Returns |
 |---|---|
-| `repo.flows.search(text, filters=…, facets=…, limit=…, rerank=…, exclude_ids=…, facet_limit=…, properties=…, deduplicate=…, language=…, offset=…, pool=…)` | `{query, total, total_is_lower_bound, returned, duplicates_removed, hits, facets, facet_meta, unresolved, ignored, warnings, suggestions}` — `facet_meta[name]` carries `other_count` and `truncated` for that facet; a value list the server cut short otherwise looks complete |
-| `repo.flows.search_all(text, limit=…, include_pages=…, properties=…, deduplicate=…, facets=…, filters=…, language=…, pool=…, rerank=…)` | `{query, materials, collections}` — both buckets at once; `pages` as a third with `include_pages=True` |
-| `repo.flows.find_collections(text, limit=…, parent_id=…, properties=…, subject=…)` | same shape as `search` plus `unjudged`; filters applied locally; `total_is_lower_bound` is **always true** for a search |
+| `repo.flows.search(text, raw_filters=…, locale=…, strict=…, filters=…, facets=…, limit=…, rerank=…, exclude_ids=…, facet_limit=…, properties=…, deduplicate=…, language=…, offset=…, pool=…)` | `{query, total, total_is_lower_bound, returned, duplicates_removed, hits, facets, facet_meta, unresolved, ignored, warnings, suggestions}` — `facet_meta[name]` carries `other_count` and `truncated` for that facet; a value list the server cut short otherwise looks complete |
+| `repo.flows.search_all(text, raw_filters=…, locale=…, strict=…, limit=…, include_pages=…, properties=…, deduplicate=…, facets=…, filters=…, language=…, pool=…, rerank=…)` | `{query, materials, collections}` — both buckets at once; `pages` as a third with `include_pages=True` |
+| `repo.flows.find_collections(text, locale=…, strict=…, limit=…, parent_id=…, properties=…, subject=…)` | same shape as `search` plus `unjudged`; filters applied locally; `total_is_lower_bound` is **always true** for a search |
 | `repo.flows.related(node_id, on=…, limit=…)` | `{seed, based_on, hits, unresolved, reason}` — a reference id works: the seed's own original, and any other reference to it, are left out. When that leaves nothing, `reason` says so -- an empty list on its own would read as "nothing resembles this" |
 | `repo.flows.vocabulary(field, locale=…)` | `{field, property, values, count}` |
 
@@ -948,12 +1010,12 @@ stopped early is not "there is none".
 
 | Call | Returns |
 |---|---|
-| `repo.flows.add_material(title, url=…, parent_id=…, subject=…, if_exists=…, collection_id=…, description=…, keywords=…, name=…, properties=…, publish=…)` | `{id, title, url, parent_id, name, collection, public, unresolved, existing, created, warnings}` — `if_exists="return"` names an existing record for `url` instead of creating a second. A blank `url` counts as none: nothing is stored and no check runs |
+| `repo.flows.add_material(title=…, locale=…, url=…, parent_id=…, subject=…, if_exists=…, collection_id=…, description=…, keywords=…, name=…, properties=…, publish=…)` | `{id, title, url, parent_id, name, collection, public, unresolved, existing, created, warnings}` — `if_exists="return"` names an existing record for `url` instead of creating a second. A blank `url` counts as none: nothing is stored and no check runs |
 | `validate_if_exists(if_exists)` | raises `ValidationError` unless `return`, `raise` or `create` |
 | `find_by_url(repo, url)` | `{id, title, url} \| None` — the record already carrying this address; `ValidationError` when the metadata set cannot filter on `ccm:wwwurl`. Compared by component: scheme and host case-insensitive, **path and query not** (changed 2026-09-09 — the whole address used to be lowered, so `/A` matched `/a`). A stored address that cannot be read is skipped; an unreadable `url` argument is a `ValidationError` |
 | `check_before_create(repo, url, if_exists)` | `(existing, warnings)` — applies `if_exists`; raises `ConflictError` for `"raise"` |
 | `DUPLICATE_SCAN_LIMIT` | `20` — hits compared per check |
-| `repo.flows.update_material(node_id, description=…, keywords=…, properties=…, title=…, url=…)` | `{id, title, url, name, unresolved, redirected_from}` — `keywords=` **replaces** the shared list; `node.add_keywords(…)` on the API level merges |
+| `repo.flows.update_material(node_id, locale=…, description=…, keywords=…, properties=…, title=…, url=…)` | `{id, title, url, name, unresolved, redirected_from}` — `keywords=` **replaces** the shared list; `node.add_keywords(…)` on the API level merges |
 | `repo.flows.build_collection(title, node_ids=[…], description=…, parent_id=…, publish=…, scope=…)` | `{id, title, url, added, failed, public, warnings}` |
 | `repo.flows.accept_suggestion(node_id, suggestion_id)` | `{id, suggestion_id, property, value, applied, status, failed}` — write, read back, then mark |
 | `repo.flows.find_skills(text, collection_id=…, subject=…, conventions=…, include_subcollections=…, limit=…)` | `{query, hits, unresolved, truncated}` |

@@ -42,6 +42,9 @@ async def search(
     text: str | None = None,
     *,
     filters: dict[str, str | list[str]] | None = None,
+    raw_filters: dict[str, str | list[str]] | None = None,
+    locale: str | None = None,
+    strict: bool = False,
     facets: list[str] | None = None,
     limit: int = 10,
     offset: int = 0,
@@ -63,6 +66,9 @@ async def search(
         repo: the connection.
         text: full-text term. Omittable when only filtering.
         filters: ``{property: value}`` for properties without a short name.
+        raw_filters: stored values without label resolution, by full property.
+        locale: language for vocabulary resolution and the search response.
+        strict: fail before searching when a label cannot be resolved.
         facets: short names or properties to count server-side.
         limit, offset: page size and starting point.
         rerank: ask several query variants and reorder by relevance instead of
@@ -116,6 +122,8 @@ async def search(
         "offset": offset,
     }
     excluded = {i for i in exclude_ids if i}
+    if raw_filters or locale is not None:
+        query.update({"raw_filters": raw_filters or {}, "locale": locale})
     warnings: list[str] = []
     if excluded:
         query["exclude_ids"] = list(exclude_ids)
@@ -136,6 +144,7 @@ async def search(
         result, variants = await search_reranked(
             repo, text,
             filters=filters, facets=facet_properties or None,
+            raw_filters=raw_filters, locale=locale, strict=strict,
             # The pool must hold the refill too, or the exclusions eat into it.
             limit=ask, pool=max(pool, ask), language=language, facet_limit=facet_limit,
             **forwarded,
@@ -149,6 +158,7 @@ async def search(
         result = await repo.searcher.search(
             text,
             filters=filters,
+            raw_filters=raw_filters, locale=locale, strict=strict,
             facets=facet_properties or None,
             limit=ask,
             offset=offset,
@@ -186,6 +196,8 @@ async def vocabulary(
 ) -> dict[str, Any]:
     """The values a field accepts, as this instance defines them.
 
+    Also returns ``entries`` with exact ``value`` and readable ``label``.
+
     Exists so that nothing has to guess. A language model asked to filter by
     subject will otherwise invent a plausible value, and the search silently
     returns everything.
@@ -196,7 +208,7 @@ async def vocabulary(
         locale: language of the labels; the instance's default when omitted.
 
     Returns:
-        ``{field, property, values, count}`` -- ``values`` are the readable
+        ``{field, property, values, entries, count}`` -- ``values`` are the readable
         labels, in the order the repository returns them.
 
     Raises:
@@ -208,6 +220,7 @@ async def vocabulary(
         "field": field,
         "property": prop,
         "values": [v.label for v in values],
+        "entries": [{"value": v.uri, "label": v.label} for v in values],
         "count": len(values),
     }
 
@@ -227,6 +240,8 @@ async def related(
 ) -> dict[str, Any]:
     """More material like this one.
 
+    ``based_on_values`` preserves the stored identities used as criteria.
+
     **Not a relation.** ``/relation/v1`` links two nodes because somebody said
     they belong together; this takes the seed's own fields, searches with them
     as filters, and drops the seed from the result. Both are called "related",
@@ -243,7 +258,7 @@ async def related(
         limit: how many to return.
 
     Returns:
-        ``{seed, based_on, hits, unresolved, reason}``. ``based_on`` names the
+        ``{seed, based_on, based_on_values, hits, unresolved, reason}``. ``based_on`` names the
         values the search was built from -- without it nobody can judge the
         resemblance. ``unresolved`` names the ones the instance could not
         resolve: those did **not** narrow the search, so the result is broader
@@ -270,15 +285,12 @@ async def related(
         )
 
     seed = await describe(repo, node_id)
-    based_on: dict[str, Any] = {
-        name: list(seed["fields"][name])
-        for name in on
-        if seed["fields"].get(name)
-    }
+    stored, label_filters, based_on = _related_fields(seed, aliases, on)
     if not based_on:
         return {
             "seed": {"id": node_id, "title": seed.get("title")},
             "based_on": {},
+            "based_on_values": {},
             "hits": [],
             "unresolved": [],
             "reason": (
@@ -287,7 +299,8 @@ async def related(
             ),
         }
 
-    found = await search(repo, None, filters=None, limit=limit + 1, **based_on)
+    found = await search(repo, None, filters=dict(label_filters) or None,
+                         raw_filters=dict(stored) or None, limit=limit + 1)
     # A collection holds **references**: start from one and its original is a
     # different record with a different id, which the search returns. Comparing
     # the given id alone let it back in as "similar" -- measured 2026-09-09,
@@ -331,7 +344,30 @@ async def related(
     return {
         "seed": {"id": node_id, "title": seed.get("title")},
         "based_on": based_on,
+        "based_on_values": {name: stored[aliases[name]] for name in on
+                            if aliases[name] in stored},
         "hits": hits,
         "unresolved": found["unresolved"],
         "reason": reason,
     }
+
+
+def _related_fields(
+    seed: dict[str, Any], aliases: dict[str, str], on: Sequence[str],
+) -> tuple[dict[str, list[str]], dict[str, list[str]], dict[str, list[str]]]:
+    """Preserve known identities; resolve labels only in legacy label-only DTOs."""
+    stored: dict[str, list[str]] = {}
+    labels: dict[str, list[str]] = {}
+    display: dict[str, list[str]] = {}
+    for name in on:
+        prop = aliases[name]
+        raw = seed["properties"].get(prop)
+        readable = seed["fields"].get(name, [])
+        if raw is not None and raw != []:
+            values = raw if isinstance(raw, list) else [raw]
+            stored[prop] = [str(value) for value in values]
+            display[name] = list(readable) or stored[prop]
+        elif readable:
+            labels[prop] = list(readable)
+            display[name] = list(readable)
+    return stored, labels, display

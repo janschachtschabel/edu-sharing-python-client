@@ -122,12 +122,14 @@ async def collection_contents(
     aliases = repo.searcher.field_aliases
     roh_material = list(nodes_response.get("nodes") or [])
     materials = [
-        hit_as_dict(SearchHit.from_node(node, repo.url), aliases, properties=properties)
+        hit_as_dict(SearchHit.from_node(node, repo.url, metadata_profile=repo.metadata_profile),
+                    aliases, properties=properties)
         for node in roh_material[:limit]
     ]
     roh_unter = list(collections_response.get("collections") or [])
     children = [
-        hit_as_dict(SearchHit.from_node(node, repo.url), aliases, properties=properties)
+        hit_as_dict(SearchHit.from_node(node, repo.url, metadata_profile=repo.metadata_profile),
+                    aliases, properties=properties)
         for node in roh_unter[:limit]
     ]
 

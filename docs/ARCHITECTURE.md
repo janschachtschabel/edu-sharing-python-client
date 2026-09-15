@@ -859,3 +859,28 @@ in one module, the sending in another.
    a description of the files as they stand today.
    `flows/discover.py` had grown a second responsibility earlier and was split
    the same way (§8.6).
+
+
+## Metadata profiles and composed flows — 0.3.0
+
+| Module | Responsibility |
+|---|---|
+| `profile.py` | Immutable per-repository read/write/query conventions; named WLO compatibility defaults, neutral explicit profiles |
+| `metadata.py` | Cache the actual MDS definition by locale; independent returned copies and explicit invalidation |
+| `vocab_values.py` | Immutable vocabulary entry, re-exported from the existing vocab API |
+| `vocab_snapshots.py` | Pure JSON snapshot/context/age validation; no filesystem or background I/O |
+| `flows/place.py` | Original/reference identity and sequential placement/publication/removal with partial outcomes |
+| `flows/context.py` | Reuse one contents page for context/statistics; optional configured registry |
+| `flows/prepare.py` | Read-only draft normalization, duplicate/required-field prechecks and optional extraction |
+
+The full MDS describes widgets; it cannot establish query compatibility or infer
+semantic write roles. Profiles therefore remain explicit. `SearchHit` stores a
+serializable copy of read-role names rather than the immutable profile object,
+so `dataclasses.asdict`, `replace` and `deepcopy` continue to work. Sync adapters
+run cache snapshot/restore on the repository loop. No new runtime dependencies.
+
+Validation: HTTP boundary tests with custom fields, exact URNs/codes, shared
+labels, cache mutation, snapshot age/context, publication no-ops, failed transfer
+steps, incomplete duplicate checks and synchronous access. Live cross-instance
+acceptance remains pending. Design and audit disposition are in
+[the implementation plan](plans/2026-09-14-generic-metadata.md).

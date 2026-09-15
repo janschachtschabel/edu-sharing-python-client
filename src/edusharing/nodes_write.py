@@ -39,6 +39,7 @@ from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any, Literal
 
 from .errors import EduSharingError, SilentDropError, ValidationError
+from .profile import WLO_METADATA_PROFILE, MetadataProfile
 from .urls import path_segment
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -77,7 +78,8 @@ def as_list(value: Any) -> list[str]:
 
 
 def fields_of(
-    properties: dict[str, Any] | None, aliases: dict[str, Any]
+    properties: dict[str, Any] | None, aliases: dict[str, Any], *,
+    metadata_profile: MetadataProfile = WLO_METADATA_PROFILE,
 ) -> dict[str, list[str]]:
     """The request body: every value a list, every short name expanded.
 
@@ -88,9 +90,9 @@ def fields_of(
         p: as_list(v) for p, v in (properties or {}).items()
     }
     for name, value in aliases.items():
-        targets = WRITE_FIELD_ALIASES.get(name)
+        targets = ("cm:name",) if name == "name" else metadata_profile.write_fields.get(name)
         if targets is None:
-            known = ", ".join(sorted(WRITE_FIELD_ALIASES))
+            known = ", ".join(sorted({"name", *metadata_profile.write_fields}))
             raise ValidationError(
                 f"Unknown field {name!r}. Known are: {known}. A property can "
                 "also be given directly: properties={'ccm:...': 'value'}."
@@ -156,7 +158,7 @@ async def update(
     node: Node, *, properties: dict[str, Any] | None, verify: bool, aliases: dict[str, Any]
 ) -> Node:
     """``Node.update``: write, then read back -- at the original of a reference."""
-    fields = fields_of(properties, aliases)
+    fields = fields_of(properties, aliases, metadata_profile=node.metadata_profile)
     if not fields:
         return node
 
@@ -221,8 +223,9 @@ async def change_keywords(
 
     # The list to merge into is the ORIGINAL's: a reference carries a copy
     # that stops inheriting the moment it is written to.
+    target = node.metadata_profile.write_target("keywords")
     fresh = await node._nodes.get(node.original_id or node.id)
-    existing = fresh.keywords
+    existing = fresh.get_all(target)
     dropping = {k.strip().casefold() for k in remove}
 
     merged = [k for k in existing if k.strip().casefold() not in dropping]
@@ -241,7 +244,7 @@ async def change_keywords(
 
     if merged == existing:
         return node._redirected(fresh)
-    return node._redirected(await fresh.update(properties={KEYWORD_PROPERTY: merged}))
+    return node._redirected(await fresh.update(properties={target: merged}))
 
 
 @contextlib.contextmanager

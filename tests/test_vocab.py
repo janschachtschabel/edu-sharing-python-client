@@ -4,8 +4,7 @@ Der Kern der Repository-Unabhaengigkeit. Statt eine Tabelle mitzuliefern, die
 nur fuer eine Instanz stimmt, wird gefragt, was *diese* Instanz anbietet.
 
 Die Antwortform stammt aus einer Messung gegen edu-sharing 11.0 (Staging,
-27.08.2026) -- sie weicht von der OpenAPI-Spezifikation ab: die deklariert
-``MdsValue {id, caption}``, geliefert wird ``{key, displayString}``.
+27.08.2026): der Werte-Endpunkt liefert ``{key, displayString}``.
 """
 
 import asyncio
@@ -404,3 +403,24 @@ async def test_ein_abruf_nach_dem_leeren_fuellt_den_cache_wieder():
     v.clear_cache()
     await v.values("ccm:taxonid")
     assert v._cache, "nach dem Leeren gestartet, also gehoert das Ergebnis hinein"
+
+
+async def test_returned_values_do_not_share_the_mutable_cache_list():
+    calls = []
+    vocab = _vocab(_liefert(FAECHER, calls))
+    first = await vocab.values("custom:subject")
+    first.clear()
+    second = await vocab.values("custom:subject")
+    assert len(second) == 3
+    second.pop()
+    assert len(await vocab.values("custom:subject")) == 3
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("key", ["urn:custom:subject", "CODE_A"])
+async def test_stored_keys_are_resolved_before_labels(key):
+    vocab = _vocab(_liefert({"values": [
+        {"key": key, "displayString": "A readable label"},
+        {"key": "other", "displayString": key},
+    ]}))
+    assert await vocab.resolve_all("custom:subject", key) == [key]

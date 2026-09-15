@@ -900,6 +900,7 @@ def unversehrt():
 #: muessen nichts Sinnvolles bewirken -- gefragt ist allein, ob eine Coroutine
 #: zurueckkommt. Nach Parametername, sonst nach Annotation.
 _ARGUMENT = {
+    "properties": ["ccm:taxonid"], "snapshot": {}, "scope": "public",
     "node_id": NID, "collection_id": "coll-1", "comment_id": "c-1",
     "suggestion_id": "s-1", "parent_id": "parent", "parent": "parent",
     "group": "GROUP_x", "authority": "alice", "user": "alice",
@@ -923,17 +924,20 @@ _OHNE_SPIEGEL = {"Repository.aclose", "Transport.aclose"}
 def _argumente(fn):
     """Die Pflichtparameter einer Methode, mit Werten belegt -- oder ``None``,
     wenn der Waechter einen davon nicht bedienen kann."""
-    werte = []
+    werte, benannt = [], {}
     for name, p in inspect.signature(fn).parameters.items():
         if name == "self" or p.kind is inspect.Parameter.VAR_KEYWORD:
             continue
         if p.kind is inspect.Parameter.VAR_POSITIONAL or p.default is not p.empty:
             continue
         if name in _ARGUMENT:
-            werte.append(_ARGUMENT[name])
+            if p.kind is inspect.Parameter.KEYWORD_ONLY:
+                benannt[name] = _ARGUMENT[name]
+            else:
+                werte.append(_ARGUMENT[name])
             continue
         return None
-    return werte
+    return werte, benannt
 
 
 def _paare(repo):
@@ -960,6 +964,7 @@ def _paare(repo):
         ("Collections", repo._async.collections, repo.collections),
         ("Search", repo._async.searcher, repo.searcher),
         ("Vocabulary", repo._async.vocab, repo.vocab),
+        ("MetadataCatalog", repo._async.metadata, repo.metadata),
     ]
 
 
@@ -1008,7 +1013,8 @@ def _pruefe(paare):
                 unerreichbar.append(f"{klasse}.{name}: kein Argument bekannt")
                 continue
             try:
-                ergebnis = methode(*werte)
+                positional, keyword = werte
+                ergebnis = methode(*positional, **keyword)
             except Exception:
                 gerufen += 1
                 continue

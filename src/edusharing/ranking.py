@@ -27,6 +27,7 @@ import re
 from typing import Any
 
 from .language import GERMAN, LanguageProfile
+from .profile import MetadataProfile
 from .results import SearchHit
 
 __all__ = [
@@ -88,10 +89,13 @@ def query_terms(query: str, profile: LanguageProfile = GERMAN) -> list[str]:
     ]
 
 
-def _text_of(hit: SearchHit) -> tuple[str, str, list[str]]:
+def _text_of(
+    hit: SearchHit, metadata_profile: MetadataProfile | None
+) -> tuple[str, str, list[str]]:
     """Title, description and keywords of a hit, lowercased."""
     properties: dict[str, Any] = hit.raw.get("properties") or {}
-    keywords = [str(k).lower() for k in (properties.get("cclom:general_keyword") or [])]
+    values = metadata_profile.values(properties, "keywords") if metadata_profile else hit.keywords
+    keywords = [k.lower() for k in values]
     return hit.title.lower(), (hit.description or "").lower(), keywords
 
 
@@ -154,14 +158,15 @@ def _off_topic_penalty(title: str, keywords: list[str], terms: list[str]) -> int
     return 0 if mentioned else -20
 
 
-def _text_score(hit: SearchHit, query: str, terms: list[str]) -> int:
+def _text_score(hit: SearchHit, query: str, terms: list[str],
+                metadata_profile: MetadataProfile | None) -> int:
     """How well the hit's text answers the query.
 
     Four questions, each with its own weight: does the title say it, do the
     keywords, does the description -- and if none of the first two do, the
     record is about something else.
     """
-    title, description, keywords = _text_of(hit)
+    title, description, keywords = _text_of(hit, metadata_profile)
     query_lower = query.lower().strip()
     return (
         _title_score(title, query_lower, terms)
@@ -201,8 +206,10 @@ def _metadata_score(hit: SearchHit, aliases: dict[str, str]) -> int:
 
 
 def score_hit(hit: SearchHit, query: str, aliases: dict[str, str],
-              profile: LanguageProfile = GERMAN) -> int:
+              profile: LanguageProfile = GERMAN, *,
+              metadata_profile: MetadataProfile | None = None) -> int:
     """Relevance of one hit for one query. Never negative."""
     terms = query_terms(query, profile)
-    total = _text_score(hit, query, terms) + _metadata_score(hit, aliases)
+    total = _text_score(hit, query, terms, metadata_profile)
+    total += _metadata_score(hit, aliases)
     return max(total, 0)
