@@ -1,0 +1,168 @@
+"""``text`` -- the full text of one material, and why there is none.
+
+Three sources, asked in this order and only as far as needed:
+
+1. **The repository's own text** (``/textContent``). Present for the large
+   majority of records -- the MCP counted 29 of 32 sampled live records on
+   2026-07-28 -- for linked pages as well as attached files.
+2. **The file itself**, when the record carries a text, JSON or XML upload.
+   Measured
+   on 2026-08-27 by uploading one sentence in five formats: ``/textContent``
+   returns **nothing** for ``text/markdown`` and ``application/json`` although
+   the file has text (see ``NodeContent.text``). A skill's ``SKILL.md`` is
+   exactly that case. Bytes of a binary file are not text, so a PDF without an
+   extract is not downloaded.
+3. **The linked page**, for material that is merely linked (``ccm:wwwurl``),
+   through the text-extraction service -- and only when the caller passes one:
+   the library knows no service address (E4), and the address of a page is
+   not something to fetch behind a caller's back.
+
+No text is a normal outcome, not an error. ``reason`` names which of the six
+causes it was, so "we would not fetch that" never looks like "the page was
+empty" -- and a model told "there is no text" can say so instead of inventing
+one. Example 15 did all of this by hand in 215 lines; the MCP offers it as
+``get_wlo_content_text``.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+from ..content import MAX_TEXT_BYTES, decode_text, is_text_like
+from ..errors import (
+    ContentTooLargeError,
+    EduSharingError,
+    NotFoundError,
+    PermissionDeniedError,
+)
+from ..strings import cap_text
+
+if TYPE_CHECKING:  # pragma: no cover
+    from ..extraction import TextExtraction
+    from ..nodes import Node
+    from ..repository import AsyncRepository
+
+__all__ = ["text", "DEFAULT_MAX_CHARS"]
+
+#: The same ceiling the MCP settled on (2026-08-20): an instruction or a
+#: worksheet must arrive whole, and real articles run to ~120 000 characters.
+DEFAULT_MAX_CHARS = 200_000
+
+
+async def text(
+    repo: AsyncRepository,
+    node_id: str,
+    *,
+    extraction: TextExtraction | None = None,
+    max_chars: int = DEFAULT_MAX_CHARS,
+) -> dict[str, Any]:
+    """The text of one material -- repository first, then the file, then the page.
+
+    Args:
+        repo: the connection.
+        node_id: the material. A reference id from a collection listing works
+            as well: the text is read from the node itself, which for a
+            reference is the same content.
+        extraction: the text-extraction client for the linked-page fallback.
+            ``None`` means the page is not fetched, and the answer says so.
+        max_chars: cut longer text at a word boundary; ``truncated`` says when,
+            ``char_count`` says how long it really was.
+
+    Returns:
+        ``{id, title, text, source, source_url, char_count, truncated, reason,
+        detail}``. ``source`` is ``repository``, ``download``, ``extraction`` or
+        ``none``. With ``none``, ``reason`` is one of ``node_not_found``,
+        ``access_denied``, ``repository_failed`` (the repository did not hand
+        over what it has -- worth a retry, not the same as "no text"),
+        ``too_large`` (the file is bigger than ``MAX_TEXT_BYTES``; nothing was
+        downloaded), ``no_text_no_url``, ``no_extraction_service`` or
+        ``extraction_failed``, and ``detail`` carries the service's or the
+        error's own words.
+        ``source_url`` is the linked page whenever there is one, so a caller
+        without a service can still decide to fetch it.
+
+    Raises:
+        Nothing of its own. A refused or missing node is reported in
+        ``reason`` -- the question was "is there text", and "no, because" is
+        the answer.
+    """
+    answer: dict[str, Any] = {
+        "id": node_id, "title": None, "text": "", "source": "none",
+        "source_url": None, "char_count": 0, "truncated": False,
+        "reason": "", "detail": "",
+    }
+    try:
+        node = await repo.nodes.get(node_id)
+    except NotFoundError as exc:
+        return {**answer, "reason": "node_not_found", "detail": str(exc)}
+    except PermissionDeniedError as exc:
+        return {**answer, "reason": "access_denied", "detail": str(exc)}
+    except EduSharingError as exc:
+        return {**answer, "reason": "repository_failed",
+                "detail": f"{type(exc).__name__}: {exc}"}
+    answer["title"] = node.title or None
+    # Taken as soon as it is read, not once the early returns are past.
+    # It used to be assigned only on the way to the extraction fallback,
+    # so the most common answer of all -- text out of the repository --
+    # came back without the address it had in hand (R07, 2026-09-09).
+    # The docstring promised it "whenever there is one".
+    answer["source_url"] = node.metadata_profile.value(node.properties, "url")
+
+    try:
+        stored = await _stored(node, answer, max_chars)
+    except EduSharingError as exc:
+        # The repository failed to hand over what it has. Not "there is no
+        # text" -- there may well be one -- and not an error out of a flow
+        # whose answer is always "text, or why not".
+        return {**answer, "reason": "repository_failed",
+                "detail": f"{type(exc).__name__}: {exc}"}
+    if stored is not None:
+        return stored
+
+    linked = answer["source_url"]
+    if not linked:
+        return {**answer, "reason": "no_text_no_url"}
+    if extraction is None:
+        return {**answer, "reason": "no_extraction_service"}
+
+    try:
+        got = await extraction.text_of(linked, max_chars=max_chars)
+    except EduSharingError as exc:
+        # A broken service is not "the page has no text", but for the caller
+        # both are "no text, and this is why" -- the words tell them apart.
+        return {**answer, "reason": "extraction_failed", "detail": str(exc)}
+    if not got.text:
+        detail = f"{got.reason}: {got.detail}" if got.detail else got.reason
+        return {**answer, "reason": "extraction_failed", "detail": detail}
+    return {
+        **answer, "text": got.text, "source": "extraction",
+        "char_count": got.char_count, "truncated": got.truncated,
+    }
+
+
+async def _stored(
+    node: Node, answer: dict[str, Any], max_chars: int
+) -> dict[str, Any] | None:
+    """The repository's own extract, else the file when it is text-like."""
+    extract = await node.content.text()
+    if extract:
+        return _capped(answer, extract, "repository", max_chars)
+    if node.content.has_content and is_text_like(node.content.mimetype):
+        try:
+            raw = await node.content.download(max_bytes=MAX_TEXT_BYTES)
+        except ContentTooLargeError as exc:
+            return {**answer, "reason": "too_large", "detail": str(exc)}
+        decoded = decode_text(raw)
+        if decoded:
+            return _capped(answer, decoded, "download", max_chars)
+    return None
+
+
+def _capped(answer: dict[str, Any], full: str, source: str, max_chars: int) -> dict[str, Any]:
+    """Cut at a word boundary, without a marker inside the text: a caller may
+    process it further, and the flag says what happened."""
+    shown = cap_text(full, max_chars, marker="")
+    return {
+        **answer, "text": shown, "source": source,
+        "char_count": len(full), "truncated": len(shown) < len(full),
+    }

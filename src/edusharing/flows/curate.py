@@ -1,0 +1,413 @@
+"""Writing flows: create, collect, delete.
+
+Three things are done here that the API level leaves to the caller, and each of
+them is a step people forget rather than a step they enjoy.
+
+**Finding the home folder.** It sits four levels deep in the ``whoami()``
+response. Without a flow that reach belongs in every script.
+
+**Resolving vocabulary while writing.** Reading, the search resolves
+``"Biologie"`` to its URI on its own. Writing, the URI had to be known. This is
+where a missing value hurts more: the material is created, just without the
+field, and looks complete.
+
+**Saying what did not work.** A partial success is the normal case when several
+nodes go into a collection. A flow that reports only the successes reports
+success for something that half happened.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+from ..dto import render_url
+from ..errors import EduSharingError, ValidationError
+from ..fields import name_from_title, resolve_vocabulary
+from .duplicates import check_before_create, validate_if_exists
+
+if TYPE_CHECKING:  # pragma: no cover
+    from ..nodes import Node
+    from ..repository import AsyncRepository
+
+__all__ = ["add_material", "build_collection", "delete", "update_material"]
+
+
+async def add_material(
+    repo: AsyncRepository,
+    title: str | None = None,
+    *,
+    url: str | None = None,
+    parent_id: str | None = None,
+    name: str | None = None,
+    description: str | None = None,
+    keywords: list[str] | None = None,
+    collection_id: str | None = None,
+    properties: dict[str, Any] | None = None,
+    publish: bool = False,
+    if_exists: str = "return",
+    locale: str | None = None,
+    **aliases: Any,
+) -> dict[str, Any]:
+    """Create material -- with vocabulary, and optionally straight into a
+    collection.
+
+    Args:
+        repo: the connection.
+        title: display title written through the profile. Without it, supply
+            name and explicit properties for a neutral/raw material draft.
+        url: web address, for linked material. Blank or whitespace counts
+            as none at all -- an empty form field is not a source address, and
+            storing one leaves a record pointing at nothing. It is written to
+            the repository **verbatim**, so credentials inside it
+            (``https://user:pw@host/x``) are stored and shown as the material's
+            source; whether such an address may be a source at all is the
+            caller's decision, not this function's.
+        parent_id: where it goes. The user's home folder when omitted.
+        name: ``cm:name``, the key inside the parent folder.
+        description, keywords: the usual metadata.
+        collection_id: put a reference into this collection right away.
+        properties: raw edu-sharing properties, for anything not covered.
+        **aliases: configured short names -- ``subject="Biologie"`` is resolved
+            against this instance's vocabulary.
+        publish: make it world-readable right away. Off by default -- reading
+            cannot be taken back.
+        if_exists: what to do when a record for ``url`` already exists.
+            ``"return"`` (default) names it and creates nothing; ``"raise"``
+            raises ``ConflictError``; ``"create"`` skips the check. Measured
+            2026-09-02: ``mds_oeh`` accepts ``ccm:wwwurl`` as a criterion,
+            ``-default-`` does not -- then the default check is skipped and
+            ``warnings`` says so, while ``"raise"`` refuses to guess.
+
+    Returns:
+        ``{id, title, url, parent_id, name, collection, public, unresolved,
+        existing, created, warnings}``. ``collection`` carries ``added``
+        and, when placing was refused, a ``reason``; ``public`` stays ``False``
+        when publishing was refused -- both name themselves in ``warnings``
+        rather than raising, because the record exists by then (audit COR-5).
+        ``created`` is ``False`` when an existing
+        record was returned instead -- then ``existing`` names it and the
+        location keys are ``None``.
+        ``public`` says whether the material ended up readable without a
+        login -- publishing is two steps in edu-sharing, and a caller who
+        asked for it needs to know whether both took.
+
+        **Check ``unresolved``.** Values listed there were NOT written; the
+        material exists without them and looks complete.
+
+    Raises:
+        ValidationError: on an empty title or an unknown short name.
+        EduSharingError: for anything the repository refuses.
+    """
+    if (title is not None and not title.strip()) or (title is None and not (name or "").strip()):
+        raise ValidationError(
+            "Material needs a non-empty title, or an explicit name without a title."
+        )
+    # A blank address is no address. Measured 2026-09-10: an empty string
+    # passed both ``is not None`` gates below and was stored as
+    # ``ccm:wwwurl: ['']`` -- a source pointing at nothing, which no later
+    # duplicate check can match either, since ``find_by_url`` turns a blank
+    # address away before it searches. An empty form field is the ordinary way
+    # to arrive here, so it becomes ``None`` and the call behaves as if nothing
+    # had been passed -- no warning, because nothing failed to run; there was
+    # nothing to check, which is what separates this from an unusable address.
+    #
+    # ``update_material`` deliberately does not do this: there "only what is
+    # passed is written", and a blank ``url`` plausibly asks for the address to
+    # be cleared.
+    if url is not None and not url.strip():
+        url = None
+    # Checked even without ``url``: a misspelled wish must not pass in silence.
+    validate_if_exists(if_exists)
+    existing: dict[str, Any] | None = None
+    warnings: list[str] = []
+    if url is not None:
+        existing, warnings = await check_before_create(repo, url, if_exists)
+    if existing is not None:
+        return _instead_of_creating(repo, existing, warnings)
+
+    if parent_id is None:
+        parent_id = await _home_folder(repo)
+
+    vocabulary_props, unresolved = await resolve_vocabulary(repo, aliases, locale=locale)
+    all_properties = {**(properties or {}), **vocabulary_props}
+
+    direct: dict[str, Any] = {} if title is None else {"title": title}
+    if url is not None:
+        direct["url"] = url
+    if description is not None:
+        direct["description"] = description
+    if keywords:
+        direct["keywords"] = keywords
+
+    node = await repo.nodes.create(
+        parent_id,
+        name=name or name_from_title(title or ""),
+        properties=all_properties or None,
+        **direct,
+    )
+
+    collection: dict[str, Any] | None = None
+    if collection_id:
+        collection = await _place(repo, node.id, collection_id, warnings)
+    public = await _publish(node, publish, warnings)
+
+    return {
+        "id": node.id,
+        "title": node.title or title,
+        "url": node.url,
+        "parent_id": parent_id,
+        "name": node.name,
+        "collection": collection,
+        "public": public,
+        "unresolved": unresolved,
+        "existing": None,
+        "created": True,
+        "warnings": warnings,
+    }
+
+
+async def _place(
+    repo: AsyncRepository, node_id: str, collection_id: str, warnings: list[str]
+) -> dict[str, Any]:
+    """Place the new material in a collection, reporting a refusal.
+
+    The node exists by the time this runs. Raising here used to throw its id
+    away with the exception: orphan material with no handle to retry or delete
+    it, and a second run creates a second record -- material without a URL has
+    no duplicate check to catch that (audit COR-5, 2026-09-03).
+    """
+    try:
+        added = await repo.collections.add(collection_id, node_id)
+    except EduSharingError as exc:
+        warnings.append(
+            f"Created, but not placed in collection {collection_id!r}: {exc}")
+        return {"id": collection_id, "added": False, "reason": str(exc)}
+    return {"id": collection_id, "added": added}
+
+
+async def _publish(node: Node, wanted: bool, warnings: list[str]) -> bool:
+    """Make the record public if asked, reporting a refusal rather than
+    raising it -- for the same reason as ``_place``: it already exists."""
+    if node.is_public:
+        return True
+    if not wanted:
+        return False
+    try:
+        await node.permissions.publish()
+    except EduSharingError as exc:
+        warnings.append(f"Created, but not published: {exc}")
+        return False
+    return True
+
+
+async def _home_folder(repo: AsyncRepository) -> str:
+    """Where material goes when no parent is named -- or why it cannot."""
+    identity = await repo.whoami()
+    if not identity.home_folder:
+        raise EduSharingError(
+            "No home folder for this account, so there is nowhere to put the "
+            "material. Pass parent_id explicitly. "
+            f"(Signed in as {identity.username!r}"
+            f"{', anonymously' if identity.is_anonymous else ''}.)"
+        )
+    return identity.home_folder
+
+
+def _instead_of_creating(
+    repo: AsyncRepository, existing: dict[str, Any], warnings: list[str]
+) -> dict[str, Any]:
+    """The ``add_material`` answer that names an existing record.
+
+    Same keys as the created case, so a caller reads one shape: ``created`` is
+    ``False``, ``existing`` says which record, and the location keys are
+    ``None`` because nothing was placed anywhere.
+    """
+    return {
+        "id": existing["id"],
+        "title": existing["title"],
+        "url": render_url(repo.url, existing["id"]),
+        "parent_id": None, "name": None, "collection": None,
+        "public": None, "unresolved": [],
+        "existing": existing, "created": False, "warnings": warnings,
+    }
+
+
+async def update_material(
+    repo: AsyncRepository,
+    node_id: str,
+    *,
+    title: str | None = None,
+    url: str | None = None,
+    description: str | None = None,
+    keywords: list[str] | None = None,
+    properties: dict[str, Any] | None = None,
+    locale: str | None = None,
+    **aliases: Any,
+) -> dict[str, Any]:
+    """Change an existing piece of material -- with vocabulary, like creating it.
+
+    Only what is passed is written; everything else stays. The node layer
+    verifies the write by reading it back, so a value edu-sharing silently drops
+    raises instead of passing as success.
+
+    Args:
+        repo: the connection.
+        node_id: what to change.
+        title, url, description, keywords: the usual metadata.
+        properties: raw edu-sharing properties, for anything not covered.
+        **aliases: configured short names -- ``subject="Biologie"`` is resolved
+            against this instance's vocabulary.
+
+    Returns:
+        ``{id, title, url, name, unresolved, redirected_from}`` -- the state
+        after the change. ``redirected_from`` names the id passed in when the
+        write went to its original (a listing id is a reference), and ``id``
+        is then the original's; ``None`` otherwise.
+
+        **Check ``unresolved``.** Those values were not written, and the rest of
+        the change went through regardless.
+
+    Raises:
+        ValidationError: when nothing was passed to change.
+        SilentDropError: when the repository accepted the write and did not
+            store it.
+        NotFoundError: when no node carries this id.
+    """
+    vocabulary_props, unresolved = await resolve_vocabulary(repo, aliases, locale=locale)
+    all_properties = {**(properties or {}), **vocabulary_props}
+
+    direct: dict[str, Any] = {}
+    for name, value in (("title", title), ("url", url),
+                        ("description", description), ("keywords", keywords)):
+        if value is not None:
+            direct[name] = value
+
+    if not direct and not all_properties:
+        # An empty PUT would overwrite nothing and report success -- the caller
+        # would believe a change happened. If everything they passed failed to
+        # resolve, that is what they need to hear.
+        raise ValidationError(
+            "Nothing to change: no field was given"
+            + (f", and these could not be resolved: {unresolved}" if unresolved else ".")
+        )
+
+    node = await repo.nodes.get(node_id)
+    updated = await node.update(properties=all_properties or None, **direct)
+
+    return {
+        "id": updated.id,
+        "title": updated.title,
+        "url": updated.url,
+        "name": updated.name,
+        "unresolved": unresolved,
+        "redirected_from": updated.redirected_from,
+    }
+
+
+async def build_collection(
+    repo: AsyncRepository,
+    title: str,
+    *,
+    description: str | None = None,
+    parent_id: str | None = None,
+    node_ids: list[str] | None = None,
+    scope: str | None = None,
+    publish: bool = False,
+) -> dict[str, Any]:
+    """Create a collection and fill it in one call.
+
+    Args:
+        repo: the connection.
+        title: the collection's name.
+        description: its description.
+        parent_id: parent collection. The collection root when omitted.
+        node_ids: material to place inside right away.
+        scope: visibility, e.g. ``MY``. The library's default when omitted.
+
+    Returns:
+        ``{id, title, url, added, failed, public, warnings}``. ``added`` holds
+        the ids that went in, ``failed`` holds ``{id, reason}`` for those that
+        did not, ``warnings`` names a publish that was refused.
+
+        **The collection exists even when ``failed`` is non-empty.** Placing
+        material is one call per node and each can fail on its own; aborting
+        halfway would leave a collection nobody asked for. The same holds for
+        the publish afterwards (audit COR-5).
+
+    Raises:
+        EduSharingError: when the collection itself cannot be created.
+    """
+    kwargs: dict[str, Any] = {}
+    if description is not None:
+        kwargs["description"] = description
+    if parent_id is not None:
+        kwargs["parent"] = parent_id
+    if scope is not None:
+        kwargs["scope"] = scope
+
+    collection = await repo.collections.create(title, **kwargs)
+
+    added: list[str] = []
+    failed: list[dict[str, str]] = []
+    for node_id in node_ids or []:
+        try:
+            await repo.collections.add(collection.id, node_id)
+        except EduSharingError as exc:
+            # Deliberately not aborting: the remaining ids may well work, and a
+            # half-filled collection with a named gap beats an unexplained one.
+            failed.append({"id": node_id, "reason": str(exc)})
+            continue
+        added.append(node_id)
+
+    warnings: list[str] = []
+    public = await _publish(collection, publish, warnings)
+
+    return {
+        "id": collection.id,
+        "title": collection.title or title,
+        "url": collection.url,
+        "added": added,
+        "failed": failed,
+        "public": public,
+        "warnings": warnings,
+    }
+
+
+async def delete(
+    repo: AsyncRepository, node_id: str, *, recycle: bool = True
+) -> dict[str, Any]:
+    """Delete a node and report what it was.
+
+    Reads the node first so the answer can name it. A bare "done" leaves the
+    caller unsure whether the right thing was hit -- and a language model then
+    confirms something to a person without knowing what.
+
+    Args:
+        repo: the connection.
+        node_id: what to delete.
+        recycle: into the bin (default) or permanently. The default is the
+            reversible one; permanent deletion has to be spelled out.
+
+    Returns:
+        ``{id, title, name, type, is_reference, original_id, recycled}`` --
+        describing what is now gone. Deleting a reference removes only the
+        reference; the record behind it (``original_id``) survives.
+
+    Raises:
+        NotFoundError: when no node carries this id. Nothing is deleted.
+        PermissionDeniedError: when it may not be deleted.
+    """
+    node = await repo.nodes.get(node_id)
+    described = {
+        "id": node.id,
+        "title": node.title,
+        "name": node.name,
+        "type": node.type,
+        # Deleting a reference removes only the reference; the record behind
+        # it survives (measured by the MCP, 2026-08-17). Said here rather than
+        # left for the caller to discover from a listing that still shows it.
+        "is_reference": node.is_reference,
+        "original_id": node.original_id,
+    }
+    await node.delete(recycle=recycle)
+    return {**described, "recycled": recycle}

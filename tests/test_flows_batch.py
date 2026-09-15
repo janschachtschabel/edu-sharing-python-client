@@ -1,0 +1,425 @@
+"""Viele Knoten auf einmal, und „mehr davon".
+
+Zwei Abläufe, die der MCP als ``get_nodes_details`` und ``get_related_content``
+anbietet.
+
+``related`` ist **keine** Relation im Sinne von ``/relation/v1``. Es ist
+„mehr davon": die Fächer und Stufen des Ausgangsknotens werden zu Filtern einer
+gewöhnlichen Suche, der Knoten selbst fällt aus dem Ergebnis. Der MCP macht es
+genauso, und der Unterschied gehört benannt, weil beide Dinge gleich heißen.
+
+``describe_many`` muss einen fehlenden Knoten überleben: gemessen am
+27.08.2026 waren **4 von 25** Treffern des Suchindex nicht mehr abrufbar. Ein
+einzelner 404 darf die ganze Liste nicht mitreißen.
+"""
+
+import json
+
+import httpx
+
+from edusharing import AsyncRepository
+from edusharing.fields import resolve_vocabulary
+from edusharing.flows.describe import DESCRIBE_MANY_MAX
+
+REPO = "https://repo.test/edu-sharing"
+
+# Je Property ein eigenes Vokabular -- eine gemeinsame Liste liesse jeden
+# zweiten Filter als unaufloesbar herausfallen.
+VOKABULAR = {
+    "ccm:taxonid": [{"key": "http://vocab.test/080", "displayString": "Biologie"}],
+    "ccm:educationalcontext": [{"key": "http://vocab.test/sek1",
+                                "displayString": "Sekundarstufe I"}],
+}
+
+
+def _knoten(nid: str, titel: str, *, fach: str | None = "http://vocab.test/080",
+            stufe: str | None = "http://vocab.test/sek1") -> dict:
+    eigenschaften: dict[str, list[str]] = {"cclom:title": [titel]}
+    if fach:
+        eigenschaften["ccm:taxonid"] = [fach]
+        eigenschaften["ccm:taxonid_DISPLAYNAME"] = ["Biologie"]
+    if stufe:
+        eigenschaften["ccm:educationalcontext"] = [stufe]
+        eigenschaften["ccm:educationalcontext_DISPLAYNAME"] = ["Sekundarstufe I"]
+    return {"ref": {"id": nid}, "title": titel, "type": "ccm:io",
+            "properties": eigenschaften}
+
+
+class Instanz:
+    def __init__(self, *, knoten: dict[str, dict] | None = None,
+                 treffer: list[dict] | None = None) -> None:
+        self.knoten = knoten if knoten is not None else {
+            "a": _knoten("a", "Zellteilung")}
+        self.treffer = treffer if treffer is not None else [
+            _knoten("a", "Zellteilung"), _knoten("b", "Photosynthese")]
+        self.anfragen: list[httpx.Request] = []
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        self.anfragen.append(request)
+        pfad = request.url.path
+        if "/values" in pfad:
+            # Die Property steht im Body, nicht im Pfad.
+            prop = json.loads(request.content)["valueParameters"]["property"]
+            return httpx.Response(200, json={"values": VOKABULAR.get(prop, [])})
+        if "/search/v1" in pfad:
+            return httpx.Response(200, json={
+                "nodes": self.treffer,
+                "pagination": {"total": len(self.treffer), "from": 0,
+                               "count": len(self.treffer)}})
+        nid = pfad.rsplit("/metadata", 1)[0].rsplit("/", 1)[-1]
+        if nid not in self.knoten:
+            return httpx.Response(404, json={
+                "error": "org.edu_sharing.restservices.DAOMissingException",
+                "message": f"Node does not exist: {nid}"})
+        return httpx.Response(200, json={"node": self.knoten[nid]})
+
+    def repo(self) -> AsyncRepository:
+        return AsyncRepository(
+            REPO, metadataset="mds_oeh", backoff_base=0.0,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(self.handler)))
+
+    def kriterien(self) -> list[dict]:
+        for r in reversed(self.anfragen):
+            if "/search/v1" in r.url.path:
+                return json.loads(r.content)["criteria"]
+        raise AssertionError("keine Suchanfrage")
+
+
+# --- describe_many --------------------------------------------------------
+
+async def test_mehrere_knoten_auf_einmal():
+    instanz = Instanz(knoten={"a": _knoten("a", "Eins"), "b": _knoten("b", "Zwei")})
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.describe_many(["a", "b"])
+    assert [n["id"] for n in ergebnis["nodes"]] == ["a", "b"]
+    assert ergebnis["requested"] == 2
+    assert ergebnis["found"] == 2
+    assert ergebnis["failed"] == []
+
+
+async def test_ein_fehlender_knoten_reisst_die_liste_nicht_mit():
+    """Gemessen waren 4 von 25 Treffern des Suchindex nicht mehr abrufbar. Wer
+    die ganze Liste verliert, weil einer fehlt, kann die Suche nicht
+    weiterverarbeiten."""
+    instanz = Instanz(knoten={"a": _knoten("a", "Eins")})
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.describe_many(["a", "weg", "auch-weg"])
+    assert [n["id"] for n in ergebnis["nodes"]] == ["a"]
+    assert [f["id"] for f in ergebnis["failed"]] == ["weg", "auch-weg"]
+    assert "NotFoundError" in ergebnis["failed"][0]["reason"]
+    assert ergebnis["requested"] == 3
+    assert ergebnis["found"] == 1
+
+
+async def test_die_reihenfolge_bleibt_die_der_anfrage():
+    """Sonst laesst sich das Ergebnis nicht mit der Eingabe zusammenbringen."""
+    instanz = Instanz(knoten={n: _knoten(n, n.upper()) for n in "abc"})
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.describe_many(["c", "a", "b"])
+    assert [n["id"] for n in ergebnis["nodes"]] == ["c", "a", "b"]
+
+
+async def test_eine_leere_liste_ist_kein_fehler():
+    instanz = Instanz()
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.describe_many([])
+    assert ergebnis == {"requested": 0, "found": 0, "nodes": [], "failed": [],
+                        "truncated": False}
+    assert instanz.anfragen == []
+
+
+async def test_doppelte_ids_werden_einmal_geholt():
+    """Zwei Anfragen fuer denselben Knoten kosten zweimal und liefern
+    dasselbe."""
+    instanz = Instanz(knoten={"a": _knoten("a", "Eins")})
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.describe_many(["a", "a", "a"])
+    assert len(instanz.anfragen) == 1
+    assert [n["id"] for n in ergebnis["nodes"]] == ["a"]
+    assert ergebnis["requested"] == 1
+
+
+async def test_die_antwort_ist_json():
+    instanz = Instanz()
+    async with instanz.repo() as repo:
+        json.dumps(await repo.flows.describe_many(["a", "weg"]))
+
+
+# --- related --------------------------------------------------------------
+
+async def test_mehr_davon_filtert_nach_fach_und_stufe():
+    instanz = Instanz()
+    async with instanz.repo() as repo:
+        await repo.flows.related("a")
+    felder = {k["property"] for k in instanz.kriterien()}
+    assert "ccm:taxonid" in felder
+    assert "ccm:educationalcontext" in felder
+
+
+async def test_der_ausgangsknoten_faellt_heraus():
+    """Sonst steht das Material, von dem man ausging, als sein eigener
+    Verwandter in der Liste."""
+    instanz = Instanz()
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.related("a")
+    assert [h["id"] for h in ergebnis["hits"]] == ["b"]
+
+
+async def test_die_grundlage_wird_genannt():
+    """Wer nicht weiss, worauf die Aehnlichkeit beruht, kann sie nicht
+    beurteilen."""
+    instanz = Instanz()
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.related("a")
+    assert ergebnis["based_on"] == {"subject": ["Biologie"],
+                                    "level": ["Sekundarstufe I"]}
+    assert ergebnis["seed"]["title"] == "Zellteilung"
+
+
+async def test_ohne_fach_und_stufe_kommen_keine_willkuerlichen_treffer():
+    """Eine ungefilterte Suche waere keine Antwort auf 'mehr davon' -- sie
+    waere irgendetwas."""
+    instanz = Instanz(knoten={"a": _knoten("a", "Ohne", fach=None, stufe=None)})
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.related("a")
+    assert ergebnis["hits"] == []
+    assert "subject" in ergebnis["reason"] or "level" in ergebnis["reason"]
+    assert not [r for r in instanz.anfragen if "/search/v1" in r.url.path]
+
+
+async def test_die_felder_lassen_sich_waehlen():
+    """subject und level sind eine Vorgabe, keine Festlegung -- welche
+    Kurznamen es gibt, entscheidet der Metadatensatz der Instanz."""
+    instanz = Instanz()
+    async with instanz.repo() as repo:
+        await repo.flows.related("a", on=("subject",))
+    felder = {k["property"] for k in instanz.kriterien()}
+    assert "ccm:taxonid" in felder
+    assert "ccm:educationalcontext" not in felder
+
+
+async def test_ein_unbekannter_kurzname_wird_gemeldet():
+    from edusharing.errors import ValidationError
+    instanz = Instanz()
+    async with instanz.repo() as repo:
+        try:
+            await repo.flows.related("a", on=("gibtesnicht",))
+        except ValidationError as fehler:
+            assert "gibtesnicht" in str(fehler)
+        else:
+            raise AssertionError("ein Tippfehler darf nicht als 'kein Filter' durchgehen")
+
+
+async def test_ein_unaufloesbares_label_ohne_rohwert_wird_gemeldet():
+    """Der Filter waere sonst stillschweigend weggefallen und die Aehnlichkeit
+    breiter, als sie aussieht. Ohne gespeicherten Rohwert bleibt nur die
+    Label-Aufloesung; eine vorhandene Identitaet darf dagegen nicht von einem
+    veralteten oder unbekannten Anzeigelabel abhaengen."""
+    fremd = _knoten("a", "Mit fremdem Fach")
+    del fremd["properties"]["ccm:taxonid"]
+    fremd["properties"]["ccm:taxonid_DISPLAYNAME"] = ["Gibtesnicht"]
+    instanz = Instanz(knoten={"a": fremd})
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.related("a")
+    assert ergebnis["unresolved"], "der nicht angewandte Filter wird genannt"
+
+
+# --- PRF-2: das einzige unbegrenzte Fan-out bekommt einen Deckel ---------
+
+
+async def test_describe_many_hat_einen_deckel():
+    """Widgets (24), Registry-Koepfe (100) und Baumlaeufe (50) haben je eine
+    Obergrenze; describe_many hatte keine. Jeder Knoten kostet drei Anfragen,
+    also legt eine Liste von tausend ids dreitausend Koroutinen an, bevor
+    irgendetwas gebremst wird (Audit PRF-2)."""
+    instanz = Instanz()
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.describe_many(
+            [f"k-{i}" for i in range(DESCRIBE_MANY_MAX + 5)])
+    assert ergebnis["requested"] == DESCRIBE_MANY_MAX
+    assert ergebnis["truncated"] is True
+    assert len(ergebnis["nodes"]) + len(ergebnis["failed"]) == DESCRIBE_MANY_MAX
+
+
+async def test_describe_many_meldet_ohne_deckel_nichts_abgeschnittenes():
+    """Die Gegenprobe: unterhalb der Grenze bleibt truncated falsch."""
+    instanz = Instanz()
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.describe_many(["k-1", "k-2"])
+    assert ergebnis["truncated"] is False
+    assert ergebnis["requested"] == 2
+
+
+# --- PRF-3: die kalten Vokabularlaeufe liegen nebeneinander --------------
+
+
+async def test_zwei_felder_kosten_zwei_vokabularanfragen_nicht_vier():
+    """``resolve`` geht ueber den Cache: nur der erste Wert einer Eigenschaft
+    kostet eine Anfrage. Seriell waren die *kalten* Laeufe der Eigenschaften
+    aber hintereinander -- bei drei Feldern drei Umlaeufe nacheinander
+    (Audit PRF-3). Der Pin haelt fest, dass die Zahl der Anfragen an der Zahl
+    der Eigenschaften haengt, nicht an der Zahl der Werte."""
+    instanz = Instanz()
+    async with instanz.repo() as repo:
+        _aufgeloest, _offen = await resolve_vocabulary(
+            repo,
+            {"subject": ["Biologie"], "level": "Sekundarstufe I"},
+            every_value=True,
+        )
+    values_anfragen = [r for r in instanz.anfragen if "/values" in r.url.path]
+    assert len(values_anfragen) == 2, [str(r.url) for r in values_anfragen]
+
+
+# --- R08 (Zweitpruefung 09.09.2026): das eigene Original -------------------
+#
+# Ausgeschlossen wurde nur die uebergebene ID. Eine Sammlung haelt aber
+# **Referenzen**: geht man von einer aus, ist ihr Original ein anderer
+# Datensatz mit einer anderen ID -- und die Suche liefert ihn.
+#
+# Gemessen am 09.09.2026: Ausgangsknoten ``ref`` mit ``originalId=original``,
+# Suchtreffer ``original`` und ``other`` -- ``related("ref")`` gab beide
+# zurueck. Aus einer Sammlungsansicht heraus empfiehlt "Aehnliches" damit
+# dasselbe Material.
+#
+# ``describe()`` hatte die Original-ID daneben schon aufgeloest.
+
+
+def _referenz(nid: str, titel: str, original: str) -> dict:
+    knoten = _knoten(nid, titel)
+    knoten["originalId"] = original
+    return knoten
+
+
+async def test_das_eigene_original_faellt_heraus():
+    instanz = Instanz(
+        knoten={"ref": _referenz("ref", "Zellteilung", "original")},
+        treffer=[_knoten("original", "Zellteilung"), _knoten("b", "Photosynthese")])
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.related("ref")
+    assert [h["id"] for h in ergebnis["hits"]] == ["b"]
+
+
+async def test_eine_andere_referenz_desselben_originals_faellt_ebenso_heraus():
+    """Die Abnahme des Berichts: mit Original **und** mit Referenz muss
+    dieselbe Menge anderer Materialien herauskommen."""
+    instanz = Instanz(
+        knoten={"original": _knoten("original", "Zellteilung"),
+                "ref": _referenz("ref", "Zellteilung", "original")},
+        treffer=[_knoten("original", "Zellteilung"),
+                 _referenz("ref2", "Zellteilung", "original"),
+                 _knoten("b", "Photosynthese")])
+    async with instanz.repo() as repo:
+        vom_original = await repo.flows.related("original")
+        von_der_referenz = await repo.flows.related("ref")
+    assert [h["id"] for h in vom_original["hits"]] == ["b"]
+    assert [h["id"] for h in von_der_referenz["hits"]] == ["b"]
+
+
+async def test_treffer_ohne_original_bleiben_brauchbar():
+    """Die Gegenprobe. Ohne sie waere die Wache gruen, wenn jeder Treffer
+    herausfaellt -- die allermeisten Materialien sind Originale."""
+    instanz = Instanz()
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.related("a")
+    assert [h["id"] for h in ergebnis["hits"]] == ["b"]
+
+
+async def test_eine_vom_filter_geleerte_antwort_sagt_warum():
+    """Der Bericht misst es unter U2 (10.09.2026): bei ``limit=2`` holt
+    ``related`` drei Kandidaten. Sind das das Original und zwei Referenzen
+    darauf, raeumt der R08-Ausschluss die Liste zu Recht leer -- und der
+    Aufrufer bekam ``hits: []`` mit ``reason: ""``.
+
+    Das ist genau der Fall, den dieses Paket sonst nicht durchgehen laesst:
+    "Truncating in silence reads like completeness, and a caller cannot tell
+    an empty result from an unfinished one" (``flows/tree.py``). "Nichts
+    Aehnliches vorhanden" und "alles Gefundene war dieses Material selbst"
+    sind verschiedene Antworten, und ein Widget entscheidet danach.
+
+    **Nicht** Teil davon: nachladen, bis genug fremde Originale da sind. Das
+    ist die andere Haelfte von U2, und die ist Bau.
+    """
+    instanz = Instanz(
+        knoten={"original": _knoten("original", "Zellteilung")},
+        treffer=[_knoten("original", "Zellteilung"),
+                 _referenz("ref1", "Zellteilung", "original"),
+                 _referenz("ref2", "Zellteilung", "original")])
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.related("original", limit=2)
+    assert ergebnis["hits"] == []
+    assert ergebnis["reason"], "eine leere Antwort ohne Grund"
+    assert "reference" in ergebnis["reason"].lower()
+
+
+async def test_eine_gefuellte_antwort_bekommt_keinen_grund():
+    """Die Gegenprobe. Ein ``reason`` an einer vollen Liste erklaerte etwas,
+    das nicht passiert ist."""
+    instanz = Instanz(
+        knoten={"original": _knoten("original", "Zellteilung")},
+        treffer=[_knoten("original", "Zellteilung"),
+                 _knoten("b", "Photosynthese")])
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.related("original")
+    assert [h["id"] for h in ergebnis["hits"]] == ["b"]
+    assert ergebnis["reason"] == ""
+
+
+async def test_eine_suche_ohne_treffer_bekommt_keinen_filtergrund():
+    """Die zweite Gegenprobe: leer, weil nichts passte, ist ein anderer Grund
+    als leer, weil alles herausfiel. Der Filtergrund darf nicht behaupten,
+    etwas herausgefiltert zu haben."""
+    instanz = Instanz(
+        knoten={"original": _knoten("original", "Zellteilung")},
+        treffer=[])
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.related("original")
+    assert ergebnis["hits"] == []
+    assert ergebnis["reason"] == ""
+
+
+async def test_ein_limit_von_null_erfindet_keinen_filtergrund():
+    """Review-Befund vom 10.09.2026: ``hits`` wird erst gefiltert und **dann**
+    auf ``limit`` gekuerzt. Bei ``limit=0`` ist es leer, weil das Limit alles
+    abgeschnitten hat -- der Filter hat nichts genommen.
+
+    Gemessen: mit zwei voellig fremden Treffern und ``limit=0`` stand da "The
+    search answered with 1 record(s) and every one of them was this material
+    itself or a reference to it". Beide Haelften falsch -- die Zahl kommt von
+    ``limit + 1``, und gefiltert wurde nichts. Ein Grund, der sich irrt, ist
+    schlimmer als keiner: er beantwortet eine Frage, die der Aufrufer sonst
+    selbst gestellt haette.
+    """
+    instanz = Instanz(
+        knoten={"original": _knoten("original", "Zellteilung")},
+        treffer=[_knoten("b", "Photosynthese"), _knoten("c", "Atmung")])
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.related("original", limit=0)
+    assert ergebnis["hits"] == []
+    assert ergebnis["reason"] == "", (
+        "der Filter hat nichts genommen -- das Limit hat gekuerzt")
+
+
+async def test_ein_limit_von_null_verschweigt_einen_echten_filtergrund_nicht():
+    """Die Gegenprobe. Nahm der Filter wirklich alles, bleibt der Grund wahr
+    -- unabhaengig vom Limit. Ohne sie waere die Reparatur gruen, indem sie
+    den Grund bei kleinem Limit einfach nie mehr nennt."""
+    instanz = Instanz(
+        knoten={"original": _knoten("original", "Zellteilung")},
+        treffer=[_referenz("ref1", "Zellteilung", "original")])
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.related("original", limit=0)
+    assert ergebnis["hits"] == []
+    assert "reference" in ergebnis["reason"].lower()
+
+
+async def test_ein_treffer_traegt_seine_original_id():
+    """Ohne sie im serialisierten Treffer laesst sich die Identitaet eines
+    Materials von aussen gar nicht bestimmen."""
+    instanz = Instanz(
+        treffer=[_referenz("ref2", "Zellteilung", "original"),
+                 _knoten("b", "Photosynthese")])
+    async with instanz.repo() as repo:
+        ergebnis = await repo.flows.search("Zelle")
+    nach_id = {h["id"]: h for h in ergebnis["hits"]}
+    assert nach_id["ref2"]["original_id"] == "original"
+    assert nach_id["b"]["original_id"] is None

@@ -1,0 +1,162 @@
+"""Was der MCP der Suche mitgibt und die Bibliothek noch nicht kannte.
+
+``excludeNodeIds`` -- schon gezeigte Treffer ueberspringen -- und Facetten mit
+bis zu hundert Werten. Beides gab es auf API-Ebene (``facet_limit``) oder gar
+nicht; der Ablauf ``search`` nahm weder das eine noch das andere an.
+
+Ausschliessen heisst NACHLADEN: wer acht Treffer will und drei ausschliesst,
+bekommt sonst fuenf. Also wird um die Zahl der Ausschluesse mehr angefordert
+und danach gekuerzt -- gedeckelt, damit eine lange Ausschlussliste keine
+Riesenseite anfordert.
+"""
+
+import json
+
+import httpx
+import pytest
+
+from edusharing import AsyncRepository
+from edusharing.errors import ValidationError
+from edusharing.flows.rerank import search_reranked
+
+REPO = "https://repo.test/edu-sharing"
+
+
+def _knoten(node_id: str) -> dict:
+    return {"ref": {"id": node_id}, "title": f"Treffer {node_id}", "type": "ccm:io",
+            "properties": {"cclom:title": [f"Treffer {node_id}"],
+                           "ccm:wwwurl": [f"https://x/{node_id}"]}}
+
+
+class Instanz:
+    def __init__(self, ids: list[str], zusatz: dict | None = None) -> None:
+        self.ids = ids
+        self.zusatz = zusatz or {}     # Eigenschaften, die jeder Treffer traegt
+        self.koerper: list[dict] = []
+        self.params: list[dict] = []
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        if "/values" in request.url.path:
+            return httpx.Response(200, json={"values": []})
+        self.koerper.append(json.loads(request.content))
+        self.params.append(dict(request.url.params))
+        wieviele = int(request.url.params.get("maxItems", 10))
+        seite = [_knoten(i) for i in self.ids[:wieviele]]
+        for n in seite:
+            n["properties"].update(self.zusatz)
+        return httpx.Response(200, json={
+            "nodes": seite, "facets": [],
+            "pagination": {"total": len(self.ids), "from": 0, "count": len(seite)}})
+
+    def repo(self) -> AsyncRepository:
+        return AsyncRepository(
+            REPO, metadataset="mds_oeh", backoff_base=0.0,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(self.handler)))
+
+
+async def test_ausgeschlossene_treffer_fehlen_und_die_seite_bleibt_voll():
+    instanz = Instanz([f"n{i}" for i in range(20)])
+    async with instanz.repo() as repo:
+        got = await repo.flows.search("x", limit=5, exclude_ids=["n0", "n2"])
+    ids = [h["id"] for h in got["hits"]]
+    assert "n0" not in ids and "n2" not in ids
+    assert len(ids) == 5, ids
+    assert int(instanz.params[0]["maxItems"]) >= 7, "um die Ausschluesse mehr angefordert"
+    assert got["query"]["exclude_ids"] == ["n0", "n2"]
+
+
+async def test_ohne_ausschluss_aendert_sich_nichts():
+    instanz = Instanz([f"n{i}" for i in range(20)])
+    async with instanz.repo() as repo:
+        got = await repo.flows.search("x", limit=5)
+    assert len(got["hits"]) == 5
+    assert int(instanz.params[0]["maxItems"]) == 5
+    assert "exclude_ids" not in got["query"]
+
+
+async def test_facet_limit_wird_durchgereicht():
+    instanz = Instanz(["n1"])
+    async with instanz.repo() as repo:
+        await repo.flows.search("x", facets=["subject"], facet_limit=100)
+    facetten = instanz.koerper[0]["facets"]
+    assert facetten and facetten[0]["property"] == "ccm:taxonid"
+    assert instanz.koerper[0]["facetLimit"] == 100, "der Body-Schluessel, gemessen"
+
+
+async def test_das_eigene_limit_wird_nicht_gekappt():
+    """Die Kappung gilt dem Nachladen, nicht dem Limit: 250 verlangt sind 250
+    gefragt. Bis heute wurden es stumm 200."""
+    instanz = Instanz([f"n{i}" for i in range(300)])
+    async with instanz.repo() as repo:
+        got = await repo.flows.search("x", limit=250)
+    assert int(instanz.params[0]["maxItems"]) == 250 and len(got["hits"]) == 250
+    assert got["warnings"] == []
+
+
+async def test_eine_kurze_seite_nach_ausschluessen_wird_gesagt():
+    """Mehr Ausschluesse als die Kappung: die Seite kann kurz bleiben -- und
+    muss es sagen, statt wie "nichts mehr da" auszusehen."""
+    instanz = Instanz([f"n{i}" for i in range(500)])
+    async with instanz.repo() as repo:
+        got = await repo.flows.search(
+            "x", limit=10, exclude_ids=[f"n{i}" for i in range(300)])
+    assert int(instanz.params[0]["maxItems"]) == 210, "10 plus die gekappten 200"
+    assert got["hits"] == []
+    assert len(got["warnings"]) == 2 and "short" in got["warnings"][1], got["warnings"]
+
+
+async def test_unter_rerank_waechst_der_pool_mit_dem_nachladen():
+    instanz = Instanz([f"n{i}" for i in range(60)])
+    async with instanz.repo() as repo:
+        await repo.flows.search("Bruch rechnen", rerank=True, limit=30,
+                                exclude_ids=["n1", "n2", "n3"])
+    assert all(int(p["maxItems"]) >= 33 for p in instanz.params), instanz.params
+
+
+async def test_eine_einzelne_eigenschaft_wird_nicht_in_zeichen_zerlegt():
+    """Nicht jede Eigenschaft ist eine Liste: ein String zerfiel in Buchstaben,
+    eine Zahl warf."""
+    instanz = Instanz(["n1"], zusatz={"ccm:x": "einzeln", "ccm:n": 5})
+    async with instanz.repo() as repo:
+        got = await repo.flows.search("x", properties=["ccm:x", "ccm:n"])
+    assert got["hits"][0]["fields"]["ccm:x"] == ["einzeln"]
+    assert got["hits"][0]["fields"]["ccm:n"] == [5]
+
+
+# --- Paket 5: der Reranker reicht Kurznamen als Filter weiter, nicht als Parameter
+
+async def test_rerank_weist_einen_fremden_parameter_ab():
+    """``offset`` ist kein Kurzname. Bisher landete er als Parameter in
+    ``Search.search`` -- ein Verhalten, das niemand bestellt hatte."""
+    instanz = Instanz(["n1"])
+    async with instanz.repo() as repo:
+        with pytest.raises(ValidationError):
+            await search_reranked(repo, "x", offset=3)
+
+
+async def test_rerank_reicht_einen_kurznamen_als_filter_weiter():
+    instanz = Instanz(["n1", "n2"])
+    async with instanz.repo() as repo:
+        await repo.flows.search("Bruch rechnen", rerank=True, subject="http://x/080")
+    assert any(k["property"] == "ccm:taxonid" for k in instanz.koerper[0]["criteria"])
+
+
+async def test_unter_rerank_raet_die_warnung_zum_pool_nicht_zum_offset():
+    """rerank ignoriert offset -- eine Warnung, die ihn empfiehlt, nennt den
+    falschen Knopf."""
+    instanz = Instanz([f"n{i}" for i in range(500)])
+    async with instanz.repo() as repo:
+        got = await repo.flows.search("Bruch rechnen", rerank=True, limit=5,
+                                      exclude_ids=[f"n{i}" for i in range(300)])
+    kurz = [w for w in got["warnings"] if w.startswith("page short")]
+    assert kurz and "pool" in kurz[0] and "offset" not in kurz[0], got["warnings"]
+
+
+async def test_ein_skalarer_nullwert_bleibt_unter_fields_erhalten():
+    """``if values:`` verwarf ein gespeichertes 0 oder False -- ein Wert, keine Luecke."""
+    instanz = Instanz(["n1"], zusatz={"ccm:n": 0, "ccm:f": False, "ccm:leer": []})
+    async with instanz.repo() as repo:
+        got = await repo.flows.search("x", properties=["ccm:n", "ccm:f", "ccm:leer"])
+    fields = got["hits"][0]["fields"]
+    assert fields["ccm:n"] == [0] and fields["ccm:f"] == [False]
+    assert "ccm:leer" not in fields
