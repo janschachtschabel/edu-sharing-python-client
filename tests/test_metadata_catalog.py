@@ -9,6 +9,7 @@ import pytest
 
 from edusharing import AsyncRepository, Repository
 from edusharing.errors import ValidationError
+from edusharing.metadata import MAX_CACHED_LOCALES
 
 URL = "https://repo.example/edu-sharing"
 
@@ -136,3 +137,62 @@ def test_catalog_and_preload_are_synchronous_through_repository():
         assert len(repo.metadata.fields()) == 2
         assert repo.vocab.preload(["acme:subject"])["acme:subject"][0].label == "Space"
         assert repo.vocab.label("acme:subject", "urn:subject:one") == "Space"
+
+
+async def test_the_locale_cache_evicts_the_oldest_entry():
+    """`locale` is a free string from the caller.
+
+    A service that forwards a request's Accept-Language has as many keys as it
+    has visitors, and each entry holds a whole metadata set -- measured against
+    staging on 2026-09-20, 17.5 MiB for `mds_oeh`. Nothing evicted them
+    (audit PRF-20-2).
+    """
+    backend = Backend()
+    async with backend.repo() as repo:
+        for number in range(MAX_CACHED_LOCALES + 1):
+            await repo.metadata.load(locale=f"de_{number:02d}")
+        served = len(backend.calls)
+        await repo.metadata.load(locale=f"de_{MAX_CACHED_LOCALES:02d}")
+        assert len(backend.calls) == served, "the newest entry is still cached"
+        await repo.metadata.load(locale="de_00")
+        assert len(backend.calls) == served + 1, "the oldest one was evicted"
+
+
+async def test_a_recently_used_locale_survives_newer_ones():
+    """Least recently used, not first in: a burst of one-off languages must not
+    push out the one the service actually works in."""
+    backend = Backend()
+    async with backend.repo() as repo:
+        await repo.metadata.load(locale="de_DE")
+        for number in range(MAX_CACHED_LOCALES - 1):
+            await repo.metadata.load(locale=f"xx_{number:02d}")
+            await repo.metadata.load(locale="de_DE")
+        served = len(backend.calls)
+        await repo.metadata.load(locale="de_DE")
+        assert len(backend.calls) == served
+
+
+@pytest.mark.parametrize("locale", ["de DE", "de_DE\r\nX-Injected: 1", "x" * 40, "!"])
+async def test_an_unusable_locale_is_refused_before_the_request(locale):
+    """Shape, not existence -- which languages an instance serves is its own
+    business, but a value that cannot be one is a typo, and it would otherwise
+    become a cache key of its own or a header httpx has to reject (audit
+    API-20-1)."""
+    backend = Backend()
+    async with backend.repo() as repo:
+        with pytest.raises(ValidationError):
+            await repo.metadata.load(locale=locale)
+    assert backend.calls == []
+
+
+async def test_the_returned_definition_is_independent_deep_down():
+    """The isolation promise covers nested values, not just the top level --
+    the copy is what a call costs, so what it buys is pinned here."""
+    backend = Backend()
+    async with backend.repo() as repo:
+        first = await repo.metadata.load()
+        first["widgets"][0]["caption"] = "Changed"
+        first["widgets"][0].setdefault("values", []).append("new")
+        again = await repo.metadata.load()
+        assert again["widgets"][0]["caption"] == "Title"
+        assert "values" not in again["widgets"][0]
