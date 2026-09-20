@@ -20,6 +20,10 @@ from urllib.parse import quote, urlsplit
 
 from .errors import EduSharingError
 
+#: ``refuse_userinfo``, ``mask_userinfo`` and ``service_base_url`` are shared
+#: between modules but not part of the caller-facing surface -- they take this
+#: library's own wording as arguments. What stands here is documented in
+#: REFERENCE and watched by ``test_docs_complete``.
 __all__ = ["normalize_repository_url", "path_segment", "rest_base",
            "is_unroutable_host", "unsafe_url_reason",
            "unsafe_url_syntax"]
@@ -108,6 +112,19 @@ def normalize_repository_url(raw: str) -> str:
             "'/edu-sharing'."
         )
 
+    if "?" in url or "#" in url:
+        # The counter below reads "/edu-sharing(?=/|$)", and a "?" is no end of
+        # segment to it. Measured 2026-09-20: ".../edu-sharing?locale=de" came
+        # out as ".../edu-sharing?locale=de/edu-sharing" -- the doubling this
+        # function exists to refuse, produced by it. Every call then addressed
+        # something that can never answer, with nothing saying why, which is
+        # the failure this module opens with (audit COR-20-2).
+        raise EduSharingError(
+            f"The address {mask_userinfo(url)!r} carries a query or fragment. "
+            "The base is the repository itself -- everything after it, the "
+            "REST routes and the viewer URLs, is built from here."
+        )
+
     # Lookahead rather than a group, so "/edu-sharing/edu-sharing" counts twice.
     count = len(re.findall(r"/edu-sharing(?=/|$)", url, flags=re.IGNORECASE))
     if count > 1:
@@ -123,6 +140,51 @@ def normalize_repository_url(raw: str) -> str:
 def rest_base(repository_url: str) -> str:
     """The REST root for a normalised repository URL."""
     return f"{repository_url}/rest"
+
+
+def service_base_url(value: str, *, service: str, instead: str, example: str) -> str:
+    """Scheme and host, nothing else -- the base address of a sibling service.
+
+    Everything beside the repository is addressed as ``<base><route>``, so the
+    base is the one part this library does not build. A value that cannot serve
+    as one is refused rather than warned about: a typo there sends material
+    URLs, or an API key, to a host nobody chose.
+
+    ``TextExtraction`` and ``MetadataAgent`` each carried a copy of this, and
+    the two b-api clients carried none -- although they are the two that put a
+    key on every request. Measured 2026-09-20:
+    ``BildungsAPI(key, base_url="ftp://gw.example.test")`` was accepted and the
+    request built with the ``X-API-KEY`` header;
+    ``"https://gw.example.test/?x=1"`` turned the route into part of a query
+    string; a bare host ended in a standard-library ``ValueError`` after the
+    full retry budget (audit SEC-20-1, ARC-20-1).
+
+    Args:
+        service: how a message names it, e.g. ``"the extraction service"``.
+        instead: where credentials belong, for the ``user:password@`` refusal.
+        example: a usable address, to show what was expected.
+
+    Returns:
+        ``<scheme>://<host>[<path>]``, without a trailing slash.
+
+    Raises:
+        EduSharingError: for credentials in the address, a missing or foreign
+            scheme, a missing host, or a query or fragment.
+    """
+    cleaned = (value or "").strip()
+    refuse_userinfo(cleaned, instead=instead)
+    parts = urlsplit(cleaned)
+    if parts.scheme not in ("http", "https") or not parts.netloc:
+        raise EduSharingError(
+            f"{value!r} is not a usable base address for {service} -- it needs "
+            f"a scheme and a host, e.g. {example}"
+        )
+    if parts.query or parts.fragment:
+        raise EduSharingError(
+            f"{value!r} carries a query or fragment. The base address is "
+            f"{service} itself; the route is appended to it."
+        )
+    return f"{parts.scheme}://{parts.netloc}{parts.path.rstrip('/')}"
 
 
 def _is_address_shaped(host: str) -> bool:

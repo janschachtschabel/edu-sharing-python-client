@@ -257,3 +257,20 @@ def test_punkte_im_bezeichner_bleiben_erlaubt(harmlos):
     weg. Ein Punkt *im* Bezeichner tut es nicht, und ihn abzulehnen waere eine
     Regel gegen gueltige IDs."""
     assert path_segment(harmlos) == harmlos
+
+
+@pytest.mark.parametrize("eingabe", [
+    f"{HOST}/?locale=de",
+    f"{HOST}#anker",
+    f"{FULL}?locale=de",
+    f"{HOST}/rest?x=1",
+])
+def test_query_und_fragment_werden_abgewiesen(eingabe):
+    """Gemessen (Audit COR-20-2): ``.../edu-sharing?x=1`` wurde zu
+    ``.../edu-sharing?x=1/edu-sharing`` -- genau die Verdopplung, die diese
+    Funktion sonst verweigert. Der Zaehler liest ``(?=/|$)``, und ein ``?``
+    ist fuer ihn kein Segmentende. Alles danach geht an eine Adresse, die nie
+    antworten kann, und nichts sagte warum.
+    """
+    with pytest.raises(EduSharingError):
+        normalize_repository_url(eingabe)

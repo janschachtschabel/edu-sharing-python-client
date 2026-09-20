@@ -745,3 +745,18 @@ def test_der_template_modus_braucht_keinen_proxy(modul):
     Module des Template-Modus."""
     import importlib
     assert "BildungsAPI" not in vars(importlib.import_module(f"edusharing.bapi.{modul}"))
+
+
+@pytest.mark.parametrize("wert", [
+    "gateway.example.test",                  # ohne Schema
+    "ftp://gateway.example.test",
+    "https://gateway.example.test/?x=1",
+    "   ",
+])
+def test_eine_unbrauchbare_gateway_adresse_wird_abgelehnt(wert):
+    """Dieselbe Pruefung wie bei ``BildungsAPI`` -- beide tragen den Schluessel
+    an jeder Anfrage, und beide nahmen bis dahin jede Zeichenkette an
+    (Audit SEC-20-1)."""
+    from edusharing.errors import EduSharingError
+    with pytest.raises(EduSharingError):
+        BapiTemplates("k", base_url=wert, metadataset="mds_oeh")

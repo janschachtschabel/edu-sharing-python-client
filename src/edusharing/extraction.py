@@ -67,7 +67,7 @@ from .retry import RETRYABLE_STATUS, RetryPolicy, parse_retry_after
 from .urls import (
     is_unroutable_host,
     normalize_repository_url,
-    refuse_userinfo,
+    service_base_url,
     unsafe_url_syntax,
 )
 
@@ -413,24 +413,13 @@ class TextExtraction:
 
 def _check_base(value: str) -> str:
     """Scheme and host, nothing else. Refused rather than warned about."""
-    refuse_userinfo(
-        (value or "").strip(),
+    return service_base_url(
+        value,
+        service="the extraction service",
         instead="This client sends no credentials to the extraction service; "
         "remove them from the address.",
+        example="https://text-extraction.example.org",
     )
-    parts = urlsplit((value or "").strip())
-    if parts.scheme not in ("http", "https") or not parts.netloc:
-        raise EduSharingError(
-            f"{value!r} is not a usable base address for the extraction "
-            "service -- it needs a scheme and a host, e.g. "
-            "https://text-extraction.example.org"
-        )
-    if parts.query or parts.fragment:
-        raise EduSharingError(
-            f"{value!r} carries a query or fragment. The base address is the "
-            "service itself; the route is appended to it."
-        )
-    return f"{parts.scheme}://{parts.netloc}{parts.path.rstrip('/')}"
 
 
 def _as_int(value: Any) -> int:

@@ -38,7 +38,6 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from typing import Any, Self
-from urllib.parse import urlsplit
 
 import httpx
 
@@ -50,7 +49,7 @@ from .errors import (
     non_json_error,
     redirect_error,
 )
-from .urls import path_segment, refuse_userinfo
+from .urls import path_segment, service_base_url
 
 __all__ = ["ContentType", "MetadataAgent", "SchemaInfo"]
 
@@ -336,17 +335,11 @@ def _schema_info(value: Any) -> SchemaInfo:
 
 
 def _check_base(value: str) -> str:
-    """Scheme and host, nothing else -- as ``TextExtraction`` demands."""
-    refuse_userinfo(
-        (value or "").strip(),
+    """Scheme and host, nothing else -- the rule all five clients now share."""
+    return service_base_url(
+        value,
+        service="the metadata agent",
         instead="This client sends no credentials to the metadata agent; "
         "remove them from the address.",
+        example="https://metadata-agent.example.org",
     )
-    parts = urlsplit((value or "").strip())
-    if parts.scheme not in ("http", "https") or not parts.netloc:
-        raise EduSharingError(
-            f"{value!r} is not a usable address for the metadata agent -- it "
-            "needs a scheme and a host, e.g. "
-            "https://metadata-agent.example.org"
-        )
-    return f"{parts.scheme}://{parts.netloc}{parts.path.rstrip('/')}"

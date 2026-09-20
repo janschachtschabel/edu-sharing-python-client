@@ -53,7 +53,7 @@ from ..errors import (
 )
 from ..retry import RETRYABLE_STATUS, RetryPolicy, parse_retry_after
 from ..transport import _BEFORE_SENDING
-from ..urls import path_segment, refuse_userinfo
+from ..urls import path_segment, service_base_url
 from . import passthrough
 from ._response import _items
 from .body import UNSET, ReasoningParam, build_body, read_answer
@@ -173,12 +173,16 @@ class BildungsAPI:
         at_least("models_cache_seconds", models_cache_seconds, 0)
         whole_number("retries_before_switching", retries_before_switching, 0)
         self._api_key = api_key
-        refuse_userinfo(
+        # The same check the three sibling clients run. It was missing here and
+        # in ``templates`` -- the two that carry the key on every request
+        # (audit SEC-20-1).
+        self.base_url = service_base_url(
             base_url,
+            service="the b-api",
             instead=f"The b-api takes a key -- BildungsAPI(api_key=...) or {ENV_KEY} "
             "-- not a user.",
+            example="https://gateway.example.org",
         )
-        self.base_url = base_url.rstrip("/")
         self.provider = provider
         self.max_retries = self._retry.max_retries
         self.backoff_base = self._retry.backoff_base

@@ -51,7 +51,7 @@ from ..repository import ENV_METADATASET
 from ..retry import RetryPolicy, parse_retry_after
 from ..suggestions import Suggestion
 from ..transport import _BEFORE_SENDING
-from ..urls import refuse_userinfo
+from ..urls import service_base_url
 from ._response import _object
 from .body import read_answer
 from .client import (
@@ -138,12 +138,15 @@ class BapiTemplates:
             timeout = DEFAULT_TIMEOUT
         at_least("timeout", timeout, 0.001)
         whole_number("max_concurrency", max_concurrency, 1)
-        refuse_userinfo(
-            base_url,
-            instead=f"The b-api takes a key -- BapiTemplates(api_key=...) or "
-                    f"{ENV_KEY} -- not a user.")
         self._api_key = api_key
-        self.base_url = base_url.rstrip("/")
+        # See ``client.BildungsAPI``: both carry the key on every request, and
+        # neither checked its address until 2026-09-20 (audit SEC-20-1).
+        self.base_url = service_base_url(
+            base_url,
+            service="the b-api",
+            instead=f"The b-api takes a key -- BapiTemplates(api_key=...) or "
+                    f"{ENV_KEY} -- not a user.",
+            example="https://gateway.example.org")
         self.metadataset = metadataset
         # Budget and waiting from the policy all clients share; it checks its
         # own bounds.

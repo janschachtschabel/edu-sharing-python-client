@@ -951,3 +951,20 @@ async def test_der_modellspeicher_gehoert_nicht_dem_aufrufer():
     zweite = await llm.models()
     assert [m.id for m in zweite] == ["glm-4.7", "qwen3.6-35b-a3b", "embed-x"]
     assert len(aufrufe) == 1, "der zweite Aufruf kam aus dem Zwischenspeicher"
+
+
+@pytest.mark.parametrize("wert", [
+    "gateway.example.test",                  # ohne Schema
+    "ftp://gateway.example.test",
+    "https://gateway.example.test/?x=1",
+    "   ",
+])
+def test_eine_unbrauchbare_gateway_adresse_wird_abgelehnt(wert):
+    """Gemessen (Audit SEC-20-1): ``ftp://...`` wurde angenommen und die
+    Anfrage mitsamt ``X-API-KEY`` gebaut, ``.../?x=1`` schob die Route in den
+    Query, und ein blanker Host endete nach dem vollen Wiederholungsbudget in
+    einem ``ValueError`` aus der Standardbibliothek. Die drei
+    Geschwisterclients weisen genau das seit jeher ab.
+    """
+    with pytest.raises(EduSharingError):
+        BildungsAPI("schluessel", base_url=wert)
