@@ -104,6 +104,32 @@ jobs:
           fi
           exit "$rc"
 
+  coverage:
+    # Die Suite laeuft in `test` auf fuenf Beinen; dieser Job laeuft sie ein
+    # weiteres Mal, um sie zu messen. Sie wurde bis heute nur lokal gemessen,
+    # also nur, wenn jemand daran dachte -- und Anweisungsabdeckung allein las
+    # 98 %, waehrend ganze zugesagte Fehlerpfade nie liefen: eine Zeile wird
+    # erreicht, der Zweig, der sie ueberspringt, nicht (Audit TST-20-2).
+    # `branch = true` steht in pyproject.toml, damit ein lokaler Lauf dasselbe
+    # misst.
+    #
+    # 97 gegen 97,84 gemessen am 20.09.2026: eine Untergrenze, die ein Absacken
+    # faengt, keine Ratsche, die an Rundung scheitert. Sie steht hier und nicht
+    # in pyproject.toml, weil ein Teillauf naturgemaess darunter liegt.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.13"
+      - name: Install uv
+        run: pip install uv==0.12.10
+      - name: Install dependencies
+        run: uv sync --group dev --locked --python 3.13
+      - name: Measure
+        run: uv run pytest -q --cov --cov-report=term-missing:skip-covered --cov-fail-under=97
+
   # --- 5.4 der Fremdpruefung vom 09.09.2026 ---------------------------------
   #
   # Die Suite prueft den Quelltext. Sie prueft nicht, ob daraus ein Paket

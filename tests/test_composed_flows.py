@@ -9,18 +9,25 @@ from test_metadata_profile import URL, profile
 from test_permissions import _ace, _antwort
 
 from edusharing import AsyncRepository
-from edusharing.errors import ValidationError
+from edusharing.errors import EduSharingError, ValidationError
+from edusharing.extraction import TextExtraction
 
 
 class Backend:
-    def __init__(self, *, placement_status=200, duplicate=False):
+    def __init__(self, *, placement_status=200, duplicate=False, failing=()):
         self.calls = []
         self.placement_status = placement_status
         self.duplicate = duplicate
+        #: Path fragments this repository answers with a server fault, so the
+        #: documented partial answers can be reached from a test at all.
+        self.failing = tuple(failing)
 
     def handler(self, request):
         self.calls.append(request)
         path = request.url.path
+        if any(fragment in path for fragment in self.failing):
+            return httpx.Response(500, json={"error": "java.lang.Exception",
+                                             "message": "Backend unavailable"})
         if "/references/" in path:
             if request.method == "DELETE":
                 return httpx.Response(200, json={})
@@ -53,6 +60,25 @@ class Backend:
         return AsyncRepository(URL, metadata_profile=replace(profile(),
             compendium_property="acme:context"), max_retries=0,
             client=httpx.AsyncClient(transport=httpx.MockTransport(self.handler)))
+
+
+def _page(text):
+    """An extraction service that answers with this text."""
+    return lambda request: httpx.Response(200, json={
+        "text": text, "lang": "en", "status": 200, "version": "test"})
+
+
+def _broken():
+    return lambda request: httpx.Response(503, json={"detail": "down for maintenance"})
+
+
+def _extraction(handler):
+    """A TextExtraction over a mocked service, resolving to a public address."""
+    return TextExtraction(
+        "https://text-extraction.example.test",
+        resolve=lambda host: ["93.184.216.34"],
+        max_retries=0,
+        client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
 
 
 async def test_place_uses_original_and_returns_writer_reference_without_index_read():
@@ -287,3 +313,105 @@ async def test_duplicate_check_cannot_prove_absence_without_readable_urls(missin
         result = await repo.flows.prepare_material("https://source.example/item", title="Space")
     assert result["duplicate"]["status"] == "unknown"
     assert not result["ready_to_create"]
+
+
+# --- The documented partial answers ----------------------------------------
+#
+# `collection_context` promises "a failed contents/registry read is None plus a
+# named `failed` entry", and `prepare_material` promises a `warnings` entry for
+# a failed extraction. Neither line ever ran in a test: the documentation
+# guards check that a name exists and binds, not that the behaviour behind it
+# happens (audit TST-20-1).
+
+async def test_context_degrades_to_a_named_failure_instead_of_raising():
+    backend = Backend(failing=("/children",))
+    async with backend.repo() as repo:
+        result = await repo.flows.collection_context("collection", limit=2)
+    assert result["collection"]["title"] == "Own collection", "the description still arrived"
+    assert result["contents"] is None and result["stats"] is None
+    assert [entry["part"] for entry in result["failed"]] == ["contents"]
+    assert "Backend unavailable" in result["failed"][0]["reason"]
+    json.dumps(result)
+
+
+async def test_context_names_the_registry_apart_from_the_contents():
+    backend = Backend(failing=("/children",))
+    async with backend.repo() as repo:
+        result = await repo.flows.collection_context(
+            "collection", limit=2, include_registry=True)
+    assert result["registry"] is None
+    assert {entry["part"] for entry in result["failed"]} == {"contents", "registry"}
+
+
+async def test_a_missing_collection_still_raises():
+    """Degrading covers the parts beside the collection. Without the collection
+    there is nothing to describe, and a caller must not read an empty context
+    as an empty collection."""
+    backend = Backend(failing=("/metadata",))
+    async with backend.repo() as repo:
+        with pytest.raises(EduSharingError):
+            await repo.flows.collection_context("collection")
+
+
+@pytest.mark.parametrize("limit", [0, -1, True, 2.5])
+async def test_context_refuses_a_limit_that_is_not_a_count(limit):
+    backend = Backend()
+    async with backend.repo() as repo:
+        with pytest.raises(ValidationError):
+            await repo.flows.collection_context("collection", limit=limit)
+    assert backend.calls == [], "refused before the first request"
+
+
+@pytest.mark.parametrize("url", ["", "   "])
+async def test_prepare_refuses_an_empty_url(url):
+    backend = Backend()
+    async with backend.repo() as repo:
+        with pytest.raises(ValidationError):
+            await repo.flows.prepare_material(url, title="Space")
+    assert backend.calls == []
+
+
+@pytest.mark.parametrize("max_chars", [0, -5, True, 1.5])
+async def test_prepare_refuses_a_text_budget_that_keeps_nothing(max_chars):
+    backend = Backend()
+    async with backend.repo() as repo:
+        with pytest.raises(ValidationError):
+            await repo.flows.prepare_material(
+                "https://source.example/item", title="Space", max_chars=max_chars)
+    assert backend.calls == []
+
+
+async def test_prepare_refuses_one_property_given_twice():
+    """Once as a raw property and once as a label -- which of the two wins
+    would otherwise depend on the order the draft is built in."""
+    backend = Backend()
+    async with backend.repo() as repo:
+        with pytest.raises(ValidationError):
+            await repo.flows.prepare_material(
+                "https://source.example/item", title="Space",
+                properties={"acme:subject": ["urn:one"]}, labels={"subject": "urn:one"})
+
+
+async def test_prepare_carries_the_extracted_text_of_the_linked_page():
+    """The `extraction=` branch: a public parameter of a documented flow that
+    no test had ever executed."""
+    backend = Backend()
+    async with backend.repo() as repo, _extraction(_page("Photosynthesis in one page.")) as text:
+        result = await repo.flows.prepare_material(
+            "https://source.example/item", title="Space", extraction=text, max_chars=50)
+    assert result["extraction"]["text"] == "Photosynthesis in one page."
+    assert result["extraction"]["reason"] == ""
+    assert result["warnings"] == []
+    json.dumps(result)
+
+
+async def test_prepare_keeps_the_draft_when_the_extraction_service_fails():
+    """A second service being down is a warning, not the end of the draft."""
+    backend = Backend()
+    async with backend.repo() as repo, _extraction(_broken()) as text:
+        result = await repo.flows.prepare_material(
+            "https://source.example/item", title="Space", extraction=text)
+    assert result["extraction"] is None
+    assert result["warnings"] and result["warnings"][0].startswith("extraction failed:")
+    assert result["draft"]["properties"]["acme:title"] == ["Space"]
+    assert result["ready_to_create"], "the draft itself is unaffected"

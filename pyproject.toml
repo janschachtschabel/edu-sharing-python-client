@@ -143,6 +143,9 @@ ignore_missing_imports = true
 
 [tool.coverage.run]
 source = ["src/edusharing"]
+# Statements alone said 98 % while whole documented failure paths had never
+# run: a line is reached, the branch that skips it is not (audit TST-20-2).
+branch = true
 # The generated layer is never hand-written and never hand-tested; including it
 # would drown the real figure (54,570 statements against roughly 1,200).
 omit = ["*/_generated/*"]
