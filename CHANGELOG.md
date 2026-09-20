@@ -28,11 +28,55 @@ and in [`docs/audits/`](docs/audits/).
 - Executable webpage-to-text/Markdown-file example, with offline HTTP-boundary
   tests for both output modes and the existing extraction/flow integration.
 
+### Changed
+
+- `BildungsAPI` and `BapiTemplates` check their `base_url` the way the three
+  sibling clients always did: scheme and host required, query and fragment
+  refused. An address that cannot be one is now an `EduSharingError` at
+  construction instead of a standard-library `ValueError` after the full retry
+  budget — measured, `base_url="ftp://…"` was accepted and the request built
+  with the `X-API-KEY` header.
+- `normalize_repository_url` refuses a query or fragment. It read them as part
+  of the path, so `…/edu-sharing?locale=de` became
+  `…/edu-sharing?locale=de/edu-sharing` — the doubled segment the same function
+  refuses two lines later.
+- `repo.metadata.load()` checks that `locale` is a language tag before it
+  becomes a request header, and keeps at most four languages, least recently
+  used first out. One entry is a whole metadata set: 17.5 MiB for `mds_oeh`,
+  measured against staging, and nothing evicted them before.
+- `BildungsAPI.models()` returns its own list. It handed out the cached one, so
+  a caller's `clear()` or `sort()` changed what every later model choice picked
+  from — under `CACHE_FOREVER` for good.
+
+### Fixed
+
+- A non-numeric `status` from the text-extraction service raised `ValueError`
+  instead of staying inside the error contract, which took an agent tool call
+  down rather than answering it: `as_result` re-raises anything that is not an
+  `EduSharingError`, on purpose.
+- The invariant in `_Inflater._inflate` was an `assert` and vanished under
+  `python -O`, leaving an `AttributeError` on `None`; it is a `DecodingError`
+  now.
+
 ### Documentation
 
 - Complete the bilingual 0.3.0 documentation: explain upgrades from the older
   tag, align architecture guidance with explicit metadata profiles and locales,
   record the successful merge/CI, and correct the pending release procedure.
+- One home: install commands, the security reporting path and the package
+  metadata all name `openeduhub/edu-sharing-python-client`, and the install
+  section no longer prints a tag that does not exist there. `CONTRIBUTING.md`
+  states the gate, the conventions and the language rule; the author is named.
+- English throughout `src/`: 231 identifiers and 18 comment blocks, with every
+  measurement in them carried over unchanged.
+
+### Internal
+
+- Coverage counts branches and runs in CI against a floor of 97 %; the
+  documented failure paths of `collection_context` and `prepare_material` are
+  tested, including the `extraction=` branch no test had ever executed.
+- Dependabot proposes updates for the actions and the `uv` lock, and CodeQL
+  scans the hand-written layer.
 
 ## [0.3.0] — 2026-09-14 (Git version; release tag pending)
 
