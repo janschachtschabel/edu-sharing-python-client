@@ -8,6 +8,11 @@ Not on PyPI. `0.0.1` is the first tagged version: everything below was built
 before it, and the number exists so that what comes next has something to be
 compared against. The leading zeros are honest — the surface may still move.
 
+The library is published at [`openeduhub/edu-sharing-python-client`](https://github.com/openeduhub/edu-sharing-python-client);
+install and report there. The comparison links at the foot of this file point
+at [`janschachtschabel/edu-sharing-python-client`](https://github.com/janschachtschabel/edu-sharing-python-client), which carries the
+same `main` and the tags these versions are named after.
+
 Every entry that names a number was measured. Where a change came from a
 measurement against a live instance, the date and the instance are in the code
 and in [`docs/audits/`](docs/audits/).

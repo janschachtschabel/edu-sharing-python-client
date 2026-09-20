@@ -27,7 +27,7 @@ Konto ausführen darf.
 ## 1. Installieren und verbinden
 
 ```bash
-uv pip install git+https://github.com/janschachtschabel/edu-sharing-python-client
+uv pip install git+https://github.com/openeduhub/edu-sharing-python-client
 ```
 
 Python 3.11 oder neuer; `pip install git+…` geht genauso. Nichts hat eine

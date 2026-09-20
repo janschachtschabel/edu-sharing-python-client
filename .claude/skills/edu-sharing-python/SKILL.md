@@ -19,7 +19,7 @@ group-writing calls (`create_group`, `delete_group`, `add_member`,
 ## 1. Install and connect
 
 ```bash
-uv pip install git+https://github.com/janschachtschabel/edu-sharing-python-client
+uv pip install git+https://github.com/openeduhub/edu-sharing-python-client
 ```
 
 Python 3.11 or newer; `pip install git+…` works the same. Nothing has a

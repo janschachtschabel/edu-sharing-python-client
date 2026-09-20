@@ -36,7 +36,9 @@ These additions are tested offline with API mocks; additional live installations
 were not modified or assumed verified for this version.
 
 Version 0.3.0 is implemented and merged into `main`; its release tag awaits the live
-acceptance required by the release procedure below. The existing tag remains `v0.2.0`.
+acceptance required by the release procedure below, so `main` is what to install.
+The older tags `v0.1.0` and `v0.2.0` are in the development repository named under
+*Author*.
 
 
 ## Installing
@@ -379,23 +381,14 @@ uv pip install --upgrade "git+https://github.com/openeduhub/edu-sharing-python-c
 
 ### Installing a specific version
 
-To install the existing `v0.2.0` release instead of the current `main` branch, use the Git tag.
+There is no tagged release here yet, so `@main` above is the version to
+install. The tags `v0.1.0` and `v0.2.0` exist in the development repository
+named under [*Author*](#author), which carries the same `main` and the full
+history; the release procedure at the end of this file says when a tag appears
+here.
 
-With pip:
-
-```bash
-python -m pip install "git+https://github.com/openeduhub/edu-sharing-python-client@v0.2.0"
-```
-
-With uv:
-
-```bash
-uv pip install "git+https://github.com/openeduhub/edu-sharing-python-client@v0.2.0"
-```
-
-`v0.2.0` is an older release and does not include the newer metadata profiles and composed flows currently available on `main`.
-
-> **Not `@v0.1.0`.** It predates three review rounds. `v0.2.0` is the first tag that carries their fixes.
+> **Not `@v0.1.0`, wherever you take it from.** It predates three review
+> rounds, and it does not have the metadata profiles or the composed flows.
 
 ### Development installation from a local checkout
 
@@ -610,6 +603,7 @@ why; the reference is the lookup table.
 - [Tests](#tests)
 - [Releasing](#releasing)
 - [Security](#security)
+- [Author](#author)
 - [Licence](#licence)
 
 
@@ -1757,6 +1751,15 @@ There is no PyPI publication yet; installation is from the repository.
 Found a way to make this library leak a credential or fetch something nobody
 asked for? [`SECURITY.md`](SECURITY.md) says where to send it — privately
 first, please.
+
+## Author
+
+**Jan Schachtschabel.** Developed at
+[`janschachtschabel/edu-sharing-python-client`](https://github.com/janschachtschabel/edu-sharing-python-client) and published here at
+[`openeduhub/edu-sharing-python-client`](https://github.com/openeduhub/edu-sharing-python-client); both carry the same `main`,
+and the older tags are in the development repository. Install from this one,
+and report here — issues as well as the private advisories in
+[`SECURITY.md`](SECURITY.md).
 
 ## Licence
 

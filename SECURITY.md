@@ -24,7 +24,7 @@ Please include, in the advisory:
 You will get an acknowledgement within a week. There is no bounty; this is a
 small project.
 
-[advisory]: https://github.com/janschachtschabel/edu-sharing-python-client/security/advisories/new
+[advisory]: https://github.com/openeduhub/edu-sharing-python-client/security/advisories/new
 
 ## What counts
 
@@ -48,10 +48,15 @@ library.
 
 ## Versions
 
-The latest release is the one that gets fixes. This is pre-1.0 software: there
-is no long-term support branch and no backporting.
+`main` is the one that gets fixes, and there is no tagged release beside it
+yet. This is pre-1.0 software: no long-term support branch, no backporting.
 
 | Version | Supported |
 |---|---|
-| 0.1.x | ✅ |
-| 0.0.x | ❌ |
+| `main` (0.3.0) | ✅ |
+| 0.2.x and older | ❌ |
+
+The development repository
+[`janschachtschabel/edu-sharing-python-client`](https://github.com/janschachtschabel/edu-sharing-python-client)
+carries the same `main` and the older tags. A report about either belongs in
+the advisory above.

@@ -5,6 +5,7 @@ description = "Python client for edu-sharing repositories and the b-api -- repos
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
+authors = [{ name = "Jan Schachtschabel" }]
 keywords = ["edu-sharing", "openeduhub", "wirlernenonline", "oer", "metadata", "mcp"]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
@@ -25,9 +26,11 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/janschachtschabel/edu-sharing-python-client"
-Issues = "https://github.com/janschachtschabel/edu-sharing-python-client/issues"
-Changelog = "https://github.com/janschachtschabel/edu-sharing-python-client/blob/main/CHANGELOG.md"
+# The published home. The development repository carries the same `main` and
+# the older tags; what a user installs, reads and reports to is this one.
+Repository = "https://github.com/openeduhub/edu-sharing-python-client"
+Issues = "https://github.com/openeduhub/edu-sharing-python-client/issues"
+Changelog = "https://github.com/openeduhub/edu-sharing-python-client/blob/main/CHANGELOG.md"
 
 [build-system]
 requires = ["hatchling"]

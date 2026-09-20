@@ -41,7 +41,9 @@ Die Ergänzungen sind offline mit API-Mocks geprüft; zusätzliche Live-Instanze
 wurden für diese Version nicht verändert oder als verifiziert angenommen.
 
 Version 0.3.0 ist umgesetzt und in `main` gemergt; der Release-Tag folgt erst nach der
-Live-Abnahme aus dem Release-Ablauf unten. Der bisherige stabile Tag bleibt `v0.2.0`.
+Live-Abnahme aus dem Release-Ablauf unten, zu installieren ist also `main`.
+Die älteren Tags `v0.1.0` und `v0.2.0` liegen im Entwicklungsrepositorium,
+das unter *Autor* steht.
 
 
 ## Installieren
@@ -384,23 +386,14 @@ uv pip install --upgrade "git+https://github.com/openeduhub/edu-sharing-python-c
 
 ### Eine bestimmte Version installieren
 
-Wer nicht den aktuellen Stand von `main`, sondern die veröffentlichte Version `v0.2.0` verwenden möchte, kann den Git-Tag angeben.
+Hier ist noch keine Version getaggt, zu installieren ist also `@main` wie oben.
+Die Tags `v0.1.0` und `v0.2.0` liegen im Entwicklungsrepositorium unter
+[*Autor*](#autor), das denselben `main` und die ganze Geschichte trägt; wann
+hier ein Tag erscheint, sagt der Release-Ablauf am Ende dieser Datei.
 
-Mit pip:
-
-```bash
-python -m pip install "git+https://github.com/openeduhub/edu-sharing-python-client@v0.2.0"
-```
-
-Mit uv:
-
-```bash
-uv pip install "git+https://github.com/openeduhub/edu-sharing-python-client@v0.2.0"
-```
-
-`v0.2.0` ist eine ältere Veröffentlichung und enthält nicht die neueren Metadatenprofile und zusammengesetzten Flows aus dem aktuellen `main`.
-
-> **Nicht `@v0.1.0`.** Dieser Tag stammt aus der Zeit vor mehreren Prüfrunden. `v0.2.0` ist der erste Tag, der deren Korrekturen enthält.
+> **Nicht `@v0.1.0`, woher auch immer.** Dieser Tag stammt aus der Zeit vor
+> mehreren Prüfrunden und kennt weder die Metadatenprofile noch die
+> zusammengesetzten Flows.
 
 ### Entwicklungsinstallation aus einer lokalen Arbeitskopie
 
@@ -611,6 +604,7 @@ Metadatensatzes und nicht der Eigenschaft selbst.
 - [Tests](#tests)
 - [Veröffentlichen](#veröffentlichen)
 - [Sicherheit](#sicherheit)
+- [Autor](#autor)
 - [Lizenz](#lizenz)
 
 
@@ -1793,6 +1787,15 @@ Repositorium.
 Einen Weg gefunden, wie diese Bibliothek Zugangsdaten preisgibt oder etwas
 holt, das niemand verlangt hat? [`SECURITY.md`](SECURITY.md) sagt, wohin
 damit — bitte erst einmal nicht öffentlich.
+
+## Autor
+
+**Jan Schachtschabel.** Entwickelt unter
+[`janschachtschabel/edu-sharing-python-client`](https://github.com/janschachtschabel/edu-sharing-python-client), veröffentlicht hier
+unter [`openeduhub/edu-sharing-python-client`](https://github.com/openeduhub/edu-sharing-python-client); beide tragen denselben
+`main`, die älteren Tags liegen im Entwicklungsrepositorium. Installiert wird
+von hier, gemeldet wird hier — Issues ebenso wie die nichtöffentlichen
+Hinweise aus [`SECURITY.md`](SECURITY.md).
 
 ## Lizenz
 
