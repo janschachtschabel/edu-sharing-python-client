@@ -41,55 +41,496 @@ acceptance required by the release procedure below. The existing tag remains `v0
 
 ## Installing
 
-Python 3.11 or newer. Not on PyPI yet, so install from git:
+The client requires **Python 3.11 or newer**.
+
+The package is currently **not published on PyPI**. Install it directly from the Git repository.
+
+There are two supported installation paths:
+
+- **pip** — included with a normal Python installation and usually the simplest option for getting started.
+- **uv** — a fast Python package and project manager, especially useful for development and reproducible environments.
+
+For normal applications, using a **virtual Python environment (`venv`)** is recommended. This keeps the edu-sharing Python client and its dependencies isolated from other Python projects.
+
+### Requirements
+
+You need:
+
+- Python 3.11 or newer
+- Git
+- pip or uv
+
+Check the installed Python version:
 
 ```bash
-uv pip install git+https://github.com/janschachtschabel/edu-sharing-python-client
+python --version
 ```
 
-To update an existing installation to the current `main`:
+Example:
+
+```text
+Python 3.12.10
+```
+
+On Windows, you can alternatively use the Python Launcher:
+
+```powershell
+py --version
+```
+
+Check Git:
 
 ```bash
-uv pip install --upgrade "git+https://github.com/janschachtschabel/edu-sharing-python-client@main"
+git --version
 ```
 
-Pinning `v0.2.0` below keeps that older release and does not install the new
-metadata profiles or composed flows.
+Example:
 
-Or from a checkout, which is what you want in order to run the tests and the
-examples:
+```text
+git version 2.51.0.windows.1
+```
+
+If Python or Git is missing, install them first:
+
+- Python: <https://www.python.org/downloads/>
+- Git: <https://git-scm.com/downloads>
+
+### Windows: installation with pip
+
+The following commands are intended for **PowerShell**.
+
+Create a project directory:
+
+```powershell
+mkdir C:\dev\edu-sharing-test
+cd C:\dev\edu-sharing-test
+```
+
+Create a virtual Python environment:
+
+```powershell
+python -m venv .venv
+```
+
+If `python` is not available on Windows, the Python Launcher often works instead:
+
+```powershell
+py -m venv .venv
+```
+
+Activate the environment:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+After activation, the PowerShell prompt should look similar to this:
+
+```text
+(.venv) PS C:\dev\edu-sharing-test>
+```
+
+If PowerShell refuses to run `Activate.ps1`, you can change the execution policy for the current PowerShell process only:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+```
+
+Then activate the environment again:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+Optionally upgrade pip:
+
+```powershell
+python -m pip install --upgrade pip
+```
+
+Install the current `main` branch of the edu-sharing Python client:
+
+```powershell
+python -m pip install "git+https://github.com/openeduhub/edu-sharing-python-client@main"
+```
+
+The required runtime dependencies, including `httpx` and `attrs`, are installed automatically.
+
+### Windows: installation with uv
+
+If you already use `uv`, you can install the same client with it.
+
+Create a project directory and virtual environment:
+
+```powershell
+mkdir C:\dev\edu-sharing-test
+cd C:\dev\edu-sharing-test
+uv venv
+```
+
+Activate the environment:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+Install the client:
+
+```powershell
+uv pip install "git+https://github.com/openeduhub/edu-sharing-python-client@main"
+```
+
+Both `pip` and `uv` install the same library; only the environment and package-management tool differs.
+
+### Linux and macOS: installation with pip
+
+Create a project directory:
 
 ```bash
-uv pip install -e .
+mkdir -p ~/edu-sharing-test
+cd ~/edu-sharing-test
 ```
 
-`pip install -e .` works the same way in an environment that has pip. Two
-runtime dependencies come with it: `httpx` for the transport and `attrs` for
-the generated layer. A guard in `tests/test_dependencies.py` fails when a
-declared dependency is not imported anywhere — `python-dateutil` and
-`typing-extensions` were declared and never used (audit DEP-1).
+Create and activate a virtual environment:
 
-For the tests and the examples as well:
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+Optionally upgrade pip:
+
+```bash
+python -m pip install --upgrade pip
+```
+
+Install the client:
+
+```bash
+python -m pip install "git+https://github.com/openeduhub/edu-sharing-python-client@main"
+```
+
+### Linux and macOS: installation with uv
+
+```bash
+mkdir -p ~/edu-sharing-test
+cd ~/edu-sharing-test
+uv venv
+source .venv/bin/activate
+uv pip install "git+https://github.com/openeduhub/edu-sharing-python-client@main"
+```
+
+### Verify the installation
+
+After installation, verify that Python can import the library:
+
+```bash
+python -c "from edusharing import Repository; print('edu-sharing Python client successfully installed')"
+```
+
+Expected output:
+
+```text
+edu-sharing Python client successfully installed
+```
+
+This verifies the local package installation only. The next step tests a real repository connection.
+
+### Test the connection against edu-sharing staging
+
+For a simple read-only test, use the public staging repository:
+
+```text
+https://repository.staging.openeduhub.net
+```
+
+No username or password is required for this test.
+
+Create a file named `test_connection.py`:
+
+```python
+from edusharing import Repository
+
+
+REPOSITORY_URL = "https://repository.staging.openeduhub.net"
+
+
+with Repository(REPOSITORY_URL) as repo:
+    about = repo.about()
+    who = repo.whoami()
+
+    print("Connection successful")
+    print("Repository version:", about.repository_version)
+    print("Plugins:", about.plugins)
+    print("Current authority:", who.authority)
+```
+
+Run it:
+
+```bash
+python test_connection.py
+```
+
+A successful connection produces output similar to:
+
+```text
+Connection successful
+Repository version: 11.0
+Plugins: [...]
+Current authority: esguest
+```
+
+`esguest` means that the request is running anonymously.
+
+This test verifies that the package imports correctly, HTTPS works, the staging repository is reachable, the edu-sharing API responds, and anonymous read access works.
+
+### Test a search against staging
+
+For a second test, perform a real search. Create `test_search.py`:
+
+```python
+from edusharing import Repository
+
+
+REPOSITORY_URL = "https://repository.staging.openeduhub.net"
+
+
+with Repository(REPOSITORY_URL, metadataset="mds_oeh") as repo:
+    result = repo.search(
+        "Photosynthese",
+        subject="Biologie",
+        limit=5,
+    )
+
+    print(f"Found results: {result.total}")
+
+    for hit in result.hits:
+        print()
+        print("Title:", hit.title)
+        print("URL:", hit.url)
+```
+
+Run it:
+
+```bash
+python test_search.py
+```
+
+`mds_oeh` is selected explicitly because the `subject="Biologie"` filter is available there.
+
+If the search returns hits, the client is installed, the repository connection works, and a real edu-sharing search has completed successfully.
+
+### Using credentials
+
+Public read operations may not require credentials, depending on the repository. Protected and write operations require an edu-sharing account.
+
+Credentials can be passed directly:
+
+```python
+from edusharing import Repository
+
+
+with Repository(
+    "https://repository.example.org",
+    auth=("username", "password"),
+) as repo:
+    print(repo.whoami())
+```
+
+For applications and development environments, environment variables are recommended:
+
+```text
+EDU_SHARING_URL
+EDU_SHARING_USER
+EDU_SHARING_PASSWORD
+EDU_SHARING_METADATASET
+```
+
+In Windows PowerShell, for example:
+
+```powershell
+$env:EDU_SHARING_URL="https://repository.example.org"
+$env:EDU_SHARING_USER="username"
+$env:EDU_SHARING_PASSWORD="password"
+$env:EDU_SHARING_METADATASET="mds_oeh"
+```
+
+Do **not** put credentials into the URL:
+
+```text
+https://username:password@repository.example.org
+```
+
+The client deliberately rejects this form because URLs can appear in logs and error messages.
+
+### Updating an existing installation
+
+With pip:
+
+```bash
+python -m pip install --upgrade "git+https://github.com/openeduhub/edu-sharing-python-client@main"
+```
+
+With uv:
+
+```bash
+uv pip install --upgrade "git+https://github.com/openeduhub/edu-sharing-python-client@main"
+```
+
+### Installing a specific version
+
+To install the existing `v0.2.0` release instead of the current `main` branch, use the Git tag.
+
+With pip:
+
+```bash
+python -m pip install "git+https://github.com/openeduhub/edu-sharing-python-client@v0.2.0"
+```
+
+With uv:
+
+```bash
+uv pip install "git+https://github.com/openeduhub/edu-sharing-python-client@v0.2.0"
+```
+
+`v0.2.0` is an older release and does not include the newer metadata profiles and composed flows currently available on `main`.
+
+> **Not `@v0.1.0`.** It predates three review rounds. `v0.2.0` is the first tag that carries their fixes.
+
+### Development installation from a local checkout
+
+If you want to modify the client itself, run its tests, or execute the examples from the repository, clone the repository locally:
+
+```bash
+git clone https://github.com/openeduhub/edu-sharing-python-client.git
+cd edu-sharing-python-client
+```
+
+With pip on Windows PowerShell:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e .
+```
+
+With pip on Linux/macOS:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e .
+```
+
+`-e` creates an **editable installation**, so local source-code changes are immediately available without reinstalling the package after each edit.
+
+With uv, install the complete development environment, including dependencies required by tests and examples:
 
 ```bash
 uv sync
 ```
 
-Measured on 2026-08-28 into two empty environments: `uv pip install -e .` on
-Python 3.13.5 and `pip install -e .` on 3.14.7. Both then answered
-`repo.about().repository_version` with `11.0` against the staging instance.
-Measured again on 2026-09-10, this time the git route into an empty 3.12
-environment: it pulls the current `main` and two dependencies, and a search
-answered straight away.
-
-To pin a release, add the tag:
+An editable installation can also be requested explicitly:
 
 ```bash
-uv pip install "git+https://github.com/janschachtschabel/edu-sharing-python-client@v0.2.0"
+uv pip install -e .
 ```
 
-> **Not `@v0.1.0`.** It predates three review rounds, so pinning it buys the
-> defects they closed. `v0.2.0` is the first tag that carries their fixes.
+### Running the tests
+
+The offline test suite is deterministic and does not require an edu-sharing instance:
+
+```bash
+uv run pytest
+```
+
+Run the live read-only tests against staging on Linux/macOS:
+
+```bash
+EDU_SHARING_URL=https://repository.staging.openeduhub.net uv run pytest -m live
+```
+
+On Windows PowerShell:
+
+```powershell
+$env:EDU_SHARING_URL="https://repository.staging.openeduhub.net"
+uv run pytest -m live
+```
+
+Write tests (`-m write`) require valid credentials and operate exclusively inside a throwaway folder that they create and remove themselves.
+
+### Updating a local checkout
+
+Update the Git working copy first:
+
+```bash
+git pull
+```
+
+For a pip editable installation, rerun the installation if package metadata or dependencies changed:
+
+```bash
+python -m pip install -e .
+```
+
+With uv:
+
+```bash
+git pull
+uv sync
+```
+
+### Troubleshooting
+
+**`python` is not recognized on Windows**
+
+Try the Python Launcher first:
+
+```powershell
+py --version
+```
+
+If it works, use `py -m venv .venv` and `py -m pip ...`. If neither `python` nor `py` is available, install Python 3.11 or newer.
+
+**`git` is not recognized**
+
+Check with:
+
+```powershell
+git --version
+```
+
+If Git is missing, install it from <https://git-scm.com/downloads> and reopen PowerShell or the terminal.
+
+**PowerShell cannot run `Activate.ps1`**
+
+For the current PowerShell process only:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\.venv\Scripts\Activate.ps1
+```
+
+**`ModuleNotFoundError: No module named 'edusharing'`**
+
+Make sure the virtual environment is active, then test the import directly:
+
+```bash
+python -c "from edusharing import Repository; print('OK')"
+```
+
+If it fails, reinstall with either pip or uv using the commands above.
+
+**The installation works, but staging is not reachable**
+
+First test the local import only:
+
+```bash
+python -c "from edusharing import Repository; print('OK')"
+```
+
+If that works but `python test_connection.py` fails, the package itself is installed correctly. The problem is then likely related to the network or repository connection. Corporate proxies, VPNs, firewalls, or TLS inspection can prevent Python from reaching the staging instance.
+
 
 ## Quick start
 
@@ -119,6 +560,21 @@ why; the reference is the lookup table.
 
 - [Version 0.3.0: custom metadata and less application code](#version-030-custom-metadata-and-less-application-code)
 - [Installing](#installing)
+  - [Requirements](#requirements)
+  - [Windows: installation with pip](#windows-installation-with-pip)
+  - [Windows: installation with uv](#windows-installation-with-uv)
+  - [Linux and macOS: installation with pip](#linux-and-macos-installation-with-pip)
+  - [Linux and macOS: installation with uv](#linux-and-macos-installation-with-uv)
+  - [Verify the installation](#verify-the-installation)
+  - [Test the connection against edu-sharing staging](#test-the-connection-against-edu-sharing-staging)
+  - [Test a search against staging](#test-a-search-against-staging)
+  - [Using credentials](#using-credentials)
+  - [Updating an existing installation](#updating-an-existing-installation)
+  - [Installing a specific version](#installing-a-specific-version)
+  - [Development installation from a local checkout](#development-installation-from-a-local-checkout)
+  - [Running the tests](#running-the-tests)
+  - [Updating a local checkout](#updating-a-local-checkout)
+  - [Troubleshooting](#troubleshooting)
 - [Quick start](#quick-start)
 - [Why](#why)
 - [What works today](#what-works-today)
@@ -155,6 +611,7 @@ why; the reference is the lookup table.
 - [Releasing](#releasing)
 - [Security](#security)
 - [Licence](#licence)
+
 
 ## Why
 
