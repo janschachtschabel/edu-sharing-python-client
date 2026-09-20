@@ -134,22 +134,22 @@ class LoadReport:
 
     def summary(self) -> str:
         """One line per model, for a start-up log."""
-        kopf = (f"{self.provider}: {len(self.models)} of {self.total} usable, "
+        head = (f"{self.provider}: {len(self.models)} of {self.total} usable, "
                 + ("load reported" if self.reports_load else "NO load reported"))
-        zeilen = [kopf]
+        lines = [head]
         for m in self.models:
             last = "  -" if m.demand is None else f"{m.demand:>3}"
-            ende = "  retired" if m.id in self.retired else ""
-            zeilen.append(f"  demand={last}  {m.id}{ende}")
-        return "\n".join(zeilen)
+            suffix = "  retired" if m.id in self.retired else ""
+            lines.append(f"  demand={last}  {m.id}{suffix}")
+        return "\n".join(lines)
 
 
 def load_report(models: list[Model], provider: str, day: date) -> LoadReport:
     """Build the report from a model list. Pure, so it is testable."""
-    brauchbar = rank_models(models)
+    usable = rank_models(models)
     return LoadReport(
         provider=provider,
-        models=tuple(brauchbar),
+        models=tuple(usable),
         reports_load=any(m.demand is not None for m in models),
         retired=tuple(m.id for m in models if m.is_retired_on(day)),
         total=len(models),
@@ -207,26 +207,26 @@ def rank_among(models: list[Model], among: Sequence[str]) -> list[Model]:
     if not among:
         raise ValidationError("A virtual model needs at least one model id.")
 
-    nach_id = {m.id: m for m in models}
-    unbekannt = [name for name in among if name not in nach_id]
-    if unbekannt:
+    by_id = {m.id: m for m in models}
+    unknown = [name for name in among if name not in by_id]
+    if unknown:
         raise ValidationError(
-            f"Not offered here: {', '.join(unbekannt)}. "
-            f"Available: {', '.join(sorted(nach_id)) or '(none)'}. "
+            f"Not offered here: {', '.join(unknown)}. "
+            f"Available: {', '.join(sorted(by_id)) or '(none)'}. "
             "Model ids change without notice, so a virtual model has to be "
             "checked against /models rather than trusted."
         )
 
-    gewaehlt = [nach_id[name] for name in among]
-    brauchbar = [m for m in gewaehlt if m.is_ready and m.can_chat]
-    if not brauchbar:
+    chosen = [by_id[name] for name in among]
+    usable = [m for m in chosen if m.is_ready and m.can_chat]
+    if not usable:
         raise ValidationError(
             f"None of {', '.join(among)} is a ready text model right now."
         )
-    if all(m.demand is None for m in brauchbar):
+    if all(m.demand is None for m in usable):
         # No load reported anywhere: keep the caller's order untouched.
-        return brauchbar
-    return sorted(brauchbar,
+        return usable
+    return sorted(usable,
                   key=lambda m: (m.demand is None, m.demand or 0,
                                  among.index(m.id)))
 

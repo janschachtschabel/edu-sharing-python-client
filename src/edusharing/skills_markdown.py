@@ -87,7 +87,7 @@ _FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})[ 	]*(.*)$")
 #: it, or when the whole content is that run. ``.rstrip('#')`` knew
 #: neither and turned ``## C#`` into ``C`` -- a language name, a context
 #: name, and the section a registry is picked by.
-_ATX_ENDE = re.compile(r"(?:^|[ 	])#+[ 	]*$")
+_ATX_END = re.compile(r"(?:^|[ 	])#+[ 	]*$")
 _BLOCK_END = re.compile(r"^:::[ \t]*\r?$")
 
 
@@ -255,7 +255,7 @@ def parse_sections(text: str) -> list[MarkdownSection]:
     for offset, line in _lines_outside_fences(text):
         m = _HEADING.match(line.rstrip("\r\n"))
         if m:
-            title = _ATX_ENDE.sub("", (m.group(2) or "").rstrip()).strip()
+            title = _ATX_END.sub("", (m.group(2) or "").rstrip()).strip()
             heads.append((len(m.group(1)), title, offset, offset + len(line)))
 
     ends = [len(text)] * len(heads)
@@ -301,10 +301,10 @@ def _fenced_spans(text: str) -> list[tuple[int, int]]:
     for line in text.splitlines(keepends=True):
         fence = _FENCE.match(line.rstrip("\r\n"))
         if fence is not None:
-            zeichen, laenge = fence.group(1)[0], len(fence.group(1))
+            marker, length = fence.group(1)[0], len(fence.group(1))
             if opened is None:
-                opened = (zeichen, laenge, offset)
-            elif (zeichen == opened[0] and laenge >= opened[1]
+                opened = (marker, length, offset)
+            elif (marker == opened[0] and length >= opened[1]
                     and not fence.group(2).strip()):
                 spans.append((opened[2], offset + len(line)))
                 opened = None

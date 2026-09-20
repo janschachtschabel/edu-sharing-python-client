@@ -63,21 +63,21 @@ async def as_result(
         Anything that is not an ``EduSharingError``. Defects stay loud.
     """
     try:
-        ergebnis = await awaitable
+        result = await awaitable
     except EduSharingError as exc:
         # Flattened: the message carries the server's response body, and
         # ``text`` goes straight into a model context where a newline is a
         # record separator. Whoever can provoke an error whose text they
         # choose -- a field name in a query often suffices -- would
         # otherwise write their own lines there (audit SEC-5).
-        meldung = one_line(str(exc))
+        message = one_line(str(exc))
         return ToolResult(
             ok=False,
-            text=meldung,
-            error=meldung,
+            text=message,
+            error=message,
             error_type=type(exc).__name__,
             metadata={"status": exc.status} if exc.status else {},
         )
 
-    text = format(ergebnis) if format else str(ergebnis)
-    return ToolResult(ok=True, text=text, data=ergebnis)
+    text = format(result) if format else str(result)
+    return ToolResult(ok=True, text=text, data=result)

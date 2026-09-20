@@ -123,14 +123,14 @@ async def search_reranked(
         *(run(v) for v in variants), return_exceptions=True
     )
 
-    # Wie in ``collections.find`` und ``flows/collections.search_all``: nur
-    # eine Absage des Repositoriums ist eine gescheiterte Variante. Ein
-    # Abbruch und ein Programmierfehler muessen durch, sonst kommt die
-    # Rangliste aus dem, was zufaellig noch fertig wurde (Audit COR-10).
-    for ergebnis in outcomes:
-        if isinstance(ergebnis, BaseException) and not isinstance(
-                ergebnis, EduSharingError):
-            raise ergebnis
+    # As in ``collections.find`` and ``flows/collections.search_all``: only a
+    # refusal by the repository is a failed variant. A cancellation and a
+    # programming error must get through, or the ranking comes out of whatever
+    # happened to finish (audit COR-10).
+    for outcome_of in outcomes:
+        if isinstance(outcome_of, BaseException) and not isinstance(
+                outcome_of, EduSharingError):
+            raise outcome_of
 
     successful: list[tuple[Any, SearchResult]] = []
     failures: list[str] = []

@@ -1356,7 +1356,7 @@ Aufwand und Ausführlichkeit, für die Familien, die sie annehmen:
 | `api.chat(prompt, reasoning_effort=None)` | gar nicht senden |
 | `api.chat(prompt, reasoning_effort="high")` | senden, oder Fehler wenn das Modell es nicht kann |
 | `UNSET` | die Marke für „die Bibliothek entscheidet"; selten selbst genannt |
-| `ReasoningParam` | der Typ des Parameters: `str \| _Vorgabe \| None` |
+| `ReasoningParam` | der Typ des Parameters: `str \| _Default \| None` |
 | `model.shutdown_date` | `str \| None` — `"2026-10-23"`, oder `None` |
 | `model.is_retired_on(date(2026, 12, 1))` | `bool` |
 

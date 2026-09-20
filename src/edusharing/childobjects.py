@@ -92,21 +92,21 @@ class ChildObjects:
                 -- downloading them, showing them, counting them -- and the
                 return type has no room to say "incomplete" (audit MNT-4).
         """
-        antwort = await self._seite()
-        roh = list(antwort.get("nodes") or [])
-        if page_cut(roh, antwort, LIST_MAX):
+        answer = await self._page()
+        raw_record = list(answer.get("nodes") or [])
+        if page_cut(raw_record, answer, LIST_MAX):
             raise EduSharingError(
-                f"This node has {_wie_viele(roh, antwort)} children and this "
+                f"This node has {_how_many(raw_record, answer)} children and this "
                 f"listing reads at most {LIST_MAX}. Returning the first "
                 f"{LIST_MAX} would look like the whole set. Read them through "
                 f"the children endpoint with your own paging.",
                 url=render_url(self._nodes.repository_url, self._node.id),
             )
-        children = _anhaenge(roh)
+        children = _attachments(raw_record)
         children.sort(key=_order_key)
         return [self._nodes.wrap(data) for data in children]
 
-    async def _seite(self) -> dict[str, Any]:
+    async def _page(self) -> dict[str, Any]:
         """One page of child records -- one more than the cap.
 
         ``LIST_MAX + 1``, so that the page answers for itself whether it is all
@@ -142,23 +142,23 @@ class ChildObjects:
         defended as a harmless skip; the skip was never needed, and the two ways
         of counting were what collided twice (reviews 2026-09-08 and -09).
         """
-        antwort = await self._seite()
-        roh = list(antwort.get("nodes") or [])
-        if page_cut(roh, antwort, LIST_MAX):
+        answer = await self._page()
+        raw_record = list(answer.get("nodes") or [])
+        if page_cut(raw_record, answer, LIST_MAX):
             raise EduSharingError(
-                f"This node has {_wie_viele(roh, antwort)} children and this "
+                f"This node has {_how_many(raw_record, answer)} children and this "
                 f"listing reads at most {LIST_MAX}, so the highest position in "
                 f"use cannot be read and the next free one cannot be "
                 f"determined. Pass ``order=`` to say where this attachment "
                 f"goes.",
                 url=render_url(self._nodes.repository_url, self._node.id),
             )
-        vergeben = [
+        taken = [
             order
-            for order, _ in map(_order_key, _anhaenge(roh))
+            for order, _ in map(_order_key, _attachments(raw_record))
             if order != _NO_ORDER
         ]
-        return max(vergeben) + 1 if vergeben else 0
+        return max(taken) + 1 if taken else 0
 
     async def add(
         self,
@@ -246,25 +246,25 @@ class ChildObjects:
         return f"ChildObjects(node={self._node.id!r})"
 
 
-def _anhaenge(roh: _Records) -> _Records:
+def _attachments(raw_record: _Records) -> _Records:
     """Only the records carrying ``CHILD_ASPECT``.
 
     A node has other children -- versions among them -- and handing those
     back as attachments would be wrong in a way nobody notices until a
     version shows up in a download list.
     """
-    return [data for data in roh if CHILD_ASPECT in (data.get("aspects") or [])]
+    return [data for data in raw_record if CHILD_ASPECT in (data.get("aspects") or [])]
 
 
-def _wie_viele(roh: _Records, response: dict[str, Any]) -> str:
+def _how_many(raw_record: _Records, response: dict[str, Any]) -> str:
     """How many children to name in a refusal.
 
     The stated total only when it is larger than what arrived -- a total
     equal to the page size says nothing beyond what was counted, and naming
     it as *the* number would overstate what is known.
     """
-    gesagt = page_total(response, default=-1)
-    return str(gesagt) if gesagt > len(roh) else f"at least {len(roh)}"
+    announced = page_total(response, default=-1)
+    return str(announced) if announced > len(raw_record) else f"at least {len(raw_record)}"
 
 
 def _order_key(data: dict[str, Any]) -> tuple[int, str]:

@@ -42,7 +42,7 @@ from typing import TYPE_CHECKING, Any
 from ..errors import EduSharingError, ValidationError, whole_number
 from ..urls import path_segment
 from ._response import _boolean, _items, _number, _object, _text, _vectors
-from .body import UNSET, ReasoningParam, _Vorgabe, reasoning_for_responses
+from .body import UNSET, ReasoningParam, _Default, reasoning_for_responses
 
 if TYPE_CHECKING:  # pragma: no cover
     from .client import BildungsAPI
@@ -89,9 +89,9 @@ def _check_route(route: str) -> None:
     if not route:
         raise ValidationError("route must not be empty.")
     for segment in route.split("/"):
-        # ``fullmatch``, nicht ``match``: ``$`` steht auch vor einem
-        # abschliessenden ``\n``, sodass ``"embeddings\n"`` das Muster
-        # bestand (Pruefung 08.09.2026).
+        # ``fullmatch`` rather than ``match``: ``$`` also stands before a
+        # trailing ``\n``, so ``"embeddings\n"`` passed the pattern (review
+        # 2026-09-08).
         if not _SEGMENT.fullmatch(segment):
             raise ValidationError(
                 f"route={route!r} is not addressable: the segment "
@@ -182,21 +182,21 @@ def _text_of(body: dict[str, Any]) -> str:
     return "".join(text)
 
 
-def _answer_from(antwort: dict[str, Any], model: str = "") -> Answer:
+def _answer_from(answer: dict[str, Any], model: str = "") -> Answer:
     """A ``responses`` body as an ``Answer``.
 
     Its own function because the template mode's ``/responses`` answers in the
     same shape -- one reading of ``status`` and ``incomplete_details`` for
     both, rather than two that drift apart.
     """
-    details = antwort.get("incomplete_details")
+    details = answer.get("incomplete_details")
     details = {} if details is None else _object(details, "responses", "incomplete_details")
     return Answer(
-        text=_text_of(antwort),
-        status=_text(antwort.get("status"), "responses", "status"),
+        text=_text_of(answer),
+        status=_text(answer.get("status"), "responses", "status"),
         reason=_text(details.get("reason"), "responses", "incomplete_details.reason"),
-        model=_text(antwort.get("model"), "responses", "model") or model,
-        raw=antwort,
+        model=_text(answer.get("model"), "responses", "model") or model,
+        raw=answer,
     )
 
 
@@ -256,33 +256,33 @@ async def respond(
             "picking one here would be a silent model choice. Pass model=..., "
             "or use chat() where the library may choose."
         )
-    denken = reasoning_for_responses(
+    reasoning = reasoning_for_responses(
         model, reasoning_effort=reasoning_effort, verbosity=verbosity)
     # ``extra`` is the escape hatch, not a second way to set the same value.
     # Spreading it last used to let it win silently, which is exactly the
     # dropped-wish this parameter pair exists to prevent. An own value is
     # honoured where the library only had a default to offer.
-    for schluessel in ("reasoning", "text"):
-        if schluessel not in extra:
+    for key in ("reasoning", "text"):
+        if key not in extra:
             continue
-        gesetzt = (reasoning_effort if schluessel == "reasoning" else verbosity)
-        if not isinstance(gesetzt, _Vorgabe) and gesetzt is not None:
+        present = (reasoning_effort if key == "reasoning" else verbosity)
+        if not isinstance(present, _Default) and present is not None:
             raise ValidationError(
-                f"{schluessel}={extra[schluessel]!r} in the extra arguments and "
-                f"{'reasoning_effort' if schluessel == 'reasoning' else 'verbosity'}"
-                f"={gesetzt!r} both set the same thing. Pass one of them."
+                f"{key}={extra[key]!r} in the extra arguments and "
+                f"{'reasoning_effort' if key == 'reasoning' else 'verbosity'}"
+                f"={present!r} both set the same thing. Pass one of them."
             )
-        denken.pop(schluessel, None)
+        reasoning.pop(key, None)
 
     body: dict[str, Any] = {
         "model": model,
         "input": prompt,
         "max_output_tokens": max_output_tokens,
-        **denken,
+        **reasoning,
         **extra,
     }
-    antwort = await _call_object(api, "responses", body, provider=provider)
-    return _answer_from(antwort, model)
+    answer = await _call_object(api, "responses", body, provider=provider)
+    return _answer_from(answer, model)
 
 
 async def call(
@@ -370,8 +370,8 @@ async def embeddings(
         EduSharingError: on missing, duplicate or invalid indices, or vectors
             that are empty, unequal in length or contain non-finite numbers.
     """
-    eingabe = [texts] if isinstance(texts, str) else list(texts)
-    body = {"model": model, "input": eingabe, **extra}
+    given = [texts] if isinstance(texts, str) else list(texts)
+    body = {"model": model, "input": given, **extra}
     answer = await _call_object(api, "embeddings", body, provider=provider)
     effective_input = body["input"]
     return _vectors(answer, 1 if isinstance(effective_input, str) else len(effective_input))

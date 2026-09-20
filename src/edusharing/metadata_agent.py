@@ -243,14 +243,14 @@ class MetadataAgent:
                 ``ccm:oeh_extendedType`` field. Answering with an empty list
                 would hide a renamed field behind "no content types".
         """
-        gemerkt = self._types.get((context, version))
-        if gemerkt is not None:
-            return gemerkt
+        cached = self._types.get((context, version))
+        if cached is not None:
+            return cached
 
         core = await self.schema(CORE_SCHEMA, context=context, version=version)
-        feld = next((e for e in core.get("fields") or []
+        field = next((e for e in core.get("fields") or []
                      if e.get("id") == TYPE_FIELD), None)
-        if feld is None:
+        if field is None:
             raise EduSharingError(
                 f"{CORE_SCHEMA} of {context}/{version} carries no "
                 f"{TYPE_FIELD!r} field, so the mapping content type -> schema "
@@ -258,8 +258,8 @@ class MetadataAgent:
                 "describes no content types', which is a different statement. "
                 "The agent has most likely renamed or moved the field."
             )
-        vocabulary = (feld.get("system") or {}).get("vocabulary") or {}
-        arten = [
+        vocabulary = (field.get("system") or {}).get("vocabulary") or {}
+        types = [
             ContentType(
                 uri=concept.get("uri") or "",
                 schema_file=concept.get("schema_file") or "",
@@ -269,8 +269,8 @@ class MetadataAgent:
             )
             for concept in (vocabulary.get("concepts") or [])
         ]
-        self._types[(context, version)] = arten
-        return arten
+        self._types[(context, version)] = types
+        return types
 
     async def content_type_for(
         self, uri: str, *, context: str = DEFAULT_CONTEXT,

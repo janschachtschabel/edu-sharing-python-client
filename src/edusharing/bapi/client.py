@@ -218,15 +218,15 @@ class BildungsAPI:
                 f"{ENV_KEY} is not set. Either set the variable or pass the key: "
                 "BildungsAPI(api_key=...)."
             )
-        adresse = os.environ.get(ENV_BASE_URL, "").strip()
-        if not adresse and "base_url" not in kwargs:
+        address = os.environ.get(ENV_BASE_URL, "").strip()
+        if not address and "base_url" not in kwargs:
             raise EduSharingError(
                 f"{ENV_BASE_URL} is not set. Point it at the gateway you"
                 " actually use -- there is no default, because a wrong one"
                 " sends your API key to a host you did not choose."
             )
-        if adresse:
-            kwargs.setdefault("base_url", adresse)
+        if address:
+            kwargs.setdefault("base_url", address)
         return cls(key, **kwargs)
 
     # --- Lifecycle --------------------------------------------------------
@@ -254,7 +254,7 @@ class BildungsAPI:
         """The models of this provider, with load figures where reported."""
         which = provider or self.provider
 
-        def aus_dem_cache() -> list[Model] | None:
+        def from_cache() -> list[Model] | None:
             if (
                 self.models_cache_seconds > 0
                 and self._models_cache
@@ -262,27 +262,26 @@ class BildungsAPI:
                 and time.monotonic() - self._models_cache[0]
                 < self.models_cache_seconds
             ):
-                # Eine Kopie: die Liste gehoert dem Aufrufer, und ein
-                # ``clear()`` oder ``sort()`` von dort veraenderte sonst, woraus
-                # jede spaetere Modellwahl waehlt -- unter ``CACHE_FOREVER``
-                # dauerhaft (Audit MNT-20-1, dieselbe Klasse wie F02 beim
-                # Vokabular). ``Model`` ist eingefroren, also genuegt die flache
-                # Kopie.
+                # A copy: the list belongs to whoever receives it, and a ``clear()`` or
+                # ``sort()`` from there would otherwise change what every later model
+                # choice picks from -- under ``CACHE_FOREVER`` for good (audit MNT-20-1,
+                # the same class as F02 for the vocabulary). ``Model`` is frozen, so the
+                # shallow copy is enough.
                 return list(self._models_cache[1])
             return None
 
-        gemerkt = aus_dem_cache()
-        if gemerkt is not None:
-            return gemerkt
+        cached = from_cache()
+        if cached is not None:
+            return cached
 
         async with self._models_lock:
             # Again, inside the lock. Without this the lock only queues the
             # callers up: each one still fetches, so a cold start with six
             # concurrent calls made six requests -- against a gateway that
             # answers 429 for the key, not the model.
-            gemerkt = aus_dem_cache()
-            if gemerkt is not None:
-                return gemerkt
+            cached = from_cache()
+            if cached is not None:
+                return cached
 
             now = time.monotonic()
             response = await self._request("GET", f"/api/v1/llm/{path_segment(which)}/models")
@@ -333,8 +332,8 @@ class BildungsAPI:
         if model not in self.virtual_models:
             return None
 
-        vorhanden = {m.id for m in await self.models(which)}
-        if model in vorhanden:
+        offered_ids = {m.id for m in await self.models(which)}
+        if model in offered_ids:
             raise EduSharingError(
                 f"{model!r} is both a group in virtual_models and a model "
                 f"offered by {which!r}. Rename the group -- otherwise which of "
@@ -399,40 +398,40 @@ class BildungsAPI:
                 reasoning_effort=reasoning_effort, verbosity=verbosity,
             )
 
-        gruppe = await self._resolve_group(model, which)
+        group = await self._resolve_group(model, which)
 
-        if gruppe is not None:
-            candidates = rank_among(await self.models(which), gruppe)
+        if group is not None:
+            candidates = rank_among(await self.models(which), group)
         elif isinstance(model, str) and model:
             answer = read_answer(await self._request("POST", path, json=body_for(model)))
             self.last_model = model
             return answer
         else:
-            angebot = await self.models(which)
-            if not is_rankable(angebot):
+            offered = await self.models(which)
+            if not is_rankable(offered):
                 # Nothing to choose on. Ranking would be alphabetical order in
                 # a ranking's clothes -- measured, that picked babbage-002 out
                 # of OpenAI's 132 and failed three times before saying so.
                 raise ValidationError(
                     f"Provider {which!r} reports neither load nor output types "
-                    f"for any of its {len(angebot)} models, so there is nothing "
+                    f"for any of its {len(offered)} models, so there is nothing "
                     "to choose on. Pass model=\"...\" for one, or model=[...] "
                     "for a group; ask load() to see what is offered."
                 )
-            candidates = rank_models(angebot)
+            candidates = rank_models(offered)
             if not candidates:
                 raise EduSharingError(f"No ready text model at provider {which!r}.")
 
         # A group is an explicit list: whoever names five means five. The cap
         # belongs to the automatic choice, where the library is guessing.
-        versuche = candidates if gruppe is not None \
+        to_try = candidates if group is not None \
             else candidates[:DEFAULT_MODEL_ATTEMPTS]
 
-        return await self._first_that_answers(versuche, path, body_for)
+        return await self._first_that_answers(to_try, path, body_for)
 
     async def _first_that_answers(
         self,
-        versuche: list[Model],
+        to_try: list[Model],
         path: str,
         body_for: Callable[[str], dict[str, Any]],
     ) -> str:
@@ -448,11 +447,11 @@ class BildungsAPI:
             EduSharingError: when none of them answered, naming each failure.
         """
         failures: list[str] = []
-        for nummer, candidate in enumerate(versuche):
-            letzter = nummer == len(versuche) - 1
-            # Nur senken, nie anheben: wer max_retries=0 setzt, will genau
-            # einen Versuch je Modell -- auch beim ersten Kandidaten.
-            budget = None if letzter else min(self.retries_before_switching,
+        for index, candidate in enumerate(to_try):
+            is_last = index == len(to_try) - 1
+            # Lowered, never raised: whoever sets max_retries=0 wants exactly one
+            # attempt per model -- the first candidate included.
+            budget = None if is_last else min(self.retries_before_switching,
                                               self.max_retries)
             try:
                 response = await self._request(

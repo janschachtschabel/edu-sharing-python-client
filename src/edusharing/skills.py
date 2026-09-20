@@ -377,13 +377,12 @@ class Skills:
             )
             for collection_id, answer in zip(level, answers, strict=True):
                 if isinstance(answer, BaseException):
-                    # Nur die zwei erwarteten Absagen werden gezaehlt, alles
-                    # andere muss durch: eine gesperrte Sammlung ist eine
-                    # Antwort, ein kaputtes Repositorium keine. ``gather`` mit
-                    # ``return_exceptions`` reicht jede Ausnahme als Wert
-                    # zurueck -- ohne diese Pruefung wurde ein 500 still zu
-                    # ``unreadable`` (Regression aus df865c0, gefunden durch
-                    # den Pin aus Audit TST-6).
+                    # Only the two expected refusals are counted, everything else
+                    # must get through: a locked collection is an answer, a broken
+                    # repository is not. ``gather`` with ``return_exceptions`` hands
+                    # back every exception as a value -- without this check a 500
+                    # quietly became ``unreadable`` (regression from df865c0, found
+                    # by the pin from audit TST-6).
                     if collection_id == root or not isinstance(
                         answer, (PermissionDeniedError, NotFoundError)
                     ):
@@ -432,18 +431,17 @@ class Skills:
         """One page of a collection's files, and whether there were more."""
         listing = await self._repo.raw.json(
             "GET", f"/node/v1/nodes/-home-/{path_segment(collection_id)}/children",
-            # ``_PAGE + 1``: der eine Datensatz ueber der Seite beantwortet
-            # die Frage, ob es mehr gibt -- die genannte Gesamtzahl allein
-            # sagte "nein" genau dort, wo der Endpunkt schwieg (Pruefung
-            # 09.09.2026). Siehe ``dto.page_cut``.
+            # ``_PAGE + 1``: the one record above the page answers the question
+            # whether there is more -- the stated total alone said "no" exactly where
+            # the endpoint stayed silent (review 2026-09-09). See ``dto.page_cut``.
             params={"filter": "files", "maxItems": _PAGE + 1, "skipCount": 0,
                     # Both, measured: the collection route returns the
                     # content type under -all-, the node route only
                     # when asked for it by name (MCP, 2026-08-08).
                     "propertyFilter": ["-all-", conventions.type_property]},
         )
-        roh = list(listing.get("nodes") or [])
-        return roh[:_PAGE], page_cut(roh, listing, _PAGE)
+        raw_record = list(listing.get("nodes") or [])
+        return raw_record[:_PAGE], page_cut(raw_record, listing, _PAGE)
 
     async def _subs_of(self, collection_id: str) -> tuple[list[str], bool]:
         """The ids of a collection's sub-collections, and whether there were more."""
@@ -452,9 +450,9 @@ class Skills:
                    "/children/collections",
             params={"maxItems": _PAGE + 1},
         )
-        roh = list(subs.get("collections") or [])
-        ids = [sid for sub in roh[:_PAGE] if (sid := node_id_of(sub))]
-        return ids, page_cut(roh, subs, _PAGE)
+        raw_record = list(subs.get("collections") or [])
+        ids = [sid for sub in raw_record[:_PAGE] if (sid := node_id_of(sub))]
+        return ids, page_cut(raw_record, subs, _PAGE)
 
 
 def _enqueue(subs: list[str], visited: set[str], next_level: list[str]) -> bool:

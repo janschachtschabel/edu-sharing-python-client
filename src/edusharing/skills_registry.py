@@ -186,10 +186,10 @@ async def load_registry(
     try:
         listing = await repo.raw.json(
             "GET", f"/node/v1/nodes/-home-/{seg}/children",
-            # Eine Datei mehr als der Deckel: kommt sie an, liegt die Registry
-            # vielleicht dahinter. Aus der genannten Gesamtzahl allein gelesen
-            # war das nie so -- die Vorgabe war die gelieferte Zahl, und die
-            # ist nie kleiner als sie selbst (Pruefung 09.09.2026).
+            # One file more than the cap: if it arrives, the registry may be behind
+            # it. Read from the stated total alone that was never so -- the default
+            # was the delivered number, and that is never smaller than itself (review
+            # 2026-09-09).
             params={"filter": "files", "maxItems": REGISTRY_SCAN_MAX + 1,
                     "skipCount": 0,
                     "propertyFilter": ["-all-", conventions.type_property]},
@@ -201,14 +201,14 @@ async def load_registry(
         # server failure is not, and raises like everywhere else.
         return SkillRegistry(collection_id, reason="unreadable")
 
-    roh = list(listing.get("nodes") or [])
-    nodes = roh[:REGISTRY_SCAN_MAX]
-    gesagt = page_total(listing, default=-1)
-    # Ohne genannte Zahl das Gesehene: eine untere Schranke, und mit dem
-    # Hinweis daneben liest sie sich auch als eine.
-    total = gesagt if gesagt >= 0 else len(roh)
+    raw_record = list(listing.get("nodes") or [])
+    nodes = raw_record[:REGISTRY_SCAN_MAX]
+    announced = page_total(listing, default=-1)
+    # Without a stated number, what was seen: a lower bound, and with the flag
+    # beside it, it reads as one too.
+    total = announced if announced >= 0 else len(raw_record)
     scan_truncated = ((len(nodes), total)
-                      if page_cut(roh, listing, REGISTRY_SCAN_MAX) else None)
+                      if page_cut(raw_record, listing, REGISTRY_SCAN_MAX) else None)
     candidates = [n for n in nodes if _is_registry_candidate(n, conventions)]
     if not candidates:
         return SkillRegistry(collection_id, reason="no_registry", scan_truncated=scan_truncated)
@@ -236,7 +236,7 @@ async def load_registry(
     capped = skills[:REGISTRY_MAX]
     truncated = (len(capped), len(skills)) if len(skills) > len(capped) else None
 
-    ohne_id = [{"title": b.title, "node_id": ""} for b, _ in capped if not b.node_id]
+    without_id = [{"title": b.title, "node_id": ""} for b, _ in capped if not b.node_id]
     with_id = [(b, path) for b, path in capped if b.node_id]
     # One read per record: a skill filed under two contexts is two entries,
     # not two requests.
@@ -244,9 +244,9 @@ async def load_registry(
     heads: dict[str, dict[str, Any] | None] = dict.fromkeys(unique)
     if resolve:
         heads = dict(zip(unique, await _read_heads(repo, unique), strict=True))
-    entries, ungelesen = _entries_of(with_id, heads, resolve=resolve,
+    entries, unread = _entries_of(with_id, heads, resolve=resolve,
                                    metadata_profile=repo.metadata_profile)
-    unresolved = ohne_id + ungelesen
+    unresolved = without_id + unread
     entries, match = _by_context(entries, layout.contexts, context)
 
     return SkillRegistry(

@@ -352,8 +352,8 @@ def _redirect_target(location: str | None) -> str:
     if not location:
         return "without a Location header"
     try:
-        teile = urlsplit(location)
-        host, port = teile.hostname, teile.port
+        parts = urlsplit(location)
+        host, port = parts.hostname, parts.port
     except ValueError:
         return "to an address that does not parse"
     if not host:
@@ -362,8 +362,8 @@ def _redirect_target(location: str | None) -> str:
     # reads as neither an address nor a port. Put them back when a port
     # follows (review 2026-09-08).
     if port:
-        eckig = f"[{host}]" if ":" in host else host
-        return f"to {f'{eckig}:{port}'!r}"
+        bracketed = f"[{host}]" if ":" in host else host
+        return f"to {f'{bracketed}:{port}'!r}"
     return f"to {host!r}"
 
 

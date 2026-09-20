@@ -230,14 +230,14 @@ async def change_keywords(
 
     merged = [k for k in existing if k.strip().casefold() not in dropping]
     known = {k.strip().casefold() for k in merged}
-    for roh in add:
-        # Gestrippt gespeichert, nicht nur gestrippt verglichen (Audit
-        # COR-8): sonst stand ``" Optik "`` neben ``Optik`` in einer
-        # **geteilten** Liste, die jede Anzeige und jede Facette liest.
-        k = roh.strip()
-        # Und ein leeres Schlagwort bestand den Vergleich, solange kein
-        # leeres darin stand -- eine leere Zeile in jeder Anzeige, ein
-        # Eintrag ohne Namen in jeder Facette.
+    for raw_value in add:
+        # Stored stripped, not merely compared stripped (audit COR-8): otherwise
+        # ``" Optik "`` stood next to ``Optik`` in a **shared** list that every
+        # display and every facet reads.
+        k = raw_value.strip()
+        # And an empty keyword passed the comparison as long as no empty one was
+        # in there -- an empty line in every display, an entry without a name in
+        # every facet.
         if k and k.casefold() not in known:
             merged.append(k)
             known.add(k.casefold())

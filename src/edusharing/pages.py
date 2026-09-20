@@ -303,10 +303,10 @@ class CuratedPage:
         return next((v for v in self.variants if v.id == bare_id(variant_id)), None)
 
     def __repr__(self) -> str:
-        gelesen = str(len(self.variants))
+        seen_count = str(len(self.variants))
         if self.truncated:
-            gelesen = f"{len(self.variants)} of {self.total_variants}"
-        return (f"CuratedPage({self.collection_id!r}, {gelesen} variants, "
+            seen_count = f"{len(self.variants)} of {self.total_variants}"
+        return (f"CuratedPage({self.collection_id!r}, {seen_count} variants, "
                 f"rendered={self.rendered_id or '(by position)'})")
 
 
@@ -394,12 +394,12 @@ class NodePage:
         # to the same answer for any page, which is why nothing is lost by
         # ``ChildPage`` not telling the two apart.
         children = await nodes.children(folder_id, limit=_VARIANT_LIMIT + 1)
-        roh = list(children.nodes)
-        gekuerzt = page_cut(roh, {"pagination": {"total": children.total}},
+        raw_record = list(children.nodes)
+        was_truncated = page_cut(raw_record, {"pagination": {"total": children.total}},
                             _VARIANT_LIMIT)
         order, default_id = _parse_config(folder.get(PAGE_CONFIG))
         variants = _ordered(
-            [variant_from_node(child) for child in roh[:_VARIANT_LIMIT]],
+            [variant_from_node(child) for child in raw_record[:_VARIANT_LIMIT]],
             order, default_id,
         )
         return CuratedPage(
@@ -407,7 +407,7 @@ class NodePage:
             folder_id=folder_id,
             variants=variants,
             rendered_id=default_id if any(v.id == default_id for v in variants) else "",
-            total_variants=(max(children.total, len(roh)) if gekuerzt
+            total_variants=(max(children.total, len(raw_record)) if was_truncated
                             else len(variants)),
             document=folder.get(PAGE_CONFIG),
         )

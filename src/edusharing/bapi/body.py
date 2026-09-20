@@ -55,7 +55,7 @@ DEFAULT_EFFORT = "low"
 DEFAULT_VERBOSITY = "low"
 
 
-class _Vorgabe:
+class _Default:
     """Marks "the library's own default", distinguishable from a caller's value.
 
     The distinction carries a rule: a default may be dropped where the model
@@ -69,16 +69,16 @@ class _Vorgabe:
 
 
 #: Sentinel for "not chosen by the caller". ``None`` means "do not send it".
-UNSET = _Vorgabe()
+UNSET = _Default()
 
 #: What ``reasoning_effort`` and ``verbosity`` accept. Three states, not two:
 #: a value the caller chose, ``None`` for "do not send it", and ``UNSET`` for
 #: "the library decides". Only the third may be dropped for an older model.
-ReasoningParam = str | _Vorgabe | None
+ReasoningParam = str | _Default | None
 
 
 def _reasoning_param(
-    body: dict[str, Any], name: str, wert: Any, model: str, *, vorgabe: str
+    body: dict[str, Any], name: str, value: Any, model: str, *, default: str
 ) -> None:
     """Put one reasoning parameter into the body, or account for why not.
 
@@ -87,24 +87,24 @@ def _reasoning_param(
             not take. Not a plain ValueError: the library's promise is that
             every failure is an EduSharingError.
     """
-    if wert is None:
+    if value is None:
         return
-    kann = model.lower().startswith(_REASONING_PREFIXES)
-    if isinstance(wert, _Vorgabe):
+    accepts = model.lower().startswith(_REASONING_PREFIXES)
+    if isinstance(value, _Default):
         # A default: apply it where it works, drop it silently where it does
         # not. That is what makes it a default rather than a request.
-        if kann:
-            body[name] = vorgabe
+        if accepts:
+            body[name] = default
         return
-    if not kann:
+    if not accepts:
         raise ValidationError(
-            f"Model {model!r} does not take {name}={wert!r} -- it answers 400. "
+            f"Model {model!r} does not take {name}={value!r} -- it answers 400. "
             f"Only the {', '.join(_REASONING_PREFIXES)} families accept it. "
             f"Pass {name}=None to leave it out, or choose a model that takes it. "
             "It is not dropped for you: an answer produced without it would be "
             "indistinguishable from one produced with it."
         )
-    body[name] = wert
+    body[name] = value
 
 
 def reasoning_for_responses(
@@ -127,18 +127,18 @@ def reasoning_for_responses(
     Raises:
         ValidationError: as in ``build_body``.
     """
-    flach: dict[str, Any] = {}
-    _reasoning_param(flach, "reasoning_effort", reasoning_effort, model,
-                     vorgabe=DEFAULT_EFFORT)
-    _reasoning_param(flach, "verbosity", verbosity, model,
-                     vorgabe=DEFAULT_VERBOSITY)
+    flat: dict[str, Any] = {}
+    _reasoning_param(flat, "reasoning_effort", reasoning_effort, model,
+                     default=DEFAULT_EFFORT)
+    _reasoning_param(flat, "verbosity", verbosity, model,
+                     default=DEFAULT_VERBOSITY)
 
-    verschachtelt: dict[str, Any] = {}
-    if "reasoning_effort" in flach:
-        verschachtelt["reasoning"] = {"effort": flach["reasoning_effort"]}
-    if "verbosity" in flach:
-        verschachtelt["text"] = {"verbosity": flach["verbosity"]}
-    return verschachtelt
+    nested: dict[str, Any] = {}
+    if "reasoning_effort" in flat:
+        nested["reasoning"] = {"effort": flat["reasoning_effort"]}
+    if "verbosity" in flat:
+        nested["text"] = {"verbosity": flat["verbosity"]}
+    return nested
 
 
 def build_body(
@@ -186,9 +186,9 @@ def build_body(
         body["chat_template_kwargs"] = {"enable_thinking": False}
 
     _reasoning_param(body, "reasoning_effort", reasoning_effort, model,
-                     vorgabe=DEFAULT_EFFORT)
+                     default=DEFAULT_EFFORT)
     _reasoning_param(body, "verbosity", verbosity, model,
-                     vorgabe=DEFAULT_VERBOSITY)
+                     default=DEFAULT_VERBOSITY)
 
     if stream:
         body["stream"] = True

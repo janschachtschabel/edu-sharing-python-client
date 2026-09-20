@@ -878,9 +878,9 @@ class SyncNodes:
 
     def children(self, node_id: str, **kwargs: Any) -> Any:
         """Like ``Nodes.children``, blocking -- with blocking nodes in the page."""
-        seite = self._loop.run(self._nodes.children(node_id, **kwargs))
-        return replace(seite, nodes=tuple(
-            SyncNode(knoten, self._loop) for knoten in seite.nodes))
+        page = self._loop.run(self._nodes.children(node_id, **kwargs))
+        return replace(page, nodes=tuple(
+            SyncNode(node, self._loop) for node in page.nodes))
 
     def wrap(self, data: dict[str, Any]) -> SyncNode:
         """Like ``Nodes.wrap`` -- a record as a node, without a request."""

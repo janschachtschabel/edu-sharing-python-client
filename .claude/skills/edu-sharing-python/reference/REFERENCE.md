@@ -1319,7 +1319,7 @@ Effort and verbosity, for the families that take them:
 | `api.chat(prompt, reasoning_effort=None)` | do not send it at all |
 | `api.chat(prompt, reasoning_effort="high")` | send it, or raise if the model cannot |
 | `UNSET` | the sentinel for "the library decides"; a caller rarely names it |
-| `ReasoningParam` | the parameter's type: `str \| _Vorgabe \| None` |
+| `ReasoningParam` | the parameter's type: `str \| _Default \| None` |
 | `model.shutdown_date` | `str \| None` — `"2026-10-23"`, or `None` |
 | `model.is_retired_on(date(2026, 12, 1))` | `bool` |
 

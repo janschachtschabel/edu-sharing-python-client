@@ -176,8 +176,8 @@ class Vocabulary:
             nobody asked for. For a follow-up question, ``suggest()`` provides
             candidates.
         """
-        alle = await self.resolve_all(prop, label_or_uri, locale=locale)
-        return alle[0] if alle else None
+        every = await self.resolve_all(prop, label_or_uri, locale=locale)
+        return every[0] if every else None
 
     async def resolve_all(
         self, prop: str, label_or_uri: str, *, locale: str | None = None

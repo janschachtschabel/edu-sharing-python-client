@@ -352,13 +352,13 @@ class NodePermissions:
         if existing is None:
             return current, False
 
-        rest = tuple(p for p in existing.permissions if p not in permissions) \
+        remaining = tuple(p for p in existing.permissions if p not in permissions) \
             if permissions else ()
-        if rest == existing.permissions:
+        if remaining == existing.permissions:
             return current, False
 
         others = tuple(a for a in current.own if a.authority != authority)
-        aces = others + ((Ace(authority, existing.authority_type, rest),) if rest else ())
+        aces = others + ((Ace(authority, existing.authority_type, remaining),) if remaining else ())
         after = await self._write(current.inherits, aces)
         problems = self._not_stored(
             after, current.inherits, aces, authority, permissions)
@@ -511,8 +511,8 @@ class NodePermissions:
         elif stored is not None:
             problems.append(f"the whole entry for {authority} is still there")
 
-        # Ohne ``skip``: verliert die entzogene Autoritaet **mehr** als
-        # gefragt war, ist das genau der Fall, den diese Pruefung sucht.
+        # Without ``skip``: if the revoked authority loses **more** than was asked
+        # for, that is exactly the case this check looks for.
         return problems + self._not_kept(after, inherits, aces)
 
     def _not_kept(

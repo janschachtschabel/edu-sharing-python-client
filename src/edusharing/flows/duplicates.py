@@ -89,17 +89,17 @@ def _comparable(url: str) -> str | None:
     kind of failure is not finished.
     """
     try:
-        teile = urlsplit(url.strip())
+        parts = urlsplit(url.strip())
     except ValueError:
         return None
-    if not teile.scheme or not teile.netloc:
+    if not parts.scheme or not parts.netloc:
         return url.strip()
     # netloc includes user information: lowercasing it also changes passwords
     # and can make a different credential-bearing URL match (audit B04).
-    userinfo, separator, hostport = teile.netloc.rpartition("@")
+    userinfo, separator, hostport = parts.netloc.rpartition("@")
     authority = userinfo + separator + hostport.lower()
-    return urlunsplit((teile.scheme.lower(), authority,
-                       teile.path, teile.query, teile.fragment))
+    return urlunsplit((parts.scheme.lower(), authority,
+                       parts.path, parts.query, parts.fragment))
 
 
 async def find_by_url(repo: AsyncRepository, url: str) -> dict[str, Any] | None:

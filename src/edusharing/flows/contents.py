@@ -91,10 +91,10 @@ async def collection_contents(
         response: dict[str, Any] = await repo.raw.json(
             "GET", f"/node/v1/nodes/-home-/{segment}/children",
             params={
-                # ``limit + 1`` wie bei den Untersammlungen: kommt der eine
-                # zusaetzliche Datensatz an, gibt es mehr als ``limit``, und
-                # das steht ohne genannte Gesamtzahl fest. ``skipCount``
-                # bleibt der Versatz -- nur die Seite waechst um eins.
+                # ``limit + 1`` as with the sub-collections: if the one extra record
+                # arrives, there are more than ``limit``, and that holds without any
+                # stated total. ``skipCount`` stays the offset -- only the page grows by
+                # one.
                 "maxItems": limit + 1, "skipCount": offset, "filter": "files",
                 # Without this the endpoint returns nodes with an EMPTY
                 # properties object -- measured 2026-08-27. The materials then
@@ -133,21 +133,19 @@ async def collection_contents(
         for node in roh_unter[:limit]
     ]
 
-    # Dieser Endpunkt nennt eine echte Gesamtzahl -- gemessen am 08.09.2026
-    # gegen Staging: bei ``maxItems=1`` an einer Sammlung mit zwei
-    # Untersammlungen kommt ein Eintrag und ``total: 2``. (Der Zusatz "das
-    # ist nicht selbstverstaendlich, ``ngsearch`` antwortet mit
-    # ``pagination: null``" stand hier bis zum 09.09.2026 und ist falsch:
-    # gemessen nennt auch die Suche eine Zahl.)
+    # This endpoint names a real total -- measured 2026-09-08 against staging:
+    # with ``maxItems=1`` on a collection with two sub-collections, one entry
+    # arrives and ``total: 2``. (The addition "this is not a given,
+    # ``ngsearch`` answers with ``pagination: null``" stood here until
+    # 2026-09-09 and is wrong: measured, the search names a number too.)
     #
-    # Genau daran zu haengen war der blinde Fleck: ohne genannte Zahl galt
-    # die gelieferte als Gesamtzahl, und das Kennzeichen war damit ``False``,
-    # wenn niemand etwas sagte -- bei neun Untersammlungen und ``limit=5``
-    # kamen fuenf zurueck und "nicht gekuerzt" (Pruefung 09.09.2026). Der
-    # eine Datensatz ueber ``limit`` entscheidet es ohne jede Gesamtzahl;
-    # die genannte zaehlt weiter mit, denn wer 12 sagt und 6 liefert, hat
-    # die Frage selbst beantwortet. Dieselbe Bauform wie
-    # ``dto.page_cut``.
+    # Hanging on exactly that was the blind spot: without a stated number the
+    # delivered one counted as the total, and the flag was therefore ``False``
+    # whenever nobody said anything -- with nine sub-collections and
+    # ``limit=5``, five came back and "not truncated" (review 2026-09-09). The
+    # one record above ``limit`` decides it without any total; a stated one
+    # still counts, because whoever says 12 and delivers 6 has answered the
+    # question. Same shape as ``dto.page_cut``.
     gesagt_material = page_total(nodes_response, default=-1)
     gesagt_unter = page_total(collections_response, default=-1)
     gekuerzt = page_cut(roh_unter, collections_response, limit)
@@ -156,11 +154,11 @@ async def collection_contents(
         "id": collection_id,
         "materials": materials,
         "collections": children,
-        # Ohne genannte Gesamtzahl das Gesehene statt einer 0: ``page_total``
-        # gibt hier die Vorgabe zurueck, und die war 0 -- neben zwanzig
-        # ausgelieferten Materialien. Wer die beiden Zahlen vergleicht, las
-        # daraus, dass es weniger gibt als er in der Hand haelt (Pruefung
-        # 09.09.2026). ``offset +``, weil die Seite erst dort beginnt.
+        # Without a stated total, what was seen rather than a 0: ``page_total``
+        # returns the default here, and that was 0 -- next to twenty delivered
+        # materials. Whoever compares the two numbers read from them that there is
+        # less than they are holding (review 2026-09-09). ``offset +``, because
+        # the page only begins there.
         "total_materials": (gesagt_material if gesagt_material >= 0
                             else offset + len(roh_material)),
         "returned_materials": len(materials),

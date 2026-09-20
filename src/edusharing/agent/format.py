@@ -103,9 +103,9 @@ def format_results(
         lines.append("No hits.")
 
     for unresolved in result.unresolved:
-        # ``str(UnresolvedFilter)`` setzt Feld, Wert und Vorschlaege
-        # zusammen -- drei Server-Angaben in einer Zeile, die das ``!``
-        # strukturell braucht (Audit SEC-5).
+        # ``str(UnresolvedFilter)`` joins field, value and suggestions -- three
+        # server-supplied parts on one line, which the ``!`` needs structurally
+        # (audit SEC-5).
         lines.append(f"! Filter not resolved: {one_line(str(unresolved))}")
     for warning in result.warnings:
         lines.append(f"! {one_line(warning)}")

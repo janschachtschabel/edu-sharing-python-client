@@ -124,16 +124,15 @@ class Collections:
             return_exceptions=True,
         )
 
-        # ``return_exceptions=True`` reicht **jede** Ausnahme als Wert
-        # zurueck, auch einen Abbruch und einen Programmierfehler. Nur was
-        # das Repositorium selbst verweigert, ist eine Teilantwort; alles
-        # andere als Warnung zu verpacken macht aus einem Defekt eine
-        # Aussage ueber die Instanz und verbirgt ihn (Audit COR-10, dieselbe
-        # Klasse wie die Regression aus Schritt 14).
-        for zweig in (leg_a, leg_b):
-            if isinstance(zweig, BaseException) and not isinstance(
-                    zweig, EduSharingError):
-                raise zweig
+        # ``return_exceptions=True`` hands back **every** exception as a value, a
+        # cancellation and a programming error included. Only what the repository
+        # itself refuses is a partial answer; wrapping anything else as a warning
+        # turns a defect into a statement about the instance and hides it (audit
+        # COR-10, the same class as the regression from step 14).
+        for leg in (leg_a, leg_b):
+            if isinstance(leg, BaseException) and not isinstance(
+                    leg, EduSharingError):
+                raise leg
 
         warnings: list[str] = []
         from_a: list[SearchHit] = []
@@ -357,15 +356,14 @@ class Collections:
         missing = []
         if title is not None and stored_title_of(stored.raw) != title:
             missing.append("cm:title")
-        # ``or ""``: eine Eigenschaft, die es nach dem Leeren nicht mehr
-        # gibt, liest sich als ``None``, und ``None != ""`` machte aus dem
-        # geglueckten Loeschen einen stillen Verlust (Audit COR-11, dort
-        # *needs verification*). Drei Serverformen bedeuten dasselbe, und
-        # **zwei** davon waren betroffen: die weggelassene Eigenschaft und
-        # die leere Liste ``[]`` -- ``first`` gibt fuer beide ``None``. Nur
-        # ``[""]``, die Liste mit leerem Eintrag, verglich sich richtig
-        # (nachgemessen 09.09.2026; die erste Fassung hatte diese eine mit
-        # der leeren Liste verwechselt).
+        # ``or ""``: a property that no longer exists after being emptied reads as
+        # ``None``, and ``None != ""`` turned a successful deletion into a silent
+        # loss (audit COR-11, filed there as *needs verification*). Three server
+        # forms mean the same thing, and **two** of them were affected: the
+        # omitted property and the empty list ``[]`` -- ``first`` returns ``None``
+        # for both. Only ``[""]``, the list with an empty entry, compared
+        # correctly (re-measured 2026-09-09; the first version had confused that
+        # one with the empty list).
         if description is not None and (
                 stored.get("cm:description") or "") != description:
             missing.append("cm:description")

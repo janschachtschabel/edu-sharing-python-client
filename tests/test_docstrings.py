@@ -306,8 +306,8 @@ def test_kein_docstring_verweist_ins_leere():
 def test_die_verweiswache_sieht_ueberhaupt_etwas():
     """Gegenprobe: eine Wache, deren Ausdruck nichts trifft, ist still gruen."""
     treffer = _VERWEIS.findall(
-        "siehe ``_order_key`` und ``childobjects._anhaenge()`` und ``page_cut``")
-    assert treffer == [("", "_order_key"), ("childobjects", "_anhaenge")], treffer
+        "siehe ``_order_key`` und ``childobjects._attachments()`` und ``page_cut``")
+    assert treffer == [("", "_order_key"), ("childobjects", "_attachments")], treffer
 
 
 def test_die_verweiswache_kennt_auch_attribute():
