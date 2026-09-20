@@ -64,17 +64,24 @@ class _Inflater:
             yield from self._inflate(data)
 
     def _inflate(self, data: bytes) -> Iterator[bytes]:
-        assert self._decoder is not None  # selected before any data is inflated
+        decoder = self._decoder
+        if decoder is None:
+            # ``feed`` selects it before any data is inflated. An ``assert``
+            # stated that invariant and vanished under ``python -O``, leaving
+            # an ``AttributeError`` on ``None`` outside every error contract
+            # (audit COR-20-3). ``DecodingError`` is this module's own word for
+            # "this body cannot be read" and reaches the caller as one.
+            raise httpx.DecodingError("No decoder selected for the compressed response")
         while True:
             size = min(self._chunk_size, self._limit - self._received + 1)
-            chunk = self._decoder.decompress(data, max_length=size)
+            chunk = decoder.decompress(data, max_length=size)
             self._received += len(chunk)
             if self._received > self._limit:
                 raise _DecodeLimit
             if chunk:
                 self._probe = None
                 yield chunk
-            data = self._decoder.unconsumed_tail
+            data = decoder.unconsumed_tail
             if not data and len(chunk) < size:
                 break
 

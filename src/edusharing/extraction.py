@@ -433,6 +433,23 @@ def _check_base(value: str) -> str:
     return f"{parts.scheme}://{parts.netloc}{parts.path.rstrip('/')}"
 
 
+def _as_int(value: Any) -> int:
+    """A number the service reported, or ``0`` when it reported none.
+
+    ``status`` is the target page's HTTP status and comes from a foreign
+    machine. ``int()`` on it raised ``ValueError`` for anything non-numeric --
+    a standard-library exception outside this library's contract, which
+    ``agent.result.as_result`` deliberately does not catch, so one odd answer
+    took the whole tool call down (audit COR-20-1). Unreadable means unknown,
+    which ``ExtractedText.status`` already spells ``0``. The same shape guards
+    ``metadata_agent._schema_info`` and ``bapi.client._error``.
+    """
+    try:
+        return int(value)
+    except (TypeError, ValueError, OverflowError):
+        return 0
+
+
 def _miss(url: str, reason: str) -> ExtractedText:
     return ExtractedText(url=url, text="", lang="", status=0, char_count=0,
                          truncated=False, reason=reason)
@@ -445,7 +462,7 @@ def _result(url: str, response: httpx.Response,
         detail = body.get("detail")
         detail = detail if isinstance(detail, dict) else {}
         return ExtractedText(
-            url=url, text="", lang="", status=int(detail.get("status") or 0),
+            url=url, text="", lang="", status=_as_int(detail.get("status")),
             char_count=0, truncated=False, reason="no_text",
             detail=str(detail.get("error_message") or response.text[:200]),
         )
@@ -458,7 +475,7 @@ def _result(url: str, response: httpx.Response,
     cut, truncated = _cap(text, max_chars)
     return ExtractedText(
         url=url, text=cut, lang=str(body.get("lang") or ""),
-        status=int(body.get("status") or 0), char_count=full,
+        status=_as_int(body.get("status")), char_count=full,
         truncated=truncated,
     )
 

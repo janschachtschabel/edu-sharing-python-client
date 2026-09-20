@@ -258,7 +258,13 @@ class BildungsAPI:
                 and time.monotonic() - self._models_cache[0]
                 < self.models_cache_seconds
             ):
-                return self._models_cache[1]
+                # Eine Kopie: die Liste gehoert dem Aufrufer, und ein
+                # ``clear()`` oder ``sort()`` von dort veraenderte sonst, woraus
+                # jede spaetere Modellwahl waehlt -- unter ``CACHE_FOREVER``
+                # dauerhaft (Audit MNT-20-1, dieselbe Klasse wie F02 beim
+                # Vokabular). ``Model`` ist eingefroren, also genuegt die flache
+                # Kopie.
+                return list(self._models_cache[1])
             return None
 
         gemerkt = aus_dem_cache()
@@ -279,7 +285,7 @@ class BildungsAPI:
             raw = response.get("data") if isinstance(response, dict) else response
             models = [Model.from_response(m) for m in _items(raw, "models", "data")]
             if which == self.provider:
-                self._models_cache = (now, models)
+                self._models_cache = (now, list(models))
             return models
 
     async def load(

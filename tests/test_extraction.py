@@ -567,3 +567,32 @@ async def test_ein_selbst_gebauter_client_wird_weiterhin_geschlossen():
     async with dienst:
         pass
     assert dienst._client.is_closed is True
+
+
+# --- Was der Dienst schickt, ist nicht, was er schicken soll ---------------
+
+async def test_ein_unlesbarer_status_bleibt_im_vertrag():
+    """``status`` kommt von einer fremden Maschine.
+
+    ``text_of`` nennt zwei Ausgaenge: ein ``ExtractedText`` oder ein
+    ``EduSharingError``. Ein ``ValueError`` aus ``int()`` ist keiner davon --
+    und ``agent.result.as_result`` reicht alles weiter, was kein
+    ``EduSharingError`` ist, sodass der Werkzeugaufruf abstuerzt statt zu
+    antworten (Audit COR-20-1).
+    """
+    dienst = Dienst(body={"text": "Der Text.", "lang": "de", "status": "OK"})
+    async with dienst.client(resolve=_oeffentlich) as client:
+        ergebnis = await client.text_of("https://example.test/seite")
+    assert ergebnis.text == "Der Text."
+    assert ergebnis.status == 0, "unlesbar heisst unbekannt, nicht kaputt"
+
+
+async def test_ein_unlesbarer_status_im_424_bleibt_ebenso_im_vertrag():
+    """Derselbe Weg noch einmal -- der 424 liest ``detail.status``."""
+    dienst = Dienst(status=424, body={"detail": {"status": "424 Failed",
+                                                 "error_message": "nichts zu holen"}})
+    async with dienst.client(resolve=_oeffentlich) as client:
+        ergebnis = await client.text_of("https://example.test/seite")
+    assert ergebnis.reason == "no_text"
+    assert ergebnis.status == 0
+    assert ergebnis.detail == "nichts zu holen"

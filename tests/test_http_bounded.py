@@ -7,6 +7,7 @@ import zlib
 import httpx
 import pytest
 
+from edusharing._decoding import _Inflater
 from edusharing._http import _read_bounded_response
 from edusharing.bapi import BildungsAPI
 from edusharing.errors import ContentTooLargeError
@@ -101,3 +102,16 @@ async def test_bounded_requests_negotiate_only_bounded_codecs(bapi):
                 assert await service.download("/file", max_bytes=1) == b"a"
         assert client.headers["accept-encoding"] == "gzip, deflate, br, zstd"
     assert seen == ["gzip, deflate"]
+
+
+def test_inflating_without_a_selected_decoder_stays_a_decoding_error():
+    """`feed` selects the decoder before any data is inflated.
+
+    Should that invariant ever break, it must not depend on assertions being
+    enabled: under `python -O` an `assert` vanishes and leaves an
+    `AttributeError` on `None` in its place, outside every error contract
+    (audit COR-20-3).
+    """
+    inflater = _Inflater("deflate", 10)
+    with pytest.raises(httpx.DecodingError):
+        list(inflater._inflate(b"data"))

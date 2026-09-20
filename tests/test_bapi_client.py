@@ -934,3 +934,20 @@ async def test_die_flaeche_des_proxys_bleibt_unveraendert():
     assert oeffentlich == PROXY_FLAECHE, (
         f"dazugekommen: {sorted(oeffentlich - PROXY_FLAECHE)}, "
         f"weggefallen: {sorted(PROXY_FLAECHE - oeffentlich)}")
+
+
+async def test_der_modellspeicher_gehoert_nicht_dem_aufrufer():
+    """Eine zurueckgegebene Liste gehoert dem, der sie bekommt.
+
+    Gab ``models()`` den Zwischenspeicher selbst heraus, leerte ein
+    ``.clear()`` des Aufrufers ihn fuer alle -- unter ``CACHE_FOREVER``
+    dauerhaft, und die automatische Modellwahl endete danach in "No ready text
+    model". Dieselbe Klasse wie F02 beim Vokabular (Audit MNT-20-1).
+    """
+    aufrufe = []
+    llm = _client(_router, aufrufe, models_cache_seconds=CACHE_FOREVER)
+    erste = await llm.models()
+    erste.clear()
+    zweite = await llm.models()
+    assert [m.id for m in zweite] == ["glm-4.7", "qwen3.6-35b-a3b", "embed-x"]
+    assert len(aufrufe) == 1, "der zweite Aufruf kam aus dem Zwischenspeicher"
