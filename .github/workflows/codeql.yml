@@ -1,0 +1,47 @@
+name: CodeQL
+
+# Die Suite beweist, was diese Bibliothek tut. Dieser Job fragt etwas anderes:
+# ob der Weg dorthin ein bekannt schlechtes Muster enthaelt -- und er findet es
+# auch in Code, den niemand mehr liest. `pip-audit` deckt die Abhaengigkeiten
+# ab, den eigenen Quelltext deckte bis heute nichts ab (Audit OPS-20-1).
+#
+# Die generierte Schicht bleibt draussen: 1.131 maschinengeschriebene Dateien
+# wuerden jede Trefferliste beherrschen, und von Hand geaendert wird dort
+# nichts.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Eine neue Abfrage findet auch den Code von gestern, deshalb ist ein
+    # woechentlicher Lauf nicht dasselbe wie einer bei jedem Push.
+    - cron: "17 4 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  analyse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      # Der einzige Weg, auf dem Befunde in den Security-Reiter gelangen.
+      security-events: write
+      actions: read
+    steps:
+      # Wie in ci.yml auf den Commit gepinnt, nicht auf das Etikett: ein Tag
+      # laesst sich verschieben, und dann laeuft hier, worauf ihn jemand zeigen
+      # laesst. Der Kommentar nennt die Fassung, fuer die der SHA stand.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+
+      - uses: github/codeql-action/init@d8073367669608af8fbcc5f63dd0a0d52bb90cff  # v4
+        with:
+          languages: python
+          config: |
+            paths-ignore:
+              - src/edusharing/_generated
+
+      - uses: github/codeql-action/analyze@d8073367669608af8fbcc5f63dd0a0d52bb90cff  # v4
