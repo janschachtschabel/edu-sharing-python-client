@@ -19,6 +19,15 @@ and in [`docs/audits/`](docs/audits/).
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.3.1] — 2026-09-20
+
+The audit of 2026-09-20 in one round: four checks that used to let a
+wrong address through, two failures that left the error contract, the
+metadata cache bounded, and one home for the project. `0.3.0` was never
+tagged; this is the first number that carries these fixes.
+
 ### Added
 
 - `TextExtraction.from_repository(repository_url, **kwargs)` explicitly derives
@@ -1474,6 +1483,7 @@ services; 1095 offline tests and 94 live ones against edu-sharing 11.0.
   per row.
 
 [Unreleased]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.2.0...HEAD
+[0.3.1]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.2.0...main
 [0.3.0]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.2.0...main
 [0.2.0]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.0.1...v0.1.0
