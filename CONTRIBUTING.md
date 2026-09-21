@@ -47,6 +47,13 @@ EDU_SHARING_URL=https://repository.staging.openeduhub.net uv run pytest -m live
 own throwaway folder, which it removes again. Never point it at a repository
 whose contents you would miss.
 
+Credentials alone are not enough. The account also needs the
+`TOOLPERMISSION_CREATE_ELEMENTS_FOLDERS` toolpermission, because creating that
+folder is the first thing every write test does. Measured 2026-09-21 against
+staging with an account that may create material but not folders: 69 of 69
+tests ended in the fixture with `HTTP 403 DAOToolPermissionException`, and
+nothing was written. Ask the instance's administrator for it.
+
 ## What this codebase expects of a change
 
 - **Measure, do not assume.** Nearly every rule in `src/` carries the

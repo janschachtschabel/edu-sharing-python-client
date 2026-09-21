@@ -1744,7 +1744,12 @@ EDU_SHARING_URL=https://repository.staging.openeduhub.net uv run pytest -m live
 ```
 
 Schreibtests (`-m write`) brauchen Zugangsdaten und arbeiten ausschließlich in
-einem Wegwerf-Ordner, den sie selbst anlegen.
+einem Wegwerf-Ordner, den sie selbst anlegen. Zugangsdaten allein genügen
+nicht: das Konto braucht zusätzlich die Toolpermission
+`TOOLPERMISSION_CREATE_ELEMENTS_FOLDERS`. Gemessen am 21.09.2026 gegen die
+Staging mit einem Konto, das Material anlegen darf und Ordner nicht, endeten
+alle 69 in der Fixture an `HTTP 403 DAOToolPermissionException` — bevor
+irgendetwas geschrieben wurde.
 
 Die Suiten gegen die drei Nachbardienste überspringen sich still ohne ihre
 eigenen Variablen — `B_API_KEY` **und** `B_API_BASE_URL` für das LLM-Gateway

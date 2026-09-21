@@ -4,6 +4,13 @@ Laufen nur mit ``pytest -m write`` und gesetzten Zugangsdaten::
 
     uv run pytest -m write
 
+Zugangsdaten allein genuegen nicht: das Konto braucht die Toolpermission
+``TOOLPERMISSION_CREATE_ELEMENTS_FOLDERS``. Gemessen am 21.09.2026 gegen
+staging endeten sonst 69 von 69 Tests hier in der Fixture an
+``HTTP 403 DAOToolPermissionException``. Material darf dasselbe Konto anlegen,
+Ordner nicht -- und der Wegwerf-Ordner ist die Grenze, hinter der diese Tests
+arbeiten.
+
 **Sicherheitsregeln dieser Datei**, weil ein Schreibtest im falschen Ordner
 fremde Bestaende beschaedigt:
 

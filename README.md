@@ -1711,7 +1711,11 @@ EDU_SHARING_URL=https://repository.staging.openeduhub.net uv run pytest -m live
 ```
 
 Write tests (`-m write`) need credentials and operate exclusively inside a
-throwaway folder they create themselves.
+throwaway folder they create themselves. Credentials alone are not enough: the
+account also needs the `TOOLPERMISSION_CREATE_ELEMENTS_FOLDERS` toolpermission.
+Measured 2026-09-21 against staging with an account that may create material
+but not folders, all 69 of them ended in the fixture with `HTTP 403
+DAOToolPermissionException` — before anything was written.
 
 The suites against the three neighbouring services skip themselves silently
 without their own variables — `B_API_KEY` **and** `B_API_BASE_URL` for the LLM
