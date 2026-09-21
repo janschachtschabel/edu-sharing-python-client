@@ -189,6 +189,47 @@ async def test_dauerhafte_fehler_werden_nicht_wiederholt():
     assert len(versuche) == 1
 
 
+async def test_ein_unbepreistes_modell_wird_nicht_wiederholt():
+    """503 heisst sonst "gleich wieder da". Hier heisst es: dem Gateway fehlt
+    eine Konfiguration -- und die entsteht nicht durchs Warten.
+
+    Gemessen am 21.09.2026 gegen b-api.staging.openeduhub.net:
+    ``apertus-70b-instruct-2509`` steht in ``/models``, meldet ``ready`` und
+    Auslastung 0, wird also von ``least_loaded`` zuerst genannt -- und wird
+    trotzdem nicht bedient. Der Aufruf kostete **15,0 s**, drei Versuche mit
+    Backoff, wo ein bedientes Modell in 0,1 bis 0,9 s antwortet. Dieselbe
+    Ueberlegung wie beim 404 in ``retry.RETRYABLE_STATUS``: das ist keine
+    Wartezeit, das ist eine Antwort.
+    """
+    versuche = []
+
+    def handler(request):
+        versuche.append(request)
+        return httpx.Response(503, json={"message":
+            "Model pricing unavailable for 'apertus-70b-instruct-2509' "
+            "- cannot enforce cost quota"})
+
+    async with _client(handler, max_retries=3) as api:
+        with pytest.raises(EduSharingError, match="pricing"):
+            await api.chat("hallo", model="apertus-70b-instruct-2509")
+    assert len(versuche) == 1
+
+
+async def test_eine_gewoehnliche_503_wird_weiterhin_wiederholt():
+    """Die Gegenprobe: ohne diesen Wortlaut bleibt 503 eine Ueberlastung."""
+    versuche = []
+
+    def handler(request):
+        versuche.append(request)
+        if len(versuche) < 2:
+            return httpx.Response(503, json={"message": "upstream busy"})
+        return httpx.Response(200, json=ANTWORT)
+
+    async with _client(handler, max_retries=3) as api:
+        assert await api.chat("hallo", model="glm-4.7") == "Die Antwort"
+    assert len(versuche) == 2
+
+
 async def test_fehlermeldung_nennt_die_ursache():
     def handler(request):
         return httpx.Response(400, json={"message": "use max_completion_tokens instead"})
@@ -537,13 +578,19 @@ async def test_der_bericht_nennt_abgekuendigte_modelle():
 # Ein 503 ist wiederholbar, also versuchte der Transport dasselbe ausgelastete
 # Modell dreimal, bevor er wechselte -- bei backoff_base 2.5 rund 17 s, obwohl
 # ein anderes Modell danebenstand. Wer mehrere Modelle nennt, will wechseln.
+#
+# Der Beispieltext ist seit dem 21.09.2026 keine Nebensache mehr: seit
+# ``_will_not_change`` unterscheidet die Bibliothek zwei 503. Hier geht es um
+# **Auslastung**, also muss hier auch Auslastung stehen -- vorher stand
+# "Model pricing unavailable" darin, und das meldet gerade keine. Der Fall
+# darunter prueft den anderen Wortlaut.
 
 def _immer_503(aufrufe):
     def handler(request):
         aufrufe.append(request)
         if request.url.path.endswith("/models"):
             return httpx.Response(200, json=MODELLE)
-        return httpx.Response(503, json={"error": "Model pricing unavailable"})
+        return httpx.Response(503, json={"error": "upstream busy"})
     return handler
 
 
@@ -581,6 +628,32 @@ async def test_ein_einzelnes_modell_behaelt_das_volle_budget():
         with pytest.raises(EduSharingError):
             await api.chat("x", model="glm-4.7")
     assert _versuche_je_modell(aufrufe)["glm-4.7"] == 3
+
+
+async def test_ein_unbepreistes_modell_wird_sofort_gewechselt():
+    """Der Unterschied, den ``_will_not_change`` ausmacht.
+
+    Ausgelastet kostet der erste Kandidat zwei Versuche (oben). Unbepreist
+    kostet er einen: die Antwort wird beim vierten Mal nicht anders, und
+    daneben steht ein Modell, das antwortet. Gemessen am 21.09.2026 gegen
+    staging waren das 15,0 s gegenueber 0,1 bis 0,9 s -- und der Aufrufer,
+    der die Wahl der Bibliothek ueberlassen hat, bekommt seine Antwort
+    entsprechend frueher.
+    """
+    aufrufe = []
+
+    def handler(request):
+        aufrufe.append(request)
+        if request.url.path.endswith("/models"):
+            return httpx.Response(200, json=MODELLE)
+        if json.loads(request.content)["model"] == "qwen3.6-35b-a3b":
+            return httpx.Response(503, json={"error": "Model pricing unavailable"})
+        return httpx.Response(200, json=ANTWORT)
+
+    async with _client(handler, max_retries=3) as api:
+        antwort = await api.chat("x", model=["qwen3.6-35b-a3b", "glm-4.7"])
+    assert antwort == "Die Antwort"
+    assert _versuche_je_modell(aufrufe)["qwen3.6-35b-a3b"] == 1
 
 
 async def test_ein_verbund_probiert_alle_seine_mitglieder():

@@ -61,6 +61,7 @@ from .client import (
     DEFAULT_TIMEOUT,
     ENV_BASE_URL,
     ENV_KEY,
+    _will_not_change,
 )
 from .passthrough import Answer, GeneratedImage, _answer_from, _images_from
 from .template_body import (
@@ -463,7 +464,7 @@ class BapiTemplates:
                                          service="The b-api") from exc
 
             last = self._error(response, url, writes=writes)
-            if status not in retry_on:
+            if status not in retry_on or _will_not_change(last):
                 raise last
 
         # The policy allows ``max_retries >= 0``, so the loop ran at least once

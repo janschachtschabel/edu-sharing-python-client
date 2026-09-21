@@ -260,6 +260,25 @@ async def test_eine_503_wird_wiederholt_und_der_zweite_versuch_zaehlt():
     assert len(aufrufe) == 2
 
 
+async def test_ein_unbepreistes_modell_wird_auch_hier_nicht_wiederholt():
+    """Dasselbe Gateway, dieselbe Antwort, dieselbe Regel.
+
+    Gemessen wurde der Fall am LLM-Weg (siehe ``test_bapi_client``); die Regel
+    gehoert aber dem Gateway, nicht einer der beiden Klassen. Stuende sie nur
+    dort, haette dieselbe Pruefung wieder zwei Faelle und eine Kopie -- genau
+    der Befund ARC-20-1.
+    """
+    from edusharing.errors import EduSharingError
+
+    aufrufe = []
+    handler = _antwortet({"message": "Model pricing unavailable for 'x' "
+                                     "- cannot enforce cost quota"}, 503)
+    async with _vorlagen(handler, aufrufe) as vorlagen:
+        with pytest.raises(EduSharingError):
+            await vorlagen.chat(["a"], context_node_id=KNOTEN)
+    assert len(aufrufe) == 1
+
+
 async def test_eine_verbindungsstoerung_wird_bei_chat_wiederholt():
     aufrufe = []
     versuche = iter([httpx.ConnectError("weg"), None])

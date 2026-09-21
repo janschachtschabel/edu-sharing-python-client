@@ -85,6 +85,28 @@ ENV_BASE_URL = "B_API_BASE_URL"
 # while ``openai`` lists 132 including both.
 DEFAULT_PROVIDER = "academiccloud"
 
+#: A 503 that no waiting will cure. The b-api answers it for a model it lists
+#: but cannot bill -- measured 2026-09-21, ``apertus-70b-instruct-2509`` stands
+#: in ``/models`` reporting ``ready`` and demand 0, so ``least_loaded`` names it
+#: first, and every request for it comes back ``503 Model pricing unavailable
+#: ... cannot enforce cost quota``. The status promises that a later attempt
+#: will work; the message says a configuration is missing. Measured, retrying
+#: cost 15.0 s where a served model answers in 0.1 to 0.9 s, and sent the
+#: gateway three requests to collect one refusal. Same reasoning as the 404
+#: that ``retry.RETRYABLE_STATUS`` deliberately leaves out.
+_PRICING_HINT = "model pricing unavailable"
+
+
+def _will_not_change(error: EduSharingError) -> bool:
+    """Whether a second attempt would meet the very same answer.
+
+    Both request loops of this package ask it -- the proxy client below and
+    ``BapiTemplates``. The rule belongs to the gateway, not to one of the two
+    clients, and a check that lives in two copies drifts apart (audit
+    ARC-20-1).
+    """
+    return _PRICING_HINT in str(error).lower()
+
 #: Measured 2026-08-21: up to 26 concurrent requests without error, occasional
 #: 502 from 19 onwards. The limit is NOT stable -- on 08-12 it was 2. Re-measure
 #: before any capacity planning.
@@ -622,6 +644,7 @@ class BildungsAPI:
 
             last = self._error(response, url)
             if (response.status_code not in RETRYABLE_STATUS
+                    or _will_not_change(last)
                     or (not repeatable and response.status_code != 429)):
                 raise last
 
