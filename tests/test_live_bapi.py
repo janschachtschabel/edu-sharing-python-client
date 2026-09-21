@@ -172,6 +172,80 @@ async def test_ein_zu_kleines_budget_meldet_sich_als_abgeschnitten(llm):
                 + "; ".join(abgewiesen))
 
 
+# --- Die GPT-5-Umstellung, gegen den Server --------------------------------
+#
+# ``build_body`` baut die Koerper, und ``test_bapi_body.py`` haelt fest, wie.
+# Ob der Server sie noch verlangt, kann nur ein Lauf sagen: der Sprung von der
+# gpt-4- auf die gpt-5-Familie hat hier dreimal die Regel geaendert, und eine
+# zurueckgenommene Regel wuerde einem Test auf die eigene Koerperform nie
+# auffallen -- der bliebe gruen, waehrend die Bibliothek Ballast mitschleppt.
+
+
+@pytest.fixture
+async def gpt5(llm):
+    """Ein Modell der GPT-5-Familie beim Anbieter openai.
+
+    ``gpt-5.6-luna``, solange es angeboten wird -- die Messungen dieser Datei
+    stammen von ihm. Sonst das erste andere der Familie: die drei Regeln
+    gelten der Familie, nicht dem einen Namen, und ein zurueckgezogener Name
+    ist kein Testergebnis (siehe ``qwen3.5-122b-a10b``).
+    """
+    ids = [m.id for m in await llm.models("openai")]
+    if "gpt-5.6-luna" in ids:
+        return "gpt-5.6-luna"
+    familie = [i for i in ids if i.startswith("gpt-5")]
+    if not familie:
+        pytest.skip("openai bietet kein Modell der GPT-5-Familie an")
+    return familie[0]
+
+
+@pytest.mark.live
+async def test_gpt5_nimmt_den_koerper_der_bibliothek(llm, gpt5):
+    """Die Gegenprobe zu den drei Abweisungen unten: was die Bibliothek baut,
+    nimmt der Server an -- ueber beide Routen."""
+    antwort = await llm.chat("Antworte mit genau einem Wort: Hallo.",
+                             model=gpt5, provider="openai", max_tokens=50)
+    assert antwort.strip(), "leere Antwort auf chat/completions"
+
+    ueber_responses = await llm.respond(
+        "Nenne die Hauptstadt von Frankreich, in drei Woertern.",
+        model=gpt5, provider="openai", max_output_tokens=300)
+    assert ueber_responses.status == "completed", ueber_responses.reason
+    assert "aris" in ueber_responses.text, ueber_responses.text
+
+
+@pytest.mark.live
+@pytest.mark.parametrize("route, koerper, erwartet", [
+    # Gemessen 21.09.2026: "Unsupported parameter: 'max_tokens' is not
+    # supported with this model. Use 'max_completion_tokens' instead."
+    ("chat/completions",
+     {"messages": [{"role": "user", "content": "Hallo"}], "max_tokens": 50},
+     "max_completion_tokens"),
+    # "Unsupported value: 'temperature' does not support 0.0 with this model.
+    # Only the default (1) value is supported."
+    ("chat/completions",
+     {"messages": [{"role": "user", "content": "Hallo"}],
+      "max_completion_tokens": 50, "temperature": 0.0},
+     "temperature"),
+    # "Unsupported parameter: 'reasoning_effort'. In the Responses API, this
+    # parameter has moved to 'reasoning.effort'."
+    ("responses",
+     {"input": "Hallo", "max_output_tokens": 300, "reasoning_effort": "low"},
+     "reasoning.effort"),
+])
+async def test_gpt5_weist_die_vor_gpt5_schreibweise_ab(llm, gpt5, route, koerper,
+                                                       erwartet):
+    """Die drei Abweisungen, aus denen die Regeln in ``body`` bestehen.
+
+    Wird eine davon eines Tages angenommen, ist dieser Test rot -- und dann
+    traegt die Bibliothek eine Sonderbehandlung, die niemand mehr braucht.
+    Das ist der einzige Weg, das zu bemerken.
+    """
+    with pytest.raises(EduSharingError) as fehler:
+        await llm.call(route, {"model": gpt5, **koerper}, provider="openai")
+    assert erwartet in str(fehler.value), str(fehler.value)[:200]
+
+
 # --- Der Auslastungsbericht ------------------------------------------------
 
 @pytest.mark.live
