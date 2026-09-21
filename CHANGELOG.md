@@ -19,6 +19,18 @@ and in [`docs/audits/`](docs/audits/).
 
 ## [Unreleased]
 
+### Added
+
+- `GeneratedImage` carries `raw` and `generation_id`. `Moderation` and
+  `Answer` have kept the whole answer body all along -- `Moderation` is built
+  from `results[0]` and keeps the full response anyway -- and the image was
+  the one of the three without it. It is worth the most there: `quality` and
+  `size` when `auto` chose them, `output_format`, `background` and the `usage`
+  token count stand in that body and nowhere else, and a second look at them
+  costs a second image. Every image of one answer shares the one body;
+  `generation_id` belongs to the single picture and therefore has a field of
+  its own. `BapiTemplates.images` gains both through the shared parser.
+
 ### Changed
 
 - The model policy left `bapi/client.py` for `bapi/choice.py` (audit

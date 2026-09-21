@@ -143,6 +143,17 @@ class GeneratedImage:
     b64: str | None = None
     #: Some models rewrite the prompt before drawing and say so.
     revised_prompt: str = ""
+    #: The provider's id for this one generation, where it gives one. The GPT
+    #: image models do, the dall-e models do not -- so it belongs to the image
+    #: and not to the answer, like ``revised_prompt`` the other way round.
+    generation_id: str = ""
+    #: The whole answer, as ``Moderation`` and ``Answer`` carry theirs. It
+    #: matters more here than there: an image is paid for, and what the
+    #: gateway reports about the one you paid for -- ``quality`` and ``size``
+    #: when ``auto`` chose them, ``usage``, ``output_format``, ``background``
+    #: -- is in this body and nowhere else. Every image of one answer shares
+    #: the same dict; there is one body, not one per picture.
+    raw: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -223,7 +234,10 @@ def _images_from(answer: dict[str, Any]) -> list[GeneratedImage]:
             b64=(_text(entry.get("b64_json"), "images/generations", f"{field}.b64_json")
                  if entry.get("b64_json") is not None else None),
             revised_prompt=_text(entry.get("revised_prompt"), "images/generations",
-                                 f"{field}.revised_prompt")))
+                                 f"{field}.revised_prompt"),
+            generation_id=_text(entry.get("generation_id"), "images/generations",
+                                f"{field}.generation_id"),
+            raw=answer))
     return images
 
 

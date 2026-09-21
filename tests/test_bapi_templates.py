@@ -465,12 +465,21 @@ async def test_respond_liefert_eine_answer_wie_der_proxy():
 
 
 async def test_images_liefert_generierte_bilder_wie_der_proxy():
+    """Derselbe Parser wie ``BildungsAPI.images`` -- samt ``raw``.
+
+    Der Vorlagenmodus teilt sich ``_images_from`` mit dem Proxy, also erbt er
+    jedes Feld, das dort dazukommt. Am 21.09.2026 kam ``raw`` dazu, und dieser
+    Test hat es gemeldet, weil er die Objekte **ganz** vergleicht. Genau dafuer
+    steht der Ganzvergleich hier: ein Feld, das der Vorlagenmodus stillschweigend
+    nicht mehr fuellt, faellt sonst niemandem auf.
+    """
     from edusharing.bapi import GeneratedImage
     async with _vorlagen(_antwortet(BILDER)) as vorlagen:
         bilder = await vorlagen.images(["a"], context_node_id=KNOTEN)
     assert bilder == [
-        GeneratedImage(url="https://bilder.example.test/1.png", revised_prompt="ein Baum"),
-        GeneratedImage(b64="aGFsbG8=")]
+        GeneratedImage(url="https://bilder.example.test/1.png",
+                       revised_prompt="ein Baum", raw=BILDER),
+        GeneratedImage(b64="aGFsbG8=", raw=BILDER)]
 
 
 #: Die sechs lesenden Routen: Methode, Route, was sie zusaetzlich braucht.

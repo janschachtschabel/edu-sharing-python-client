@@ -1137,7 +1137,7 @@ Template-Modus* weiter unten — eine eigene Klasse, von der diese nicht abhäng
 | `api.moderate(text, model=…, provider="openai")` | eine `Moderation` |
 | `Moderation` | `categories`, `flagged`, `raw`, `scores` |
 | `api.images(prompt, model=…, n=…, size=…, provider=…)` | `list[GeneratedImage]` |
-| `GeneratedImage` | `b64`, `revised_prompt`, `url` |
+| `GeneratedImage` | `b64`, `generation_id`, `raw`, `revised_prompt`, `url` |
 | `api.call(route, body, provider=…, idempotent=…)` | das rohe JSON einer durchgereichten JSON-Route |
 | `api.call_bytes(route, body, provider=…, max_bytes=None, idempotent=…)` | `bytes` einer durchgereichten Binärroute, etwa `audio/speech`; der Anfragekörper ist JSON |
 | `api.call_multipart(route, fields, file=…, filename=…, content_type=None, field="file", provider=…, idempotent=…)` | `dict` einer durchgereichten Route, die eine **Datei** statt JSON will |
@@ -1190,11 +1190,13 @@ führt es zehn Bildmodelle und bedient zwei davon — `gpt-image-1.5` und
 * `revised_prompt` bleibt leer. `dall-e-3` schreibt eine Eingabe um und sagt
   das, die GPT-Bildmodelle tun es nicht.
 
-`images()` gibt die Bilder zurück und sonst nichts. Dieselbe Antwort trägt
-außerdem `background`, `output_format`, `quality`, `size`, eine
-`usage`-Tokenzählung und je Bild eine `generation_id` — gemessen kostete ein
-1024×1024 großes Bild in `low` 272 Bildtokens und kam als 191824 Zeichen
-base64 an. Wer das braucht, fragt `call("images/generations", …)`.
+Was das Gateway über das bezahlte Bild meldet, steht in
+`GeneratedImage.raw` — `background`, `output_format`, `quality`, `size` und
+eine `usage`-Tokenzählung, dasselbe Ganzantwort-Feld, das `Moderation` und
+`Answer` tragen. Gemessen kostete ein 1024×1024 großes Bild in `low` 272
+Bildtokens und kam als 191824 Zeichen base64 an. Alle Bilder einer Antwort
+teilen sich diesen einen Körper; die `generation_id` gehört dem einzelnen
+Bild und hat ein eigenes Feld.
 
 **Vier durchgereichte Routen wollen eine Datei statt JSON** —
 `audio/transcriptions`, `audio/translations`, `images/edits` und `files`.

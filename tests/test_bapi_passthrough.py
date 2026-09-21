@@ -52,6 +52,22 @@ BILDER = {"created": 1, "data": [
     {"b64_json": "aGFsbG8="},
 ]}
 
+#: Die gemessene Form: ein Bild von ``gpt-image-1.5`` am 21.09.2026, in den
+#: Zahlen gekuerzt und in den Feldern vollstaendig. Sie steht hier, weil die
+#: Probe darueber genau das pruefen soll, was wirklich ankommt -- ``url`` ist
+#: nicht dabei, und das ist kein Versehen: die GPT-Bildmodelle liefern immer
+#: base64.
+BILD_GEMESSEN = {
+    "created": 1790013044,
+    "background": "opaque",
+    "output_format": "jpeg",
+    "quality": "low",
+    "size": "1024x1024",
+    "usage": {"input_tokens": 10, "output_tokens": 376, "total_tokens": 386},
+    "data": [{"b64_json": "aGFsbG8=",
+              "generation_id": "75f3ab8b-be37-4268-b77b-75a062b29322"}],
+}
+
 
 def _client(handler, aufrufe=None, **kwargs):
     def wrapped(request):
@@ -148,6 +164,50 @@ async def test_bilder_kommen_mit_url_oder_base64():
     assert [b.url for b in bilder] == ["https://beispiel.test/a.png", None]
     assert [b.b64 for b in bilder] == [None, "aGFsbG8="]
     assert bilder[0].revised_prompt == "ein Baum"
+
+
+async def test_ein_bild_traegt_die_ganze_antwort_bei_sich():
+    """``raw`` wie bei ``Moderation`` und ``Answer``.
+
+    Beide Geschwister tragen den ganzen Antwortkoerper mit, auch wenn sie aus
+    einem Unterobjekt gebaut sind -- ``Moderation`` aus ``results[0]``.
+    ``GeneratedImage`` war das einzige der drei ohne, und hier wiegt das am
+    meisten: ``quality``, ``size`` und ``usage`` stehen nur in dieser einen
+    Antwort, und ein zweites Bild kostet wieder Geld. Gemessen am 21.09.2026
+    waehlt ``quality="auto"`` selbst eine Stufe -- die Antwort ist die einzige
+    Stelle, die sagt welche.
+    """
+    async with _client(_antwortet(BILD_GEMESSEN)) as api:
+        bilder = await api.images("ein rotes Quadrat", model="gpt-image-1.5")
+    assert len(bilder) == 1
+    assert bilder[0].raw["quality"] == "low"
+    assert bilder[0].raw["size"] == "1024x1024"
+    assert bilder[0].raw["usage"]["total_tokens"] == 386
+
+
+async def test_jedes_bild_nennt_seine_eigene_erzeugung():
+    """``generation_id`` gehoert dem einzelnen Bild, nicht der Antwort.
+
+    Ueber ``raw`` waere sie nur mit dem eigenen Listenindex zu finden, und den
+    hat ein Aufrufer nicht in der Hand -- er haelt ein ``GeneratedImage``,
+    keine Nummer. Deshalb ein eigenes Feld, wie schon bei ``revised_prompt``.
+    """
+    async with _client(_antwortet(BILD_GEMESSEN)) as api:
+        bilder = await api.images("ein rotes Quadrat", model="gpt-image-1.5")
+    assert bilder[0].generation_id == "75f3ab8b-be37-4268-b77b-75a062b29322"
+
+
+async def test_was_kein_feld_dafuer_hat_bleibt_leer():
+    """Die aeltere Form nennt keine ``generation_id`` -- das ist kein Fehler.
+
+    ``dall-e-3`` schickt ``revised_prompt`` und keine Erzeugungsnummer, die
+    GPT-Bildmodelle umgekehrt. Ein fehlendes Feld zu erfinden waere
+    schlimmer als eine leere Zeichenkette.
+    """
+    async with _client(_antwortet(BILDER)) as api:
+        bilder = await api.images("ein Baum", model="dall-e-3")
+    assert [b.generation_id for b in bilder] == ["", ""]
+    assert bilder[0].raw is bilder[1].raw, "derselbe Koerper, nicht zwei Kopien"
 
 
 # --- Der generische Weg ----------------------------------------------------

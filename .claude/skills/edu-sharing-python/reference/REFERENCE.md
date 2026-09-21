@@ -1109,7 +1109,7 @@ its own, which this one does not depend on.
 | `api.moderate(text, model=…, provider="openai")` | one `Moderation` |
 | `Moderation` | `categories`, `flagged`, `raw`, `scores` |
 | `api.images(prompt, model=…, n=…, size=…, provider=…)` | `list[GeneratedImage]` |
-| `GeneratedImage` | `b64`, `revised_prompt`, `url` |
+| `GeneratedImage` | `b64`, `generation_id`, `raw`, `revised_prompt`, `url` |
 | `api.call(route, body, provider=…, idempotent=…)` | the raw JSON of a forwarded JSON route |
 | `api.call_bytes(route, body, provider=…, max_bytes=None, idempotent=…)` | `bytes` from a forwarded binary route, such as `audio/speech`; the request body is JSON |
 | `api.call_multipart(route, fields, file=…, filename=…, content_type=None, field="file", provider=…, idempotent=…)` | `dict` from a forwarded route that wants a **file** rather than JSON |
@@ -1161,11 +1161,12 @@ provider at all.
 * `revised_prompt` stays empty. `dall-e-3` rewrites a prompt and says so, the
   GPT image models do not.
 
-`images()` hands back the pictures and nothing else. The same answer also
-carries `background`, `output_format`, `quality`, `size`, a `usage` token
-count and one `generation_id` per image — measured, a 1024×1024 `low` image
-cost 272 image tokens and arrived as 191824 characters of base64. Ask
-`call("images/generations", …)` when you need any of that.
+What the gateway reports about the image you paid for is in
+`GeneratedImage.raw` — `background`, `output_format`, `quality`, `size` and a
+`usage` token count, the same whole-answer field `Moderation` and `Answer`
+carry. Measured, a 1024×1024 `low` image cost 272 image tokens and arrived as
+191824 characters of base64. Every image of one answer shares that one body;
+`generation_id` belongs to the single picture and has its own field.
 
 **Four forwarded routes want a file, not JSON** — `audio/transcriptions`,
 `audio/translations`, `images/edits` and `files`. `call` reaches none of them,
