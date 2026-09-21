@@ -1187,7 +1187,7 @@ Both providers carry it — measured 2026-08-31, `gpt-5.6-luna` at OpenAI and
 
 | Call | Result |
 |---|---|
-| `api.respond(prompt, model=…, max_output_tokens=…, provider=…, reasoning_effort=…, verbosity=…)` | `Answer` |
+| `api.respond(prompt, model=…, max_output_tokens=…, provider=…, reasoning_effort=…, verbosity=…)` | `Answer` — `model` as in `chat`: one id, a list or group name, or nothing |
 | `answer.text` | `str` |
 | `answer.truncated` | `bool` — **read this first** |
 | `answer.status` / `answer.reason` | `"incomplete"` / `"max_output_tokens"` |
@@ -1258,9 +1258,12 @@ print((await api.load()).summary())
 request will go through. Measured 2026-09-21: `apertus-70b-instruct-2509`
 reports `ready` and demand 0, so `least_loaded` names it first — and a request
 for it comes back `503 Model pricing unavailable ... cannot enforce cost
-quota`. `chat()` survives that because it moves on to the next candidate;
-`respond()` takes the id you hand it, so check the answer rather than the
-ranking.
+quota`. Both `chat()` and `respond()` survive it by moving on to the next
+candidate — since `0.3.3`; before that `respond()` took the one id it was
+given and stopped there. A single id still stops there, in both: naming one
+model means that model, and quietly answering from its neighbour would be a
+silent substitution. Pass a list when you want the fallback, and read
+`last_model` to see who answered.
 
 **`CACHE_FOREVER` is right for a script and wrong for a service.** A process
 that runs for a minute should ask once. A process that runs for a day would

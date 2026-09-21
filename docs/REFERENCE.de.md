@@ -1220,7 +1220,7 @@ bei OpenAI und `gemma-4-31b-it` bei der AcademicCloud beide mit
 
 | Aufruf | Ergebnis |
 |---|---|
-| `api.respond(prompt, model=…, max_output_tokens=…, provider=…, reasoning_effort=…, verbosity=…)` | `Answer` |
+| `api.respond(prompt, model=…, max_output_tokens=…, provider=…, reasoning_effort=…, verbosity=…)` | `Answer` — `model` wie bei `chat`: eine ID, eine Liste bzw. ein Verbundname, oder nichts |
 | `answer.text` | `str` |
 | `answer.truncated` | `bool` — **zuerst lesen** |
 | `answer.status` / `answer.reason` | `"incomplete"` / `"max_output_tokens"` |
@@ -1291,9 +1291,13 @@ print((await api.load()).summary())
 Anfrage durchgeht. Gemessen am 21.09.2026: `apertus-70b-instruct-2509` meldet
 `ready` und Auslastung 0, steht also bei `least_loaded` vorn — und eine
 Anfrage dafür kommt als `503 Model pricing unavailable … cannot enforce cost
-quota` zurück. `chat()` übersteht das, weil es zum nächsten Kandidaten
-weitergeht; `respond()` nimmt die ID, die Sie ihm geben — prüfen Sie also die
-Antwort, nicht die Rangfolge.
+quota` zurück. `chat()` und `respond()` überstehen das beide, indem sie zum
+nächsten Kandidaten weitergehen — seit `0.3.3`; davor nahm `respond()` die
+eine ID, die es bekam, und blieb dort stehen. Bei genau einer ID bleibt es
+auch heute dabei, in beiden: wer ein Modell nennt, meint dieses Modell, und
+eine Antwort vom Nachbarmodell wäre ein stiller Austausch. Übergeben Sie eine
+Liste, wenn Sie das Ausweichen wollen, und lesen Sie `last_model`, um zu
+sehen, wer geantwortet hat.
 
 **`CACHE_FOREVER` ist für ein Skript richtig und für einen Dienst falsch.** Ein
 Prozess, der eine Minute läuft, sollte einmal fragen. Ein Prozess, der einen
