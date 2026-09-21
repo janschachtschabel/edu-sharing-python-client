@@ -367,14 +367,36 @@ async def test_eine_gruppe_einzeln_lesen(repo):
 
 @pytest.mark.live
 async def test_mitglieder_brauchen_verwaltungsrechte(repo):
-    """Gemessen am 28.08.2026: fuer eine Gruppe, in der man nur Mitglied ist,
-    antwortet der Endpunkt 500 AccessDeniedException. Uebersetzt ist das ein
-    Rechteproblem -- sonst wiederholte der Transport es dreimal."""
-    from edusharing.errors import PermissionDeniedError
+    """Gemessen am 28.08.2026 gegen redaktion und am 21.09.2026 gegen staging:
+    fuer eine Gruppe, die das Konto **nicht verwaltet**, antwortet der Endpunkt
+    500 AccessDeniedException. Uebersetzt ist das ein Rechteproblem -- sonst
+    wiederholte der Transport es dreimal.
+
+    Welche Gruppe das ist, weiss der Test nicht im Voraus. Hier stand
+    ``gruppen[0]``: gegen redaktion war das zufaellig eine blosse
+    Mitgliedschaft, gegen staging ist es ``..._ORG_ADMINISTRATORS`` -- und fuer
+    die antwortet ``members()`` richtigerweise. Gemessen verwaltet das Konto 5
+    seiner 10 Gruppen. Der Test fragt darum alle und prueft die Zusage an jeder
+    Verweigerung. Verwaltet ein Konto alle seine Gruppen, fehlt die
+    Voraussetzung: dann wird uebersprungen, statt eine Aussage ueber nichts zu
+    treffen.
+    """
+    from edusharing.errors import EduSharingError, PermissionDeniedError
 
     gruppen = await _mitgliedschaften(repo)
-    with pytest.raises(PermissionDeniedError):
-        await repo.people.members(gruppen[0].name)
+    verweigert = []
+    for gruppe in gruppen:
+        try:
+            await repo.people.members(gruppe.name)
+        except EduSharingError as fehler:
+            verweigert.append((gruppe.name, fehler))
+
+    if not verweigert:
+        pytest.skip("das Konto verwaltet jede seiner Gruppen")
+    for name, fehler in verweigert:
+        assert isinstance(fehler, PermissionDeniedError), (
+            f"{name}: {type(fehler).__name__} statt PermissionDeniedError"
+        )
 
 
 # --- Die Referenz-Falle, live -----------------------------------------------
