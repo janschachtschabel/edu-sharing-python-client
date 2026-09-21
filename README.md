@@ -387,8 +387,8 @@ The current tag is `v0.3.5`:
 python -m pip install "git+https://github.com/openeduhub/edu-sharing-python-client@v0.3.5"
 ```
 
-`@main` above tracks whatever has landed since. The earlier tags `v0.0.1`,
-`v0.1.0`, `v0.2.0`, `v0.3.1`, `v0.3.2`, `v0.3.3` and `v0.3.4` exist here as well as in the development
+`@main` above tracks whatever has landed since. Every earlier tag from `v0.0.1`
+onwards exists here as well as in the development
 repository named under [*Author*](#author), which carries the same `main` and
 the full history; the release procedure at the end of this file says how a tag
 gets here.

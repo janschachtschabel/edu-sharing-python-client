@@ -392,8 +392,8 @@ Der aktuelle Tag ist `v0.3.5`:
 python -m pip install "git+https://github.com/openeduhub/edu-sharing-python-client@v0.3.5"
 ```
 
-`@main` oben folgt dem, was seither dazugekommen ist. Die früheren Tags
-`v0.0.1`, `v0.1.0`, `v0.2.0`, `v0.3.1`, `v0.3.2`, `v0.3.3` und `v0.3.4` liegen hier wie im
+`@main` oben folgt dem, was seither dazugekommen ist. Jeder frühere Tag ab `v0.0.1`
+liegt hier wie im
 Entwicklungsrepositorium unter [*Autor*](#autor), das denselben `main` und die
 ganze Geschichte trägt; wie ein Tag hierherkommt, sagt der Release-Ablauf am
 Ende dieser Datei.
