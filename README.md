@@ -381,14 +381,14 @@ uv pip install --upgrade "git+https://github.com/openeduhub/edu-sharing-python-c
 
 ### Installing a specific version
 
-`v0.3.3` is the current tag, and `@v0.3.2` pins it:
+`v0.3.4` is the current tag, and `@v0.3.2` pins it:
 
 ```bash
-python -m pip install "git+https://github.com/openeduhub/edu-sharing-python-client@v0.3.3"
+python -m pip install "git+https://github.com/openeduhub/edu-sharing-python-client@v0.3.4"
 ```
 
 `@main` above tracks whatever has landed since. The earlier tags `v0.0.1`,
-`v0.1.0`, `v0.2.0`, `v0.3.1` and `v0.3.2` exist here as well as in the development
+`v0.1.0`, `v0.2.0`, `v0.3.1`, `v0.3.2` and `v0.3.3` exist here as well as in the development
 repository named under [*Author*](#author), which carries the same `main` and
 the full history; the release procedure at the end of this file says how a tag
 gets here.

@@ -21,6 +21,42 @@ and in [`docs/audits/`](docs/audits/).
 
 Nothing yet.
 
+## [0.3.4] — 2026-09-21
+
+The routes that want a file, and a documentation debt from the release before.
+
+### Added
+
+- `call_multipart(route, fields, file=…, filename=…)` reaches the four
+  forwarded routes that take a file rather than a JSON body:
+  `audio/transcriptions`, `audio/translations`, `images/edits` and `files`.
+  None of them could be reached before, and it was worth asking whether the
+  wall was the gateway or this library. Measured 2026-09-21,
+  `audio/transcriptions` with `whisper-1` answers `503 Model pricing
+  unavailable`, but with `gpt-4o-mini-transcribe` it answers
+  `400 {'loc': ('body', 'file'), 'msg': 'Field required'}` — served, and
+  missing only the file. The wall was this library.
+  `field=` names the file part, because the route decides what it is called:
+  `file` for the audio routes and for `files`, `image` for `images/edits`.
+  The live test makes its own fixture — `audio/speech` speaks a sentence and
+  `audio/transcriptions` reads it back — so no audio file lives in the
+  repository, and `call_bytes`, which had no live test at all, is covered by
+  the same run.
+
+### Documentation
+
+- What `respond()` can do since `0.3.3` is now written down. The signature
+  guard stayed green because a documented call still *binds* — `model=` became
+  optional, so the old line remains valid — but nothing said a list was
+  allowed. And one sentence written the same morning had become false: the
+  load section still claimed `respond()` takes the id you hand it.
+- Two measurements that cost an afternoon if you do not have them: the gateway
+  prices only part of what it lists (`gpt-4o-mini-tts` and
+  `gpt-4o-mini-transcribe` are served, `tts-1`, `whisper-1` and
+  `gpt-transcribe` are not), and transcribing a single proper noun is a guess
+  — `"Berlin."` came back as `柏林`, and a `language` field changed nothing,
+  not even `"zh"`.
+
 ## [0.3.3] — 2026-09-21
 
 The round the gateway asked for: one policy that two routes now share, and a
@@ -1566,7 +1602,8 @@ services; 1095 offline tests and 94 live ones against edu-sharing 11.0.
   500 for one address, or when a node's content is refused; both are reported
   per row.
 
-[Unreleased]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.3.4...HEAD
+[0.3.4]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.2.0...v0.3.1
