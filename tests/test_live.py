@@ -453,7 +453,12 @@ async def test_find_by_url_findet_den_datensatz_zu_einer_bekannten_adresse():
         found = await find_by_url(repo, hit.source_url)
         assert found is not None
         assert found["url"].lower() == hit.source_url.lower()
-    async with AsyncRepository.from_env() as repo:
+    # Ausdruecklich benannt, nicht aus der Umgebung geerbt: dieser Teil des
+    # Tests ist eine Aussage ueber ``-default-``. Mit gesetztem
+    # ``EDU_SHARING_METADATASET=mds_oeh`` nahm ``from_env()`` genau den, das
+    # Kriterium galt, und der Test wurde rot -- am Rechner dessen, der die
+    # Variable gesetzt hatte (gemessen 21.09.2026).
+    async with AsyncRepository.from_env(metadataset="-default-") as repo:
         with pytest.raises(ValidationError):
             await find_by_url(repo, hit.source_url)
 
@@ -533,6 +538,8 @@ async def test_die_registry_einer_sammlung_wird_gelesen():
 
 @pytest.mark.live
 async def test_der_vorgabe_metadatensatz_kennt_die_inhaltsart_nicht():
-    async with AsyncRepository.from_env() as repo:
+    """``-default-`` steht hier, weil der Test ueber ihn spricht -- geerbt aus
+    der Umgebung war es der, den der Aufrufer zufaellig gesetzt hatte."""
+    async with AsyncRepository.from_env(metadataset="-default-") as repo:
         with pytest.raises(ValidationError):
             await repo.flows.find_skills("x")
