@@ -283,11 +283,86 @@ async def test_eine_abgeschnittene_antwort_sagt_dass_sie_es_ist():
     assert antwort.text == "Thinking Proce"
 
 
-async def test_ohne_modell_gibt_es_keine_anfrage():
-    """Der Endpunkt verlangt es, und raten waere eine stille Modellwahl."""
+async def test_ein_leerer_modellname_ist_ein_fehler():
+    """``None`` heisst "waehle du", ``""`` heisst nichts.
+
+    Seit respond die Politik von chat teilt, ist eine Wahl durch die
+    Bibliothek keine stille mehr -- sie folgt derselben gemessenen Rangfolge.
+    Ein leerer String ist aber keine Bitte darum, sondern ein Aufrufer, dem
+    seine Variable abhandengekommen ist. Den still zu einer Modellwahl zu
+    machen, verstuende ihn falsch.
+    """
     async with _client(lambda r: httpx.Response(200, json=ANTWORT_FERTIG)) as api:
         with pytest.raises(EduSharingError):
             await api.respond("x", model="")
+
+
+#: Zwei Modelle, rangfaehig: demand und Ausgabetyp sind da.
+_MODELLE = {"data": [
+    {"id": "erst-das", "demand": 0, "status": "ready",
+     "input": ["text"], "output": ["text"]},
+    {"id": "dann-das", "demand": 1, "status": "ready",
+     "input": ["text"], "output": ["text"]},
+]}
+
+
+async def test_responses_weicht_auf_den_naechsten_kandidaten_aus():
+    """Dieselbe Falle wie bei chat, jetzt mit demselben Schutz.
+
+    Gemessen am 21.09.2026: das Gateway fuehrt Modelle, die es nicht bedient,
+    und die Liste sagt es nicht vorher -- ``apertus-70b-instruct-2509`` meldet
+    ``ready`` und Auslastung 0 und antwortet mit 503. Wer eine Aufzaehlung
+    uebergibt, will eine Antwort, nicht die Nachricht, dass ausgerechnet der
+    erste Kandidat nicht abrechenbar ist.
+    """
+    versuche = []
+
+    def handler(request):
+        if request.url.path.endswith("/models"):
+            return httpx.Response(200, json=_MODELLE)
+        import json as _json
+        mid = _json.loads(request.content)["model"]
+        versuche.append(mid)
+        if mid == "erst-das":
+            return httpx.Response(503, json={"message":
+                "Model pricing unavailable for 'erst-das' - cannot enforce cost quota"})
+        return httpx.Response(200, json=ANTWORT_FERTIG)
+
+    async with _client(handler) as api:
+        antwort = await api.respond("x", model=["erst-das", "dann-das"])
+    assert antwort.text == "Hallo!"
+    assert versuche == ["erst-das", "dann-das"], versuche
+
+
+async def test_responses_ohne_modell_waehlt_wie_chat():
+    """``model=None`` ueberlaesst der Bibliothek die Wahl -- nach derselben
+    Rangfolge wie ``chat``: am wenigsten ausgelastet zuerst."""
+    versuche = []
+
+    def handler(request):
+        if request.url.path.endswith("/models"):
+            return httpx.Response(200, json=_MODELLE)
+        import json as _json
+        versuche.append(_json.loads(request.content)["model"])
+        return httpx.Response(200, json=ANTWORT_FERTIG)
+
+    async with _client(handler) as api:
+        antwort = await api.respond("x")
+    assert antwort.text == "Hallo!"
+    assert versuche == ["erst-das"], versuche
+
+
+async def test_ein_genannter_modellname_fragt_keine_liste_ab():
+    """Wer eines nennt, loest keine Erkundung aus -- eine Anfrage, nicht zwei."""
+    pfade = []
+
+    def handler(request):
+        pfade.append(request.url.path)
+        return httpx.Response(200, json=ANTWORT_FERTIG)
+
+    async with _client(handler) as api:
+        await api.respond("x", model="gpt-5.6-luna")
+    assert all(not p.endswith("/models") for p in pfade), pfade
 
 
 async def test_die_vorgabe_kommt_in_der_responses_form():

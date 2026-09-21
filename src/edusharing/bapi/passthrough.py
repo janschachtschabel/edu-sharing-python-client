@@ -36,6 +36,7 @@ that because there is a measured policy behind it, and there is none for these.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -221,7 +222,7 @@ async def respond(
     api: BildungsAPI,
     prompt: str,
     *,
-    model: str,
+    model: str | Sequence[str] | None = None,
     provider: str | None = None,
     max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
     reasoning_effort: ReasoningParam = UNSET,
@@ -236,9 +237,16 @@ async def respond(
     and ``text={"verbosity": ...}``, and the flat form is refused outright.
 
     Args:
-        model: required. The route refuses without it, and guessing one would
-            be a silent model choice. There is no virtual model here -- that
-            lives on ``chat``.
+        model: said the same three ways as in ``chat`` -- one id, a list or a
+            group name, or nothing at all, in which case the library ranks the
+            provider's models and takes the least loaded. It used to be
+            required here, on the grounds that choosing would be silent. It is
+            not silent: it is the same measured policy, and the reason to give
+            ``respond`` the same one is the gateway itself. Measured
+            2026-09-21, it lists models it does not serve --
+            ``apertus-70b-instruct-2509`` reports ``ready`` and demand 0 and
+            answers 503 -- and the listing says so nowhere. ``chat`` moved on
+            to the next candidate; ``respond`` could not.
         max_output_tokens: the budget. Thinking is spent from it, so a
             reasoning model needs room or comes back ``truncated``.
 
@@ -246,22 +254,24 @@ async def respond(
         An ``Answer``. **Check ``truncated``.**
 
     Raises:
-        EduSharingError: without a model.
+        EduSharingError: for ``model=""``, and when no candidate answered.
         ValidationError: for an explicit reasoning parameter this model
             cannot take, or for a route that is not addressable.
     """
-    if not model:
+    if isinstance(model, str) and not model:
         raise EduSharingError(
-            "responses needs a model id -- the route refuses without one, and "
-            "picking one here would be a silent model choice. Pass model=..., "
-            "or use chat() where the library may choose."
+            'model="" is neither a model nor a choice. Pass an id, a list or '
+            "a group name, or model=None to let the library rank the "
+            "provider's models the way chat() does."
         )
-    reasoning = reasoning_for_responses(
-        model, reasoning_effort=reasoning_effort, verbosity=verbosity)
+
     # ``extra`` is the escape hatch, not a second way to set the same value.
     # Spreading it last used to let it win silently, which is exactly the
     # dropped-wish this parameter pair exists to prevent. An own value is
     # honoured where the library only had a default to offer.
+    #
+    # Checked once, here: the clash is between two arguments of this call, not
+    # a property of any candidate. What *is* per candidate stands below.
     for key in ("reasoning", "text"):
         if key not in extra:
             continue
@@ -272,17 +282,28 @@ async def respond(
                 f"{'reasoning_effort' if key == 'reasoning' else 'verbosity'}"
                 f"={present!r} both set the same thing. Pass one of them."
             )
-        reasoning.pop(key, None)
 
-    body: dict[str, Any] = {
-        "model": model,
-        "input": prompt,
-        "max_output_tokens": max_output_tokens,
-        **reasoning,
-        **extra,
-    }
-    answer = await _call_object(api, "responses", body, provider=provider)
-    return _answer_from(answer, model)
+    def body_for(mid: str) -> dict[str, Any]:
+        # Per candidate: whether the two reasoning parameters may be sent at
+        # all depends on the model, so the body is built for the one that is
+        # about to be asked -- not once for whoever happened to be named.
+        reasoning = reasoning_for_responses(
+            mid, reasoning_effort=reasoning_effort, verbosity=verbosity)
+        for key in ("reasoning", "text"):
+            if key in extra:
+                reasoning.pop(key, None)
+        return {
+            "model": mid,
+            "input": prompt,
+            "max_output_tokens": max_output_tokens,
+            **reasoning,
+            **extra,
+        }
+
+    which = provider or api.provider
+    return await api._answer_from_candidates(
+        model, which, _route_path("responses", which), body_for,
+        lambda antwort, mid: _answer_from(_object(antwort, "responses"), mid))
 
 
 async def call(

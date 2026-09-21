@@ -35,7 +35,7 @@ import os
 import time
 from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, date, datetime
-from typing import Any, Self
+from typing import Any, Self, TypeVar
 
 import httpx
 
@@ -84,6 +84,10 @@ ENV_BASE_URL = "B_API_BASE_URL"
 # 2026-08-28, ``academiccloud`` lists 16, none for embedding or moderation,
 # while ``openai`` lists 132 including both.
 DEFAULT_PROVIDER = "academiccloud"
+
+#: Was eine Route aus ihrer Antwort macht -- Text bei ``chat``, ein ``Answer``
+#: bei ``respond``. Die Modellpolitik ist fuer beide dieselbe.
+_Gelesen = TypeVar("_Gelesen")
 
 #: A 503 that no waiting will cure. The b-api answers it for a model it lists
 #: but cannot bill -- measured 2026-09-21, ``apertus-70b-instruct-2509`` stands
@@ -420,14 +424,51 @@ class BildungsAPI:
                 reasoning_effort=reasoning_effort, verbosity=verbosity,
             )
 
+        return await self._answer_from_candidates(
+            model, which, path, body_for,
+            lambda response, _id: read_answer(response))
+
+    async def _answer_from_candidates(
+        self,
+        model: str | Sequence[str] | None,
+        which: str,
+        path: str,
+        body_for: Callable[[str], dict[str, Any]],
+        parse: Callable[[dict[str, Any], str], _Gelesen],
+    ) -> _Gelesen:
+        """Choose a model for a generating route, and get its answer.
+
+        Every rule about *which* model answers lives here: a group name or an
+        explicit list, the ranking when the caller left the choice open, the
+        cap on guessing, and the switch to the next candidate. It used to sit
+        in the body of ``chat``, which is why ``respond`` did not have it --
+        not for a reason, but because it was out of reach. The routes differ
+        in their body and in how their answer is read; ``body_for`` and
+        ``parse`` carry that difference, and nothing else does.
+
+        Args:
+            parse: turns one answer into what the route returns, given the
+                model that produced it. It runs inside the attempt: an answer
+                this library cannot read is a failure of that candidate, not
+                of the call, and the next one is tried.
+
+        Raises:
+            EduSharingError: when a group name is also a real model id, when a
+                named model is not offered, or when none of the candidates
+                answered.
+            ValidationError: when nothing is left to rank on.
+        """
         group = await self._resolve_group(model, which)
 
         if group is not None:
             candidates = rank_among(await self.models(which), group)
         elif isinstance(model, str) and model:
-            answer = read_answer(await self._request("POST", path, json=body_for(model)))
+            # One named model asks no list. Measured: chat() with an id makes
+            # exactly one request, and a caller who names a model is not
+            # asking the library to look around.
+            response = await self._request("POST", path, json=body_for(model))
             self.last_model = model
-            return answer
+            return parse(response, model)
         else:
             offered = await self.models(which)
             if not is_rankable(offered):
@@ -449,14 +490,15 @@ class BildungsAPI:
         to_try = candidates if group is not None \
             else candidates[:DEFAULT_MODEL_ATTEMPTS]
 
-        return await self._first_that_answers(to_try, path, body_for)
+        return await self._first_that_answers(to_try, path, body_for, parse)
 
     async def _first_that_answers(
         self,
         to_try: list[Model],
         path: str,
         body_for: Callable[[str], dict[str, Any]],
-    ) -> str:
+        parse: Callable[[dict[str, Any], str], _Gelesen],
+    ) -> _Gelesen:
         """Try the candidates in order and return the first answer.
 
         Switching beats waiting while another candidate remains: a 503 is
@@ -478,7 +520,7 @@ class BildungsAPI:
             try:
                 response = await self._request(
                     "POST", path, json=body_for(candidate.id), max_retries=budget)
-                answer = read_answer(response)
+                answer = parse(response, candidate.id)
             except EduSharingError as exc:
                 if isinstance(exc, RateLimitedError) and exc.retry_after is not None:
                     # The gateway limits the key. A different model does not
@@ -543,9 +585,13 @@ class BildungsAPI:
             self, prompt, model=model, provider=provider, **extra)
 
     async def respond(
-        self, prompt: str, *, model: str, **kwargs: Any,
+        self, prompt: str, *, model: str | Sequence[str] | None = None,
+        **kwargs: Any,
     ) -> passthrough.Answer:
         """Ask through the ``responses`` route. See ``passthrough.respond``.
+
+        ``model`` is said the same three ways as in ``chat``: one id, a list or
+        group name, or nothing at all.
 
         **Check ``truncated``** on the answer: ``incomplete`` means the budget
         ran out, usually into thinking, and the text stops mid-sentence.

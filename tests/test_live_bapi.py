@@ -246,6 +246,26 @@ async def test_gpt5_weist_die_vor_gpt5_schreibweise_ab(llm, gpt5, route, koerper
     assert erwartet in str(fehler.value), str(fehler.value)[:200]
 
 
+@pytest.mark.live
+async def test_respond_weicht_auf_den_naechsten_kandidaten_aus(llm, gpt5):
+    """``respond`` hatte die Modellpolitik von ``chat`` nicht -- ohne Grund.
+
+    Gemessen am 21.09.2026: ``tts-1`` steht in der Modellliste von openai und
+    wird nicht bedient (503 ``Model pricing unavailable``). Vorher endete
+    ``respond`` genau dort, denn es nahm die eine ID, die es bekam. Jetzt teilt
+    es die Politik: naechster Kandidat, und die Antwort kommt.
+
+    Der Fall ist mit Absicht ueber die echte Liste gewaehlt und nicht erfunden
+    -- er ist der, der einem Aufrufer hier tatsaechlich begegnet.
+    """
+    antwort = await llm.respond(
+        "Nenne die Hauptstadt von Frankreich, in drei Woertern.",
+        model=["tts-1", gpt5], provider="openai", max_output_tokens=300)
+    assert antwort.status == "completed", antwort.reason
+    assert "aris" in antwort.text, antwort.text
+    assert llm.last_model == gpt5, llm.last_model
+
+
 # --- Der Auslastungsbericht ------------------------------------------------
 
 @pytest.mark.live
