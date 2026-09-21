@@ -94,6 +94,7 @@ def _will_not_change(error: EduSharingError) -> bool:
     """
     return _PRICING_HINT in str(error).lower()
 
+
 #: Measured 2026-08-21: up to 26 concurrent requests without error, occasional
 #: 502 from 19 onwards. The limit is NOT stable -- on 08-12 it was 2. Re-measure
 #: before any capacity planning.
@@ -345,6 +346,9 @@ class BildungsAPI:
             EduSharingError: when a group name is also a real model id, when a
                 named model is not offered, or when none of the candidates
                 answered.
+            ValidationError: when an explicit ``reasoning_effort`` or
+                ``verbosity`` fits none of the candidates -- nothing is sent in
+                that case.
         """
         if isinstance(prompt, str):
             messages = [{"role": "user", "content": prompt}]

@@ -278,8 +278,9 @@ async def respond(
 
     Raises:
         EduSharingError: for ``model=""``, and when no candidate answered.
-        ValidationError: for an explicit reasoning parameter this model
-            cannot take, or for a route that is not addressable.
+        ValidationError: for an explicit reasoning parameter that the named
+            model -- or, under an open choice, no candidate at all -- can
+            take, and for a route that is not addressable.
     """
     if isinstance(model, str) and not model:
         raise EduSharingError(

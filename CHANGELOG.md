@@ -19,6 +19,24 @@ and in [`docs/audits/`](docs/audits/).
 
 ## [Unreleased]
 
+### Fixed
+
+- A request that no candidate can take is the caller's error again, not the
+  gateway's. `chat(reasoning_effort=...)` and `respond(reasoning_effort=...)`
+  without a model built each candidate's body *inside* the attempt, so a
+  `ValidationError` about the caller's own argument was caught as "this
+  candidate did not answer": the call ended with `EduSharingError: None of the
+  models tried answered` while **nothing had been sent**, and the same input
+  with a named model raised `ValidationError`. The type depended on whether a
+  model was named. Passing over a model that cannot take the effort stays --
+  whoever leaves the model open asked for the effort, not for a particular
+  model -- but when none of them takes it, the refusal itself is raised.
+- `last_model` is recorded only once the answer could be read, for a named
+  model too. The automatic choice has always done that, and the reference
+  states it as the rule; the two branches fell out of step when the model
+  policy moved to `bapi/choice.py`. A named model whose answer this library
+  cannot read now leaves `last_model` alone, as it did before.
+
 ### Added
 
 - `GeneratedImage` carries `raw` and `generation_id`. `Moderation` and

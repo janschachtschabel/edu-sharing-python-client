@@ -107,7 +107,8 @@ async def answer_from_candidates(
         EduSharingError: when a group name is also a real model id, when a
             named model is not offered, or when none of the candidates
             answered.
-        ValidationError: when nothing is left to rank on.
+        ValidationError: when nothing is left to rank on, and when the request
+            as written fits none of the candidates.
     """
     group = await resolve_group(api, model, which)
 
@@ -118,8 +119,14 @@ async def answer_from_candidates(
         # exactly one request, and a caller who names a model is not
         # asking the library to look around.
         response = await api._request("POST", path, json=body_for(model))
+        # Erst lesen, dann merken: ``last_model`` sagt, von wem die Antwort
+        # kam, und eine Antwort, die diese Bibliothek nicht lesen kann, ist
+        # keine. Die Schleife unten haelt es genauso, und die Referenz nennt
+        # das als Regel -- am 21.09.2026 fielen die beiden Zweige kurz
+        # auseinander.
+        answer = parse(response, model)
         api.last_model = model
-        return parse(response, model)
+        return answer
     else:
         offered = await api.models(which)
         if not is_rankable(offered):
@@ -159,10 +166,23 @@ async def first_that_answers(
     The last candidate keeps the full budget -- there is nothing left to
     switch to.
 
+    A body the caller's own arguments cannot produce is a different matter,
+    and it is built before the attempt so it cannot be mistaken for one.
+    ``reasoning_effort="high"`` on a model that answers 400 for it is the
+    measured case: moving on is right, because whoever left the model open
+    asked for the effort and not for a particular model. But nothing was sent,
+    so that candidate did not *fail to answer* -- and if no candidate takes the
+    request as written, the call ends with that refusal rather than with a
+    sentence about the gateway.
+
     Raises:
         EduSharingError: when none of them answered, naming each failure.
+        ValidationError: when no candidate could be asked at all, because the
+            request as written fits none of them. The first refusal is the one
+            raised -- the same error ``chat(model="...")`` has always given.
     """
     failures: list[str] = []
+    refused: list[ValidationError] = []
     for index, candidate in enumerate(to_try):
         is_last = index == len(to_try) - 1
         # Lowered, never raised: whoever sets max_retries=0 wants exactly one
@@ -170,8 +190,18 @@ async def first_that_answers(
         budget = None if is_last else min(api.retries_before_switching,
                                           api.max_retries)
         try:
+            body = body_for(candidate.id)
+        except ValidationError as exc:
+            refused.append(exc)
+            failures.append(f"{candidate.id}: {exc}")
+            logger.info(
+                "model %s cannot take the request as written (%s), trying the "
+                "next candidate", candidate.id, type(exc).__name__,
+            )
+            continue
+        try:
             response = await api._request(
-                "POST", path, json=body_for(candidate.id), max_retries=budget)
+                "POST", path, json=body, max_retries=budget)
             answer = parse(response, candidate.id)
         except EduSharingError as exc:
             if isinstance(exc, RateLimitedError) and exc.retry_after is not None:
@@ -197,6 +227,13 @@ async def first_that_answers(
             )
         api.last_model = candidate.id
         return answer
+
+    if refused and len(refused) == len(failures):
+        # Not one request went out. Every candidate was refused here, by this
+        # library, over an argument of this call -- so the answer is that
+        # argument's error and not "nobody answered", which would send the
+        # reader to look at the gateway.
+        raise refused[0]
 
     raise EduSharingError(
         "None of the models tried answered. " + " | ".join(failures)
