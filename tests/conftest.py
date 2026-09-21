@@ -26,12 +26,10 @@ soll, kein Muell, den ein Hook still wegraeumt.
 import asyncio
 import os
 from collections.abc import Callable
-from typing import TYPE_CHECKING
 
 import pytest
 
-if TYPE_CHECKING:  # pragma: no cover
-    from edusharing import AsyncRepository
+from edusharing import AsyncRepository
 
 #: Woran diese Suite ihre eigenen Objekte erkennt. Jede Fixture, die etwas
 #: anlegt, benennt es so.
@@ -108,13 +106,11 @@ def _war_ein_schreiblauf(session: pytest.Session) -> bool:
 
 async def _spuren() -> list[str]:
     """Die Objekte mit unserem Praefix -- im Home und unter den Sammlungen."""
-    from edusharing import AsyncRepository
-
     async with AsyncRepository.from_env(metadataset="mds_oeh") as repo:
         return await _im_home(repo) + await _in_sammlungen(repo)
 
 
-async def _im_home(repo: "AsyncRepository") -> list[str]:
+async def _im_home(repo: AsyncRepository) -> list[str]:
     """Alles im Home-Verzeichnis, seitenweise.
 
     ``nodes.children()`` und nicht ``node.children.list()``: das zweite gibt
@@ -142,7 +138,7 @@ async def _im_home(repo: "AsyncRepository") -> list[str]:
             return gefunden
 
 
-async def _in_sammlungen(repo: "AsyncRepository") -> list[str]:
+async def _in_sammlungen(repo: AsyncRepository) -> list[str]:
     """Sammlungen liegen nicht im Home -- eine Wegwerf-Sammlung faende die
     Home-Liste also nie."""
     treffer = await repo.collections.find(PRAEFIX.rstrip("-"))

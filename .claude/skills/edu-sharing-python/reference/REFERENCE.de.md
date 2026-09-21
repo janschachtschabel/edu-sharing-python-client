@@ -1181,8 +1181,10 @@ führt es zehn Bildmodelle und bedient zwei davon — `gpt-image-1.5` und
 `503 Model pricing unavailable` und erreichen den Anbieter gar nicht erst.
 
 * `response_format` gehört zu `dall-e-2` und `dall-e-3`. Die GPT-Bildmodelle
-  nehmen es nicht und liefern immer base64 — bei allem, was dieses Gateway
-  bedient, ist `GeneratedImage.url` also `None`, und das Bild steht in `.b64`.
+  nehmen es nicht und liefern immer base64 — so steht es im OpenAPI-Dokument
+  des Gateways selbst, und das eine für diese Notiz erzeugte Bild kam mit
+  `b64_json` und ohne `url` zurück. Bei allem, was dieses Gateway bedient, ist
+  `GeneratedImage.url` also `None`, und das Bild steht in `.b64`.
 * `quality` heißt bei den GPT-Bildmodellen `low`, `medium`, `high` oder `auto`
   und bei `dall-e-3` `hd` oder `standard`; die beiden Mengen überschneiden
   sich nicht. Voreinstellung ist `auto`, und die Antwort sagt, was gewählt

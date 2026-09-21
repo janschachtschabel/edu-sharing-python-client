@@ -1152,9 +1152,10 @@ two — `gpt-image-1.5` and `chatgpt-image-latest`. `gpt-image-1`,
 provider at all.
 
 * `response_format` belongs to `dall-e-2` and `dall-e-3`. The GPT image models
-  do not take it and always return base64 — which means
-  `GeneratedImage.url` is `None` for everything this gateway serves, and the
-  picture is in `.b64`.
+  do not take it and always return base64 — the gateway's own OpenAPI document
+  states that, and the one image generated for this note came back with
+  `b64_json` and no `url`. Which means `GeneratedImage.url` is `None` for
+  everything this gateway serves, and the picture is in `.b64`.
 * `quality` is `low`, `medium`, `high` or `auto` for the GPT image models and
   `hd` or `standard` for `dall-e-3`; the two sets do not overlap. `auto` is
   the default, and the answer says which one was chosen.

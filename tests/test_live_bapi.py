@@ -8,7 +8,9 @@ Ankuendigung -- aus deepseek-v4-flash wurde binnen neun Tagen
 deepseek-v4-flash-0731, der alte Name antwortet seither mit 503.
 """
 
+import contextlib
 import os
+from collections.abc import Iterator
 from datetime import date
 
 import pytest
@@ -288,15 +290,27 @@ async def test_respond_weicht_auf_den_naechsten_kandidaten_aus(llm, gpt5):
 # --- Die Routen mit einer Datei -------------------------------------------
 
 
-def _uebersprungen_wenn_unbepreist(fehler: EduSharingError, modell: str) -> None:
+@contextlib.contextmanager
+def _unbepreist_ueberspringen(modell: str) -> Iterator[None]:
     """Ein Modell, das das Gateway nicht abrechnen kann, ist kein Befund ueber
     diese Bibliothek. Gemessen am 21.09.2026 traf das ``tts-1``, ``whisper-1``
     und ``gpt-transcribe``; ``gpt-4o-mini-tts`` und ``gpt-4o-mini-transcribe``
     wurden bedient. Kippt das, soll der Test das sagen und nicht so tun, als
-    waere der Dateiweg kaputt."""
-    if "pricing unavailable" in str(fehler).lower():
-        pytest.skip(f"{modell} wird vom Gateway nicht abgerechnet")
-    raise fehler
+    waere der Dateiweg kaputt.
+
+    Ein Kontextmanager und keine Funktion, die aus einem ``except`` heraus
+    springt. Die zweite Form war zwar richtig -- sie kehrte nie zurueck --,
+    aber nichts pruefte das: ``tests/`` steht nicht in ``[tool.mypy] files``,
+    also haette auch ``-> NoReturn`` nur danebengestanden. So gibt es den
+    ``except``-Block gar nicht mehr, und damit auch nicht die Variable, die
+    danach ungebunden sein koennte.
+    """
+    try:
+        yield
+    except EduSharingError as fehler:
+        if "pricing unavailable" in str(fehler).lower():
+            pytest.skip(f"{modell} wird vom Gateway nicht abgerechnet")
+        raise
 
 
 @pytest.mark.live
@@ -316,24 +330,20 @@ async def test_eine_datei_geht_durch_die_bibliothek(llm):
     belegt -- die eine ueber ``call_bytes``, fuer die es bisher ueberhaupt
     keinen Live-Test gab, die andere ueber ``call_multipart``.
     """
-    try:
+    with _unbepreist_ueberspringen("gpt-4o-mini-tts"):
         gesprochen = await llm.call_bytes(
             "audio/speech",
             {"model": "gpt-4o-mini-tts", "voice": "alloy",
              "input": "Die Hauptstadt von Deutschland ist Berlin."},
             provider="openai")
-    except EduSharingError as fehler:
-        _uebersprungen_wenn_unbepreist(fehler, "gpt-4o-mini-tts")
 
     assert len(gesprochen) > 1000, f"nur {len(gesprochen)} Bytes"
 
-    try:
+    with _unbepreist_ueberspringen("gpt-4o-mini-transcribe"):
         zurueck = await llm.call_multipart(
             "audio/transcriptions", {"model": "gpt-4o-mini-transcribe"},
             file=gesprochen, filename="probe.mp3", content_type="audio/mpeg",
             provider="openai")
-    except EduSharingError as fehler:
-        _uebersprungen_wenn_unbepreist(fehler, "gpt-4o-mini-transcribe")
 
     # Ein ganzer Satz mit Absicht. Gemessen am 21.09.2026 kam das einzelne
     # Wort "Berlin." als "柏林" zurueck -- richtig, aber auf

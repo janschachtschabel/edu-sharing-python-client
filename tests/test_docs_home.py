@@ -38,8 +38,14 @@ _BESITZER = re.compile(r"github\.com/([A-Za-z0-9_.-]+)/edu-sharing-python-client
 _MIT_TAG = re.compile(
     rf"github\.com/{HEIMAT}/edu-sharing-python-client@v([0-9][0-9A-Za-z.\-]*)")
 
-#: Eine dreiteilige Versionsnummer irgendwo in einer Zeile.
-_DREITEILIG = re.compile(r"\b([0-9]+\.[0-9]+\.[0-9]+)\b")
+#: Etwas, das wie eine Versionsangabe aussieht. **Nicht** nur ``X.Y.Z``: die
+#: erste Fassung verlangte genau drei Zahlen und war damit fuer ``0.4.0rc1``
+#: oder ``0.4.0b2`` **unerfuellbar** -- das Muster fand dort gar nichts, also
+#: haette kein Wortlaut der Tabellenzeile den Test gruen bekommen, und die
+#: Meldung haette "gar keine Version" gesagt statt "diese Form kenne ich
+#: nicht". Eine Wache, die an einer gueltigen Versionsnummer haengenbleibt,
+#: kostet genau in dem Moment eine Stunde, in dem jemand veroeffentlicht.
+_WIE_EINE_VERSION = re.compile(r"\b[0-9]+\.[0-9]+(?:[0-9A-Za-z.]*[0-9A-Za-z])?")
 
 
 def _version() -> str:
@@ -146,7 +152,7 @@ def test_die_gestuetzte_fassung_ist_die_laufende():
                  for nummer, zeile in _zeilen("SECURITY.md") if "\u2705" in zeile]
     assert gestuetzt, "SECURITY.md nennt keine gestuetzte Fassung mehr"
     genannt = {treffer for zeile in gestuetzt
-               for treffer in _DREITEILIG.findall(zeile)}
+               for treffer in _WIE_EINE_VERSION.findall(zeile)}
     assert genannt == {version}, (
         f"gestuetzt genannt: {sorted(genannt) or 'gar keine Version'}, "
         f"laufend ist {version}\n  " + "\n  ".join(gestuetzt))
@@ -167,5 +173,12 @@ def test_die_wache_erkennt_den_rueckfall():
 
     # Und die Stuetzungstabelle: eine Zeile ohne Zahl ist so falsch wie eine
     # mit der falschen -- sonst genuegte es, die Zahl wegzulassen.
-    assert _DREITEILIG.findall("| `main` (0.3.0) | \u2705 |") == ["0.3.0"]
-    assert _DREITEILIG.findall("| `main` | \u2705 |") == []
+    assert _WIE_EINE_VERSION.findall("| `main` (0.3.0) | \u2705 |") == ["0.3.0"]
+    assert _WIE_EINE_VERSION.findall("| `main` | \u2705 |") == []
+
+    # Eine Vorabversion ist eine Version. Ohne diese beiden Zeilen war die
+    # Wache fuer sie unerfuellbar, und nichts sagte es.
+    assert _WIE_EINE_VERSION.findall("| `main` (0.4.0rc1) | \u2705 |") == ["0.4.0rc1"]
+    assert _WIE_EINE_VERSION.findall("| `main` (0.4.0.post1) | \u2705 |") == ["0.4.0.post1"]
+    # Und ein Punkt am Satzende gehoert nicht zur Nummer.
+    assert _WIE_EINE_VERSION.findall("die Fassung 0.3.4.") == ["0.3.4"]
