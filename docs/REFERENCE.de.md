@@ -1235,11 +1235,11 @@ answer.text          # "Die Hauptstadt von Frankreich ist Paris."
 answer.truncated     # False
 
 kurz = await api.respond("Warum ist der Himmel blau?",
-                         model="qwen3.5-122b-a10b", provider="academiccloud",
+                         model="qwen3.5-397b-a17b", provider="academiccloud",
                          max_output_tokens=32)
 kurz.truncated       # True
 kurz.reason          # "max_output_tokens"
-kurz.text            # "Thinking Process:\n\n1. **Analyze..." <- keine Antwort
+kurz.text            # "Here's a thinking process that leads to..." <- keine Antwort
 ```
 
 **Das Denken zahlt aus demselben Budget.** Ein Reasoning-Modell mit 32 Tokens
@@ -1279,12 +1279,21 @@ Einstellung hängt daran, wie lange Ihr Prozess lebt.
 # async: BildungsAPI hat keine blockierende Fassade
 api = BildungsAPI.from_env(models_cache_seconds=CACHE_FOREVER)
 print((await api.load()).summary())
-# academiccloud: 15 of 15 usable, load reported
-#   demand=  0  gemma-4-31b-it
-#   demand=  0  qwen3.5-122b-a10b
-#   demand=  4  glm-4.7
-#   demand= 23  qwen3.8-27b
+# academiccloud: 14 of 14 usable, load reported
+#   demand=  0  apertus-70b-instruct-2509
+#   demand=  0  meta-llama-3.1-8b-instruct
+#   demand=  1  gemma-4-31b-it
+#   demand=  2  qwen3.5-397b-a17b
+#   demand=  4  glm-5.3-flash
 ```
+
+**`usable` ist die Selbstauskunft des Anbieters**, keine Zusage, dass eine
+Anfrage durchgeht. Gemessen am 21.09.2026: `apertus-70b-instruct-2509` meldet
+`ready` und Auslastung 0, steht also bei `least_loaded` vorn — und eine
+Anfrage dafür kommt als `503 Model pricing unavailable … cannot enforce cost
+quota` zurück. `chat()` übersteht das, weil es zum nächsten Kandidaten
+weitergeht; `respond()` nimmt die ID, die Sie ihm geben — prüfen Sie also die
+Antwort, nicht die Rangfolge.
 
 **`CACHE_FOREVER` ist für ein Skript richtig und für einen Dienst falsch.** Ein
 Prozess, der eine Minute läuft, sollte einmal fragen. Ein Prozess, der einen

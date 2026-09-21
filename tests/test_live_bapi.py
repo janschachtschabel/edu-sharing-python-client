@@ -136,14 +136,40 @@ async def test_responses_antwortet_bei_beiden_anbietern(llm, provider, modell):
 async def test_ein_zu_kleines_budget_meldet_sich_als_abgeschnitten(llm):
     """Der Fall, den ein blosser Text verschweigen wuerde.
 
-    qwen3.5 denkt, und das Denken zahlt aus demselben Budget: gemessen am
-    31.08.2026 gingen 32 Tokens vollstaendig in den Denkprozess.
+    Das Denken zahlt aus demselben Budget: gemessen am 31.08.2026 gingen 32
+    Tokens vollstaendig in den Denkprozess, und ``truncated`` ist das einzige,
+    was eine abgebrochene Antwort von einer fertigen unterscheidet.
+
+    Das Modell wird aus der Liste des Anbieters genommen, nicht genannt. Hier
+    stand ``qwen3.5-122b-a10b``; am 21.09.2026 fuehrt die AcademicCloud den
+    Namen nicht mehr, und das Gateway antwortet auf ihn mit 503 ``Model
+    pricing unavailable``. Von den 14 angebotenen Modellen melden 12 bei 32
+    Tokens genau diesen Zustand, zwei sind aus eigenen Gruenden nicht
+    bedienbar (``apertus-70b-instruct-2509`` ebenfalls 503 Pricing,
+    ``qwen3-omni-30b-a3b-instruct`` 400 zu seinem Chat-Template). Darum wird
+    der Reihe nach probiert: ein umbenanntes Modell ist kein Testergebnis,
+    ein Anbieter, von dem keines antwortet, sehr wohl.
     """
-    antwort = await llm.respond("Warum ist der Himmel blau?",
-                                model="qwen3.5-122b-a10b",
-                                provider="academiccloud", max_output_tokens=32)
-    assert antwort.truncated is True
-    assert antwort.reason == "max_output_tokens"
+    modelle = await llm.models("academiccloud")
+    assert modelle, "der Anbieter meldet kein einziges Modell"
+
+    abgewiesen = []
+    for m in modelle:
+        try:
+            antwort = await llm.respond("Warum ist der Himmel blau?",
+                                        model=m.id, provider="academiccloud",
+                                        max_output_tokens=32)
+        except EduSharingError as fehler:
+            abgewiesen.append(f"{m.id}: {type(fehler).__name__}")
+            continue
+        assert antwort.truncated is True, (
+            f"{m.id} beantwortete die Frage in 32 Tokens: {antwort.text!r}"
+        )
+        assert antwort.reason == "max_output_tokens", f"{m.id}: {antwort.reason}"
+        return
+
+    pytest.fail("kein Modell der AcademicCloud antwortete -- "
+                + "; ".join(abgewiesen))
 
 
 # --- Der Auslastungsbericht ------------------------------------------------
