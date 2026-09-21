@@ -21,6 +21,42 @@ and in [`docs/audits/`](docs/audits/).
 
 Nothing yet.
 
+## [0.3.3] — 2026-09-21
+
+The round the gateway asked for: one policy that two routes now share, and a
+check that a write run leaves nothing behind.
+
+### Added
+
+- `respond()` says its model the same three ways `chat()` does — one id, a
+  list or group name, or nothing at all — and moves to the next candidate when
+  one does not answer. The reason is the gateway: measured 2026-09-21, it
+  lists models it does not serve (`apertus-70b-instruct-2509` reports `ready`
+  and demand 0, `tts-1` and `whisper-1` are listed too) and the model records
+  carry no price field, so nothing can be filtered out in advance. `chat()`
+  always moved on; `respond()` could not, and the reason was not a reason —
+  the policy sat in the body of `chat`, out of reach. It lives in
+  `_answer_from_candidates` now, and both routes ask it.
+  `model=""` still raises: `None` means "choose", an empty string means a
+  caller lost their variable.
+  Deliberately not extended to `embeddings()`: a different embedding model is
+  a different vector space, and falling back there would return quiet
+  nonsense.
+
+### Internal
+
+- After a run with `-m write`, the suite looks once for what it left on the
+  instance and fails the run if anything with its own prefix is still there.
+  It deletes nothing — a trace is a finding, not litter to sweep away. Three
+  things it turned up while being written: `node.children.list()` returns
+  *attachments*, not folder contents, so the first version reported "no trace"
+  with the trace lying right there; `write_line` from `pytest_sessionfinish`
+  is swallowed while output capturing is on; and setting `session.exitstatus`
+  there does fail an otherwise green run.
+- The refusal the legacy `completions` route gives a gpt-5 model is pinned
+  live: 404 *"This is a chat model and not supported in the v1/completions
+  endpoint"*.
+
 ## [0.3.2] — 2026-09-21
 
 Measured against staging with credentials and a gateway key in hand: one
@@ -1530,7 +1566,8 @@ services; 1095 offline tests and 94 live ones against edu-sharing 11.0.
   500 for one address, or when a node's content is refused; both are reported
   per row.
 
-[Unreleased]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.2.0...v0.3.1
 [0.3.0]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.2.0...main
