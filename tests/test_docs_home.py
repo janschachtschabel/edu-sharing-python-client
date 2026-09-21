@@ -34,6 +34,22 @@ ANWEISEND = [
 
 _BESITZER = re.compile(r"github\.com/([A-Za-z0-9_.-]+)/edu-sharing-python-client")
 
+#: Ein Installationsbefehl, der einen Tag der Heimat festnagelt.
+_MIT_TAG = re.compile(
+    rf"github\.com/{HEIMAT}/edu-sharing-python-client@v([0-9][0-9A-Za-z.\-]*)")
+
+
+def _version() -> str:
+    """Die Version, die das Projekt gerade traegt -- aus ``pyproject.toml``.
+
+    Nicht ueber ``edusharing.__version__``: das liest die Paketdaten der
+    installierten Fassung und haengt nach einer Erhoehung genau so lange
+    hinterher, bis jemand neu synchronisiert -- der Test wuerde dann gruen
+    bleiben, obwohl die Doku bereits falsch ist.
+    """
+    daten = tomllib.loads((WURZEL / "pyproject.toml").read_text(encoding="utf-8"))
+    return str(daten["project"]["version"])
+
 
 def _zeilen(rel: str) -> list[tuple[int, str]]:
     text = (WURZEL / rel).read_text(encoding="utf-8")
@@ -85,27 +101,39 @@ def test_die_readmes_nennen_den_autor():
 
 
 def test_keine_readme_verspricht_einen_tag_den_die_heimat_nicht_hat():
-    """Die Gegenprobe zu DOC-20-1.
+    """Die Gegenprobe zu DOC-20-1 -- seit dem 21.09.2026 andersherum.
 
-    ``git ls-remote --tags`` gegen openeduhub war am 20.09.2026 leer, also kann
-    kein ``@v…`` dorthin zeigen. Sobald dort getaggt wird, faellt dieser Test
-    als erster auf -- und sagt damit, dass der Abschnitt wieder geschrieben
-    werden darf.
+    Bis dahin war ``git ls-remote --tags`` gegen openeduhub leer, und jedes
+    ``@v…`` zeigte ins Nichts; der Test verbot sie deshalb alle. Seither liegen
+    dort Tags, und der Release-Ablauf am Ende der README legt jede weitere
+    Version ebenfalls dort ab. Ein ``@v…`` darf also stehen -- aber nur das der
+    laufenden Version.
+
+    Denn die Zeile, die eine Versionserhoehung ueberlebt, ist die eigentliche
+    Falle: sie zeigt auf einen Tag, den es gibt, und schickt trotzdem jeden
+    Leser auf einen alten Stand. Ein Linter findet das nie, und dem Schreiber
+    der Erhoehung faellt es nicht auf, weil nichts rot wird.
     """
+    version = _version()
     falsch = [
         f"{rel}:{nummer}: {zeile.strip()}"
         for rel in ANWEISEND for nummer, zeile in _zeilen(rel)
-        if re.search(rf"github\.com/{HEIMAT}/edu-sharing-python-client@v", zeile)
+        for treffer in _MIT_TAG.finditer(zeile)
+        if treffer.group(1) != version
     ]
-    assert not falsch, ("ein Tag, den es dort nicht gibt:\n" + "\n".join(falsch))
+    assert not falsch, (
+        f"ein Tag, der nicht {version} ist:\n" + "\n".join(falsch))
 
 
 def test_die_wache_erkennt_den_rueckfall():
-    """Gegenprobe: genau die Zeilen, die das Audit fand, werden rot."""
+    """Gegenprobe: das falsche Repositorium bleibt falsch, und ein Tag aus
+    einer frueheren Version wird als solcher erkannt."""
     gefunden = _BESITZER.search(
         'python -m pip install "git+https://github.com/janschachtschabel/'
         'edu-sharing-python-client@main"')
     assert gefunden and gefunden.group(1) != HEIMAT
-    assert re.search(rf"github\.com/{HEIMAT}/edu-sharing-python-client@v",
-                     'uv pip install "git+https://github.com/openeduhub/'
-                     'edu-sharing-python-client@v0.2.0"')
+
+    veraltet = _MIT_TAG.search(
+        'uv pip install "git+https://github.com/openeduhub/'
+        'edu-sharing-python-client@v0.2.0"')
+    assert veraltet and veraltet.group(1) == "0.2.0" != _version()

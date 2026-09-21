@@ -21,6 +21,54 @@ and in [`docs/audits/`](docs/audits/).
 
 Nothing yet.
 
+## [0.3.2] — 2026-09-21
+
+Measured against staging with credentials and a gateway key in hand: one
+behaviour change, and four places where a test or a document claimed more than
+the instance actually grants.
+
+### Changed
+
+- A `503` from the b-api that names a missing price is no longer retried.
+  `apertus-70b-instruct-2509` stands in `/models` reporting `ready` and demand
+  0, so `least_loaded` names it first — and every request for it comes back
+  `503 Model pricing unavailable … cannot enforce cost quota`. The status
+  promises that a later attempt will work; the message says a configuration is
+  missing. Measured, the three attempts cost 15.0 s where a served model
+  answers in 0.1 to 0.9 s. The model fallback already covered the case, and is
+  now immediate; `respond()`, which takes the id it is given and has no
+  fallback, fails in one attempt instead of four. Both request loops of the
+  package ask the same rule.
+
+### Documentation
+
+- `-m write` needs more than credentials: the account also needs the
+  `TOOLPERMISSION_CREATE_ELEMENTS_FOLDERS` toolpermission, because creating the
+  throwaway folder is the first thing every write test does. Measured against
+  staging, 69 of 69 ended in the fixture without it, before anything was
+  written. README, CONTRIBUTING and the suite's own docstring say so now.
+- The REFERENCE no longer names `qwen3.5-122b-a10b` or `glm-4.7` — the
+  AcademicCloud dropped both — and its sample listing is the one the gateway
+  answers today. The load section states what `usable` is: the provider's own
+  claim, not a promise that a request will go through.
+
+### Internal
+
+- Two live tests named the metadata set they talk about instead of inheriting
+  it from the shell; the group test asks about rights instead of list order;
+  the truncation test takes its model from the provider's list instead of from
+  memory.
+- The three refusals the GPT-5 body rules are made of are pinned live:
+  `max_tokens`, a deviating `temperature`, and flat reasoning parameters on
+  `responses`. The offline tests hold the body this library builds; these hold
+  that the server still demands it.
+
+### Not verified
+
+- Everything behind the `write` marker. The staging account lacks the
+  toolpermission named above, so creating, changing, suggesting, the workflow
+  and the collection flows rest on their mock tests alone for this release.
+
 ## [0.3.1] — 2026-09-20
 
 The audit of 2026-09-20 in one round: four checks that used to let a
@@ -1482,8 +1530,9 @@ services; 1095 offline tests and 94 live ones against edu-sharing 11.0.
   500 for one address, or when a node's content is refused; both are reported
   per row.
 
-[Unreleased]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.2.0...HEAD
-[0.3.1]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.2.0...main
+[Unreleased]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.3.1...v0.3.2
+[0.3.1]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.2.0...v0.3.1
 [0.3.0]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.2.0...main
 [0.2.0]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.0.1...v0.1.0
