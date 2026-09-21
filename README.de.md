@@ -882,11 +882,26 @@ vektoren = await llm.embeddings(["Photosynthese", "Zellatmung"],
                                 model="text-embedding-3-small", provider="openai")
 urteil = await llm.moderate(text, model="omni-moderation-latest",
                             provider="openai")    # .flagged, .categories, .scores
-bilder = await llm.images("ein Baum", model="dall-e-3")     # .url oder .b64
+bilder = await llm.images("ein Baum", model="gpt-image-1.5")  # .b64, .raw
 audio = await llm.call_bytes(
-    "audio/speech", {"model": "tts-1", "input": text, "voice": "alloy"},
+    "audio/speech", {"model": "gpt-4o-mini-tts", "input": text, "voice": "alloy"},
     provider="openai", max_bytes=10 * 1024 * 1024)
+gesprochen = await llm.call_multipart(      # die vier Routen mit einer Datei
+    "audio/transcriptions", {"model": "gpt-4o-mini-transcribe"},
+    file=audio, filename="probe.mp3", provider="openai")
 ```
+
+**Diese IDs rechnet das Gateway ab, und das ist nicht dasselbe wie die, die es
+führt.** Gemessen am 21.09.2026 antworten `dall-e-2`, `dall-e-3`, `tts-1`,
+`whisper-1` und acht der zehn Bildmodelle mit `503 Model pricing unavailable`
+— nirgends bedient, nirgends angekündigt. Die beiden abrechenbaren
+Bildmodelle sind GPT-Bildmodelle, die `response_format` nie nehmen und immer
+base64 liefern: `GeneratedImage.url` ist hier also `None`, das Bild steht in
+`.b64`, und `.raw` trägt, was die Antwort über Größe, Güte und Verbrauch
+sagte — ein zweiter Blick darauf kostet ein zweites Bild. `call_multipart` ist
+der einzige Weg zu `audio/transcriptions`, `audio/translations`,
+`images/edits` und `files`: die nehmen eine Datei statt eines JSON-Körpers,
+also erreicht `call` keine davon.
 
 Hier wird kein Modell geraten — `chat()` darf das, weil eine gemessene Politik
 dahintersteht, und für diese gibt es keine. **Der Anbieter entscheidet, was

@@ -288,7 +288,10 @@ vier durchgereichten Routen, die eine Datei nehmen (`audio/transcriptions`,
 `audio/translations`, `images/edits`, `files`). Einbettungen,
 Moderation und Bilder gibt es nur bei `provider="openai"` — und von dessen
 zehn Bildmodellen rechnet dieses Gateway zwei ab, beide liefern base64, also
-ist `GeneratedImage.url` dort `None` (gemessen 21.09.2026; siehe TRAPS 2.10).
+ist `GeneratedImage.url` dort `None` und das Bild steht in `.b64` (gemessen
+21.09.2026; siehe TRAPS 2.10). `GeneratedImage` trägt außerdem `.raw` — die
+ganze Antwort samt der von `auto` gewählten `quality` und `size` und der
+`usage`-Zählung — und je Bild `.generation_id`.
 
 ### 3.11 LLM-Gateway — Vorlagen (`BapiTemplates`)
 

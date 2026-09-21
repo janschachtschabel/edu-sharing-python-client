@@ -873,11 +873,25 @@ vectors = await llm.embeddings(["Photosynthese", "Zellatmung"],
                                model="text-embedding-3-small", provider="openai")
 verdict = await llm.moderate(text, model="omni-moderation-latest",
                              provider="openai")   # .flagged, .categories, .scores
-pictures = await llm.images("ein Baum", model="dall-e-3")   # .url or .b64
+pictures = await llm.images("ein Baum", model="gpt-image-1.5")  # .b64, .raw
 audio = await llm.call_bytes(
-    "audio/speech", {"model": "tts-1", "input": text, "voice": "alloy"},
+    "audio/speech", {"model": "gpt-4o-mini-tts", "input": text, "voice": "alloy"},
     provider="openai", max_bytes=10 * 1024 * 1024)
+spoken = await llm.call_multipart(          # the four routes that want a file
+    "audio/transcriptions", {"model": "gpt-4o-mini-transcribe"},
+    file=audio, filename="probe.mp3", provider="openai")
 ```
+
+**Those ids are the ones this gateway bills, and that is not the same as the
+ones it lists.** Measured 2026-09-21: `dall-e-2`, `dall-e-3`, `tts-1`,
+`whisper-1` and eight of the ten image models answer `503 Model pricing
+unavailable` — served nowhere, announced nowhere. The two that are billable
+for images are GPT image models, which never take `response_format` and always
+return base64, so `GeneratedImage.url` is `None` here and the picture is in
+`.b64`; `.raw` carries what the answer said about size, quality and usage, and
+a second look at that costs a second image. `call_multipart` is the only way
+to `audio/transcriptions`, `audio/translations`, `images/edits` and `files`:
+they take a file rather than a JSON body, so `call` reaches none of them.
 
 No model is guessed here — `chat()` may do that because a measured policy backs
 it, and there is none for these. **The provider decides what is possible:**

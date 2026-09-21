@@ -273,7 +273,10 @@ four forwarded routes that take a file (`audio/transcriptions`,
 `audio/translations`, `images/edits`, `files`). Embeddings, moderation and
 images exist at `provider="openai"` only — and of its ten image models this
 gateway bills two, both of which return base64, so `GeneratedImage.url` is
-`None` there (measured 21.09.2026; see TRAPS 2.10).
+`None` there and the picture is in `.b64` (measured 21.09.2026; see TRAPS
+2.10). `GeneratedImage` also carries `.raw` — the whole answer, with the
+`quality` and `size` that `auto` chose and the `usage` count — and
+`.generation_id` per picture.
 
 ### 3.11 LLM gateway — templates (`BapiTemplates`)
 
