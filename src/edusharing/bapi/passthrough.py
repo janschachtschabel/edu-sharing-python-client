@@ -23,6 +23,13 @@ Forwarded: ``chat/completions``, ``completions``, ``embeddings``,
 ``audio/speech``, ``audio/transcriptions``, ``audio/translations``, ``files``,
 ``batches``, ``fine_tuning/jobs``, ``vector_stores``.
 
+Four of them want a **file** rather than a JSON body --
+``audio/transcriptions``, ``audio/translations``, ``images/edits`` and
+``files`` -- and ``call`` reaches none of them. Measured 2026-09-21,
+``audio/transcriptions`` with ``gpt-4o-mini-transcribe`` answers a JSON body
+with ``400 {'loc': ('body', 'file'), 'msg': 'Field required'}``: served, and
+missing only the file. That is what ``call_multipart`` is for.
+
 **Not** forwarded: ``rerank`` -- 403, the same answer an invented route gets.
 ``images/variations`` reaches OpenAI and gets 404 there; it is retired upstream.
 
@@ -36,7 +43,7 @@ that because there is a measured policy behind it, and there is none for these.
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -54,7 +61,8 @@ if TYPE_CHECKING:  # pragma: no cover
 DEFAULT_MAX_OUTPUT_TOKENS = 1000
 
 __all__ = ["Answer", "DEFAULT_MAX_OUTPUT_TOKENS", "GeneratedImage", "Moderation",
-           "call", "call_bytes", "embeddings", "images", "moderate", "respond"]
+           "call", "call_bytes", "call_multipart", "embeddings", "images",
+           "moderate", "respond"]
 
 
 #: What a route segment may consist of. Every forwarded route is built from
@@ -343,6 +351,57 @@ async def _call_object(
     """Typed model routes validate their original body, before raw normalisation."""
     answer = await api._request(
         "POST", _route_path(route, provider or api.provider), json=body)
+    return _object(answer, route)
+
+
+async def call_multipart(
+    api: BildungsAPI,
+    route: str,
+    fields: Mapping[str, str],
+    *,
+    file: bytes,
+    filename: str,
+    content_type: str | None = None,
+    field: str = "file",
+    provider: str | None = None,
+    idempotent: bool = False,
+) -> dict[str, Any]:
+    """POST a file with some form fields, and return the parsed JSON answer.
+
+    Four of the forwarded routes take a file instead of a JSON body --
+    ``audio/transcriptions``, ``audio/translations``, ``images/edits`` and
+    ``files`` -- and ``call`` reached none of them. Not because the gateway
+    refused: measured 2026-09-21, ``audio/transcriptions`` with
+    ``gpt-4o-mini-transcribe`` answers a JSON body with
+    ``400 {'loc': ('body', 'file'), 'msg': 'Field required'}``. The model is
+    served and the file was the only thing missing.
+
+    Args:
+        fields: the ordinary form fields, ``model`` among them. Multipart
+            carries text, so that is how they are sent.
+        file: the bytes. They are held in memory and sent in one body -- a
+            file too large to hold is too large for this route as written.
+        filename: what the far side sees. OpenAI reads the extension to decide
+            the format, so ``probe.mp3`` and ``probe`` are not the same thing.
+        content_type: left out, httpx guesses from ``filename``. Guessing
+            better than that is not something this library can do, so it does
+            not pretend to.
+        field: the name of the file part. ``file`` for the audio routes and
+            for ``files``, ``image`` for ``images/edits`` -- the route
+            decides, not this library.
+        idempotent: as on ``call``, off by default. A repeated upload may be a
+            second upload.
+
+    Raises:
+        ValidationError: the route cannot be addressed safely.
+        EduSharingError: the gateway refuses the request.
+    """
+    teil: tuple[str, bytes] | tuple[str, bytes, str] = (
+        (filename, file) if content_type is None
+        else (filename, file, content_type))
+    answer = await api._request(
+        "POST", _route_path(route, provider or api.provider),
+        files={field: teil}, data=dict(fields), repeatable=idempotent)
     return _object(answer, route)
 
 

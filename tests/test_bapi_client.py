@@ -980,8 +980,10 @@ async def test_die_ablehnung_des_anbieters_liest_sich_als_satz():
 #: Instanz: die Methoden und die Attribute, die ``__init__`` setzt.
 PROXY_FLAECHE = frozenset({
     # B01 adds binary responses without coupling the proxy to template mode.
-    "aclose", "call", "call_bytes", "chat", "embeddings", "from_env", "images", "load",
-    "models", "moderate", "respond",
+    # B01 fuegt Binaerantworten hinzu; call_multipart am 21.09.2026 die vier
+    # weitergeleiteten Routen, die eine Datei statt JSON nehmen.
+    "aclose", "call", "call_bytes", "call_multipart", "chat", "embeddings",
+    "from_env", "images", "load", "models", "moderate", "respond",
     "backoff_base", "base_url", "last_model", "max_retries",
     "models_cache_seconds", "provider", "retries_before_switching",
     "virtual_models",

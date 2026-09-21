@@ -285,6 +285,65 @@ async def test_respond_weicht_auf_den_naechsten_kandidaten_aus(llm, gpt5):
     assert llm.last_model == gpt5, llm.last_model
 
 
+# --- Die Routen mit einer Datei -------------------------------------------
+
+
+def _uebersprungen_wenn_unbepreist(fehler: EduSharingError, modell: str) -> None:
+    """Ein Modell, das das Gateway nicht abrechnen kann, ist kein Befund ueber
+    diese Bibliothek. Gemessen am 21.09.2026 traf das ``tts-1``, ``whisper-1``
+    und ``gpt-transcribe``; ``gpt-4o-mini-tts`` und ``gpt-4o-mini-transcribe``
+    wurden bedient. Kippt das, soll der Test das sagen und nicht so tun, als
+    waere der Dateiweg kaputt."""
+    if "pricing unavailable" in str(fehler).lower():
+        pytest.skip(f"{modell} wird vom Gateway nicht abgerechnet")
+    raise fehler
+
+
+@pytest.mark.live
+async def test_eine_datei_geht_durch_die_bibliothek(llm):
+    """Der Weg, den es vorher nicht gab.
+
+    Vier weitergeleitete Routen nehmen eine Datei statt eines JSON-Koerpers,
+    und ``call`` erreichte keine davon. Nicht, weil das Gateway sie
+    verweigerte: gemessen am 21.09.2026 antwortet ``audio/transcriptions`` mit
+    ``gpt-4o-mini-transcribe`` auf einen JSON-Koerper
+    ``400 {'loc': ('body', 'file'), 'msg': 'Field required'}`` -- das Modell
+    wird bedient, es fehlte allein die Datei.
+
+    Die Probe erzeugt sich ihre Datei selbst: ``audio/speech`` spricht ein
+    Wort, ``audio/transcriptions`` liest es zurueck. Damit liegt kein
+    Testdatensatz im Repositorium, und beide Richtungen sind in einem Lauf
+    belegt -- die eine ueber ``call_bytes``, fuer die es bisher ueberhaupt
+    keinen Live-Test gab, die andere ueber ``call_multipart``.
+    """
+    try:
+        gesprochen = await llm.call_bytes(
+            "audio/speech",
+            {"model": "gpt-4o-mini-tts", "voice": "alloy",
+             "input": "Die Hauptstadt von Deutschland ist Berlin."},
+            provider="openai")
+    except EduSharingError as fehler:
+        _uebersprungen_wenn_unbepreist(fehler, "gpt-4o-mini-tts")
+
+    assert len(gesprochen) > 1000, f"nur {len(gesprochen)} Bytes"
+
+    try:
+        zurueck = await llm.call_multipart(
+            "audio/transcriptions", {"model": "gpt-4o-mini-transcribe"},
+            file=gesprochen, filename="probe.mp3", content_type="audio/mpeg",
+            provider="openai")
+    except EduSharingError as fehler:
+        _uebersprungen_wenn_unbepreist(fehler, "gpt-4o-mini-transcribe")
+
+    # Ein ganzer Satz mit Absicht. Gemessen am 21.09.2026 kam das einzelne
+    # Wort "Berlin." als "柏林" zurueck -- richtig, aber auf
+    # Chinesisch: ein Eigenname ohne Kontext ist mehrdeutig. Und ein
+    # ``language``-Feld half nicht, weder mit "de" noch mit "zh"; beide
+    # lieferten denselben deutschen Satz. Es steht darum nicht hier, damit
+    # niemand es fuer wirksam haelt.
+    assert "Berlin" in zurueck.get("text", ""), zurueck
+
+
 # --- Der Auslastungsbericht ------------------------------------------------
 
 @pytest.mark.live

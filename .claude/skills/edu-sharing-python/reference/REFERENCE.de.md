@@ -1140,6 +1140,7 @@ Template-Modus* weiter unten — eine eigene Klasse, von der diese nicht abhäng
 | `GeneratedImage` | `b64`, `revised_prompt`, `url` |
 | `api.call(route, body, provider=…, idempotent=…)` | das rohe JSON einer durchgereichten JSON-Route |
 | `api.call_bytes(route, body, provider=…, max_bytes=None, idempotent=…)` | `bytes` einer durchgereichten Binärroute, etwa `audio/speech`; der Anfragekörper ist JSON |
+| `api.call_multipart(route, fields, file=…, filename=…, content_type=None, field="file", provider=…, idempotent=…)` | `dict` einer durchgereichten Route, die eine **Datei** statt JSON will |
 | `api.aclose()` | die Verbindung zurückgeben |
 
 `call` und `call_bytes` wiederholen standardmäßig nur Verbindungsfehler
@@ -1171,6 +1172,25 @@ verdict.scores                            # {"hate": …, …} -- alle 13 Katego
 
 await api.call("responses", {"model": "…", "input": "…"})
 ```
+
+**Vier durchgereichte Routen wollen eine Datei statt JSON** —
+`audio/transcriptions`, `audio/translations`, `images/edits` und `files`.
+`call` erreicht keine davon, und zwar nicht, weil das Gateway sie verweigerte:
+gemessen am 21.09.2026 antwortet `audio/transcriptions` mit
+`gpt-4o-mini-transcribe` auf einen JSON-Körper mit
+`400 {'loc': ('body', 'file'), 'msg': 'Field required'}`. `call_multipart`
+schickt Datei und Formularfelder zusammen. `field=` benennt den Teil, denn die
+Route entscheidet, wie er heißt — `file` bei den Audio-Routen und bei `files`,
+`image` bei `images/edits`. Die Bytes liegen dabei im Speicher und gehen in
+einem Körper hinaus.
+
+Zwei Messungen, die man vorher kennen sollte. Das Gateway rechnet nur einen
+Teil dessen ab, was es führt: `gpt-4o-mini-tts` und `gpt-4o-mini-transcribe`
+werden bedient, `tts-1`, `whisper-1` und `gpt-transcribe` antworten mit
+`503 Model pricing unavailable`. Und die Transkription eines einzelnen
+Eigennamens ist geraten — `"Berlin."` kam als `柏林` zurück, richtig, aber in
+einer Sprache, die niemand verlangt hatte; ein `language`-Feld änderte daran
+nichts, auch `"zh"` nicht. Geben Sie ihm einen Satz.
 
 `call_bytes` verwendet dieselben Routenprüfungen, Zugangsdaten, Wiederholungen
 und HTTP-Fehlerklassen wie `call`. `max_bytes` begrenzt auf Wunsch die dekodierte

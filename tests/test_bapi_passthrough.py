@@ -456,3 +456,75 @@ async def test_wer_nur_extra_setzt_bekommt_es_und_nicht_die_vorgabe():
     assert koerper["reasoning"] == {"effort": "minimal"}
     # Die Vorgabe fuer verbosity bleibt, die kollidiert ja nicht.
     assert koerper["text"] == {"verbosity": "low"}
+
+
+# --- Die Routen mit einer Datei -------------------------------------------
+#
+# Vier der weitergeleiteten Routen nehmen eine Datei statt eines JSON-Koerpers:
+# audio/transcriptions, audio/translations, images/edits und files. ``call``
+# erreichte keine davon -- nicht, weil das Gateway sie verweigert haette,
+# sondern weil die Bibliothek nur JSON senden konnte.
+
+
+async def test_call_multipart_schickt_datei_und_felder():
+    aufrufe = []
+
+    def handler(request):
+        aufrufe.append(request)
+        return httpx.Response(200, json={"text": "Test."})
+
+    async with _client(handler) as api:
+        antwort = await api.call_multipart(
+            "audio/transcriptions", {"model": "gpt-4o-mini-transcribe"},
+            file=b"ID3 nicht wirklich mp3", filename="probe.mp3",
+            content_type="audio/mpeg", provider="openai")
+
+    assert antwort["text"] == "Test."
+    anfrage = aufrufe[0]
+    assert anfrage.url.path.endswith("/openai/audio/transcriptions"), anfrage.url
+    assert anfrage.headers["content-type"].startswith("multipart/form-data")
+    koerper = anfrage.content
+    assert b'name="file"; filename="probe.mp3"' in koerper, koerper[:200]
+    assert b"audio/mpeg" in koerper
+    assert b'name="model"' in koerper
+    assert b"gpt-4o-mini-transcribe" in koerper
+
+
+async def test_der_feldname_der_datei_ist_waehlbar():
+    """``images/edits`` nennt sie ``image``, die Audio-Routen ``file`` --
+    die Route entscheidet, nicht die Bibliothek."""
+    aufrufe = []
+
+    def handler(request):
+        aufrufe.append(request)
+        return httpx.Response(200, json={"data": []})
+
+    async with _client(handler) as api:
+        await api.call_multipart(
+            "images/edits", {"model": "gpt-image-1", "prompt": "heller"},
+            file=b"PNG", filename="bild.png", field="image", provider="openai")
+
+    koerper = aufrufe[0].content
+    assert b'name="image"; filename="bild.png"' in koerper, koerper[:200]
+    assert b'name="prompt"' in koerper
+
+
+async def test_ohne_inhaltstyp_wird_er_nicht_erfunden():
+    """httpx raet dann selbst anhand des Namens -- was die Bibliothek nicht
+    besser kann und darum nicht vortaeuschen soll."""
+    aufrufe = []
+
+    async with _client(lambda r: (aufrufe.append(r),
+                                  httpx.Response(200, json={"ok": True}))[1]) as api:
+        await api.call_multipart("files", {"purpose": "assistants"},
+                                 file=b"x", filename="notiz.txt", provider="openai")
+    assert b'filename="notiz.txt"' in aufrufe[0].content
+
+
+async def test_eine_unsichere_route_wird_auch_hier_abgelehnt():
+    """Dieselbe Pruefung wie bei ``call`` -- der Weg mit der Datei ist kein
+    Loch neben der Tuer."""
+    async with _client(lambda r: httpx.Response(200, json={})) as api:
+        with pytest.raises(ValidationError):
+            await api.call_multipart("../secrets", {}, file=b"x",
+                                     filename="a.txt", provider="openai")

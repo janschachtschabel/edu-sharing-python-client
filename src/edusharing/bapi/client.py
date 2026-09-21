@@ -628,8 +628,9 @@ class BildungsAPI:
 
         Returns:
             The response bytes after HTTP content decoding, without audio
-            transcoding. This method supports neither multipart requests nor
-            event streaming; ``call`` remains the JSON-response counterpart.
+            transcoding. This method does not do event streaming; ``call``
+            remains the JSON-response counterpart, and ``call_multipart`` the
+            one for routes that want a file.
 
         Raises:
             ContentTooLargeError: the decoded response exceeds ``max_bytes``.
@@ -638,6 +639,22 @@ class BildungsAPI:
         """
         return await passthrough.call_bytes(
             self, route, body, provider=provider, max_bytes=max_bytes, idempotent=idempotent)
+
+    async def call_multipart(
+        self, route: str, fields: Mapping[str, str], *, file: bytes,
+        filename: str, content_type: str | None = None, field: str = "file",
+        provider: str | None = None, idempotent: bool = False,
+    ) -> dict[str, Any]:
+        """A route that wants a file. See ``passthrough.call_multipart``.
+
+        ``audio/transcriptions``, ``audio/translations``, ``images/edits`` and
+        ``files`` are forwarded by the gateway and take a file rather than a
+        JSON body; ``call`` cannot reach them.
+        """
+        return await passthrough.call_multipart(
+            self, route, fields, file=file, filename=filename,
+            content_type=content_type, field=field, provider=provider,
+            idempotent=idempotent)
 
     async def _pick(self, provider: str) -> Model:
         return pick_model(await self.models(provider))

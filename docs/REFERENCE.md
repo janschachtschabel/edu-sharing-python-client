@@ -1112,6 +1112,7 @@ its own, which this one does not depend on.
 | `GeneratedImage` | `b64`, `revised_prompt`, `url` |
 | `api.call(route, body, provider=…, idempotent=…)` | the raw JSON of a forwarded JSON route |
 | `api.call_bytes(route, body, provider=…, max_bytes=None, idempotent=…)` | `bytes` from a forwarded binary route, such as `audio/speech`; the request body is JSON |
+| `api.call_multipart(route, fields, file=…, filename=…, content_type=None, field="file", provider=…, idempotent=…)` | `dict` from a forwarded route that wants a **file** rather than JSON |
 | `api.aclose()` | give the connection back |
 
 `call` and `call_bytes` retry only connection failures before sending and
@@ -1142,6 +1143,23 @@ verdict.scores                            # {"hate": …, …} -- all 13 categor
 
 await api.call("responses", {"model": "…", "input": "…"})
 ```
+
+**Four forwarded routes want a file, not JSON** — `audio/transcriptions`,
+`audio/translations`, `images/edits` and `files`. `call` reaches none of them,
+and not because the gateway refuses: measured 2026-09-21,
+`audio/transcriptions` with `gpt-4o-mini-transcribe` answers a JSON body with
+`400 {'loc': ('body', 'file'), 'msg': 'Field required'}`. `call_multipart`
+sends the file and the form fields together. `field=` names the part, because
+the route decides what it is called — `file` for the audio routes and for
+`files`, `image` for `images/edits`. The bytes are held in memory and sent in
+one body.
+
+Two measurements worth knowing before you use it. The gateway prices only part
+of what it lists: `gpt-4o-mini-tts` and `gpt-4o-mini-transcribe` are served,
+`tts-1`, `whisper-1` and `gpt-transcribe` answer `503 Model pricing
+unavailable`. And a transcription of a single proper noun is a guess —
+`"Berlin."` came back as `柏林`, correct but in a language nobody asked for; a
+`language` field changed nothing, not even with `"zh"`. Give it a sentence.
 
 `call_bytes` uses the same route checks, authentication, retries and HTTP error
 classes as `call`. `max_bytes` optionally limits the decoded response while
