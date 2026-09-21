@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class ContextMenuEntryScopesItem(str, Enum):
+class ContextMenuEntryScopesItem(StrEnum):
     COLLECTIONSCOLLECTION = "CollectionsCollection"
     COLLECTIONSREFERENCES = "CollectionsReferences"
     CREATEMENU = "CreateMenu"

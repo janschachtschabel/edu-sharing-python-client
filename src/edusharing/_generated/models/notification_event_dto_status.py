@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class NotificationEventDTOStatus(str, Enum):
+class NotificationEventDTOStatus(StrEnum):
     IGNORED = "IGNORED"
     PENDING = "PENDING"
     READ = "READ"

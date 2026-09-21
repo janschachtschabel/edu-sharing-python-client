@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class HandleParamHandleService(str, Enum):
+class HandleParamHandleService(StrEnum):
     DISTINCT = "distinct"
     SYNC = "sync"
     UPDATE = "update"

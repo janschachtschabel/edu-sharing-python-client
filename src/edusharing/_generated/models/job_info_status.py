@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class JobInfoStatus(str, Enum):
+class JobInfoStatus(StrEnum):
     ABORTED = "Aborted"
     FAILED = "Failed"
     FINISHED = "Finished"

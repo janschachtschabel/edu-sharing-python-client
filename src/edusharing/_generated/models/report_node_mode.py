@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class ReportNodeMode(str, Enum):
+class ReportNodeMode(StrEnum):
     FEEDBACK = "Feedback"
     REPORTPROBLEM = "ReportProblem"
 

@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class MdsWidgetConditionType(str, Enum):
+class MdsWidgetConditionType(StrEnum):
     PROPERTY = "PROPERTY"
     TOOLPERMISSION = "TOOLPERMISSION"
 

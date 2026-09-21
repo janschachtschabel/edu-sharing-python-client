@@ -10,11 +10,11 @@ from attrs import field as _attrs_field
 from .. import types
 from ..types import UNSET, File, FileTypes, Unset
 
-T = TypeVar("T", bound="ImportOaiXMLBody")
+T = TypeVar("T", bound="ImportOaiXmlBody")
 
 
 @_attrs_define
-class ImportOaiXMLBody:
+class ImportOaiXmlBody:
     """
     Attributes:
         xml (File | Unset):

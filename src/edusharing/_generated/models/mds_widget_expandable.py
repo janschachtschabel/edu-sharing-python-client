@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class MdsWidgetExpandable(str, Enum):
+class MdsWidgetExpandable(StrEnum):
     COLLAPSED = "collapsed"
     DISABLED = "disabled"
     EXPANDED = "expanded"

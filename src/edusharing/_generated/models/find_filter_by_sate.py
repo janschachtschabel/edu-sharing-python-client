@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class FindFilterBySate(str, Enum):
+class FindFilterBySate(StrEnum):
     NEW = "New"
     PUBLISHED = "Published"
 

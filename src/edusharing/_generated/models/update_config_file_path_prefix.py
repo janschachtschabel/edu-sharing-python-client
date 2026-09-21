@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class UpdateConfigFilePathPrefix(str, Enum):
+class UpdateConfigFilePathPrefix(StrEnum):
     CLUSTER = "cluster"
     CLUSTERAPPLICATIONS = "cluster/applications"
     DEFAULTS = "defaults"

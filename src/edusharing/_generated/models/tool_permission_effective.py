@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class ToolPermissionEffective(str, Enum):
+class ToolPermissionEffective(StrEnum):
     ALLOWED = "ALLOWED"
     DENIED = "DENIED"
     UNDEFINED = "UNDEFINED"

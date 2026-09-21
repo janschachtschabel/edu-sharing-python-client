@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class AuthorityAuthorityType(str, Enum):
+class AuthorityAuthorityType(StrEnum):
     EVERYONE = "EVERYONE"
     GROUP = "GROUP"
     GUEST = "GUEST"

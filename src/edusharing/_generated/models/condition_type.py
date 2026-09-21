@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class ConditionType(str, Enum):
+class ConditionType(StrEnum):
     TOOLPERMISSION = "TOOLPERMISSION"
 
     def __str__(self) -> str:

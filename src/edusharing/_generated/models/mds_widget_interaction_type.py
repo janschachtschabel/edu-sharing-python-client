@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class MdsWidgetInteractionType(str, Enum):
+class MdsWidgetInteractionType(StrEnum):
     INPUT = "Input"
     NONE = "None"
 

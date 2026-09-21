@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class GetStatisticsNodeGrouping(str, Enum):
+class GetStatisticsNodeGrouping(StrEnum):
     DAILY = "Daily"
     MONTHLY = "Monthly"
     NODE = "Node"

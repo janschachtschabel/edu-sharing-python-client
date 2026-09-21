@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class MdsWidgetInputPreprocessorItem(str, Enum):
+class MdsWidgetInputPreprocessorItem(StrEnum):
     LOWERCASE = "lowercase"
     TRIM = "trim"
     UPPERCASE = "uppercase"

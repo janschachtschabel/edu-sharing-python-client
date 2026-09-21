@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class RelationDataReverseType(str, Enum):
+class RelationDataReverseType(StrEnum):
     HASFORMAT = "hasFormat"
     HASPART = "hasPart"
     ISBASEDON = "isBasedOn"

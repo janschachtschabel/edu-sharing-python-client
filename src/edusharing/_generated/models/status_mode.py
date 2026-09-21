@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class StatusMode(str, Enum):
+class StatusMode(StrEnum):
     SEARCH = "SEARCH"
     SERVICE = "SERVICE"
 

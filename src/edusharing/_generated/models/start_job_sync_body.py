@@ -15,8 +15,6 @@ T = TypeVar("T", bound="StartJobSyncBody")
 
 @_attrs_define
 class StartJobSyncBody:
-    """ """
-
     additional_properties: dict[str, StartJobSyncBodyAdditionalProperty] = _attrs_field(
         init=False, factory=dict
     )

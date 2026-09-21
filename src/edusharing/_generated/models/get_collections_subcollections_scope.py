@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class GetCollectionsSubcollectionsScope(str, Enum):
+class GetCollectionsSubcollectionsScope(StrEnum):
     EDU_ALL = "EDU_ALL"
     EDU_GROUPS = "EDU_GROUPS"
     MY = "MY"

@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class GetNodesBySuggestionContentType(str, Enum):
+class GetNodesBySuggestionContentType(StrEnum):
     ALL = "ALL"
     COLLECTIONS = "COLLECTIONS"
     COLLECTION_PROPOSALS = "COLLECTION_PROPOSALS"

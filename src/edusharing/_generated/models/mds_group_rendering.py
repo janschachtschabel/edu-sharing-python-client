@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class MdsGroupRendering(str, Enum):
+class MdsGroupRendering(StrEnum):
     ANGULAR = "angular"
     LEGACY = "legacy"
 

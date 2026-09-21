@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class SearchByLuceneStore(str, Enum):
+class SearchByLuceneStore(StrEnum):
     ARCHIVE = "Archive"
     WORKSPACE = "Workspace"
 

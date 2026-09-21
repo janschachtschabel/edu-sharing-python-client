@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class OrganizationAuthorityType(str, Enum):
+class OrganizationAuthorityType(StrEnum):
     EVERYONE = "EVERYONE"
     GROUP = "GROUP"
     GUEST = "GUEST"

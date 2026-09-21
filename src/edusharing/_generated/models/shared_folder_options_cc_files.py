@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class SharedFolderOptionsCcFiles(str, Enum):
+class SharedFolderOptionsCcFiles(StrEnum):
     ASSIGN = "assign"
     DELETE = "delete"
     NONE = "none"

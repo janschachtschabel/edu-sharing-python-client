@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class SearchByPropertyCombineMode(str, Enum):
+class SearchByPropertyCombineMode(StrEnum):
     AND = "AND"
     OR = "OR"
 

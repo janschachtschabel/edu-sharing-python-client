@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class EntryErrorCode(str, Enum):
+class EntryErrorCode(StrEnum):
     NO_PUBLISH_PERMISSION = "NO_PUBLISH_PERMISSION"
     NO_RIGHTS_ON_PERMISSIONS = "NO_RIGHTS_ON_PERMISSIONS"
     UNKNOWN_ERROR = "UNKNOWN_ERROR"

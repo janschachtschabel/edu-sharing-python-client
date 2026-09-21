@@ -11,8 +11,6 @@ T = TypeVar("T", bound="NodeVersionProperties")
 
 @_attrs_define
 class NodeVersionProperties:
-    """ """
-
     additional_properties: dict[str, list[str]] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:

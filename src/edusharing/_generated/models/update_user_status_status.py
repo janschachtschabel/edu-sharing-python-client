@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class UpdateUserStatusStatus(str, Enum):
+class UpdateUserStatusStatus(StrEnum):
     ACTIVE = "active"
     BLOCKED = "blocked"
     TODELETE = "todelete"

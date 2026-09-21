@@ -7,14 +7,14 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
-from ...models.update_application_xml_body import UpdateApplicationXMLBody
+from ...models.update_application_xml_body import UpdateApplicationXmlBody
 from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     xml: str,
     *,
-    body: UpdateApplicationXMLBody | Unset = UNSET,
+    body: UpdateApplicationXmlBody | Unset = UNSET,
 ) -> dict[str, Any]:
     if any(str(value) in ("", ".", "..") for value in (xml,)):
         raise ValueError("Path parameters must be non-empty and not dot segments.")
@@ -90,7 +90,7 @@ def sync_detailed(
     xml: str,
     *,
     client: AuthenticatedClient | Client,
-    body: UpdateApplicationXMLBody | Unset = UNSET,
+    body: UpdateApplicationXmlBody | Unset = UNSET,
 ) -> Response[Any | ErrorResponse]:
     """edit any properties xml (like homeApplication.properties.xml)
 
@@ -99,7 +99,7 @@ def sync_detailed(
 
     Args:
         xml (str):
-        body (UpdateApplicationXMLBody | Unset):
+        body (UpdateApplicationXmlBody | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -125,7 +125,7 @@ def sync(
     xml: str,
     *,
     client: AuthenticatedClient | Client,
-    body: UpdateApplicationXMLBody | Unset = UNSET,
+    body: UpdateApplicationXmlBody | Unset = UNSET,
 ) -> Any | ErrorResponse | None:
     """edit any properties xml (like homeApplication.properties.xml)
 
@@ -134,7 +134,7 @@ def sync(
 
     Args:
         xml (str):
-        body (UpdateApplicationXMLBody | Unset):
+        body (UpdateApplicationXmlBody | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -155,7 +155,7 @@ async def asyncio_detailed(
     xml: str,
     *,
     client: AuthenticatedClient | Client,
-    body: UpdateApplicationXMLBody | Unset = UNSET,
+    body: UpdateApplicationXmlBody | Unset = UNSET,
 ) -> Response[Any | ErrorResponse]:
     """edit any properties xml (like homeApplication.properties.xml)
 
@@ -164,7 +164,7 @@ async def asyncio_detailed(
 
     Args:
         xml (str):
-        body (UpdateApplicationXMLBody | Unset):
+        body (UpdateApplicationXmlBody | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -188,7 +188,7 @@ async def asyncio(
     xml: str,
     *,
     client: AuthenticatedClient | Client,
-    body: UpdateApplicationXMLBody | Unset = UNSET,
+    body: UpdateApplicationXmlBody | Unset = UNSET,
 ) -> Any | ErrorResponse | None:
     """edit any properties xml (like homeApplication.properties.xml)
 
@@ -197,7 +197,7 @@ async def asyncio(
 
     Args:
         xml (str):
-        body (UpdateApplicationXMLBody | Unset):
+        body (UpdateApplicationXmlBody | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

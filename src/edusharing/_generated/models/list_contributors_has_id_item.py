@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class ListContributorsHasIdItem(str, Enum):
+class ListContributorsHasIdItem(StrEnum):
     EMAIL = "EMAIL"
     GND = "GND"
     ORCID = "ORCID"

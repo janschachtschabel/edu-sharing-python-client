@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class MediacenterSignupMethod(str, Enum):
+class MediacenterSignupMethod(StrEnum):
     LIST = "list"
     PASSWORD = "password"
     SIMPLE = "simple"

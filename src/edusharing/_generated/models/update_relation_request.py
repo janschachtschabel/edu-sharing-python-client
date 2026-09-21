@@ -59,7 +59,9 @@ class UpdateRelationRequest:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.update_relation_request_metadata import UpdateRelationRequestMetadata
+        from ..models.update_relation_request_metadata import (
+            UpdateRelationRequestMetadata,
+        )
 
         d = dict(src_dict)
         from_node = d.pop("fromNode")

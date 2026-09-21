@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class ConfigRatingMode(str, Enum):
+class ConfigRatingMode(StrEnum):
     LIKES = "likes"
     NONE = "none"
     STARS = "stars"

@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class RelationDataType(str, Enum):
+class RelationDataType(StrEnum):
     HASFORMAT = "hasFormat"
     HASPART = "hasPart"
     ISBASEDON = "isBasedOn"

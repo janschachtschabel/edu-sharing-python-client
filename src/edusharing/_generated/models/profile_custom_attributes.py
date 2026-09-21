@@ -17,8 +17,6 @@ T = TypeVar("T", bound="ProfileCustomAttributes")
 
 @_attrs_define
 class ProfileCustomAttributes:
-    """ """
-
     additional_properties: dict[str, ProfileCustomAttributesAdditionalProperty] = _attrs_field(
         init=False, factory=dict
     )

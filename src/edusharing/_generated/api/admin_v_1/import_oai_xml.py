@@ -6,14 +6,14 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
-from ...models.import_oai_xml_body import ImportOaiXMLBody
+from ...models.import_oai_xml_body import ImportOaiXmlBody
 from ...models.node import Node
 from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     *,
-    body: ImportOaiXMLBody | Unset = UNSET,
+    body: ImportOaiXmlBody | Unset = UNSET,
     record_handler_class_name: str
     | Unset = "org.edu_sharing.repository.server.importer.RecordHandlerLOM",
     binary_handler_class_name: str | Unset = UNSET,
@@ -96,7 +96,7 @@ def _build_response(
 def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
-    body: ImportOaiXMLBody | Unset = UNSET,
+    body: ImportOaiXmlBody | Unset = UNSET,
     record_handler_class_name: str
     | Unset = "org.edu_sharing.repository.server.importer.RecordHandlerLOM",
     binary_handler_class_name: str | Unset = UNSET,
@@ -107,7 +107,7 @@ def sync_detailed(
         record_handler_class_name (str | Unset):  Default:
             'org.edu_sharing.repository.server.importer.RecordHandlerLOM'.
         binary_handler_class_name (str | Unset):
-        body (ImportOaiXMLBody | Unset):
+        body (ImportOaiXmlBody | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -133,7 +133,7 @@ def sync_detailed(
 def sync(
     *,
     client: AuthenticatedClient | Client,
-    body: ImportOaiXMLBody | Unset = UNSET,
+    body: ImportOaiXmlBody | Unset = UNSET,
     record_handler_class_name: str
     | Unset = "org.edu_sharing.repository.server.importer.RecordHandlerLOM",
     binary_handler_class_name: str | Unset = UNSET,
@@ -144,7 +144,7 @@ def sync(
         record_handler_class_name (str | Unset):  Default:
             'org.edu_sharing.repository.server.importer.RecordHandlerLOM'.
         binary_handler_class_name (str | Unset):
-        body (ImportOaiXMLBody | Unset):
+        body (ImportOaiXmlBody | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -165,7 +165,7 @@ def sync(
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
-    body: ImportOaiXMLBody | Unset = UNSET,
+    body: ImportOaiXmlBody | Unset = UNSET,
     record_handler_class_name: str
     | Unset = "org.edu_sharing.repository.server.importer.RecordHandlerLOM",
     binary_handler_class_name: str | Unset = UNSET,
@@ -176,7 +176,7 @@ async def asyncio_detailed(
         record_handler_class_name (str | Unset):  Default:
             'org.edu_sharing.repository.server.importer.RecordHandlerLOM'.
         binary_handler_class_name (str | Unset):
-        body (ImportOaiXMLBody | Unset):
+        body (ImportOaiXmlBody | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -200,7 +200,7 @@ async def asyncio_detailed(
 async def asyncio(
     *,
     client: AuthenticatedClient | Client,
-    body: ImportOaiXMLBody | Unset = UNSET,
+    body: ImportOaiXmlBody | Unset = UNSET,
     record_handler_class_name: str
     | Unset = "org.edu_sharing.repository.server.importer.RecordHandlerLOM",
     binary_handler_class_name: str | Unset = UNSET,
@@ -211,7 +211,7 @@ async def asyncio(
         record_handler_class_name (str | Unset):  Default:
             'org.edu_sharing.repository.server.importer.RecordHandlerLOM'.
         binary_handler_class_name (str | Unset):
-        body (ImportOaiXMLBody | Unset):
+        body (ImportOaiXmlBody | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

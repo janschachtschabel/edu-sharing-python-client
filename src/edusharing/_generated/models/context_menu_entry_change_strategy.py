@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class ContextMenuEntryChangeStrategy(str, Enum):
+class ContextMenuEntryChangeStrategy(StrEnum):
     REMOVE = "remove"
     UPDATE = "update"
 

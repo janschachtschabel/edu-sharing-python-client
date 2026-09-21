@@ -6,13 +6,11 @@ from typing import Any, Self, TypeVar
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-T = TypeVar("T", bound="GetApplicationXMLResponse200")
+T = TypeVar("T", bound="GetApplicationXmlResponse200")
 
 
 @_attrs_define
-class GetApplicationXMLResponse200:
-    """ """
-
+class GetApplicationXmlResponse200:
     additional_properties: dict[str, str] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:

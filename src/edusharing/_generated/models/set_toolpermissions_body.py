@@ -15,8 +15,6 @@ T = TypeVar("T", bound="SetToolpermissionsBody")
 
 @_attrs_define
 class SetToolpermissionsBody:
-    """ """
-
     additional_properties: dict[str, SetToolpermissionsBodyAdditionalProperty] = _attrs_field(
         init=False, factory=dict
     )

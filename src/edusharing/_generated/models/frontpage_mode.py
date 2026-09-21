@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class FrontpageMode(str, Enum):
+class FrontpageMode(StrEnum):
     COLLECTION = "collection"
     DOWNLOADS = "downloads"
     RANDOM = "random"

@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class PublishCopyHandleMode(str, Enum):
+class PublishCopyHandleMode(StrEnum):
     DISTINCT = "distinct"
     SYNC = "sync"
     UPDATE = "update"

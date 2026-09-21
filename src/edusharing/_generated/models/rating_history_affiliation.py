@@ -15,8 +15,6 @@ T = TypeVar("T", bound="RatingHistoryAffiliation")
 
 @_attrs_define
 class RatingHistoryAffiliation:
-    """ """
-
     additional_properties: dict[str, RatingData] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:

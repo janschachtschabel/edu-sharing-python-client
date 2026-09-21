@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class SuggestionResponseDTOStatus(str, Enum):
+class SuggestionResponseDTOStatus(StrEnum):
     ACCEPTED = "ACCEPTED"
     DECLINED = "DECLINED"
     PENDING = "PENDING"

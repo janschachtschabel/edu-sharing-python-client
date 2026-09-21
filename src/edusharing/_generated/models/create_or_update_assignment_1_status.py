@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class CreateOrUpdateAssignment1Status(str, Enum):
+class CreateOrUpdateAssignment1Status(StrEnum):
     CANCELED = "CANCELED"
     CORRECTED = "CORRECTED"
     DRAFT = "DRAFT"

@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class AdminEditorType(str, Enum):
+class AdminEditorType(StrEnum):
     MONACO = "Monaco"
     TEXTAREA = "Textarea"
 

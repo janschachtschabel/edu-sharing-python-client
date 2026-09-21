@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class PropertySuggestionType(str, Enum):
+class PropertySuggestionType(StrEnum):
     AI = "AI"
     USER_PROPOSAL = "USER_PROPOSAL"
 

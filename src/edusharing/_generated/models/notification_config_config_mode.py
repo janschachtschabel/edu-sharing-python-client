@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class NotificationConfigConfigMode(str, Enum):
+class NotificationConfigConfigMode(StrEnum):
     INDIVIDUAL = "individual"
     UNIFORMLY = "uniformly"
 

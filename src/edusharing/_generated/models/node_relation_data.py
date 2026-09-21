@@ -109,7 +109,9 @@ class NodeRelationData:
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
         from ..models.node import Node
-        from ..models.node_relation_data_evaluation import NodeRelationDataEvaluation
+        from ..models.node_relation_data_evaluation import (
+            NodeRelationDataEvaluation,
+        )
         from ..models.node_relation_data_metadata import NodeRelationDataMetadata
         from ..models.user import User
 

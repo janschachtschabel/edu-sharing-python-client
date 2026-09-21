@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class SuggestionNodeStatus(str, Enum):
+class SuggestionNodeStatus(StrEnum):
     ACCEPTED = "ACCEPTED"
     DECLINED = "DECLINED"
     PENDING = "PENDING"

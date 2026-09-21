@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class HomeFolderOptionsCcFiles(str, Enum):
+class HomeFolderOptionsCcFiles(StrEnum):
     ASSIGN = "assign"
     DELETE = "delete"
     NONE = "none"

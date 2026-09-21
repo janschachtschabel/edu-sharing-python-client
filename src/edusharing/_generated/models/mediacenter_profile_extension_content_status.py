@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class MediacenterProfileExtensionContentStatus(str, Enum):
+class MediacenterProfileExtensionContentStatus(StrEnum):
     ACTIVATED = "Activated"
     DEACTIVATED = "Deactivated"
 

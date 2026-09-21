@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class DeleteRelationType(str, Enum):
+class DeleteRelationType(StrEnum):
     HASFORMAT = "hasFormat"
     ISBASEDON = "isBasedOn"
     ISDUPLICATEOF = "isDuplicateOf"

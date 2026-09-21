@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class ValuesLoginSilentMode(str, Enum):
+class ValuesLoginSilentMode(StrEnum):
     IFRAME = "iframe"
     NONE = "none"
     REDIRECT = "redirect"

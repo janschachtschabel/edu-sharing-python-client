@@ -15,8 +15,6 @@ T = TypeVar("T", bound="NodeSuggestionResponseDTOSuggestions")
 
 @_attrs_define
 class NodeSuggestionResponseDTOSuggestions:
-    """ """
-
     additional_properties: dict[str, list[SuggestionResponseDTO]] = _attrs_field(
         init=False, factory=dict
     )

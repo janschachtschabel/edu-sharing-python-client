@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class RepositoryMessageSeverity(str, Enum):
+class RepositoryMessageSeverity(StrEnum):
     ERROR = "error"
     INFO = "info"
     WARNING = "warning"

@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class ConfigUploadPostDialog(str, Enum):
+class ConfigUploadPostDialog(StrEnum):
     MDS = "Mds"
     NONE = "None"
     SIMPLEEDIT = "SimpleEdit"

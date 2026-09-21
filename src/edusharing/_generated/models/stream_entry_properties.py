@@ -17,8 +17,6 @@ T = TypeVar("T", bound="StreamEntryProperties")
 
 @_attrs_define
 class StreamEntryProperties:
-    """ """
-
     additional_properties: dict[str, StreamEntryPropertiesAdditionalProperty] = _attrs_field(
         init=False, factory=dict
     )

@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class CollectionOptionsPublicCollections(str, Enum):
+class CollectionOptionsPublicCollections(StrEnum):
     ASSIGN = "assign"
     DELETE = "delete"
     NONE = "none"

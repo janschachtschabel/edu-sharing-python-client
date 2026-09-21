@@ -186,7 +186,7 @@ from .gdpr_entry import GdprEntry
 from .general import General
 from .geo import Geo
 from .get_all_toolpermissions_response_200 import GetAllToolpermissionsResponse200
-from .get_application_xml_response_200 import GetApplicationXMLResponse200
+from .get_application_xml_response_200 import GetApplicationXmlResponse200
 from .get_assocs_direction import GetAssocsDirection
 from .get_by_node_ids_request import GetByNodeIdsRequest
 from .get_by_nodes_async_content_type import GetByNodesAsyncContentType
@@ -253,7 +253,7 @@ from .import_collections_body import ImportCollectionsBody
 from .import_excel_body import ImportExcelBody
 from .import_mc_org_connections_body import ImportMcOrgConnectionsBody
 from .import_mediacenters_body import ImportMediacentersBody
-from .import_oai_xml_body import ImportOaiXMLBody
+from .import_oai_xml_body import ImportOaiXmlBody
 from .import_organisations_body import ImportOrganisationsBody
 from .interface import Interface
 from .interface_format import InterfaceFormat
@@ -674,7 +674,7 @@ from .tracking_node_groups_additional_property import TrackingNodeGroupsAddition
 from .tracking_node_groups_additional_property_additional_property import (
     TrackingNodeGroupsAdditionalPropertyAdditionalProperty,
 )
-from .update_application_xml_body import UpdateApplicationXMLBody
+from .update_application_xml_body import UpdateApplicationXmlBody
 from .update_config_file_path_prefix import UpdateConfigFilePathPrefix
 from .update_contributor_request import UpdateContributorRequest
 from .update_contributor_request_kind import UpdateContributorRequestKind
@@ -924,7 +924,7 @@ __all__ = (
     "General",
     "Geo",
     "GetAllToolpermissionsResponse200",
-    "GetApplicationXMLResponse200",
+    "GetApplicationXmlResponse200",
     "GetAssocsDirection",
     "GetByNodeIdsRequest",
     "GetByNodesAsyncContentType",
@@ -985,7 +985,7 @@ __all__ = (
     "ImportExcelBody",
     "ImportMcOrgConnectionsBody",
     "ImportMediacentersBody",
-    "ImportOaiXMLBody",
+    "ImportOaiXmlBody",
     "ImportOrganisationsBody",
     "Interface",
     "InterfaceFormat",
@@ -1382,7 +1382,7 @@ __all__ = (
     "TrackingNodeGroups",
     "TrackingNodeGroupsAdditionalProperty",
     "TrackingNodeGroupsAdditionalPropertyAdditionalProperty",
-    "UpdateApplicationXMLBody",
+    "UpdateApplicationXmlBody",
     "UpdateConfigFilePathPrefix",
     "UpdateContributorRequest",
     "UpdateContributorRequestKind",

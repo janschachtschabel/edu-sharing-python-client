@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class GetRecentUserEventsContentType(str, Enum):
+class GetRecentUserEventsContentType(StrEnum):
     ALL = "ALL"
     COLLECTIONS = "COLLECTIONS"
     COLLECTION_PROPOSALS = "COLLECTION_PROPOSALS"

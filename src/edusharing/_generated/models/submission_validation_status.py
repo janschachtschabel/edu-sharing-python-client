@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class SubmissionValidationStatus(str, Enum):
+class SubmissionValidationStatus(StrEnum):
     FINISHED = "FINISHED"
     NOT_STARTED = "NOT_STARTED"
     PENDING = "PENDING"

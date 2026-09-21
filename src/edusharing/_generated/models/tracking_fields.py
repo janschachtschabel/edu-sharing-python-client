@@ -15,8 +15,6 @@ T = TypeVar("T", bound="TrackingFields")
 
 @_attrs_define
 class TrackingFields:
-    """ """
-
     additional_properties: dict[str, TrackingFieldsAdditionalProperty] = _attrs_field(
         init=False, factory=dict
     )
@@ -31,7 +29,9 @@ class TrackingFields:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.tracking_fields_additional_property import TrackingFieldsAdditionalProperty
+        from ..models.tracking_fields_additional_property import (
+            TrackingFieldsAdditionalProperty,
+        )
 
         d = dict(src_dict)
         tracking_fields = cls()

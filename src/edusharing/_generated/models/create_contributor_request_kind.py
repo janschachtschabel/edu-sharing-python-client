@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class CreateContributorRequestKind(str, Enum):
+class CreateContributorRequestKind(StrEnum):
     ORGANIZATION = "ORGANIZATION"
     PERSON = "PERSON"
 

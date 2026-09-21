@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class SetToolpermissionsBodyAdditionalProperty(str, Enum):
+class SetToolpermissionsBodyAdditionalProperty(StrEnum):
     ALLOWED = "ALLOWED"
     DENIED = "DENIED"
     UNDEFINED = "UNDEFINED"

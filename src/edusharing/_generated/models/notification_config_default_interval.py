@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class NotificationConfigDefaultInterval(str, Enum):
+class NotificationConfigDefaultInterval(StrEnum):
     DAILY = "daily"
     DISABLED = "disabled"
     IMMEDIATELY = "immediately"

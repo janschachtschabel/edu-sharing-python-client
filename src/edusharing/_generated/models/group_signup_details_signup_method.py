@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class GroupSignupDetailsSignupMethod(str, Enum):
+class GroupSignupDetailsSignupMethod(StrEnum):
     LIST = "list"
     PASSWORD = "password"
     SIMPLE = "simple"

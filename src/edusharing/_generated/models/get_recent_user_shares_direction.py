@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class GetRecentUserSharesDirection(str, Enum):
+class GetRecentUserSharesDirection(StrEnum):
     FROMUSER = "fromUser"
     REJECTEDBYUSER = "rejectedByUser"
     TOUSER = "toUser"

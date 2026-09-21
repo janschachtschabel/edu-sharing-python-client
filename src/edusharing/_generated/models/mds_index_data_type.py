@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class MdsIndexDataType(str, Enum):
+class MdsIndexDataType(StrEnum):
     DYNAMIC = "Dynamic"
     JSONDATA = "JsonData"
 

@@ -17,8 +17,6 @@ T = TypeVar("T", bound="ExportByLuceneResponse200Item")
 
 @_attrs_define
 class ExportByLuceneResponse200Item:
-    """ """
-
     additional_properties: dict[str, ExportByLuceneResponse200ItemAdditionalProperty] = (
         _attrs_field(init=False, factory=dict)
     )

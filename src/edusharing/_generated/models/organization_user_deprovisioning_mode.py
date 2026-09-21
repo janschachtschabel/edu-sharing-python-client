@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class OrganizationUserDeprovisioningMode(str, Enum):
+class OrganizationUserDeprovisioningMode(StrEnum):
     ASSIGN = "assign"
     NONE = "none"
 

@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class FeatureInfoId(str, Enum):
+class FeatureInfoId(StrEnum):
     DATAPROTECTION = "dataprotection"
     DOISERVICE = "doiService"
     HANDLESERVICE = "handleService"

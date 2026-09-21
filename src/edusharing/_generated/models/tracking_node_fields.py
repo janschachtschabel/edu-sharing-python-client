@@ -17,8 +17,6 @@ T = TypeVar("T", bound="TrackingNodeFields")
 
 @_attrs_define
 class TrackingNodeFields:
-    """ """
-
     additional_properties: dict[str, TrackingNodeFieldsAdditionalProperty] = _attrs_field(
         init=False, factory=dict
     )

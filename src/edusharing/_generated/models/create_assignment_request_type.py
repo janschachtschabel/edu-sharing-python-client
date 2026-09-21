@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class CreateAssignmentRequestType(str, Enum):
+class CreateAssignmentRequestType(StrEnum):
     DEFAULT = "DEFAULT"
     SUBMISSION = "SUBMISSION"
 

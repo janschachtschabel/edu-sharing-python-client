@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class GetConfigFilePathPrefix(str, Enum):
+class GetConfigFilePathPrefix(StrEnum):
     CLUSTER = "cluster"
     CLUSTERAPPLICATIONS = "cluster/applications"
     DEFAULTS = "defaults"

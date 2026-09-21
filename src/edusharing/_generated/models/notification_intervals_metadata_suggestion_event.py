@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class NotificationIntervalsMetadataSuggestionEvent(str, Enum):
+class NotificationIntervalsMetadataSuggestionEvent(StrEnum):
     DAILY = "daily"
     DISABLED = "disabled"
     IMMEDIATELY = "immediately"

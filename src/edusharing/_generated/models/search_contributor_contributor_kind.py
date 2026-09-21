@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class SearchContributorContributorKind(str, Enum):
+class SearchContributorContributorKind(StrEnum):
     ORGANIZATION = "ORGANIZATION"
     PERSON = "PERSON"
 

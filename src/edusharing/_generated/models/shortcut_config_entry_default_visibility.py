@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class ShortcutConfigEntryDefaultVisibility(str, Enum):
+class ShortcutConfigEntryDefaultVisibility(StrEnum):
     HIDDEN = "hidden"
     VISIBLE = "visible"
 

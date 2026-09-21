@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class SignupGroupResponse200(str, Enum):
+class SignupGroupResponse200(StrEnum):
     ALREADYINLIST = "AlreadyInList"
     ALREADYMEMBER = "AlreadyMember"
     INVALIDPASSWORD = "InvalidPassword"

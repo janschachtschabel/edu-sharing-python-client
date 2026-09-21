@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class GetRecentUserEventsEventTypeItem(str, Enum):
+class GetRecentUserEventsEventTypeItem(StrEnum):
     ADD_MATERIAL_TO_COLLECTION = "ADD_MATERIAL_TO_COLLECTION"
     ARCHIVE_MATERIAL = "ARCHIVE_MATERIAL"
     CHANGE_MATERIAL_CONTENT = "CHANGE_MATERIAL_CONTENT"

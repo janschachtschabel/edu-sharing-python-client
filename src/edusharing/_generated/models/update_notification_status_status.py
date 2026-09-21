@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class UpdateNotificationStatusStatus(str, Enum):
+class UpdateNotificationStatusStatus(StrEnum):
     IGNORED = "IGNORED"
     PENDING = "PENDING"
     READ = "READ"

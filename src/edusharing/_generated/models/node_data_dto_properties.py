@@ -17,8 +17,6 @@ T = TypeVar("T", bound="NodeDataDTOProperties")
 
 @_attrs_define
 class NodeDataDTOProperties:
-    """ """
-
     additional_properties: dict[str, NodeDataDTOPropertiesAdditionalProperty] = _attrs_field(
         init=False, factory=dict
     )

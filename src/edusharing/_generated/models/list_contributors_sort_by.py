@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class ListContributorsSortBy(str, Enum):
+class ListContributorsSortBy(StrEnum):
     CREATED = "CREATED"
     IDS = "IDS"
     KIND = "KIND"

@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class NotificationIntervalsInviteEvent(str, Enum):
+class NotificationIntervalsInviteEvent(StrEnum):
     DAILY = "daily"
     DISABLED = "disabled"
     IMMEDIATELY = "immediately"

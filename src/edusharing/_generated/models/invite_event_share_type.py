@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class InviteEventShareType(str, Enum):
+class InviteEventShareType(StrEnum):
     AUTHORITY = "AUTHORITY"
     LINK = "LINK"
 

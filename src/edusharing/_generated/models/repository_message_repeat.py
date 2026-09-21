@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class RepositoryMessageRepeat(str, Enum):
+class RepositoryMessageRepeat(StrEnum):
     ALWAYS = "always"
     ONCE = "once"
     REPEAT = "repeat"

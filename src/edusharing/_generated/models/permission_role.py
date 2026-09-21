@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class PermissionRole(str, Enum):
+class PermissionRole(StrEnum):
     ASSIGNEE = "ASSIGNEE"
     COORDINATOR = "COORDINATOR"
 

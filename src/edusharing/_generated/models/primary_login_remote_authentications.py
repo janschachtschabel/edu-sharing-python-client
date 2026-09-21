@@ -15,8 +15,6 @@ T = TypeVar("T", bound="PrimaryLoginRemoteAuthentications")
 
 @_attrs_define
 class PrimaryLoginRemoteAuthentications:
-    """ """
-
     additional_properties: dict[str, RemoteAuthDescription] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:

@@ -15,8 +15,6 @@ T = TypeVar("T", bound="GetAllToolpermissionsResponse200")
 
 @_attrs_define
 class GetAllToolpermissionsResponse200:
-    """ """
-
     additional_properties: dict[str, ToolPermission] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:

@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class RegisterByTypeType(str, Enum):
+class RegisterByTypeType(StrEnum):
     MOODLE = "moodle"
 
     def __str__(self) -> str:

@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class UpdateStatusStatus(str, Enum):
+class UpdateStatusStatus(StrEnum):
     ACCEPTED = "ACCEPTED"
     DECLINED = "DECLINED"
     PENDING = "PENDING"

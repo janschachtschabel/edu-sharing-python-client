@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class NotificationIntervalsProposeForCollectionEvent(str, Enum):
+class NotificationIntervalsProposeForCollectionEvent(StrEnum):
     DAILY = "daily"
     DISABLED = "disabled"
     IMMEDIATELY = "immediately"

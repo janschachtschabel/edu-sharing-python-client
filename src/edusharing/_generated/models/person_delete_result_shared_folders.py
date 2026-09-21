@@ -15,8 +15,6 @@ T = TypeVar("T", bound="PersonDeleteResultSharedFolders")
 
 @_attrs_define
 class PersonDeleteResultSharedFolders:
-    """ """
-
     additional_properties: dict[str, Counts] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:

@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class GetAssocsDirection(str, Enum):
+class GetAssocsDirection(StrEnum):
     SOURCE = "SOURCE"
     TARGET = "TARGET"
 

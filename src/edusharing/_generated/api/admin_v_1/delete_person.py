@@ -97,9 +97,9 @@ def sync_detailed(
     body: PersonDeleteOptions | Unset = UNSET,
     username: list[str],
 ) -> Response[ErrorResponse | PersonReport]:
-    r"""delete persons
+    """delete persons
 
-     delete the given persons. Their status must be set to \"todelete\"
+     delete the given persons. Their status must be set to "todelete"
 
     Args:
         username (list[str]):
@@ -131,9 +131,9 @@ def sync(
     body: PersonDeleteOptions | Unset = UNSET,
     username: list[str],
 ) -> ErrorResponse | PersonReport | None:
-    r"""delete persons
+    """delete persons
 
-     delete the given persons. Their status must be set to \"todelete\"
+     delete the given persons. Their status must be set to "todelete"
 
     Args:
         username (list[str]):
@@ -160,9 +160,9 @@ async def asyncio_detailed(
     body: PersonDeleteOptions | Unset = UNSET,
     username: list[str],
 ) -> Response[ErrorResponse | PersonReport]:
-    r"""delete persons
+    """delete persons
 
-     delete the given persons. Their status must be set to \"todelete\"
+     delete the given persons. Their status must be set to "todelete"
 
     Args:
         username (list[str]):
@@ -192,9 +192,9 @@ async def asyncio(
     body: PersonDeleteOptions | Unset = UNSET,
     username: list[str],
 ) -> ErrorResponse | PersonReport | None:
-    r"""delete persons
+    """delete persons
 
-     delete the given persons. Their status must be set to \"todelete\"
+     delete the given persons. Their status must be set to "todelete"
 
     Args:
         username (list[str]):

@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class ValuesSearchPreviewMode(str, Enum):
+class ValuesSearchPreviewMode(StrEnum):
     RENDERINGPAGE = "RenderingPage"
     SIDEBAR = "Sidebar"
 

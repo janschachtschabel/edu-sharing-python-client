@@ -17,8 +17,6 @@ T = TypeVar("T", bound="CollectionDTOProperties")
 
 @_attrs_define
 class CollectionDTOProperties:
-    """ """
-
     additional_properties: dict[str, CollectionDTOPropertiesAdditionalProperty] = _attrs_field(
         init=False, factory=dict
     )

@@ -17,8 +17,6 @@ T = TypeVar("T", bound="GetCacheEntriesResponse200")
 
 @_attrs_define
 class GetCacheEntriesResponse200:
-    """ """
-
     additional_properties: dict[str, GetCacheEntriesResponse200AdditionalProperty] = _attrs_field(
         init=False, factory=dict
     )

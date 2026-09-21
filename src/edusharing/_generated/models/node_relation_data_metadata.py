@@ -17,8 +17,6 @@ T = TypeVar("T", bound="NodeRelationDataMetadata")
 
 @_attrs_define
 class NodeRelationDataMetadata:
-    """ """
-
     additional_properties: dict[str, NodeRelationDataMetadataAdditionalProperty] = _attrs_field(
         init=False, factory=dict
     )

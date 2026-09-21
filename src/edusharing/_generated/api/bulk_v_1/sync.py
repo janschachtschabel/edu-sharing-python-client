@@ -132,10 +132,10 @@ def sync_detailed(
     resolve_node: bool | Unset = True,
     reset_version: bool | Unset = UNSET,
 ) -> Response[ErrorResponse | NodeEntry]:
-    r"""Create or update a given node
+    """Create or update a given node
 
-     Depending on the given \"match\" properties either a new node will be created or the existing one
-    will be updated
+     Depending on the given "match" properties either a new node will be created or the existing one will
+    be updated
 
     Args:
         group (str):
@@ -185,10 +185,10 @@ def sync(
     resolve_node: bool | Unset = True,
     reset_version: bool | Unset = UNSET,
 ) -> ErrorResponse | NodeEntry | None:
-    r"""Create or update a given node
+    """Create or update a given node
 
-     Depending on the given \"match\" properties either a new node will be created or the existing one
-    will be updated
+     Depending on the given "match" properties either a new node will be created or the existing one will
+    be updated
 
     Args:
         group (str):
@@ -233,10 +233,10 @@ async def asyncio_detailed(
     resolve_node: bool | Unset = True,
     reset_version: bool | Unset = UNSET,
 ) -> Response[ErrorResponse | NodeEntry]:
-    r"""Create or update a given node
+    """Create or update a given node
 
-     Depending on the given \"match\" properties either a new node will be created or the existing one
-    will be updated
+     Depending on the given "match" properties either a new node will be created or the existing one will
+    be updated
 
     Args:
         group (str):
@@ -284,10 +284,10 @@ async def asyncio(
     resolve_node: bool | Unset = True,
     reset_version: bool | Unset = UNSET,
 ) -> ErrorResponse | NodeEntry | None:
-    r"""Create or update a given node
+    """Create or update a given node
 
-     Depending on the given \"match\" properties either a new node will be created or the existing one
-    will be updated
+     Depending on the given "match" properties either a new node will be created or the existing one will
+    be updated
 
     Args:
         group (str):

@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class CreateSuggestionsType(str, Enum):
+class CreateSuggestionsType(StrEnum):
     AI = "AI"
     USER_PROPOSAL = "USER_PROPOSAL"
 

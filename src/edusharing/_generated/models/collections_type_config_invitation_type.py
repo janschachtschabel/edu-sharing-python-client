@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class CollectionsTypeConfigInvitationType(str, Enum):
+class CollectionsTypeConfigInvitationType(StrEnum):
     DEFAULT = "Default"
     EDITORIALGROUPS = "EditorialGroups"
 

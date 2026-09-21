@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class RepositoryMessageMode(str, Enum):
+class RepositoryMessageMode(StrEnum):
     BAR = "bar"
     MODAL = "modal"
 

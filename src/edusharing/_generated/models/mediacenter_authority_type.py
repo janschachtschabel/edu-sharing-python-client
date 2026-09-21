@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class MediacenterAuthorityType(str, Enum):
+class MediacenterAuthorityType(StrEnum):
     EVERYONE = "EVERYONE"
     GROUP = "GROUP"
     GUEST = "GUEST"

@@ -17,8 +17,6 @@ T = TypeVar("T", bound="GetLightbendConfigResponse200")
 
 @_attrs_define
 class GetLightbendConfigResponse200:
-    """ """
-
     additional_properties: dict[str, GetLightbendConfigResponse200AdditionalProperty] = (
         _attrs_field(init=False, factory=dict)
     )

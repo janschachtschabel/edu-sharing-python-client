@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class InviteEventShareStatus(str, Enum):
+class InviteEventShareStatus(StrEnum):
     REJECTED = "REJECTED"
     SHARED = "SHARED"
 

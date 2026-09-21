@@ -15,8 +15,6 @@ T = TypeVar("T", bound="LicensesServices")
 
 @_attrs_define
 class LicensesServices:
-    """ """
-
     additional_properties: dict[str, LicensesServicesAdditionalProperty] = _attrs_field(
         init=False, factory=dict
     )

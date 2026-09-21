@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class SharedFolderOptionsPrivateFiles(str, Enum):
+class SharedFolderOptionsPrivateFiles(StrEnum):
     ASSIGN = "assign"
     DELETE = "delete"
     NONE = "none"

@@ -15,8 +15,6 @@ T = TypeVar("T", bound="AccessEndpoints")
 
 @_attrs_define
 class AccessEndpoints:
-    """ """
-
     additional_properties: dict[str, AccessEndpointsAdditionalProperty] = _attrs_field(
         init=False, factory=dict
     )
@@ -31,7 +29,9 @@ class AccessEndpoints:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.access_endpoints_additional_property import AccessEndpointsAdditionalProperty
+        from ..models.access_endpoints_additional_property import (
+            AccessEndpointsAdditionalProperty,
+        )
 
         d = dict(src_dict)
         access_endpoints = cls()

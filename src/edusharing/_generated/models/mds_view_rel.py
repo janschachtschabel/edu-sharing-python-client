@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class MdsViewRel(str, Enum):
+class MdsViewRel(StrEnum):
     SUGGESTIONS = "suggestions"
 
     def __str__(self) -> str:

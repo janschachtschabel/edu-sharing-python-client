@@ -71,7 +71,9 @@ class SubmissionFileValidationUpload:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.submission_file_validation_request import SubmissionFileValidationRequest
+        from ..models.submission_file_validation_request import (
+            SubmissionFileValidationRequest,
+        )
 
         d = dict(src_dict)
         _metadata = d.pop("metadata", UNSET)

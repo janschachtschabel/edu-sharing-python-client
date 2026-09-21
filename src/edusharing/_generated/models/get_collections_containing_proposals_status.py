@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class GetCollectionsContainingProposalsStatus(str, Enum):
+class GetCollectionsContainingProposalsStatus(StrEnum):
     ACCEPTED = "ACCEPTED"
     DECLINED = "DECLINED"
     PENDING = "PENDING"

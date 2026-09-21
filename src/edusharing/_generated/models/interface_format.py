@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class InterfaceFormat(str, Enum):
+class InterfaceFormat(StrEnum):
     JSON = "Json"
     TEXT = "Text"
     XML = "XML"

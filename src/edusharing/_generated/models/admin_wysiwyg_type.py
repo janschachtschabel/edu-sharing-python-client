@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class AdminWysiwygType(str, Enum):
+class AdminWysiwygType(StrEnum):
     TEXTAREA = "Textarea"
     TINYMCE = "TinyMCE"
 

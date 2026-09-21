@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class UpdateRelationRequestType(str, Enum):
+class UpdateRelationRequestType(StrEnum):
     HASFORMAT = "hasFormat"
     ISBASEDON = "isBasedOn"
     ISDUPLICATEOF = "isDuplicateOf"

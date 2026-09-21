@@ -13,7 +13,7 @@ from ...types import UNSET, Response, Unset
 
 def _get_kwargs(
     *,
-    query: str | Unset = '@cm\\:name:\\"*\\"',
+    query: str | Unset = '@cm\\\\:name:\\"*\\"',
     max_items: int | Unset = 10,
     skip_count: int | Unset = 0,
     sort_properties: list[str] | Unset = UNSET,
@@ -125,7 +125,7 @@ def _build_response(
 def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
-    query: str | Unset = '@cm\\:name:\\"*\\"',
+    query: str | Unset = '@cm\\\\:name:\\"*\\"',
     max_items: int | Unset = 10,
     skip_count: int | Unset = 0,
     sort_properties: list[str] | Unset = UNSET,
@@ -134,12 +134,12 @@ def sync_detailed(
     store: SearchByLuceneStore | Unset = UNSET,
     authority_scope: list[str] | Unset = UNSET,
 ) -> Response[ErrorResponse | SearchResult]:
-    r"""Search for custom lucene query
+    """Search for custom lucene query
 
-     e.g. @cm\:name:\"*\"
+     e.g. @cm\\:name:"*"
 
     Args:
-        query (str | Unset):  Default: '@cm\\:name:\\"*\\"'.
+        query (str | Unset):  Default: '@cm\\\\\\\\:name:\\\\"*\\\\"'.
         max_items (int | Unset):  Default: 10.
         skip_count (int | Unset):  Default: 0.
         sort_properties (list[str] | Unset):
@@ -177,7 +177,7 @@ def sync_detailed(
 def sync(
     *,
     client: AuthenticatedClient | Client,
-    query: str | Unset = '@cm\\:name:\\"*\\"',
+    query: str | Unset = '@cm\\\\:name:\\"*\\"',
     max_items: int | Unset = 10,
     skip_count: int | Unset = 0,
     sort_properties: list[str] | Unset = UNSET,
@@ -186,12 +186,12 @@ def sync(
     store: SearchByLuceneStore | Unset = UNSET,
     authority_scope: list[str] | Unset = UNSET,
 ) -> ErrorResponse | SearchResult | None:
-    r"""Search for custom lucene query
+    """Search for custom lucene query
 
-     e.g. @cm\:name:\"*\"
+     e.g. @cm\\:name:"*"
 
     Args:
-        query (str | Unset):  Default: '@cm\\:name:\\"*\\"'.
+        query (str | Unset):  Default: '@cm\\\\\\\\:name:\\\\"*\\\\"'.
         max_items (int | Unset):  Default: 10.
         skip_count (int | Unset):  Default: 0.
         sort_properties (list[str] | Unset):
@@ -224,7 +224,7 @@ def sync(
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
-    query: str | Unset = '@cm\\:name:\\"*\\"',
+    query: str | Unset = '@cm\\\\:name:\\"*\\"',
     max_items: int | Unset = 10,
     skip_count: int | Unset = 0,
     sort_properties: list[str] | Unset = UNSET,
@@ -233,12 +233,12 @@ async def asyncio_detailed(
     store: SearchByLuceneStore | Unset = UNSET,
     authority_scope: list[str] | Unset = UNSET,
 ) -> Response[ErrorResponse | SearchResult]:
-    r"""Search for custom lucene query
+    """Search for custom lucene query
 
-     e.g. @cm\:name:\"*\"
+     e.g. @cm\\:name:"*"
 
     Args:
-        query (str | Unset):  Default: '@cm\\:name:\\"*\\"'.
+        query (str | Unset):  Default: '@cm\\\\\\\\:name:\\\\"*\\\\"'.
         max_items (int | Unset):  Default: 10.
         skip_count (int | Unset):  Default: 0.
         sort_properties (list[str] | Unset):
@@ -274,7 +274,7 @@ async def asyncio_detailed(
 async def asyncio(
     *,
     client: AuthenticatedClient | Client,
-    query: str | Unset = '@cm\\:name:\\"*\\"',
+    query: str | Unset = '@cm\\\\:name:\\"*\\"',
     max_items: int | Unset = 10,
     skip_count: int | Unset = 0,
     sort_properties: list[str] | Unset = UNSET,
@@ -283,12 +283,12 @@ async def asyncio(
     store: SearchByLuceneStore | Unset = UNSET,
     authority_scope: list[str] | Unset = UNSET,
 ) -> ErrorResponse | SearchResult | None:
-    r"""Search for custom lucene query
+    """Search for custom lucene query
 
-     e.g. @cm\:name:\"*\"
+     e.g. @cm\\:name:"*"
 
     Args:
-        query (str | Unset):  Default: '@cm\\:name:\\"*\\"'.
+        query (str | Unset):  Default: '@cm\\\\\\\\:name:\\\\"*\\\\"'.
         max_items (int | Unset):  Default: 10.
         skip_count (int | Unset):  Default: 0.
         sort_properties (list[str] | Unset):

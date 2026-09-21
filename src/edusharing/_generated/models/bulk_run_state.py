@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class BulkRunState(str, Enum):
+class BulkRunState(StrEnum):
     NEW = "New"
     PUBLISHED = "Published"
 

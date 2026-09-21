@@ -13,7 +13,7 @@ from ...types import UNSET, Response, Unset
 
 def _get_kwargs(
     *,
-    query: str | Unset = '@cm\\:name:\\"*\\"',
+    query: str | Unset = '@cm\\\\:name:\\"*\\"',
     sort_properties: list[str] | Unset = UNSET,
     sort_ascending: list[bool] | Unset = UNSET,
     properties: list[str] | Unset = UNSET,
@@ -124,19 +124,19 @@ def _build_response(
 def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
-    query: str | Unset = '@cm\\:name:\\"*\\"',
+    query: str | Unset = '@cm\\\\:name:\\"*\\"',
     sort_properties: list[str] | Unset = UNSET,
     sort_ascending: list[bool] | Unset = UNSET,
     properties: list[str] | Unset = UNSET,
     store: ExportByLuceneStore | Unset = UNSET,
     authority_scope: list[str] | Unset = UNSET,
 ) -> Response[ErrorResponse | list[ExportByLuceneResponse200Item]]:
-    r"""Search for custom lucene query and choose specific properties to load
+    """Search for custom lucene query and choose specific properties to load
 
-     e.g. @cm\:name:\"*\"
+     e.g. @cm\\:name:"*"
 
     Args:
-        query (str | Unset):  Default: '@cm\\:name:\\"*\\"'.
+        query (str | Unset):  Default: '@cm\\\\\\\\:name:\\\\"*\\\\"'.
         sort_properties (list[str] | Unset):
         sort_ascending (list[bool] | Unset):
         properties (list[str] | Unset):
@@ -170,19 +170,19 @@ def sync_detailed(
 def sync(
     *,
     client: AuthenticatedClient | Client,
-    query: str | Unset = '@cm\\:name:\\"*\\"',
+    query: str | Unset = '@cm\\\\:name:\\"*\\"',
     sort_properties: list[str] | Unset = UNSET,
     sort_ascending: list[bool] | Unset = UNSET,
     properties: list[str] | Unset = UNSET,
     store: ExportByLuceneStore | Unset = UNSET,
     authority_scope: list[str] | Unset = UNSET,
 ) -> ErrorResponse | list[ExportByLuceneResponse200Item] | None:
-    r"""Search for custom lucene query and choose specific properties to load
+    """Search for custom lucene query and choose specific properties to load
 
-     e.g. @cm\:name:\"*\"
+     e.g. @cm\\:name:"*"
 
     Args:
-        query (str | Unset):  Default: '@cm\\:name:\\"*\\"'.
+        query (str | Unset):  Default: '@cm\\\\\\\\:name:\\\\"*\\\\"'.
         sort_properties (list[str] | Unset):
         sort_ascending (list[bool] | Unset):
         properties (list[str] | Unset):
@@ -211,19 +211,19 @@ def sync(
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
-    query: str | Unset = '@cm\\:name:\\"*\\"',
+    query: str | Unset = '@cm\\\\:name:\\"*\\"',
     sort_properties: list[str] | Unset = UNSET,
     sort_ascending: list[bool] | Unset = UNSET,
     properties: list[str] | Unset = UNSET,
     store: ExportByLuceneStore | Unset = UNSET,
     authority_scope: list[str] | Unset = UNSET,
 ) -> Response[ErrorResponse | list[ExportByLuceneResponse200Item]]:
-    r"""Search for custom lucene query and choose specific properties to load
+    """Search for custom lucene query and choose specific properties to load
 
-     e.g. @cm\:name:\"*\"
+     e.g. @cm\\:name:"*"
 
     Args:
-        query (str | Unset):  Default: '@cm\\:name:\\"*\\"'.
+        query (str | Unset):  Default: '@cm\\\\\\\\:name:\\\\"*\\\\"'.
         sort_properties (list[str] | Unset):
         sort_ascending (list[bool] | Unset):
         properties (list[str] | Unset):
@@ -255,19 +255,19 @@ async def asyncio_detailed(
 async def asyncio(
     *,
     client: AuthenticatedClient | Client,
-    query: str | Unset = '@cm\\:name:\\"*\\"',
+    query: str | Unset = '@cm\\\\:name:\\"*\\"',
     sort_properties: list[str] | Unset = UNSET,
     sort_ascending: list[bool] | Unset = UNSET,
     properties: list[str] | Unset = UNSET,
     store: ExportByLuceneStore | Unset = UNSET,
     authority_scope: list[str] | Unset = UNSET,
 ) -> ErrorResponse | list[ExportByLuceneResponse200Item] | None:
-    r"""Search for custom lucene query and choose specific properties to load
+    """Search for custom lucene query and choose specific properties to load
 
-     e.g. @cm\:name:\"*\"
+     e.g. @cm\\:name:"*"
 
     Args:
-        query (str | Unset):  Default: '@cm\\:name:\\"*\\"'.
+        query (str | Unset):  Default: '@cm\\\\\\\\:name:\\\\"*\\\\"'.
         sort_properties (list[str] | Unset):
         sort_ascending (list[bool] | Unset):
         properties (list[str] | Unset):

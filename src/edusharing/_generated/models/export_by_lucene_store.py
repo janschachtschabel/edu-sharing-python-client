@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class ExportByLuceneStore(str, Enum):
+class ExportByLuceneStore(StrEnum):
     ARCHIVE = "Archive"
     WORKSPACE = "Workspace"
 

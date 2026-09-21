@@ -19,7 +19,17 @@ and in [`docs/audits/`](docs/audits/).
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- The generated layer was rebuilt with `openapi-python-client` 0.29.1 (from
+  0.29.0), which changed 327 of its files: generated enums are `StrEnum`
+  rather than `Enum`, empty docstrings are gone, and two admin Lucene
+  endpoints have a differently escaped default `query`. Nothing in the
+  hand-written layer imports `_generated`, so none of it is reachable through
+  the library's own surface -- but the files ship, and the CI job that
+  regenerates and diffs them would fail if the tool moved without them.
+  `ruff` went 0.16.4 to 0.16.8 and four pinned GitHub Actions moved with it;
+  the suite is 2 764 passed either way.
 
 ## [0.3.5] — 2026-09-21
 

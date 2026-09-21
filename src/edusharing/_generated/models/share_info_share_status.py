@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class ShareInfoShareStatus(str, Enum):
+class ShareInfoShareStatus(StrEnum):
     REJECTED = "REJECTED"
     SHARED = "SHARED"
 

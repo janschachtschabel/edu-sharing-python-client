@@ -17,8 +17,6 @@ T = TypeVar("T", bound="CreateRelationRequestMetadata")
 
 @_attrs_define
 class CreateRelationRequestMetadata:
-    """ """
-
     additional_properties: dict[str, CreateRelationRequestMetadataAdditionalProperty] = (
         _attrs_field(init=False, factory=dict)
     )

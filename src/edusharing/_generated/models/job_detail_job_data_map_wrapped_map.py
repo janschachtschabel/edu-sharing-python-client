@@ -17,8 +17,6 @@ T = TypeVar("T", bound="JobDetailJobDataMapWrappedMap")
 
 @_attrs_define
 class JobDetailJobDataMapWrappedMap:
-    """ """
-
     additional_properties: dict[str, JobDetailJobDataMapWrappedMapAdditionalProperty] = (
         _attrs_field(init=False, factory=dict)
     )

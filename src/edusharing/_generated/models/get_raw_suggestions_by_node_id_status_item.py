@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class GetRawSuggestionsByNodeIdStatusItem(str, Enum):
+class GetRawSuggestionsByNodeIdStatusItem(StrEnum):
     ACCEPTED = "ACCEPTED"
     DECLINED = "DECLINED"
     PENDING = "PENDING"

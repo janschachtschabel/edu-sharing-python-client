@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class RepositoryMessageUserMode(str, Enum):
+class RepositoryMessageUserMode(StrEnum):
     ALL = "all"
     GUEST = "guest"
     USER = "user"

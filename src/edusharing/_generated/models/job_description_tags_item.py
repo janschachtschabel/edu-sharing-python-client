@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class JobDescriptionTagsItem(str, Enum):
+class JobDescriptionTagsItem(StrEnum):
     DELETEPERSONJOB = "DeletePersonJob"
 
     def __str__(self) -> str:

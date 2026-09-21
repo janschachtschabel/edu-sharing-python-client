@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class AssignmentFileRequestDocumentRole(str, Enum):
+class AssignmentFileRequestDocumentRole(StrEnum):
     SUBMITTABLE = "SUBMITTABLE"
     SUPPLEMENTARY = "SUPPLEMENTARY"
 

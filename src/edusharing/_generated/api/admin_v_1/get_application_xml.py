@@ -7,7 +7,7 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
-from ...models.get_application_xml_response_200 import GetApplicationXMLResponse200
+from ...models.get_application_xml_response_200 import GetApplicationXmlResponse200
 from ...types import Response
 
 
@@ -30,9 +30,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | GetApplicationXMLResponse200 | None:
+) -> ErrorResponse | GetApplicationXmlResponse200 | None:
     if response.status_code == 200:
-        response_200 = GetApplicationXMLResponse200.from_dict(response.json())
+        response_200 = GetApplicationXmlResponse200.from_dict(response.json())
 
         return response_200
 
@@ -69,7 +69,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | GetApplicationXMLResponse200]:
+) -> Response[ErrorResponse | GetApplicationXmlResponse200]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -82,7 +82,7 @@ def sync_detailed(
     xml: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Response[ErrorResponse | GetApplicationXMLResponse200]:
+) -> Response[ErrorResponse | GetApplicationXmlResponse200]:
     """list any xml properties (like from homeApplication.properties.xml)
 
      list any xml properties (like from homeApplication.properties.xml)
@@ -95,7 +95,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | GetApplicationXMLResponse200]
+        Response[ErrorResponse | GetApplicationXmlResponse200]
     """
 
     kwargs = _get_kwargs(
@@ -113,7 +113,7 @@ def sync(
     xml: str,
     *,
     client: AuthenticatedClient | Client,
-) -> ErrorResponse | GetApplicationXMLResponse200 | None:
+) -> ErrorResponse | GetApplicationXmlResponse200 | None:
     """list any xml properties (like from homeApplication.properties.xml)
 
      list any xml properties (like from homeApplication.properties.xml)
@@ -126,7 +126,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | GetApplicationXMLResponse200
+        ErrorResponse | GetApplicationXmlResponse200
     """
 
     return sync_detailed(
@@ -139,7 +139,7 @@ async def asyncio_detailed(
     xml: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Response[ErrorResponse | GetApplicationXMLResponse200]:
+) -> Response[ErrorResponse | GetApplicationXmlResponse200]:
     """list any xml properties (like from homeApplication.properties.xml)
 
      list any xml properties (like from homeApplication.properties.xml)
@@ -152,7 +152,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | GetApplicationXMLResponse200]
+        Response[ErrorResponse | GetApplicationXmlResponse200]
     """
 
     kwargs = _get_kwargs(
@@ -168,7 +168,7 @@ async def asyncio(
     xml: str,
     *,
     client: AuthenticatedClient | Client,
-) -> ErrorResponse | GetApplicationXMLResponse200 | None:
+) -> ErrorResponse | GetApplicationXmlResponse200 | None:
     """list any xml properties (like from homeApplication.properties.xml)
 
      list any xml properties (like from homeApplication.properties.xml)
@@ -181,7 +181,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | GetApplicationXMLResponse200
+        ErrorResponse | GetApplicationXmlResponse200
     """
 
     return (

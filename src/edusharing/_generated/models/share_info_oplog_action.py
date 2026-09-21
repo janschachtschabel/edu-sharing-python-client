@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class ShareInfoOplogAction(str, Enum):
+class ShareInfoOplogAction(StrEnum):
     CREATE = "CREATE"
     DELETE = "DELETE"
     UPDATE = "UPDATE"

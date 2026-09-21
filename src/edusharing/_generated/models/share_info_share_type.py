@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class ShareInfoShareType(str, Enum):
+class ShareInfoShareType(StrEnum):
     AUTHORITY = "AUTHORITY"
     LINK = "LINK"
 

@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class ProviderAreaServed(str, Enum):
+class ProviderAreaServed(StrEnum):
     CITY = "City"
     CONTINENT = "Continent"
     COUNTRY = "Country"

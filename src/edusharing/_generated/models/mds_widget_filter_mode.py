@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class MdsWidgetFilterMode(str, Enum):
+class MdsWidgetFilterMode(StrEnum):
     ALWAYS = "always"
     AUTO = "auto"
     DISABLED = "disabled"

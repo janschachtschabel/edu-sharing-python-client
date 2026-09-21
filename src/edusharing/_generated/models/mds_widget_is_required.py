@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class MdsWidgetIsRequired(str, Enum):
+class MdsWidgetIsRequired(StrEnum):
     IGNORE = "ignore"
     MANDATORY = "mandatory"
     MANDATORYFORPUBLISH = "mandatoryForPublish"

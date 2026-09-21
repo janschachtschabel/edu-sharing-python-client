@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class GetContributorsKind(str, Enum):
+class GetContributorsKind(StrEnum):
     ORGANIZATION = "ORGANIZATION"
     PERSON = "PERSON"
 

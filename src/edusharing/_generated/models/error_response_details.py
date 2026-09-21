@@ -17,8 +17,6 @@ T = TypeVar("T", bound="ErrorResponseDetails")
 
 @_attrs_define
 class ErrorResponseDetails:
-    """ """
-
     additional_properties: dict[str, ErrorResponseDetailsAdditionalProperty] = _attrs_field(
         init=False, factory=dict
     )

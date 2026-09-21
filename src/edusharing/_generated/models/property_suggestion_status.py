@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class PropertySuggestionStatus(str, Enum):
+class PropertySuggestionStatus(StrEnum):
     ACCEPTED = "ACCEPTED"
     DECLINED = "DECLINED"
     PENDING = "PENDING"
