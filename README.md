@@ -1693,7 +1693,7 @@ would otherwise never learn:
 |---|---|
 | `extraction.py` | The extraction service refused an address — a private one, one that would not resolve, one that resolved into a private range, or one spelled so that two parsers read it differently |
 | `childobjects.py` | A child object was created but then neither filled nor removed. It stays behind empty, and the error the caller gets is about the upload and does not know it exists |
-| `bapi/client.py` | The **library** picked a model the provider has retired. It still answers, so it is not excluded — but nobody else is in a position to notice that the choice was not the caller's |
+| `bapi/choice.py` | The **library** picked a model the provider has retired. It still answers, so it is not excluded — but nobody else is in a position to notice that the choice was not the caller's |
 | `_sync.py` | The background loop did not stop in time. It is left open rather than raised over, and that is a leak worth one line |
 
 No number stands here any more. It said "four places" when there were five, and

@@ -49,6 +49,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..errors import EduSharingError, ValidationError, whole_number
 from ..urls import path_segment
+from . import choice
 from ._response import _boolean, _items, _number, _object, _text, _vectors
 from .body import UNSET, ReasoningParam, _Default, reasoning_for_responses
 
@@ -309,9 +310,9 @@ async def respond(
         }
 
     which = provider or api.provider
-    return await api._answer_from_candidates(
-        model, which, _route_path("responses", which), body_for,
-        lambda antwort, mid: _answer_from(_object(antwort, "responses"), mid))
+    return await choice.answer_from_candidates(
+        api, model, which, _route_path("responses", which), body_for,
+        lambda answer, mid: _answer_from(_object(answer, "responses"), mid))
 
 
 async def call(

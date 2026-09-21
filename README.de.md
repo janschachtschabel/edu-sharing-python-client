@@ -1727,7 +1727,7 @@ Aufrufer sonst nie erführe:
 |---|---|
 | `extraction.py` | Der Extraktionsdienst hat eine Adresse verweigert — eine private, eine, die sich nicht auflösen ließ, eine, die in einen privaten Bereich auflöste, oder eine, die zwei Parser verschieden lesen |
 | `childobjects.py` | Ein Kindknoten wurde angelegt, dann aber weder gefüllt noch entfernt. Er bleibt leer stehen, und der Fehler, den der Aufrufer bekommt, handelt vom Hochladen und weiß nichts von ihm |
-| `bapi/client.py` | Die **Bibliothek** hat ein Modell gewählt, das der Anbieter zurückgezogen hat. Es antwortet weiter, also wird es nicht ausgeschlossen — aber niemand sonst kann bemerken, dass die Wahl nicht die des Aufrufers war |
+| `bapi/choice.py` | Die **Bibliothek** hat ein Modell gewählt, das der Anbieter zurückgezogen hat. Es antwortet weiter, also wird es nicht ausgeschlossen — aber niemand sonst kann bemerken, dass die Wahl nicht die des Aufrufers war |
 | `_sync.py` | Die Hintergrundschleife hielt nicht rechtzeitig an. Sie bleibt offen, statt dass darüber geworfen wird, und das ist ein Leck, das eine Zeile wert ist |
 
 Eine Anzahl steht hier nicht mehr. Es hieß „an vier Stellen", als es fünf
