@@ -247,6 +247,25 @@ async def test_gpt5_weist_die_vor_gpt5_schreibweise_ab(llm, gpt5, route, koerper
 
 
 @pytest.mark.live
+async def test_die_alte_completions_route_weist_die_gpt5_familie_ab(llm, gpt5):
+    """Die alte Route gibt es noch -- die neue Familie gehoert nicht hinein.
+
+    Gemessen am 21.09.2026: ``completions`` mit ``gpt-5.6-luna`` antwortet
+    404 *"This is a chat model and not supported in the v1/completions
+    endpoint"*. Die Bibliothek reicht ``completions`` durch, ohne einen
+    Koerper je Familie zu bauen -- hier ist das richtig, denn es gibt keinen
+    Koerper, der das heilen wuerde. Wer die Route fuer ein gpt-5-Modell nimmt,
+    soll die Antwort des Servers lesen statt zu raten, und dass sie noch so
+    lautet, sagt nur ein Lauf.
+    """
+    with pytest.raises(EduSharingError) as fehler:
+        await llm.call("completions",
+                       {"model": gpt5, "prompt": "hallo", "max_tokens": 5},
+                       provider="openai")
+    assert "chat model" in str(fehler.value), str(fehler.value)[:200]
+
+
+@pytest.mark.live
 async def test_respond_weicht_auf_den_naechsten_kandidaten_aus(llm, gpt5):
     """``respond`` hatte die Modellpolitik von ``chat`` nicht -- ohne Grund.
 
