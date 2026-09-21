@@ -306,6 +306,14 @@ minute. Both carry `chat/completions` and `responses`. Only OpenAI carries
 `embeddings`, `moderations` and `images/generations` — the AcademicCloud
 answers 404 and its models produce `text` and `thought`, nothing else.
 
+And "OpenAI carries it" is not the same as "you can use it". Measured
+2026-09-21, ten image models stand in `/models` and two are billable
+(`gpt-image-1.5`, `chatgpt-image-latest`); the rest, including `dall-e-2` and
+`dall-e-3`, answer `503 Model pricing unavailable`. Both survivors are GPT
+image models, which never accept `response_format` and always return base64 —
+so `GeneratedImage.url` is `None` here, always, and code that reads `url`
+first finds nothing.
+
 `reasoning_effort` and `verbosity` work on the gpt-5 and o series and are
 refused by older OpenAI models with 400. The AcademicCloud accepts them and
 ignores them: identical token usage at `low` and `high`. Its lever is

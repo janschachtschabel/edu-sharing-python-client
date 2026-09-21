@@ -286,7 +286,9 @@ davon. `api.chat` gibt einen **str** zurück. `await api.load("academiccloud")` 
 `await api.call_multipart(route, fields, file=…, filename=…)` → `dict` für die
 vier durchgereichten Routen, die eine Datei nehmen (`audio/transcriptions`,
 `audio/translations`, `images/edits`, `files`). Einbettungen,
-Moderation und Bilder gibt es nur bei `provider="openai"`.
+Moderation und Bilder gibt es nur bei `provider="openai"` — und von dessen
+zehn Bildmodellen rechnet dieses Gateway zwei ab, beide liefern base64, also
+ist `GeneratedImage.url` dort `None` (gemessen 21.09.2026; siehe TRAPS 2.10).
 
 ### 3.11 LLM-Gateway — Vorlagen (`BapiTemplates`)
 

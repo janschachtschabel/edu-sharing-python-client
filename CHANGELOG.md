@@ -19,7 +19,32 @@ and in [`docs/audits/`](docs/audits/).
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- The model policy left `bapi/client.py` for `bapi/choice.py` (audit
+  ARC-20-2). The public surface is untouched and no test changed, but the two
+  log lines about model choice moved with the code: they come from the logger
+  `edusharing.bapi.choice` now. `logging.getLogger("edusharing")` -- what the
+  reference has always named -- still catches them; a level set narrowly on
+  `edusharing.bapi.client` does not.
+
+### Documentation
+
+- What `images/generations` can actually do through this gateway. Measured
+  2026-09-21: of the ten image models it lists, two are billable, and both are
+  GPT image models -- which never take `response_format` and always return
+  base64, so `GeneratedImage.url` is `None` for everything reachable here.
+  `quality` is `low`/`medium`/`high`/`auto` for those and `hd`/`standard` for
+  `dall-e-3`, which is not reachable. The reference, both TRAPS files and the
+  skill say so now.
+
+### Tests
+
+- A live test for the image route that does not draw anything. `n=0` is
+  invalid for every image model, so the request travels the whole way and is
+  refused by the provider *before* an image is made -- which proves route,
+  key, forwarding and a billable model for nothing. A test that generates on
+  every run would bill on every run.
 
 ## [0.3.4] — 2026-09-21
 

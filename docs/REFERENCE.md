@@ -1144,6 +1144,29 @@ verdict.scores                            # {"hate": …, …} -- all 13 categor
 await api.call("responses", {"model": "…", "input": "…"})
 ```
 
+**Images: the two options people ask about are decided by what this
+gateway bills.** Measured 2026-09-21, it lists ten image models and serves
+two — `gpt-image-1.5` and `chatgpt-image-latest`. `gpt-image-1`,
+`gpt-image-1-mini`, the whole `gpt-image-2` family and both `dall-e-2` and
+`dall-e-3` answer `503 Model pricing unavailable`, so they never reach the
+provider at all.
+
+* `response_format` belongs to `dall-e-2` and `dall-e-3`. The GPT image models
+  do not take it and always return base64 — which means
+  `GeneratedImage.url` is `None` for everything this gateway serves, and the
+  picture is in `.b64`.
+* `quality` is `low`, `medium`, `high` or `auto` for the GPT image models and
+  `hd` or `standard` for `dall-e-3`; the two sets do not overlap. `auto` is
+  the default, and the answer says which one was chosen.
+* `revised_prompt` stays empty. `dall-e-3` rewrites a prompt and says so, the
+  GPT image models do not.
+
+`images()` hands back the pictures and nothing else. The same answer also
+carries `background`, `output_format`, `quality`, `size`, a `usage` token
+count and one `generation_id` per image — measured, a 1024×1024 `low` image
+cost 272 image tokens and arrived as 191824 characters of base64. Ask
+`call("images/generations", …)` when you need any of that.
+
 **Four forwarded routes want a file, not JSON** — `audio/transcriptions`,
 `audio/translations`, `images/edits` and `files`. `call` reaches none of them,
 and not because the gateway refuses: measured 2026-09-21,

@@ -344,6 +344,51 @@ async def test_eine_datei_geht_durch_die_bibliothek(llm):
     assert "Berlin" in zurueck.get("text", ""), zurueck
 
 
+# --- Die Bildroute ---------------------------------------------------------
+
+#: Gemessen am 21.09.2026 die beiden einzigen Bildmodelle, die dieses Gateway
+#: abrechnen kann. Acht weitere stehen in ``/models``, dazu ``dall-e-2`` und
+#: ``dall-e-3``, und alle zehn antworten ``503 Model pricing unavailable``.
+#: Die Liste steht hier und nicht im Test, weil sie sich aendern darf -- der
+#: Test soll dann sagen, dass sie sich geaendert hat.
+BEZAHLBARE_BILDMODELLE = ("gpt-image-1.5", "chatgpt-image-latest")
+
+
+@pytest.mark.live
+async def test_die_bildroute_traegt_ohne_dass_ein_bild_entsteht(llm):
+    """Dass ``images/generations`` durchgeht -- fuer null Geld.
+
+    Ein Bild kostet, und ein Test, der bei jedem Lauf eines zeichnet, kostet
+    bei jedem Lauf. ``n=0`` ist fuer jedes Bildmodell ungueltig: die Anfrage
+    geht durch das Gateway bis zum Anbieter und wird dort abgewiesen, **bevor**
+    gezeichnet wird. Was dabei belegt ist, ist genau das, was offline niemand
+    pruefen kann -- Route, Schluessel, Weiterleitung und ein Modell, das das
+    Gateway auch abrechnet.
+
+    ``503 Model pricing unavailable`` heisst dagegen: das Gateway hat gar nicht
+    erst weitergeleitet. Das ist keine Aussage ueber diese Bibliothek, also
+    wird uebersprungen und nicht behauptet, die Route sei kaputt.
+    """
+    unbepreist = []
+    for mid in BEZAHLBARE_BILDMODELLE:
+        try:
+            antwort = await llm.call(
+                "images/generations",
+                {"model": mid, "prompt": "a red square", "n": 0},
+                provider="openai")
+        except EduSharingError as fehler:
+            if "pricing unavailable" in str(fehler).lower():
+                unbepreist.append(mid)
+                continue
+            # Der Anbieter hat geantwortet, und zwar ueber ``n``. Genau so
+            # weit sollte die Anfrage kommen.
+            assert "'n'" in str(fehler), fehler
+            return
+        pytest.fail(f"{mid} hat auf n=0 doch etwas erzeugt: {sorted(antwort)}")
+
+    pytest.skip(f"kein abrechenbares Bildmodell mehr: {unbepreist}")
+
+
 # --- Der Auslastungsbericht ------------------------------------------------
 
 @pytest.mark.live

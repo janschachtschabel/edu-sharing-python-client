@@ -1173,6 +1173,29 @@ verdict.scores                            # {"hate": …, …} -- alle 13 Katego
 await api.call("responses", {"model": "…", "input": "…"})
 ```
 
+**Bilder: die zwei Optionen, nach denen alle fragen, entscheidet nicht
+das Modell, sondern was dieses Gateway abrechnet.** Gemessen am 21.09.2026
+führt es zehn Bildmodelle und bedient zwei davon — `gpt-image-1.5` und
+`chatgpt-image-latest`. `gpt-image-1`, `gpt-image-1-mini`, die ganze
+`gpt-image-2`-Familie sowie `dall-e-2` und `dall-e-3` antworten
+`503 Model pricing unavailable` und erreichen den Anbieter gar nicht erst.
+
+* `response_format` gehört zu `dall-e-2` und `dall-e-3`. Die GPT-Bildmodelle
+  nehmen es nicht und liefern immer base64 — bei allem, was dieses Gateway
+  bedient, ist `GeneratedImage.url` also `None`, und das Bild steht in `.b64`.
+* `quality` heißt bei den GPT-Bildmodellen `low`, `medium`, `high` oder `auto`
+  und bei `dall-e-3` `hd` oder `standard`; die beiden Mengen überschneiden
+  sich nicht. Voreinstellung ist `auto`, und die Antwort sagt, was gewählt
+  wurde.
+* `revised_prompt` bleibt leer. `dall-e-3` schreibt eine Eingabe um und sagt
+  das, die GPT-Bildmodelle tun es nicht.
+
+`images()` gibt die Bilder zurück und sonst nichts. Dieselbe Antwort trägt
+außerdem `background`, `output_format`, `quality`, `size`, eine
+`usage`-Tokenzählung und je Bild eine `generation_id` — gemessen kostete ein
+1024×1024 großes Bild in `low` 272 Bildtokens und kam als 191824 Zeichen
+base64 an. Wer das braucht, fragt `call("images/generations", …)`.
+
 **Vier durchgereichte Routen wollen eine Datei statt JSON** —
 `audio/transcriptions`, `audio/translations`, `images/edits` und `files`.
 `call` erreicht keine davon, und zwar nicht, weil das Gateway sie verweigerte:
