@@ -49,10 +49,12 @@ whose contents you would miss.
 
 Credentials alone are not enough. The account also needs the
 `TOOLPERMISSION_CREATE_ELEMENTS_FOLDERS` toolpermission, because creating that
-folder is the first thing every write test does. Measured 2026-09-21 against
-staging with an account that may create material but not folders: 69 of 69
-tests ended in the fixture with `HTTP 403 DAOToolPermissionException`, and
-nothing was written. Ask the instance's administrator for it.
+folder is the first thing most write tests do. Measured 2026-09-21 against
+staging with an account that may create material and collections but not
+folders: of 90 write-marked tests, 9 passed and 81 did not, and nothing was
+written by the ones that failed. The nine are those that build a throwaway
+collection instead of a folder. Ask the instance's administrator for the
+toolpermission.
 
 ## What this codebase expects of a change
 

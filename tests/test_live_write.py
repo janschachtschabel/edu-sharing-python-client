@@ -6,10 +6,12 @@ Laufen nur mit ``pytest -m write`` und gesetzten Zugangsdaten::
 
 Zugangsdaten allein genuegen nicht: das Konto braucht die Toolpermission
 ``TOOLPERMISSION_CREATE_ELEMENTS_FOLDERS``. Gemessen am 21.09.2026 gegen
-staging endeten sonst 69 von 69 Tests hier in der Fixture an
-``HTTP 403 DAOToolPermissionException``. Material darf dasselbe Konto anlegen,
-Ordner nicht -- und der Wegwerf-Ordner ist die Grenze, hinter der diese Tests
-arbeiten.
+staging: von 90 schreibmarkierten Tests kamen 9 durch und 81 nicht -- 72 enden
+hier in der Ordner-Fixture an ``HTTP 403 DAOToolPermissionException``, die
+uebrigen 9 sind die schreibenden Beispiele. Material und Sammlungen darf
+dasselbe Konto anlegen, Ordner nicht; die neun Gruenen sind genau die, die sich
+eine Wegwerf-Sammlung bauen. Der Wegwerf-Ordner ist die Grenze, hinter der
+diese Tests arbeiten.
 
 **Sicherheitsregeln dieser Datei**, weil ein Schreibtest im falschen Ordner
 fremde Bestaende beschaedigt:

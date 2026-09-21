@@ -1720,8 +1720,12 @@ Write tests (`-m write`) need credentials and operate exclusively inside a
 throwaway folder they create themselves. Credentials alone are not enough: the
 account also needs the `TOOLPERMISSION_CREATE_ELEMENTS_FOLDERS` toolpermission.
 Measured 2026-09-21 against staging with an account that may create material
-but not folders, all 69 of them ended in the fixture with `HTTP 403
-DAOToolPermissionException` — before anything was written.
+and collections but not folders: of 90 write-marked tests, **9 pass and 81 do
+not** — 72 end in the folder fixture with `HTTP 403
+DAOToolPermissionException` before anything is written, and 9 are the writing
+examples, which fail the same way in their own process. The nine that pass are
+the ones that build a throwaway **collection** instead of a folder, so what the
+toolpermission costs is everything that needs a folder, and nothing else.
 
 The suites against the three neighbouring services skip themselves silently
 without their own variables — `B_API_KEY` **and** `B_API_BASE_URL` for the LLM
@@ -1751,7 +1755,12 @@ To publish the next tagged version:
    date and remove the pending notice only when the release checks pass.
 5. **Green before the tag.** `ruff check .`, `mypy`, `pytest -q`, and the
    live suites against staging — `-m live` and `-m write`. A release is the
-   one moment the live proofs are not optional.
+   one moment the live proofs are not optional. Where the instance withholds
+   one, say so in the changelog entry: which proofs were given, which were
+   not, and why. `-m write` has needed a toolpermission this account does not
+   have since 2026-09-21, so the step as first written could not be met at
+   all — and a step nobody can meet is quietly skipped instead of recorded,
+   which leaves no way to tell afterwards whether it was.
 6. **Commit, then an annotated tag** using the number from step 1:
    `git tag -a v<number> -m "<number>"`, then `git push --follow-tags`. The
    worked example that used to stand here named 0.3.0 and was still naming it

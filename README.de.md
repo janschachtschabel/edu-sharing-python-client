@@ -1754,9 +1754,13 @@ Schreibtests (`-m write`) brauchen Zugangsdaten und arbeiten ausschließlich in
 einem Wegwerf-Ordner, den sie selbst anlegen. Zugangsdaten allein genügen
 nicht: das Konto braucht zusätzlich die Toolpermission
 `TOOLPERMISSION_CREATE_ELEMENTS_FOLDERS`. Gemessen am 21.09.2026 gegen die
-Staging mit einem Konto, das Material anlegen darf und Ordner nicht, endeten
-alle 69 in der Fixture an `HTTP 403 DAOToolPermissionException` — bevor
-irgendetwas geschrieben wurde.
+Staging mit einem Konto, das Material und Sammlungen anlegen darf und Ordner
+nicht: von 90 schreibmarkierten Tests sind **9 grün und 81 nicht** — 72 enden
+in der Ordner-Fixture an `HTTP 403 DAOToolPermissionException`, bevor
+irgendetwas geschrieben wird, und 9 sind die schreibenden Beispiele, die im
+eigenen Prozess genauso scheitern. Die neun Grünen bauen sich eine
+Wegwerf-**Sammlung** statt eines Ordners; die Toolpermission kostet also alles,
+was einen Ordner braucht, und sonst nichts.
 
 Die Suiten gegen die drei Nachbardienste überspringen sich still ohne ihre
 eigenen Variablen — `B_API_KEY` **und** `B_API_BASE_URL` für das LLM-Gateway
@@ -1789,7 +1793,13 @@ So entsteht die nächste Version mit Release-Tag:
 5. **Grün vor dem Tag.** `ruff check .`, `mypy`, `pytest -q`, und die
    Live-Suiten gegen die Staging — `-m live` und `-m write`. Eine
    Veröffentlichung ist der eine Moment, in dem die Live-Beweise nicht
-   optional sind.
+   optional sind. Verweigert die Instanz einen davon, sagt es der
+   Changelog-Eintrag: welche Beweise vorliegen, welche nicht und warum.
+   `-m write` braucht seit dem 21.09.2026 eine Toolpermission, die diesem
+   Konto fehlt — der Schritt war in seiner ersten Fassung also gar nicht
+   erfüllbar, und ein Schritt, den niemand erfüllen kann, wird still
+   übergangen statt festgehalten; hinterher ist dann nicht mehr zu erkennen,
+   ob er es wurde.
 6. **Committen, dann ein annotierter Tag** mit der Nummer aus Schritt 1:
    `git tag -a v<Nummer> -m "<Nummer>"`, danach `git push --follow-tags`. Das
    ausgeschriebene Beispiel, das hier stand, nannte 0.3.0 -- und nannte es vier
