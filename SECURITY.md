@@ -54,7 +54,7 @@ support branch, no backporting. Tags exist and are snapshots -- a fix lands on
 
 | Version | Supported |
 |---|---|
-| `main` (0.3.4) | ✅ |
+| `main` (0.3.5) | ✅ |
 | Every tag before that | ❌ |
 
 The number above moves with every release, and a test holds it against

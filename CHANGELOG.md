@@ -19,6 +19,21 @@ and in [`docs/audits/`](docs/audits/).
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.3.5] — 2026-09-21
+
+**What was proven, and what was not.** `ruff check .` clean, `mypy` clean over
+77 files, `pytest -q` 2 764 passed and 12 skipped; the read-only live suite
+against staging 108 passed and 7 skipped; the b-api live suite 23 passed with
+nothing skipped. `-m write` was **not** green and could not be: the staging
+account has lacked `TOOLPERMISSION_CREATE_ELEMENTS_FOLDERS` since 2026-09-21,
+so 81 of 90 write-marked tests never reach a request. The nine that do -- the
+ones that build a throwaway collection rather than a folder -- passed, and the
+run's own cleanup check found nothing left behind. Every source change in this
+release is under `bapi/`; the edu-sharing writing path is untouched, which is
+why this release goes out with that proof named rather than waited for.
+
 ### Fixed
 
 - A request that no candidate can take is the caller's error again, not the
@@ -1657,7 +1672,8 @@ services; 1095 offline tests and 94 live ones against edu-sharing 11.0.
   500 for one address, or when a node's content is refused; both are reported
   per row.
 
-[Unreleased]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.3.4...HEAD
+[Unreleased]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.3.5...HEAD
+[0.3.5]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/janschachtschabel/edu-sharing-python-client/compare/v0.3.1...v0.3.2

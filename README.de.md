@@ -386,14 +386,14 @@ uv pip install --upgrade "git+https://github.com/openeduhub/edu-sharing-python-c
 
 ### Eine bestimmte Version installieren
 
-`v0.3.4` ist der aktuelle Tag, `@v0.3.2` nagelt ihn fest:
+Der aktuelle Tag ist `v0.3.5`:
 
 ```bash
-python -m pip install "git+https://github.com/openeduhub/edu-sharing-python-client@v0.3.4"
+python -m pip install "git+https://github.com/openeduhub/edu-sharing-python-client@v0.3.5"
 ```
 
 `@main` oben folgt dem, was seither dazugekommen ist. Die früheren Tags
-`v0.0.1`, `v0.1.0`, `v0.2.0`, `v0.3.1`, `v0.3.2` und `v0.3.3` liegen hier wie im
+`v0.0.1`, `v0.1.0`, `v0.2.0`, `v0.3.1`, `v0.3.2`, `v0.3.3` und `v0.3.4` liegen hier wie im
 Entwicklungsrepositorium unter [*Autor*](#autor), das denselben `main` und die
 ganze Geschichte trägt; wie ein Tag hierherkommt, sagt der Release-Ablauf am
 Ende dieser Datei.
