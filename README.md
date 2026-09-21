@@ -1738,7 +1738,10 @@ To publish the next tagged version:
    Anything marked BREAKING in the changelog is one.
 2. **`pyproject.toml`** — set `version`, and the `__version__` line in both
    REFERENCE files with it. 0.1.0 did this and the list did not say so; a
-   test now fails until the three agree.
+   test now fails until the three agree. Three further places carry the same
+   number, each with its own guard: the `@v…` install commands in both
+   READMEs, and the supported line in `SECURITY.md` -- nobody should read
+   there that the version they were just told to install is unsupported.
 3. **`uv lock`** — the lock records the project's own version and drifts
    otherwise; CI's `--locked` then fails on the next push, which is the
    point.
@@ -1749,9 +1752,10 @@ To publish the next tagged version:
 5. **Green before the tag.** `ruff check .`, `mypy`, `pytest -q`, and the
    live suites against staging — `-m live` and `-m write`. A release is the
    one moment the live proofs are not optional.
-6. **Commit, then an annotated tag** using the number from step 1. For the
-   pending 0.3.0 release, after the checks above:
-   `git tag -a v0.3.0 -m "0.3.0"`, then `git push --follow-tags`.
+6. **Commit, then an annotated tag** using the number from step 1:
+   `git tag -a v<number> -m "<number>"`, then `git push --follow-tags`. The
+   worked example that used to stand here named 0.3.0 and was still naming it
+   four releases later.
 7. **Wait for CI to be green on the tag** before announcing anything.
 
 There is no PyPI publication yet; installation is from the repository.

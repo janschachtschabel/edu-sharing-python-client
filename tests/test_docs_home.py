@@ -38,6 +38,9 @@ _BESITZER = re.compile(r"github\.com/([A-Za-z0-9_.-]+)/edu-sharing-python-client
 _MIT_TAG = re.compile(
     rf"github\.com/{HEIMAT}/edu-sharing-python-client@v([0-9][0-9A-Za-z.\-]*)")
 
+#: Eine dreiteilige Versionsnummer irgendwo in einer Zeile.
+_DREITEILIG = re.compile(r"\b([0-9]+\.[0-9]+\.[0-9]+)\b")
+
 
 def _version() -> str:
     """Die Version, die das Projekt gerade traegt -- aus ``pyproject.toml``.
@@ -125,6 +128,30 @@ def test_keine_readme_verspricht_einen_tag_den_die_heimat_nicht_hat():
         f"ein Tag, der nicht {version} ist:\n" + "\n".join(falsch))
 
 
+def test_die_gestuetzte_fassung_ist_die_laufende():
+    """Wer installiert, was die README nennt, muss sich in SECURITY.md finden.
+
+    Das Audit fand ``0.1.x`` als gestuetzte Linie, waehrend das Projekt 0.3.0
+    trug -- "die Fassung, zu deren Installation man auffordert, steht nicht in
+    ihrer eigenen Stuetzungstabelle" (DOC-20-2). Am 21.09.2026 stand dort
+    ``0.3.0`` bei Version 0.3.4: derselbe Verfall, einen Schritt weiter.
+
+    Das ist dieselbe Falle wie der ueberlebende ``@v…``-Tag eine Wache weiter
+    oben. Die Zahl sieht richtig aus, niemand rechnet sie nach, und wer eine
+    Luecke meldet, liest eine Tabelle, die ihm sagt, seine Fassung werde nicht
+    gestuetzt -- obwohl sie die einzige ist, die es gibt.
+    """
+    version = _version()
+    gestuetzt = [f"{nummer}: {zeile.strip()}"
+                 for nummer, zeile in _zeilen("SECURITY.md") if "\u2705" in zeile]
+    assert gestuetzt, "SECURITY.md nennt keine gestuetzte Fassung mehr"
+    genannt = {treffer for zeile in gestuetzt
+               for treffer in _DREITEILIG.findall(zeile)}
+    assert genannt == {version}, (
+        f"gestuetzt genannt: {sorted(genannt) or 'gar keine Version'}, "
+        f"laufend ist {version}\n  " + "\n  ".join(gestuetzt))
+
+
 def test_die_wache_erkennt_den_rueckfall():
     """Gegenprobe: das falsche Repositorium bleibt falsch, und ein Tag aus
     einer frueheren Version wird als solcher erkannt."""
@@ -137,3 +164,8 @@ def test_die_wache_erkennt_den_rueckfall():
         'uv pip install "git+https://github.com/openeduhub/'
         'edu-sharing-python-client@v0.2.0"')
     assert veraltet and veraltet.group(1) == "0.2.0" != _version()
+
+    # Und die Stuetzungstabelle: eine Zeile ohne Zahl ist so falsch wie eine
+    # mit der falschen -- sonst genuegte es, die Zahl wegzulassen.
+    assert _DREITEILIG.findall("| `main` (0.3.0) | \u2705 |") == ["0.3.0"]
+    assert _DREITEILIG.findall("| `main` | \u2705 |") == []

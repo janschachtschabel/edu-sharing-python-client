@@ -1774,6 +1774,10 @@ So entsteht die nächste Version mit Release-Tag:
 2. **`pyproject.toml`** — `version` setzen, und die `__version__`-Zeile in
    beiden REFERENCE-Fassungen mit. 0.1.0 hat das getan und die Liste hat es
    nicht gesagt; ein Test schlägt jetzt fehl, bis alle drei übereinstimmen.
+   Dieselbe Nummer steht an drei weiteren Stellen, jede mit eigener Wache: die
+   `@v…`-Installationsbefehle in beiden READMEs und die gestützte Zeile in
+   `SECURITY.md` -- niemand soll dort lesen, die Fassung, zu deren Installation
+   man ihn gerade aufgefordert hat, werde nicht gestützt.
 3. **`uv lock`** — der Lock hält die eigene Version des Projekts fest und
    driftet sonst; `--locked` in der CI schlägt dann beim nächsten Push an,
    und genau dafür ist es da.
@@ -1786,9 +1790,10 @@ So entsteht die nächste Version mit Release-Tag:
    Live-Suiten gegen die Staging — `-m live` und `-m write`. Eine
    Veröffentlichung ist der eine Moment, in dem die Live-Beweise nicht
    optional sind.
-6. **Committen, dann ein annotierter Tag** mit der Nummer aus Schritt 1.
-   Für die vorgemerkte Version 0.3.0 nach den Prüfungen oben:
-   `git tag -a v0.3.0 -m "0.3.0"`, danach `git push --follow-tags`.
+6. **Committen, dann ein annotierter Tag** mit der Nummer aus Schritt 1:
+   `git tag -a v<Nummer> -m "<Nummer>"`, danach `git push --follow-tags`. Das
+   ausgeschriebene Beispiel, das hier stand, nannte 0.3.0 -- und nannte es vier
+   Veröffentlichungen später immer noch.
 7. **Auf grüne CI am Tag warten**, bevor irgendwo etwas angekündigt wird.
 
 Eine Veröffentlichung auf PyPI gibt es noch nicht; installiert wird aus dem

@@ -48,15 +48,20 @@ library.
 
 ## Versions
 
-`main` is the one that gets fixes, and there is no tagged release beside it
-yet. This is pre-1.0 software: no long-term support branch, no backporting.
+`main` is the one that gets fixes. This is pre-1.0 software: no long-term
+support branch, no backporting. Tags exist and are snapshots -- a fix lands on
+`main` and in the tag after it, never in one already cut.
 
 | Version | Supported |
 |---|---|
-| `main` (0.3.0) | ✅ |
-| 0.2.x and older | ❌ |
+| `main` (0.3.4) | ✅ |
+| Every tag before that | ❌ |
+
+The number above moves with every release, and a test holds it against
+`pyproject.toml`: a table telling you that the version you were told to
+install is unsupported is worse than no table.
 
 The development repository
 [`janschachtschabel/edu-sharing-python-client`](https://github.com/janschachtschabel/edu-sharing-python-client)
-carries the same `main` and the older tags. A report about either belongs in
-the advisory above.
+carries the same `main`, and in addition the tags from before this one became
+the published home. A report about either belongs in the advisory above.
